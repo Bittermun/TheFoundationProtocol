@@ -10,7 +10,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from tfp_client.lib.ndn.ndn_real import RealNDNAdapter
-from tfp_client.lib.fountain.fountain_real import RealRaptorQAdapter
+from tfp_client.lib.fountain.fountain_real import RealRaptorQAdapter, IntegrityError
 from tfp_client.lib.zkp.zkp_real import RealZKPAdapter
 from tfp_broadcaster.src.multicast.multicast_real import RealMulticastAdapter
 from tfp_client.lib.lexicon.adapter import LexiconAdapter
@@ -158,15 +158,22 @@ class TestEndToEndRealAdapters:
         )
 
     def test_request_content_returns_content(self):
+        self.client.submit_compute_task("task_for_content_request")
         content = self.client.request_content("abc123deadbeef")
         assert content is not None
         assert isinstance(content.data, bytes)
         assert len(content.data) > 0
 
     def test_request_content_deducts_credits(self):
-        initial_balance = self.ledger.balance
+        # First earn credits via a compute task, then spend one on a request
+        before_earn = self.ledger.balance
+        self.client.submit_compute_task("recipe_for_spend_test")
+        after_earn = self.ledger.balance
+        assert after_earn == before_earn + 10
+
+        before_spend = self.ledger.balance
         self.client.request_content("hash_xyz")
-        assert self.ledger.balance == initial_balance + 1  # mint(1) for request
+        assert self.ledger.balance == before_spend - 1  # spent 1 credit
 
     def test_prove_access_returns_64_bytes(self):
         proof = self.client.prove_access("hash_abc", b"my_private_key")
@@ -179,6 +186,9 @@ class TestEndToEndRealAdapters:
         assert self.ledger.verify_spend(receipt) is True
 
     def test_full_pipeline_hash_integrity(self):
+        # Earn 2 credits (need to spend one per request)
+        self.client.submit_compute_task("task_for_hash_integrity_1")
+        self.client.submit_compute_task("task_for_hash_integrity_2")
         # Test that reconstructed content hash is deterministic
         content1 = self.client.request_content("same_hash")
         content2 = self.client.request_content("same_hash")
@@ -192,3 +202,56 @@ class TestEndToEndRealAdapters:
         assert len(result["root_hash"]) == 64
         assert result["shard_count"] > 1
         mc.close()
+
+
+# ── Per-shard HMAC tests ──────────────────────────────────────────────────────
+
+class TestPerShardHMAC:
+    def setup_method(self):
+        self.fq = RealRaptorQAdapter()
+        self.key = os.urandom(32)
+
+    def test_encode_decode_with_hmac_key(self):
+        data = b"HMAC-protected content for TFP v2.3"
+        shards = self.fq.encode(data, hmac_key=self.key)
+        recovered = self.fq.decode(shards, hmac_key=self.key)
+        assert recovered == data
+
+    def test_encode_decode_large_with_hmac(self):
+        data = os.urandom(2048)
+        shards = self.fq.encode(data, redundancy=0.1, hmac_key=self.key)
+        recovered = self.fq.decode(shards, hmac_key=self.key)
+        assert recovered == data
+
+    def test_hmac_shards_longer_than_plain(self):
+        data = b"X" * 256
+        plain = self.fq.encode(data)
+        protected = self.fq.encode(data, hmac_key=self.key)
+        # Each protected shard is 32 bytes longer (HMAC appended)
+        assert len(protected[0]) == len(plain[0]) + 32
+
+    def test_tampered_shard_raises_integrity_error(self):
+        data = b"important payload"
+        shards = self.fq.encode(data, hmac_key=self.key)
+        # Flip a byte in the payload area of the first shard (after the 16-byte header)
+        import struct
+        header_size = struct.calcsize(">QII")  # 16 bytes: orig_len(8) + k(4) + idx(4)
+        bad = bytearray(shards[0])
+        bad[header_size] ^= 0xFF  # corrupt first payload byte
+        shards[0] = bytes(bad)
+        with pytest.raises(IntegrityError):
+            self.fq.decode(shards, hmac_key=self.key)
+
+    def test_wrong_key_raises_integrity_error(self):
+        data = b"secret payload"
+        shards = self.fq.encode(data, hmac_key=self.key)
+        wrong_key = os.urandom(32)
+        with pytest.raises(IntegrityError):
+            self.fq.decode(shards, hmac_key=wrong_key)
+
+    def test_no_key_roundtrip_unchanged(self):
+        """Without hmac_key, behaviour is identical to previous version."""
+        data = b"plain data no hmac"
+        shards = self.fq.encode(data)
+        recovered = self.fq.decode(shards)
+        assert recovered == data
