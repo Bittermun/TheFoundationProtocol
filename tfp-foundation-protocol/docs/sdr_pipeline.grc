@@ -1,0 +1,114 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!--
+  TFP v2.2 SDR Pipeline — GNU Radio Companion (GRC) placeholder
+  Target: ATSC 3.0 / PIB gap reception for TFP shard ingestion
+  SDR hardware: PlutoSDR (ADALM-PLUTO), RTL-SDR v3, or USRP B205mini
+  GNU Radio version: 3.10+
+
+  Build / install:
+    sudo apt install gnuradio gr-osmosdr libiio-dev libad9361-dev
+    git clone https://github.com/argilo/gr-atsc3.git
+    cmake -B gr-atsc3/build gr-atsc3 && cmake --build gr-atsc3/build
+    sudo cmake --install gr-atsc3/build
+    gnuradio-companion tfp_sdr_pipeline.grc
+
+  Pipeline overview:
+    [SDR Source] → [Low-pass filter] → [ATSC3 Demod] → [PIB Parser]
+                                                              ↓
+    [Shard Extractor] → [RaptorQ Decoder stub] → [TFP Ingestion socket]
+
+  libiio quick test (PlutoSDR @ 629 MHz):
+    iio_attr -u ip:pluto.local -c ad9361-phy RX_LO_FREQ 629000000
+    iio_readdev -u ip:pluto.local -b 65536 cf-ad9361-lpc | \
+        python3 atsc3_demod.py --output shards/
+
+  To replace this placeholder with a real flow:
+    1. Open in GNU Radio Companion (gnuradio-companion)
+    2. Add 'osmocom Source' or 'IIO PlutoSDR Source' block
+    3. Connect to 'Low Pass Filter' → 'ATSC3 Receiver' (gr-atsc3)
+    4. Wire 'ATSC3 Receiver' output to 'UDP Sink' on 127.0.0.1:5100
+    5. Run tfp_client with NDN adapter pointed at that UDP port
+-->
+<flow_graph>
+  <metadata>
+    <key>title</key><value>TFP v2.2 SDR Ingestion Pipeline</value>
+    <key>author</key><value>TFP Foundation Protocol</value>
+    <key>description</key><value>ATSC 3.0 PIB gap shard reception for TFP — placeholder. Replace osmocom/IIO source block with your SDR hardware.</value>
+    <key>gr_version</key><value>3.10</value>
+  </metadata>
+
+  <!-- ── Source block (PlutoSDR / RTL-SDR / USRP) ── -->
+  <block>
+    <key>osmosdr_source</key>
+    <param><key>id</key><value>sdr_source</value></param>
+    <param><key>label</key><value>SDR Source\n(PlutoSDR / RTL-SDR)</value></param>
+    <param><key>sample_rate</key><value>6.912e6</value></param>
+    <param><key>center_freq</key><value>629e6</value></param>  <!-- ATSC 3.0 ch 38 -->
+    <param><key>gain</key><value>30</value></param>
+    <param><key>comment</key><value>Replace with IIO PlutoSDR Source for ADALM-PLUTO</value></param>
+  </block>
+
+  <!-- ── Low-pass filter (6 MHz BW for ATSC 3.0 channel) ── -->
+  <block>
+    <key>low_pass_filter</key>
+    <param><key>id</key><value>lpf</value></param>
+    <param><key>label</key><value>LPF\n6 MHz</value></param>
+    <param><key>gain</key><value>1</value></param>
+    <param><key>sample_rate</key><value>6.912e6</value></param>
+    <param><key>cutoff_freq</key><value>3e6</value></param>
+    <param><key>transition_width</key><value>200e3</value></param>
+    <param><key>window</key><value>HAMMING</value></param>
+  </block>
+
+  <!-- ── ATSC 3.0 Demodulator (gr-atsc3) ── -->
+  <block>
+    <key>atsc3_receiver</key>
+    <param><key>id</key><value>atsc3_demod</value></param>
+    <param><key>label</key><value>ATSC 3.0\nDemodulator</value></param>
+    <param><key>comment</key><value>From gr-atsc3 (github.com/argilo/gr-atsc3). Outputs MPEG-TS / LCT packets.</value></param>
+  </block>
+
+  <!-- ── PIB Parser + Shard Extractor ── -->
+  <block>
+    <key>python_block</key>
+    <param><key>id</key><value>pib_shard_extractor</value></param>
+    <param><key>label</key><value>PIB Parser\n+ Shard Extractor</value></param>
+    <param><key>code</key><value>
+# Extracts TFP shards embedded in ATSC 3.0 PIB gap slots.
+# Each shard begins with magic bytes: b'\xTF\xP2'
+TFP_MAGIC = b'\xTF\xP2'
+import struct
+
+def work(input_items, output_items):
+    data = bytes(input_items[0])
+    idx = data.find(TFP_MAGIC)
+    if idx >= 0:
+        shard_len = struct.unpack_from('>H', data, idx + 2)[0]
+        shard = data[idx + 4 : idx + 4 + shard_len]
+        output_items[0][:len(shard)] = list(shard)
+        return len(shard)
+    return 0
+    </value></param>
+  </block>
+
+  <!-- ── UDP Sink → TFP Ingestion socket ── -->
+  <block>
+    <key>udp_sink</key>
+    <param><key>id</key><value>tfp_ingestion_sink</value></param>
+    <param><key>label</key><value>UDP Sink\n127.0.0.1:5100</value></param>
+    <param><key>host</key><value>127.0.0.1</value></param>
+    <param><key>port</key><value>5100</value></param>
+    <param><key>payload_size</key><value>1472</value></param>
+    <param><key>comment</key><value>TFP NDN adapter listens on UDP:5100 for incoming shards</value></param>
+  </block>
+
+  <!-- ── Signal path connections ── -->
+  <connection><source_block_id>sdr_source</source_block_id>      <source_key>0</source_key>
+              <sink_block_id>lpf</sink_block_id>                  <sink_key>0</sink_key></connection>
+  <connection><source_block_id>lpf</source_block_id>             <source_key>0</source_key>
+              <sink_block_id>atsc3_demod</sink_block_id>          <sink_key>0</sink_key></connection>
+  <connection><source_block_id>atsc3_demod</source_block_id>     <source_key>0</source_key>
+              <sink_block_id>pib_shard_extractor</sink_block_id>  <sink_key>0</sink_key></connection>
+  <connection><source_block_id>pib_shard_extractor</source_block_id> <source_key>0</source_key>
+              <sink_block_id>tfp_ingestion_sink</sink_block_id>   <sink_key>0</sink_key></connection>
+</flow_graph>

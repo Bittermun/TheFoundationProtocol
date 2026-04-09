@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tfp"
+version = "2.2.0"
+requires-python = ">=3.11"
+dependencies = ["fastapi", "uvicorn", "pytest", "httpx"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
