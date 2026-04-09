@@ -332,3 +332,116 @@ Metric: Archive stability (high-popularity hashes remain cached) ≥ 95 %.
 
 All three tests can be dropped into the existing tfp-simulator/ folder and run with:
 Bashns3 run tfp-hardening-scenarios.cc -- --features=hardened,puft,ldm
+
+more outside tool stuff:
+
+NDN Stack (Core Routing & Overlay)
+
+named-data/ndn-cxx + named-data/ndnd (Golang daemon) + python-ndn
+Official Named Data Networking organization.
+Why it helps: Full production client libraries + daemon. ndnd is lightweight and perfect for broadcaster/gateway.
+Key endpoints / usage:Python# python-ndn example
+from ndn.app import NDNApp
+app = NDNApp()
+data = await app.express_interest('/tfp/content/' + root_hash)
+# or register prefix for local mesh serving
+app.route('/tfp/meta/tags', on_interest_handler)
+GitHub: https://github.com/named-data (ndn-cxx, ndnd, python-ndn, jndn, NDNts for web)
+
+Mini-NDN / ndnSIM for simulation: Perfect for the ns-3 test cases we already defined.
+
+2. RaptorQ / Fountain Codes (Fastest & Smallest)
+
+sleepybishop/nanorq (C, multi-gigabit on single core, tiny footprint) — best for Cortex-M4 / mobile.
+LucaFulchir/libRaptorQ (C++11, RFC6330 compliant).
+librecast/lcrq (pure C, very portable).Recommended: Start with nanorq for client, libRaptorQ for broadcaster.
+Endpoints (nanorq example):C// Encoder
+nanorq_encoder_t* enc = nanorq_encoder_new(data, k, overhead);
+uint8_t* shard = nanorq_encode(enc, esi);
+// Decoder
+nanorq_decoder_t* dec = nanorq_decoder_new(k, overhead);
+nanorq_decode(dec, shard, esi);
+
+3. Mobile ZKP (Biggest Time Saver)
+
+zkmopro/mopro — The clear winner in 2026 for mobile ZKP.
+Cross-platform (iOS Swift, Android Kotlin, React Native, Flutter) with CLI scaffolding. Supports Circom, Halo2, Noir. Excellent performance on phones.
+GitHub: https://github.com/zkmopro/mopro
+Site: https://zkmopro.org
+Key integration:Bashmopro-cli new --platform flutter --prover halo2
+# Then generate proofs
+proof = await mopro.generateProof(circuit, witness);  // Dart/TS
+EZKL iOS Package as fallback for ML-focused circuits (Halo2).
+
+4. ATSC 3.0 / Broadcast Integration
+
+jensk-dk/libatsc3_2 (and ngbp.org tools) — The most complete open-source ATSC 3.0 library for signaling, ROUTE/MMT, NRT data, and multicast.
+GitHub: https://github.com/jensk-dk/libatsc3_2Usage:C// Parse incoming ATSC 3.0 LMT / LLS signaling
+atsc3_route_session_t* session = atsc3_route_process_packet(packet);
+// Extract RaptorQ shards from NRT objects
+
+5. On-Device AI / Hierarchical Lexicon Deltas (Perfect for HLT)
+
+ONNX Runtime Mobile + PyTorch Mobile / ExecuTorch (2026 versions with strong LoRA/INT4 delta support).
+Hugging Face Transformers + PEFT (LoRA/QLoRA) for generating and applying lexicon deltas.These make the Hierarchical Lexicon Tree (HLT) trivial: ship base model once, then broadcast tiny INT4 LoRA deltas via RaptorQ.
+
+6. PUF + Hardware-Bound Identity (Great Add-on)
+
+stnolting/fpga_puf (technology-agnostic FPGA PUF) as reference.
+For mobile: Combine with Android/iOS Secure Element / StrongBox + RF fingerprinting via existing radio APIs (no dedicated open repo dominates, but easy to implement I/Q SVD in <200 LOC using numpy/scipy on-device or tiny C lib).
+
+7. Mesh / Asymmetric Uplink & Volunteer Compute Add-ons
+
+Meshtastic (LoRa mesh) or go-zerotier / Tailscale for local mesh shard sharing.
+BOINC or Petals (decentralized inference) for the compute client side — already planned, but their client SDKs accelerate the idle executor.
+
+Recommended Final Tech Stack Decision (TFP v2.2)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+LayerChosen Library (2026)ReasonLOC SavedNDNndn-cxx + ndnd + python-ndnOfficial, mature~2,000+Fountainnanorq (client) + libRaptorQFastest/smallest~800ZKPmoproBest mobile DX & cross-platform~1,500Broadcastlibatsc3_2Full ATSC 3.0 support~1,000On-device AIONNX Runtime + PEFT LoRANative delta support~700PUF/IdentityCustom + Secure ElementHardware binding~300
+This stack brings the total custom glue code under 4–5k LOC while making everything more robust and faster to ship.
