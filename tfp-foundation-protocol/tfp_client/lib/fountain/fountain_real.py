@@ -7,6 +7,7 @@ Interface matches RaptorQAdapter exactly.
 """
 from __future__ import annotations
 import hashlib
+import hmac as _hmac
 import os
 import struct
 from typing import List, Optional, Tuple
@@ -16,6 +17,11 @@ log = logging.getLogger(__name__)
 
 _SHARD_SIZE = 128  # bytes per shard
 _MAX_OVERHEAD = 0.5  # max redundancy fraction
+_HMAC_SIZE = 32  # HMAC-SHA3-256 digest length
+
+
+class IntegrityError(Exception):
+    """Raised when a per-shard HMAC verification fails."""
 
 
 def _pad(data: bytes, shard_size: int) -> bytes:
@@ -52,17 +58,27 @@ def _gf2_rref(matrix: List[List[int]], ncols: int) -> Tuple[List[List[int]], Lis
     return m, pivot_cols
 
 
+def _shard_hmac(key: bytes, payload: bytes) -> bytes:
+    """Return HMAC-SHA3-256(key, payload)."""
+    return _hmac.new(key, payload, hashlib.sha3_256).digest()
+
+
 class RealRaptorQAdapter:
     """
     Real systematic erasure code adapter.
     encode: splits data into k source shards, generates redundancy shards via XOR combos.
     decode: recovers original from any k of the received shards using Gaussian elimination.
+
+    Per-shard HMAC integrity:
+        When ``hmac_key`` is provided to encode/decode, each shard has a 32-byte
+        HMAC-SHA3-256(key, header+payload) appended.  decode raises IntegrityError
+        on any mismatch.
     """
 
     def __init__(self, shard_size: int = _SHARD_SIZE):
         self.shard_size = shard_size
 
-    def encode(self, data: bytes, redundancy: float = 0.05) -> List[bytes]:
+    def encode(self, data: bytes, redundancy: float = 0.05, hmac_key: bytes = None) -> List[bytes]:
         if not data:
             raise ValueError("Cannot encode empty data")
         redundancy = min(max(redundancy, 0.0), _MAX_OVERHEAD)
@@ -90,17 +106,30 @@ class RealRaptorQAdapter:
         orig_len = len(data)
         for idx, shard in enumerate(all_shards):
             header = struct.pack(">QII", orig_len, k, idx)
-            result.append(header + shard)
+            frame = header + shard
+            if hmac_key is not None:
+                frame = frame + _shard_hmac(hmac_key, frame)
+            result.append(frame)
         return result
 
-    def decode(self, shards: List[bytes], k: int = None) -> bytes:
+    def decode(self, shards: List[bytes], k: int = None, hmac_key: bytes = None) -> bytes:
         if not shards:
             raise ValueError("No shards to decode")
-        # Parse headers
+        # Parse headers, optionally verify HMAC
         parsed = []
         orig_len = None
         src_k = None
         for shard in shards:
+            if hmac_key is not None:
+                # Shard = header(16) + payload(shard_size) + hmac(32)
+                if len(shard) < 16 + _HMAC_SIZE:
+                    log.warning("Shard too short for HMAC verification (%d bytes); skipping", len(shard))
+                    continue
+                frame, received_mac = shard[:-_HMAC_SIZE], shard[-_HMAC_SIZE:]
+                expected_mac = _shard_hmac(hmac_key, frame)
+                if not _hmac.compare_digest(received_mac, expected_mac):
+                    raise IntegrityError("per-shard HMAC verification failed")
+                shard = frame  # strip MAC for further processing
             if len(shard) < 16:
                 continue
             o_len, sk, idx = struct.unpack(">QII", shard[:16])

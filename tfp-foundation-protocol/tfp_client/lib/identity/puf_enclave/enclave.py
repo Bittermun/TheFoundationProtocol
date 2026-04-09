@@ -25,6 +25,11 @@ class PUFEnclave:
             threshold_sig=threshold_sig,
         )
 
+    @property
+    def seed(self) -> bytes:
+        """The device seed (used for enrollment verification)."""
+        return self._seed
+
     def sign_posi_proof(self, proof: bytes) -> bytes:
         nonce = os.urandom(16)
         sig = hmac.new(self._seed, proof + nonce, hashlib.sha3_256).digest()
