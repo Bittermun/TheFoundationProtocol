@@ -17,7 +17,7 @@ class PUFEnclave:
 
     def get_identity(self) -> PUFIdentity:
         puf_entropy = hashlib.sha3_256(self._seed + b"puf").digest()      # 32 bytes
-        rf_fingerprint = hashlib.md5(self._seed + b"rf").digest()          # 16 bytes
+        rf_fingerprint = hashlib.sha3_256(self._seed + b"rf").digest()[:16]  # 16 bytes
         threshold_sig = hashlib.sha3_512(self._seed + b"threshold").digest()  # 64 bytes
         return PUFIdentity(
             puf_entropy=puf_entropy,
