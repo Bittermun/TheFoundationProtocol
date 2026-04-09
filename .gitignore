@@ -1,9 +1,43 @@
+```
+# Python compiled files
 __pycache__/
-*.py[cod]
+*.pyc
 *.pyo
+*.pyd
+
+# Database files
+*.db
+
+# Logs
+*.log
+
+# Environment files
+.env
+.env.local
+.env.*
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
+
+# Coverage reports
+coverage/
+htmlcov/
+.coverage
+
+# Test and cache directories
 .pytest_cache/
-*.egg-info/
+.mypy_cache/
+
+# Build and distribution
 dist/
 build/
-.env
-*.db
+target/
+
+# Virtual environments
+venv/
+.venv/
+```
