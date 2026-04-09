@@ -10,3 +10,4 @@ dependencies = ["fastapi", "uvicorn", "pytest", "httpx"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+asyncio_mode = "auto"
