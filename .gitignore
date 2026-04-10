@@ -1,4 +1,3 @@
-```
 # Compiled and build artifacts
 *.pyc
 __pycache__/
@@ -28,4 +27,3 @@ venv/
 dist/
 build/
 target/
-```

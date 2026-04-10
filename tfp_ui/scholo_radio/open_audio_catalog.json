@@ -1,0 +1,21 @@
+{
+  "version": "0.1.0",
+  "description": "Seed list for open-license Scholo Radio pilot content",
+  "items": [
+    {
+      "title": "Community News Bulletin",
+      "license": "CC BY 4.0",
+      "tags": ["audio", "news", "community"]
+    },
+    {
+      "title": "Public Health Basics",
+      "license": "CC BY-SA 4.0",
+      "tags": ["audio", "health", "education"]
+    },
+    {
+      "title": "Emergency Preparedness Guide",
+      "license": "Public Domain",
+      "tags": ["audio", "emergency", "safety"]
+    }
+  ]
+}

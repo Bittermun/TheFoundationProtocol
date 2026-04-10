@@ -1,0 +1,9 @@
+services:
+  tfp-demo:
+    build:
+      context: ./tfp-foundation-protocol
+      dockerfile: Dockerfile.demo
+    container_name: tfp-demo-node
+    ports:
+      - "8000:8000"
+    restart: unless-stopped

@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Scholo / TFP Live Demo</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 2rem; max-width: 900px; }
+    textarea, input { width: 100%; margin: .4rem 0; padding: .5rem; }
+    button { padding: .5rem .8rem; margin-right: .5rem; }
+    .card { border: 1px solid #ddd; border-radius: 8px; padding: 1rem; margin: 1rem 0; }
+    code { word-break: break-all; }
+  </style>
+</head>
+<body>
+  <h1>Scholo / TFP Live Demo</h1>
+  <p>Publish and retrieve content from a local TFP demo node.</p>
+
+  <div class="card">
+    <h2>1) Earn credits</h2>
+    <button onclick="earn()">Earn 10 credits</button>
+    <pre id="earnOut"></pre>
+  </div>
+
+  <div class="card">
+    <h2>2) Publish content</h2>
+    <input id="title" placeholder="Title" value="Community Bulletin" />
+    <input id="tags" placeholder="Tags (comma separated)" value="demo,community" />
+    <textarea id="text" rows="4">This is a demo post seeded through the TFP demo API.</textarea>
+    <button onclick="publish()">Publish</button>
+    <pre id="publishOut"></pre>
+  </div>
+
+  <div class="card">
+    <h2>3) Retrieve by hash</h2>
+    <input id="hash" placeholder="Paste root hash" />
+    <button onclick="fetchContent()">Get content</button>
+    <pre id="getOut"></pre>
+  </div>
+
+  <div class="card">
+    <h2>Available content</h2>
+    <button onclick="listContent()">Refresh list</button>
+    <pre id="listOut"></pre>
+  </div>
+
+  <script>
+    const DEVICE = "web-demo";
+
+    async function earn() {
+      const res = await fetch("/api/earn", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ device_id: DEVICE, task_id: "demo-task-" + Date.now() })
+      });
+      document.getElementById("earnOut").textContent = JSON.stringify(await res.json(), null, 2);
+    }
+
+    async function publish() {
+      const payload = {
+        title: document.getElementById("title").value,
+        text: document.getElementById("text").value,
+        tags: document.getElementById("tags").value.split(",").map(t => t.trim()).filter(Boolean)
+      };
+      const res = await fetch("/api/publish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      document.getElementById("publishOut").textContent = JSON.stringify(data, null, 2);
+      if (data.root_hash) document.getElementById("hash").value = data.root_hash;
+      listContent();
+    }
+
+    async function fetchContent() {
+      const hash = document.getElementById("hash").value.trim();
+      const res = await fetch(`/api/get/${hash}?device_id=${encodeURIComponent(DEVICE)}`);
+      document.getElementById("getOut").textContent = JSON.stringify(await res.json(), null, 2);
+    }
+
+    async function listContent() {
+      const res = await fetch("/api/content");
+      document.getElementById("listOut").textContent = JSON.stringify(await res.json(), null, 2);
+    }
+
+    listContent();
+  </script>
+</body>
+</html>

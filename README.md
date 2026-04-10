@@ -129,3 +129,36 @@ See [`docs/v2.2-hardening.md`](tfp-foundation-protocol/docs/v2.2-hardening.md) f
 
 See [LICENSE](LICENSE).
 
+## Rapid Adoption Starter (Implemented)
+
+### 1) One-command demo node (Docker Compose)
+
+```bash
+cd /home/runner/work/Scholo/Scholo
+docker compose up --build
+```
+
+Open:
+- `http://localhost:8000/` (web demo)
+- `http://localhost:8000/docs` (API docs)
+
+### 2) CLI (`tfp`)
+
+```bash
+cd /home/runner/work/Scholo/Scholo/tfp-foundation-protocol
+pip install -e .
+tfp earn --task-id demo-task-1
+tfp publish --title "Hello" --text "From CLI" --tags demo,cli
+tfp search
+```
+
+### 3) Browser extension starter
+
+See:
+- `/home/runner/work/Scholo/Scholo/tfp_plugin_sdk/docs/browser_extension_starter/README.md`
+
+### 4) Adoption execution docs
+
+- `/home/runner/work/Scholo/Scholo/docs/VIRAL_ADOPTION_IMPLEMENTATION.md`
+- `/home/runner/work/Scholo/Scholo/docs/integrations_playbook.md`
+- `/home/runner/work/Scholo/Scholo/docs/plugin_tutorial_30_min.md`

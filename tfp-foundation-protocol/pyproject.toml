@@ -8,6 +8,9 @@ version = "2.2.0"
 requires-python = ">=3.11"
 dependencies = ["fastapi", "uvicorn", "pytest", "httpx"]
 
+[project.scripts]
+tfp = "tfp_cli.main:main"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
