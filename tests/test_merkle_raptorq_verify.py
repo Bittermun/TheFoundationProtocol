@@ -39,7 +39,7 @@ class TestMerkleTree(unittest.TestCase):
         
         # Generate proofs for all leaves
         for i in range(len(shard_data)):
-            proof = tree.get_proof(i)
+            proof = tree.get_proof(i, len(shard_data))
             self.assertIsInstance(proof, list)
             self.assertGreater(len(proof), 0)
     
@@ -52,7 +52,7 @@ class TestMerkleTree(unittest.TestCase):
         tree = mrq.register_content(content_hash, shard_data)
         
         for i, data in enumerate(shard_data):
-            proof = tree.get_proof(i)
+            proof = tree.get_proof(i, len(shard_data))
             is_valid = tree.verify_proof(data, i, proof)
             self.assertTrue(is_valid, f"Proof verification failed for leaf {i}")
     
@@ -65,7 +65,7 @@ class TestMerkleTree(unittest.TestCase):
         tree = mrq.register_content(content_hash, shard_data)
         
         # Try to verify with wrong data
-        proof = tree.get_proof(0)
+        proof = tree.get_proof(0, len(shard_data))
         is_valid = tree.verify_proof(b"tampered_data", 0, proof)
         self.assertFalse(is_valid)
         
@@ -94,7 +94,7 @@ class TestMerkleizedRaptorQ(unittest.TestCase):
     def test_verify_shard_valid(self):
         """Test verification of valid shards."""
         shard_id = 1
-        proof = self.tree.get_proof(shard_id)
+        proof = self.tree.get_proof(shard_id, len(shard_data))
         mac = __import__('hashlib').sha3_256(
             f"{self.content_hash}:{shard_id}:".encode() + self.shard_data[shard_id]
         ).digest()
@@ -113,7 +113,7 @@ class TestMerkleizedRaptorQ(unittest.TestCase):
     def test_verify_shard_invalid_mac(self):
         """Test detection of shards with invalid MAC."""
         shard_id = 2
-        proof = self.tree.get_proof(shard_id)
+        proof = self.tree.get_proof(shard_id, len(shard_data))
         bad_mac = b"invalid_mac_bytes_here_12345"
         
         is_valid, error = self.mrq.verify_shard(
@@ -208,7 +208,7 @@ class TestMerkleizedRaptorQ(unittest.TestCase):
         
         # Verify all shards
         for i, data in enumerate(shard_data):
-            proof = tree.get_proof(i)
+            proof = tree.get_proof(i, len(shard_data))
             mac = __import__('hashlib').sha3_256(
                 f"{content_hash}:{i}:".encode() + data
             ).digest()
@@ -270,7 +270,7 @@ class TestTransportIntegration(unittest.TestCase):
         # Simulate receiving and verifying shards from network
         verified_count = 0
         for i, data in enumerate(original_data):
-            proof = tree.get_proof(i)
+            proof = tree.get_proof(i, len(shard_data))
             mac = __import__('hashlib').sha3_256(
                 f"{content_hash}:{i}:".encode() + data
             ).digest()
@@ -312,7 +312,7 @@ class TestTransportIntegration(unittest.TestCase):
         rejected = 0
         
         for shard_id, data, should_pass in test_cases:
-            proof = tree.get_proof(shard_id)
+            proof = tree.get_proof(shard_id, len(shard_data))
             mac = __import__('hashlib').sha3_256(
                 f"{content_hash}:{shard_id}:".encode() + data
             ).digest()
