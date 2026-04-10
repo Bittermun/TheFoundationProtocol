@@ -12,9 +12,9 @@ This folder scaffolds Priority 2 (first killer app): decentralized audio streami
 
 ## Current scaffold assets
 
-- `/home/runner/work/Scholo/Scholo/tfp_ui/scholo_radio/open_audio_catalog.json`
+- `open_audio_catalog.json`
 - Protocol bridge already exists in:
-  - `/home/runner/work/Scholo/Scholo/tfp_ui/core_bridge/protocol_adapter.py`
+  - `../core_bridge/protocol_adapter.py`
 
 ## Build target
 

@@ -2,14 +2,14 @@
 
 ## Core
 
-- Demo Node (FastAPI): `/home/runner/work/Scholo/Scholo/tfp-foundation-protocol/tfp_demo/server.py`
-- CLI (`tfp`): `/home/runner/work/Scholo/Scholo/tfp-foundation-protocol/tfp_cli/main.py`
-- Web Bridge: `/home/runner/work/Scholo/Scholo/tfp_plugin_sdk/adapters/web_bridge.py`
+- Demo Node (FastAPI): `tfp-foundation-protocol/tfp_demo/server.py`
+- CLI (`tfp`): `tfp-foundation-protocol/tfp_cli/main.py`
+- Web Bridge: `tfp_plugin_sdk/adapters/web_bridge.py`
 
 ## Starter integrations
 
-- Browser Extension Starter: `/home/runner/work/Scholo/Scholo/tfp_plugin_sdk/docs/browser_extension_starter`
-- Public Demo Page: `/home/runner/work/Scholo/Scholo/tfp-foundation-protocol/demo/index.html`
+- Browser Extension Starter: `tfp_plugin_sdk/docs/browser_extension_starter`
+- Public Demo Page: `tfp-foundation-protocol/demo/index.html`
 
 ## Community ideas
 

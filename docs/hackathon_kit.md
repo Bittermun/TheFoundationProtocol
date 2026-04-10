@@ -9,9 +9,9 @@
 
 ## Starter assets
 
-- Demo node + web UI: `/home/runner/work/Scholo/Scholo/tfp-foundation-protocol/tfp_demo`
-- Browser extension starter: `/home/runner/work/Scholo/Scholo/tfp_plugin_sdk/docs/browser_extension_starter`
-- CLI workflow: `/home/runner/work/Scholo/Scholo/tfp-foundation-protocol/tfp_cli`
+- Demo node + web UI: `tfp-foundation-protocol/tfp_demo`
+- Browser extension starter: `tfp_plugin_sdk/docs/browser_extension_starter`
+- CLI workflow: `tfp-foundation-protocol/tfp_cli`
 
 ## Submission checklist
 

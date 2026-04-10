@@ -3,7 +3,7 @@
 ## Local (recommended first)
 
 ```bash
-cd /home/runner/work/Scholo/Scholo
+cd Scholo
 docker compose up --build
 ```
 
