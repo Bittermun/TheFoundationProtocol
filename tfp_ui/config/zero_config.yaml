@@ -1,0 +1,86 @@
+# TFP UI Configuration - Zero-Config Defaults
+# This file auto-generates on first launch if missing
+
+app:
+  name: "TFP Community"
+  version: "2.2.0"
+  zero_config: true
+  
+network:
+  auto_join: true
+  broadcast_sources:
+    - type: "atsc3"
+      priority: 1
+      timeout_ms: 2000
+    - type: "fm_rds"
+      priority: 2
+      timeout_ms: 3000
+    - type: "mesh_wifi"
+      priority: 3
+      timeout_ms: 5000
+    - type: "bluetooth_le"
+      priority: 4
+      timeout_ms: 5000
+  wait_before_offline_msg_ms: 300000  # 5 minutes
+
+identity:
+  auto_generate: true
+  method: "puf_tee"  # Falls back to secure enclave if PUF unavailable
+  backup_to_cloud: false  # Never backup; identity is device-bound
+
+privacy:
+  log_analytics: false
+  send_usage_stats: false
+  pii_collection: false
+  metadata_shield: true
+  jitter_enabled: true
+
+ui:
+  language: "auto_detect"  # Detects system language, falls back to English
+  voice_guidance: true
+  icon_first_mode: true
+  large_touch_targets: true  # Min 48x48dp
+  high_contrast: false
+  rtl_support: true
+  show_technical_details: false  # Never show hashes, credits, protocol names
+  
+accessibility:
+  min_font_size: 18
+  screen_reader_support: true
+  vibration_feedback: true
+  audio_cues: true
+
+earn_mode:
+  auto_toggle_on_charge: false  # User must explicitly enable
+  battery_min_percent: 30
+  temperature_max_celsius: 45
+  cpu_max_load_percent: 60
+  show_earnings_as: "thanks"  # Not numeric credits
+
+cache:
+  max_size_mb: 500
+  prewarm_on_launch: true
+  offline_playback: true
+
+content:
+  default_categories:
+    - emergency_alerts
+    - community_news
+    - education
+    - entertainment
+    - local_music
+  safe_search: true  # Filters based on community tags
+  auto_download_popular: true
+
+updates:
+  check_on_wifi_only: true
+  auto_install: false
+  notify_user: true
+
+# Feature flags for gradual rollout
+features:
+  was_sandbox: true
+  behavioral_audit: true
+  pqc_signatures: true
+  chunk_cache: true
+  task_mesh: true

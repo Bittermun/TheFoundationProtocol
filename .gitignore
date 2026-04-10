@@ -1,9 +1,29 @@
+```
+# Dependencies
 __pycache__/
-*.py[cod]
+*.pyc
 *.pyo
+*.pyd
 .pytest_cache/
-*.egg-info/
+.mypy_cache/
+
+# Logs and temp files
+*.log
+*.tmp
+
+# Environment
+.env
+.env.local
+*.env.*
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Build artifacts
 dist/
 build/
-.env
-*.db
+target/
+```
