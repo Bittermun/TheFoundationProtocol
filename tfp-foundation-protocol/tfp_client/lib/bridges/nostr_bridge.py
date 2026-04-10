@@ -119,7 +119,13 @@ def _derive_pubkey_bytes(privkey: bytes) -> bytes:
 
 def _schnorr_sign(privkey: bytes, msg32: bytes) -> bytes:
     """
-    BIP-340 Schnorr signature (simplified).
+    BIP-340 Schnorr signature (simplified pure-Python implementation).
+
+    Nonce derivation: k = SHA-256(privkey || msg32).
+    Note: RFC 6979 recommends HMAC-SHA-256 based nonce derivation for enhanced
+    security guarantees. This deterministic SHA-256 approach is safe for this
+    use case (each (privkey, msg) pair is unique), but a production deployment
+    handling high-value assets should upgrade to strict RFC 6979 derivation.
 
     Returns 64-byte signature: R.x (32) || s (32).
     """
