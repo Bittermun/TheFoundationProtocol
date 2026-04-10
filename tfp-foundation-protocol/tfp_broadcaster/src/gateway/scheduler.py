@@ -6,9 +6,12 @@ and schedules broadcast slots based on demand and credits.
 """
 
 import time
-from typing import Dict, List, Optional, Any, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 from dataclasses import dataclass, field
 from collections import defaultdict
+
+if TYPE_CHECKING:
+    from tfp_client.lib.publish.mesh_aggregator import MeshAggregator
 
 
 @dataclass
@@ -357,3 +360,48 @@ class GatewayScheduler:
         """
         import json
         return json.loads(data.decode('utf-8'))
+
+    def schedule_from_aggregator(
+        self,
+        aggregator: "MeshAggregator",
+        epoch: int,
+        max_slots: Optional[int] = None,
+    ) -> List[BroadcastSlot]:
+        """
+        Schedule broadcast slots using live demand signals from a MeshAggregator.
+
+        Pulls top-demand content items directly from ``aggregator.get_top_demand()``,
+        loads them into the pending bid queue, then schedules slots for the given
+        epoch in demand-score order (highest demand gets a slot first).
+
+        After scheduling, demand counters for the scheduled items are reset in the
+        aggregator so they are not double-counted in the next scheduling cycle.
+
+        Args:
+            aggregator: MeshAggregator with current demand signals.
+            epoch: Time epoch to schedule slots for.
+            max_slots: Override max slots per epoch (default: self._max_slots_per_epoch).
+
+        Returns:
+            List of scheduled BroadcastSlot objects, ordered by demand score descending.
+        """
+        limit = max_slots if max_slots is not None else self._max_slots_per_epoch
+        top_demand = aggregator.get_top_demand(limit=limit)
+
+        for entry in top_demand:
+            hash_hex = entry["hash"]
+            self._pending_bids[hash_hex] = {
+                "demand_score": entry["demand_score"],
+                "request_count": entry["request_count"],
+                "metadata": entry["metadata"],
+                "region": aggregator._region,
+                "received_at": time.time(),
+            }
+
+        scheduled = self.schedule_from_demand(epoch, max_slots)
+
+        # Reset demand for scheduled items to avoid double-counting
+        for slot in scheduled:
+            aggregator.reset_demand(slot.content_hash)
+
+        return scheduled
