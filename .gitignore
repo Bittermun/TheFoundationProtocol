@@ -1,28 +1,30 @@
 ```
-# Dependencies
-__pycache__/
+# Compiled and build artifacts
 *.pyc
-*.pyo
-*.pyd
-.pytest_cache/
-.mypy_cache/
+__pycache__/
+*.o
+*.obj
+*.so
+*.dylib
+*.dll
+
+# Dependencies
+.venv/
+venv/
+.env
+.env.local
+.env.*
 
 # Logs and temp files
 *.log
 *.tmp
-
-# Environment
-.env
-.env.local
-*.env.*
+*.swp
 
 # Editors
 .vscode/
 .idea/
-*.swp
-*.swo
 
-# Build artifacts
+# Build and distribution
 dist/
 build/
 target/
