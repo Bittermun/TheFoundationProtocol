@@ -155,8 +155,6 @@ def get_content(root_hash: str, device_id: str = Query(default="web-demo")) -> d
         if "no earned credits" in str(exc):
             raise HTTPException(status_code=402, detail="earn credits first via /api/earn") from exc
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except Exception as exc:  # pragma: no cover - defensive path
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     return {
         "root_hash": content.root_hash,

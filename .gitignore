@@ -13,6 +13,7 @@ venv/
 .env
 .env.local
 .env.*
+*.egg-info/
 
 # Logs and temp files
 *.log
@@ -27,3 +28,9 @@ venv/
 dist/
 build/
 target/
+
+# Python tooling outputs
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
