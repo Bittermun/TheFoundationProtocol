@@ -1,5 +1,6 @@
 import argparse
 import json
+from json import JSONDecodeError
 import sys
 
 import httpx
@@ -15,7 +16,7 @@ def _print_json(data: dict) -> None:
 def _handle_error(response: httpx.Response) -> int:
     try:
         payload = response.json()
-    except Exception:
+    except JSONDecodeError:
         payload = {"error": response.text}
     _print_json({"status_code": response.status_code, "response": payload})
     return 1

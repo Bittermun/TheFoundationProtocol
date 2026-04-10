@@ -1,5 +1,6 @@
 import hashlib
 from dataclasses import dataclass
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Dict, List
 
@@ -42,7 +43,6 @@ class DemoNDNAdapter(NDNAdapter):
         return Data(name=interest.name, content=self._content_store[root_hash].data)
 
 
-app = FastAPI(title="TFP Demo Node", version="0.1.0")
 _store: Dict[str, StoredContent] = {}
 _broadcaster = Broadcaster()
 _clients: Dict[str, TFPClient] = {}
@@ -64,7 +64,6 @@ def _normalize_tags(tags: List[str]) -> List[str]:
     return sorted(set(cleaned))
 
 
-@app.on_event("startup")
 def _seed_sample() -> None:
     sample = (
         "Welcome to Scholo Radio demo. "
@@ -79,6 +78,16 @@ def _seed_sample() -> None:
     )
 
 
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    if not _store:
+        _seed_sample()
+    yield
+
+
+app = FastAPI(title="TFP Demo Node", version="0.1.0", lifespan=lifespan)
+
+
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok", "content_items": len(_store)}
@@ -90,7 +99,7 @@ def demo_page():
 
 
 @app.get("/api/content")
-def list_content(tag: str | None = Query(default=None, min_length=1)) -> dict:
+def search_content(tag: str | None = Query(default=None, min_length=1)) -> dict:
     items = list(_store.values())
     if tag:
         tag_norm = tag.strip().lower()
