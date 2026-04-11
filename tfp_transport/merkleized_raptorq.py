@@ -32,56 +32,76 @@ class MerkleTree:
     leaf_hashes: List[str]
     tree_depth: int
     
-    def get_proof(self, leaf_index: int, total_leaves: int) -> List[str]:
-        """Generate Merkle proof for a leaf node."""
+    def get_proof(self, leaf_index: int, total_leaves: int) -> List[tuple]:
+        """Generate Merkle proof for a leaf node. Returns list of (step_type, sibling_hash, is_left_sibling)."""
         if leaf_index >= total_leaves:
             return []
         
+        # Build the tree level by level to capture all intermediate hashes
+        levels = [self.leaf_hashes[:total_leaves]]
+        current_level = self.leaf_hashes[:total_leaves]
+        
+        while len(current_level) > 1:
+            next_level = []
+            i = 0
+            while i < len(current_level):
+                if i + 1 < len(current_level):
+                    # Pair exists
+                    combined = hashlib.sha3_256((current_level[i] + current_level[i+1]).encode()).hexdigest()
+                    next_level.append(combined)
+                    i += 2
+                else:
+                    # Odd element, self-combine
+                    combined = hashlib.sha3_256((current_level[i] + current_level[i]).encode()).hexdigest()
+                    next_level.append(combined)
+                    i += 1
+            levels.append(next_level)
+            current_level = next_level
+        
+        # Generate proof by walking up the tree
         proof = []
         idx = leaf_index
-        level_size = total_leaves
         
-        while level_size > 1:
-            # Track if current idx is in this pair
-            pair_idx = idx // 2
-            sibling_idx = idx + 1 if idx % 2 == 0 else idx - 1
-            
-            # Add sibling to proof if exists (not self-combined)
-            if sibling_idx < level_size:
-                proof.append(('sibling', sibling_idx))
+        for level_idx in range(len(levels) - 1):
+            level = levels[level_idx]
+            if idx % 2 == 0:
+                # Current is left child
+                if idx + 1 < len(level):
+                    # Sibling exists on right
+                    proof.append(('sibling', level[idx + 1], False))  # sibling is on right, so NOT left
+                else:
+                    # Self-combine
+                    proof.append(('self', None, True))
             else:
-                proof.append(('self', None))  # Self-combine for odd last element
+                # Current is right child, sibling is on left
+                proof.append(('sibling', level[idx - 1], True))  # sibling is on left
             
-            level_size = (level_size + 1) // 2
-            idx = pair_idx
+            idx = idx // 2
         
         return proof
     
-    def verify_proof(self, leaf_data: bytes, leaf_index: int, proof: List[tuple], 
-                     leaf_hashes: List[str]) -> bool:
+    def verify_proof(self, leaf_data: bytes, leaf_index: int, proof: List[tuple]) -> bool:
         """Verify a Merkle proof for given data."""
         current_hash = hashlib.sha3_256(leaf_data).hexdigest()
-        idx = leaf_index
-        level_size = len(leaf_hashes)
         
-        for step_type, step_data in proof:
+        for step in proof:
+            step_type = step[0]
             if step_type == 'self':
                 # Self-combine for odd last element
                 combined = current_hash + current_hash
             else:
-                # Sibling combine
-                sibling_idx = step_data
-                sibling_hash = leaf_hashes[sibling_idx] if isinstance(sibling_idx, int) else step_data
-                if idx % 2 == 0:
-                    # Current is left child, sibling is right
-                    combined = current_hash + sibling_hash
-                else:
-                    # Current is right child, sibling is left
+                # step = ('sibling', sibling_hash, is_left_sibling)
+                sibling_hash = step[1]
+                is_left_sibling = step[2]
+                
+                if is_left_sibling:
+                    # Sibling is on left, current is on right
                     combined = sibling_hash + current_hash
+                else:
+                    # Sibling is on right, current is on left
+                    combined = current_hash + sibling_hash
             
             current_hash = hashlib.sha3_256(combined.encode()).hexdigest()
-            idx = idx // 2
-            level_size = (level_size + 1) // 2
         
         return current_hash == self.root_hash
 

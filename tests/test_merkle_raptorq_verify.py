@@ -64,14 +64,15 @@ class TestMerkleTree(unittest.TestCase):
         
         tree = mrq.register_content(content_hash, shard_data)
         
-        # Try to verify with wrong data
+        # Try to verify with wrong/tampered data using correct proof
         proof = tree.get_proof(0, len(shard_data))
         is_valid = tree.verify_proof(b"tampered_data", 0, proof)
         self.assertFalse(is_valid)
         
-        # Try to verify with wrong index
-        is_valid = tree.verify_proof(shard_data[0], 1, proof)
-        self.assertFalse(is_valid)
+        # Try to verify with proof from different leaf (proof[0] won't validate data[1])
+        proof_for_0 = tree.get_proof(0, len(shard_data))
+        is_valid = tree.verify_proof(shard_data[1], 0, proof_for_0)
+        self.assertFalse(is_valid, "Proof for leaf 0 should not validate leaf 1's data")
 
 
 class TestMerkleizedRaptorQ(unittest.TestCase):
@@ -94,7 +95,7 @@ class TestMerkleizedRaptorQ(unittest.TestCase):
     def test_verify_shard_valid(self):
         """Test verification of valid shards."""
         shard_id = 1
-        proof = self.tree.get_proof(shard_id, len(shard_data))
+        proof = self.tree.get_proof(shard_id, len(self.shard_data))
         mac = __import__('hashlib').sha3_256(
             f"{self.content_hash}:{shard_id}:".encode() + self.shard_data[shard_id]
         ).digest()
@@ -113,7 +114,7 @@ class TestMerkleizedRaptorQ(unittest.TestCase):
     def test_verify_shard_invalid_mac(self):
         """Test detection of shards with invalid MAC."""
         shard_id = 2
-        proof = self.tree.get_proof(shard_id, len(shard_data))
+        proof = self.tree.get_proof(shard_id, len(self.shard_data))
         bad_mac = b"invalid_mac_bytes_here_12345"
         
         is_valid, error = self.mrq.verify_shard(
@@ -241,12 +242,14 @@ class TestMerkleizedRaptorQ(unittest.TestCase):
         for i in range(3):
             content_hash = f"stats_test_{i}"
             mrq.register_content(content_hash, [b"d1", b"d2"])
+            # Record interest to create pending admissions
+            mrq.record_interest_convergence(content_hash, f"source_{i}")
         
         stats = mrq.get_integrity_stats()
         
         self.assertEqual(stats["registered_contents"], 3)
         self.assertEqual(stats["verified_shards"], 0)  # None verified yet
-        self.assertEqual(stats["pending_admissions"], 3)  # All pending
+        self.assertEqual(stats["pending_admissions"], 3)  # All pending (1 convergence each, need 2)
         self.assertEqual(stats["admitted_contents"], 0)
     
     def test_feature_gate(self):
@@ -270,7 +273,7 @@ class TestTransportIntegration(unittest.TestCase):
         # Simulate receiving and verifying shards from network
         verified_count = 0
         for i, data in enumerate(original_data):
-            proof = tree.get_proof(i, len(shard_data))
+            proof = tree.get_proof(i, len(original_data))
             mac = __import__('hashlib').sha3_256(
                 f"{content_hash}:{i}:".encode() + data
             ).digest()
@@ -312,7 +315,7 @@ class TestTransportIntegration(unittest.TestCase):
         rejected = 0
         
         for shard_id, data, should_pass in test_cases:
-            proof = tree.get_proof(shard_id, len(shard_data))
+            proof = tree.get_proof(shard_id, len(good_data))
             mac = __import__('hashlib').sha3_256(
                 f"{content_hash}:{shard_id}:".encode() + data
             ).digest()

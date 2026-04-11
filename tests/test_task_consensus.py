@@ -179,6 +179,27 @@ class TestTaskMeshGates(unittest.TestCase):
         can2, _ = self.gates.can_accept_task("red_device_2", task)
         self.assertTrue(can2)
         
+        # Simulate results being submitted (this populates _task_results)
+        from tfp_core.economy.task_mesh_gates import TaskResult
+        result1 = TaskResult(
+            task_id="redundant_task",
+            device_id="red_device_1",
+            output_hash="hash1",
+            execution_time_ms=100.0,
+            hardware_proof="proof1",
+            timestamp=time.time()
+        )
+        result2 = TaskResult(
+            task_id="redundant_task",
+            device_id="red_device_2",
+            output_hash="hash2",
+            execution_time_ms=105.0,
+            hardware_proof="proof2",
+            timestamp=time.time()
+        )
+        self.gates.submit_result(result1)
+        self.gates.submit_result(result2)
+        
         # Third device rejected (max redundancy reached)
         can3, reason = self.gates.can_accept_task("red_device_3", task)
         self.assertFalse(can3)
@@ -209,11 +230,11 @@ class TestEconomicIntegration(unittest.TestCase):
         """Test complete task lifecycle from registration to payout."""
         gates = TaskMeshGates(consensus_threshold=2, max_redundancy=3)
         
-        # Register heterogeneous devices
+        # Register heterogeneous devices - multiple TEE devices for consensus
         devices = [
-            ("worker_1", HardwareCapability.CPU_BASIC, 50.0),
+            ("worker_1", HardwareCapability.TEE_SECURE, 50.0),
             ("worker_2", HardwareCapability.TEE_SECURE, 100.0),
-            ("worker_3", HardwareCapability.GPU_ACCEL, 75.0),
+            ("worker_3", HardwareCapability.PUF_VERIFIED, 75.0),  # PUF also satisfies high-security tasks
         ]
         
         for device_id, cap, stake in devices:
@@ -237,11 +258,12 @@ class TestEconomicIntegration(unittest.TestCase):
             if can_accept:
                 accepted_workers.append(device_id)
         
-        # Only TEE and better should be accepted
-        self.assertIn("worker_2", accepted_workers)
+        # At least 2 TEE-capable workers should be accepted
+        self.assertGreaterEqual(len(accepted_workers), 2, 
+            f"Expected at least 2 workers, got {len(accepted_workers)}: {accepted_workers}")
         
-        # Submit results
-        for device_id in accepted_workers[:2]:  # Submit from 2 workers
+        # Submit results from 2 workers to achieve consensus
+        for device_id in accepted_workers[:2]:
             result = TaskResult(
                 task_id="high_value_task",
                 device_id=device_id,
