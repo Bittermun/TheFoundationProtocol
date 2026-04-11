@@ -8,10 +8,10 @@ rules:
     message: "Do not use 'random' module in security-critical code. Use secrets, os.urandom, or PUF-derived entropy."
     paths:
       include:
-        - tfp/security/
-        - tfp/puf*.py
-        - tfp/habp*.py
-        - tfp/rate_limiter.py
+        - tfp_security/
+        - tfp_core/security/
+        - tfp-foundation-protocol/tfp_client/lib/security/
+        - tfp-foundation-protocol/tfp_client/lib/zkp/
     severity: ERROR
 
   - id: nostr-event-validation
@@ -20,5 +20,5 @@ rules:
     message: "Manually verify Nostr events validate id, sig, and created_at ordering to prevent replay attacks."
     paths:
       include:
-        - tfp/nostr*.py
+        - tfp-foundation-protocol/tfp_client/lib/bridges/
     severity: WARNING

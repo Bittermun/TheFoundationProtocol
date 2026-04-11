@@ -7,14 +7,192 @@ cd Scholo
 docker compose up --build
 ```
 
-## Render one-click template
+The node starts on port 8000. Open:
+- `http://localhost:8000` — PWA (installable on Android / iOS)
+- `http://localhost:8000/admin` — live admin dashboard (tasks + device leaderboard)
+- `http://localhost:8000/metrics` — Prometheus metrics
+- `http://localhost:8000/health` — health check
+
+---
+
+## Quick start without Docker
+
+```bash
+cd tfp-foundation-protocol
+pip install -r requirements.txt
+uvicorn tfp_demo.server:app --reload
+```
+
+---
+
+## Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `TFP_DB_PATH` | `pib.db` | SQLite database path. Use `:memory:` for ephemeral (tests). |
+| `NOSTR_RELAY` | _(empty)_ | WebSocket URL of a Nostr relay to publish/subscribe content announcements. |
+| `TFP_EARN_RATE_MAX` | `10` | Max earn calls per device per window. |
+| `TFP_EARN_RATE_WINDOW` | `60` | Sliding window length in seconds for rate limiting. |
+
+---
+
+## Connecting to Nostr
+
+TFP uses Nostr as a **peer-discovery transport** — nodes publish content-hash announcements as NIP-01 events so other TFP nodes (and Nostr clients) can discover available content without a central registry.
+
+### Step 1 — Pick a public relay
+
+Good free relays to start with:
+- `wss://relay.damus.io`
+- `wss://nos.lol`
+- `wss://relay.nostr.band`
+
+For production, run your own relay with [nostr-rs-relay](https://github.com/scsibug/nostr-rs-relay) or [strfry](https://github.com/hoytech/strfry).
+
+### Step 2 — Start a Nostr-connected node
+
+```bash
+NOSTR_RELAY=wss://relay.damus.io \
+TFP_DB_PATH=./data/pib.db \
+uvicorn tfp_demo.server:app --host 0.0.0.0 --port 8000
+```
+
+Or with Docker:
+```bash
+NOSTR_RELAY=wss://relay.damus.io docker compose up --build
+```
+
+### Step 3 — Publish content and watch it propagate
+
+```bash
+# Enroll a device
+curl -s -X POST http://localhost:8000/api/enroll \
+  -H "Content-Type: application/json" \
+  -d '{"device_id": "my-node-1", "puf_entropy_hex": "deadbeef"}'
+
+# Publish a content item (the node broadcasts a NIP-01 event to the relay)
+curl -s -X POST http://localhost:8000/api/publish \
+  -H "Content-Type: application/json" \
+  -H "X-Device-Sig: $(python3 -c "import hmac,hashlib; print(hmac.new(bytes.fromhex('deadbeef'), b'my-node-1:Hello World', hashlib.sha256).hexdigest())")" \
+  -d '{"device_id": "my-node-1", "title": "Hello World", "content": "VGhpcyBpcyBhIHRlc3Q="}'
+```
+
+Check Nostr event history:
+```bash
+curl -s http://localhost:8000/api/status | python3 -m json.tool
+```
+
+### Step 4 — Announce your node on Nostr
+
+Post a note on Nostr with your relay + endpoint so others can connect:
+
+```json
+{
+  "kind": 1,
+  "content": "Running a TFP v3.1 node. Content available via TFP protocol. Relay: wss://your-relay.example.com. Node: https://your-node.example.com",
+  "tags": [["t", "tfp"], ["t", "scholo"], ["t", "decentralized"]]
+}
+```
+
+You can post this with any Nostr client (Damus, Amethyst, Snort) or via the CLI:
+
+```bash
+# Using nak (Nostr army knife): https://github.com/fiatjaf/nak
+nak event --content "Running TFP v3.1 node..." -t t=tfp -t t=scholo wss://relay.damus.io
+```
+
+---
+
+## Bootstrap: Join the Compute Pool
+
+```bash
+# Install CLI
+pip install -e tfp-foundation-protocol/
+
+# Start a server in one terminal
+uvicorn tfp_demo.server:app --reload
+
+# Join from another terminal — enroll, earn credits, spend on content
+tfp join --server http://localhost:8000
+```
+
+Shortcut to run a compute worker loop:
+```bash
+tfp tasks --server http://localhost:8000
+```
+
+Check leaderboard:
+```bash
+tfp leaderboard --server http://localhost:8000
+```
+
+---
+
+## Cloud Deployment — One-Click
+
+### Render
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Bittermun/Scholo)
 
-## Railway one-click template
+Set environment vars in the Render dashboard:
+- `NOSTR_RELAY` → `wss://relay.damus.io` (or your relay)
+- `TFP_DB_PATH` → `/data/pib.db` (use a persistent disk)
+
+### Railway
 
 [![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new/template?template=https://github.com/Bittermun/Scholo)
 
-> After deployment, set start command to:
->
-> `uvicorn tfp_demo.server:app --host 0.0.0.0 --port $PORT`
+> Set start command to: `uvicorn tfp_demo.server:app --host 0.0.0.0 --port $PORT`
+
+### Fly.io
+
+```bash
+cd tfp-foundation-protocol
+fly launch --name tfp-node
+fly volumes create tfp_data --size 1
+fly secrets set NOSTR_RELAY=wss://relay.damus.io
+fly deploy
+```
+
+---
+
+## Listing Your Node
+
+Once running, list your node in these directories to bootstrap the network:
+
+| Platform | How |
+|----------|-----|
+| **Nostr** | Post with tags `#tfp #scholo` on any relay |
+| **GitHub Awesome list** | See `docs/awesome_tfp_seed.md` — submit a PR to add your deployment |
+| **nostr.band** | Search `#tfp` — your relay posts will appear automatically |
+| **Reddit** | r/nostr, r/decentralization, r/selfhosted |
+| **Hackernews** | Post project URL + demo video |
+| **Discord/Telegram** | Nostr, IPFS, and decentralized-web communities |
+
+---
+
+## Monitoring
+
+```bash
+# Prometheus metrics
+curl http://localhost:8000/metrics
+
+# Health check (returns 200 when ready)
+curl http://localhost:8000/health
+
+# Admin dashboard (HTML)
+open http://localhost:8000/admin
+```
+
+For production monitoring, point Prometheus at `/metrics` and use the provided Grafana dashboard template in `tfp-foundation-protocol/docker-compose.observability.yml`.
+
+---
+
+## Security Checklist Before Public Deployment
+
+- [ ] Change `puf_entropy_hex` values — do not use the demo `deadbeef` value in production
+- [ ] Set `TFP_DB_PATH` to a persistent volume (not `:memory:`)
+- [ ] Enable HTTPS (Nginx/Caddy reverse proxy or Cloudflare tunnel)
+- [ ] Set `TFP_EARN_RATE_MAX` and `TFP_EARN_RATE_WINDOW` to appropriate limits
+- [ ] Review `bandit.ini` and run `bandit -r tfp_core/ tfp_security/` on any custom code
+- [ ] Read `tfp-foundation-protocol/docs/SECURITY.md` for the full threat model

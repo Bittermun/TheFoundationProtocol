@@ -9,7 +9,6 @@ Each stub documents:
 - Accessibility requirements
 """
 
-from typing import List, Optional
 from dataclasses import dataclass
 
 
@@ -456,7 +455,7 @@ VOICE_GUIDE_SPECS = {
     'format': 'MP3, 128kbps, mono',
     'duration_per_clip': '< 10 seconds',
     'total_onboarding': '< 30 seconds',
-    'languages': 50+,
+    'languages': 50,
     'voice_type': 'Warm, friendly, local accent',
     'pace': 'Slow, clear enunciation',
     'background': 'Silent (no music)',
