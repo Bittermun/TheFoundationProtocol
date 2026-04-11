@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "tfp"
-version = "2.2.0"
+version = "3.1.1"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi",
@@ -12,6 +12,14 @@ dependencies = [
     "python-ndn",
     "websockets",
     "prometheus_client",
+    "redis>=5.2.0",
+    "opentelemetry-api>=1.24.0",
+    "opentelemetry-sdk>=1.24.0",
+    "opentelemetry-instrumentation-fastapi>=0.45b0",
+    "opentelemetry-exporter-otlp>=1.24.0",
+    "chromadb>=0.4.24",
+    "transformers>=4.39.0",
+    "tfp-nostr-bridge>=1.0.0",
 ]
 
 [project.optional-dependencies]
@@ -19,10 +27,19 @@ test = [
     "pytest",
     "pytest-asyncio",
     "httpx",
+    "fakeredis",
+    "locust",
 ]
+dev = [
+    "black",
+    "ruff",
+    "mypy",
+]
+
 [project.scripts]
 tfp = "tfp_cli.main:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+timeout = 30

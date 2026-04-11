@@ -1,0 +1,101 @@
+# Docker Compose configuration for TFP observability stack
+# Includes: Redis (rate limiting), OTEL Collector, Prometheus, Grafana, Tempo
+
+version: '3.8'
+
+services:
+  # Redis for distributed rate limiting
+  redis:
+    image: redis:7-alpine
+    container_name: tfp-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - tfp-network
+
+  # OpenTelemetry Collector
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.97.0
+    container_name: tfp-otel-collector
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
+    ports:
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+      - "8888:8888"   # Prometheus metrics
+    depends_on:
+      - redis
+      - tempo
+    networks:
+      - tfp-network
+
+  # Tempo for distributed tracing
+  tempo:
+    image: grafana/tempo:2.4.0
+    container_name: tfp-tempo
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./tempo-config.yaml:/etc/tempo.yaml:ro
+      - tempo-data:/tmp/tempo
+    ports:
+      - "3200:3200"   # Tempo UI
+      - "4317:4317"   # OTLP gRPC (alternative)
+    networks:
+      - tfp-network
+
+  # Prometheus for metrics
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: tfp-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    depends_on:
+      - otel-collector
+    networks:
+      - tfp-network
+
+  # Grafana for visualization
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: tfp-grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=tfp-admin-password-change-me
+      - GF_USERS_ALLOW_SIGN_UP=false
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+      - tempo
+    networks:
+      - tfp-network
+
+volumes:
+  redis_data:
+  tempo-data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  tfp-network:
+    driver: bridge

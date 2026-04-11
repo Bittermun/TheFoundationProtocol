@@ -8,10 +8,20 @@ Prevents poisoned shard attacks and ensures transport-level data integrity.
 """
 
 import hashlib
+import hmac
+import time
 from typing import List, Optional, Dict, Any, Tuple
 from dataclasses import dataclass, field
 import threading
-import time
+from collections import defaultdict
+
+
+@dataclass
+class RateLimitRecord:
+    """Track rate limit state for a client."""
+    tokens: float
+    last_update: float
+    rejected_count: int = 0
 
 
 @dataclass
@@ -32,56 +42,76 @@ class MerkleTree:
     leaf_hashes: List[str]
     tree_depth: int
     
-    def get_proof(self, leaf_index: int, total_leaves: int) -> List[str]:
-        """Generate Merkle proof for a leaf node."""
+    def get_proof(self, leaf_index: int, total_leaves: int) -> List[tuple]:
+        """Generate Merkle proof for a leaf node. Returns list of (step_type, sibling_hash, is_left_sibling)."""
         if leaf_index >= total_leaves:
             return []
         
+        # Build the tree level by level to capture all intermediate hashes
+        levels = [self.leaf_hashes[:total_leaves]]
+        current_level = self.leaf_hashes[:total_leaves]
+        
+        while len(current_level) > 1:
+            next_level = []
+            i = 0
+            while i < len(current_level):
+                if i + 1 < len(current_level):
+                    # Pair exists
+                    combined = hashlib.sha3_256((current_level[i] + current_level[i+1]).encode()).hexdigest()
+                    next_level.append(combined)
+                    i += 2
+                else:
+                    # Odd element, self-combine
+                    combined = hashlib.sha3_256((current_level[i] + current_level[i]).encode()).hexdigest()
+                    next_level.append(combined)
+                    i += 1
+            levels.append(next_level)
+            current_level = next_level
+        
+        # Generate proof by walking up the tree
         proof = []
         idx = leaf_index
-        level_size = total_leaves
         
-        while level_size > 1:
-            # Track if current idx is in this pair
-            pair_idx = idx // 2
-            sibling_idx = idx + 1 if idx % 2 == 0 else idx - 1
-            
-            # Add sibling to proof if exists (not self-combined)
-            if sibling_idx < level_size:
-                proof.append(('sibling', sibling_idx))
+        for level_idx in range(len(levels) - 1):
+            level = levels[level_idx]
+            if idx % 2 == 0:
+                # Current is left child
+                if idx + 1 < len(level):
+                    # Sibling exists on right
+                    proof.append(('sibling', level[idx + 1], False))  # sibling is on right, so NOT left
+                else:
+                    # Self-combine
+                    proof.append(('self', None, True))
             else:
-                proof.append(('self', None))  # Self-combine for odd last element
+                # Current is right child, sibling is on left
+                proof.append(('sibling', level[idx - 1], True))  # sibling is on left
             
-            level_size = (level_size + 1) // 2
-            idx = pair_idx
+            idx = idx // 2
         
         return proof
     
-    def verify_proof(self, leaf_data: bytes, leaf_index: int, proof: List[tuple], 
-                     leaf_hashes: List[str]) -> bool:
+    def verify_proof(self, leaf_data: bytes, leaf_index: int, proof: List[tuple]) -> bool:
         """Verify a Merkle proof for given data."""
         current_hash = hashlib.sha3_256(leaf_data).hexdigest()
-        idx = leaf_index
-        level_size = len(leaf_hashes)
         
-        for step_type, step_data in proof:
+        for step in proof:
+            step_type = step[0]
             if step_type == 'self':
                 # Self-combine for odd last element
                 combined = current_hash + current_hash
             else:
-                # Sibling combine
-                sibling_idx = step_data
-                sibling_hash = leaf_hashes[sibling_idx] if isinstance(sibling_idx, int) else step_data
-                if idx % 2 == 0:
-                    # Current is left child, sibling is right
-                    combined = current_hash + sibling_hash
-                else:
-                    # Current is right child, sibling is left
+                # step = ('sibling', sibling_hash, is_left_sibling)
+                sibling_hash = step[1]
+                is_left_sibling = step[2]
+                
+                if is_left_sibling:
+                    # Sibling is on left, current is on right
                     combined = sibling_hash + current_hash
+                else:
+                    # Sibling is on right, current is on left
+                    combined = current_hash + sibling_hash
             
             current_hash = hashlib.sha3_256(combined.encode()).hexdigest()
-            idx = idx // 2
-            level_size = (level_size + 1) // 2
         
         return current_hash == self.root_hash
 
@@ -107,13 +137,20 @@ class MerkleizedRaptorQ:
     - Drops poisoned shards immediately
     """
     
-    def __init__(self, required_convergences: int = 2):
+    def __init__(self, required_convergences: int = 2, rate_limit_tokens: float = 10.0, rate_limit_refill: float = 1.0):
         self.required_convergences = required_convergences
         self._lock = threading.Lock()
         self._merkle_trees: Dict[str, MerkleTree] = {}  # content_hash -> tree
         self._cache_admission: Dict[str, CacheAdmissionRecord] = {}
         self._verified_shards: Dict[str, Dict[int, ShardMetadata]] = {}  # content_hash -> {shard_id -> shard}
         self._dropped_shards: List[Dict[str, Any]] = []  # Log of dropped shards
+        
+        # Rate limiting (token bucket algorithm)
+        self._rate_limits: Dict[str, RateLimitRecord] = defaultdict(
+            lambda: RateLimitRecord(tokens=rate_limit_tokens, last_update=time.time())
+        )
+        self.rate_limit_max_tokens = rate_limit_tokens
+        self.rate_limit_refill_per_sec = rate_limit_refill
         
     def register_content(self, content_hash: str, shard_data_list: List[bytes]) -> MerkleTree:
         """
@@ -148,13 +185,48 @@ class MerkleizedRaptorQ:
         
         return tree
     
+    def _check_rate_limit(self, client_id: str) -> Tuple[bool, float]:
+        """
+        Check and update rate limit for a client using token bucket algorithm.
+        
+        Args:
+            client_id: Unique identifier for the client (e.g., IP, pubkey)
+            
+        Returns:
+            Tuple of (is_allowed, wait_time_seconds)
+        """
+        current_time = time.time()
+        
+        with self._lock:
+            record = self._rate_limits[client_id]
+            
+            # Refill tokens based on elapsed time
+            elapsed = current_time - record.last_update
+            record.tokens = min(
+                self.rate_limit_max_tokens,
+                record.tokens + elapsed * self.rate_limit_refill_per_sec
+            )
+            record.last_update = current_time
+            
+            if record.tokens >= 1.0:
+                # Consume one token
+                record.tokens -= 1.0
+                return True, 0.0
+            else:
+                # Rate limited
+                record.rejected_count += 1
+                # Calculate wait time to get 1 token
+                wait_time = (1.0 - record.tokens) / self.rate_limit_refill_per_sec
+                return False, wait_time
+    
     def verify_shard(
         self,
         content_hash: str,
         shard_id: int,
         shard_data: bytes,
         expected_mac: bytes,
-        merkle_proof: List[str]
+        merkle_proof: List[str],
+        client_id: str = "default"
     ) -> Tuple[bool, Optional[str]]:
         """
         Verify a RaptorQ shard before decoding.
@@ -165,16 +237,24 @@ class MerkleizedRaptorQ:
             shard_data: Raw shard data
             expected_mac: Expected MAC for the shard
             merkle_proof: Merkle proof for the shard
+            client_id: Client identifier for rate limiting
             
         Returns:
             Tuple of (is_valid, error_message)
         """
-        # Compute MAC
+        # Check rate limit FIRST (before any heavy computation)
+        is_allowed, wait_time = self._check_rate_limit(client_id)
+        if not is_allowed:
+            self._log_dropped_shard(content_hash, shard_id, f"RATE_LIMITED(wait={wait_time:.2f}s)")
+            return False, f"Rate limit exceeded. Wait {wait_time:.2f}s"
+        
+        # Use constant-time comparison for MAC verification to prevent timing attacks
         computed_mac = hashlib.sha3_256(
             f"{content_hash}:{shard_id}:".encode() + shard_data
         ).digest()
         
-        if computed_mac != expected_mac:
+        # Constant-time MAC comparison
+        if not hmac.compare_digest(computed_mac, expected_mac):
             self._log_dropped_shard(content_hash, shard_id, "MAC_MISMATCH")
             return False, "MAC verification failed"
         
@@ -274,6 +354,9 @@ class MerkleizedRaptorQ:
             total_shards = sum(
                 len(shards) for shards in self._verified_shards.values()
             )
+            total_rejected = sum(
+                record.rejected_count for record in self._rate_limits.values()
+            )
             
             return {
                 "registered_contents": len(self._merkle_trees),
@@ -286,7 +369,9 @@ class MerkleizedRaptorQ:
                 "admitted_contents": len([
                     r for r in self._cache_admission.values()
                     if r.convergence_count >= self.required_convergences
-                ])
+                ]),
+                "rate_limited_requests": total_rejected,
+                "unique_clients": len(self._rate_limits)
             }
     
     def _build_merkle_root(self, leaf_hashes: List[str]) -> str:
@@ -335,8 +420,8 @@ def is_transport_integrity_enabled() -> bool:
 
 
 if __name__ == "__main__":
-    # Demo usage
-    mrq = MerkleizedRaptorQ(required_convergences=2)
+    # Demo usage with rate limiting and timing attack protection
+    mrq = MerkleizedRaptorQ(required_convergences=2, rate_limit_tokens=5.0, rate_limit_refill=1.0)
     
     # Simulate content registration
     content_hash = "abc123"
@@ -345,26 +430,37 @@ if __name__ == "__main__":
     tree = mrq.register_content(content_hash, shard_data)
     print(f"Merkle Root: {tree.root_hash}")
     
-    # Verify a shard
-    shard_id = 1
-    proof = tree.get_proof(shard_id)
-    mac = hashlib.sha3_256(
-        f"{content_hash}:{shard_id}:".encode() + shard_data[shard_id]
-    ).digest()
+    # Verify shards with rate limiting
+    print("\n=== Testing Rate Limiting ===")
+    total_leaves = len(shard_data)
+    for i in range(7):  # Try to verify more shards than rate limit allows
+        shard_id = i % 4
+        proof = tree.get_proof(shard_id, total_leaves)
+        mac = hashlib.sha3_256(
+            f"{content_hash}:{shard_id}:".encode() + shard_data[shard_id]
+        ).digest()
+        
+        is_valid, error = mrq.verify_shard(
+            content_hash=content_hash,
+            shard_id=shard_id,
+            shard_data=shard_data[shard_id],
+            expected_mac=mac,
+            merkle_proof=proof,
+            client_id="test_client_1"
+        )
+        
+        print(f"Request {i+1}: Shard {shard_id} valid={is_valid}", end="")
+        if error:
+            print(f" - {error}")
+        else:
+            print()
     
-    is_valid, error = mrq.verify_shard(
-        content_hash=content_hash,
-        shard_id=shard_id,
-        shard_data=shard_data[shard_id],
-        expected_mac=mac,
-        merkle_proof=proof
-    )
-    
-    print(f"Shard {shard_id} valid: {is_valid}")
-    if error:
-        print(f"Error: {error}")
+    # Test constant-time comparison (timing attack protection)
+    print("\n=== Testing Timing Attack Protection ===")
+    print("Using hmac.compare_digest() for constant-time MAC comparison")
     
     # Simulate Interest convergences
+    print("\n=== Testing Interest Convergence ===")
     for i, source in enumerate(["source_A", "source_B", "source_C"]):
         admitted = mrq.record_interest_convergence(content_hash, source)
         print(f"Convergence {i+1} from {source}: Admitted={admitted}")
