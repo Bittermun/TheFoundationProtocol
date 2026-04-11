@@ -52,4 +52,16 @@ Thumbs.db
 .mypy_cache/
 .pytest_cache/
 .gradle/
-```
+
+# Python artifacts
+*.pyc
+__pycache__/
+*.egg-info/
+.coverage
+htmlcov/
+
+# Logs and environment
+*.log
+.env
+venv/
+.venv/
