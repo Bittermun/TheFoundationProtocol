@@ -1,12 +1,17 @@
 import hashlib
+import time
+from typing import Optional
 
 from ..ndn.adapter import NDNAdapter
 from ..fountain.adapter import RaptorQAdapter
 from ..zkp.adapter import ZKPAdapter
 from ..lexicon.adapter import LexiconAdapter, Content
-from ..credit.ledger import CreditLedger, Receipt
+from ..credit.ledger import CreditLedger, Receipt, SupplyCapError
 from ..security.symbolic_preprocessor.preprocessor import SymbolicPreprocessor
 from ..identity.puf_enclave.enclave import PUFEnclave
+from ..compute.task_executor import (
+    TaskSpec, ExecutionResult, execute_task, TaskExecutionError,
+)
 
 
 class SecurityError(Exception):
@@ -64,6 +69,14 @@ class TFPClient:
         return content
 
     def submit_compute_task(self, task_recipe_hash: str) -> Receipt:
+        """
+        Mint credits for completing a compute task identified by its recipe hash.
+
+        The caller is responsible for ensuring the task was actually executed and
+        the result verified (e.g. via HABP consensus on the server side) before
+        calling this method. The task_recipe_hash must be the SHA3-256 hex of the
+        verified execution result so the proof is bound to real work.
+        """
         # Security gate: verify PUF identity before minting credits
         if self.puf is not None:
             identity = self.puf.get_identity()
@@ -76,9 +89,58 @@ class TFPClient:
                 raise SecurityError("Sybil detection: PUF identity mismatch")
 
         proof_hash = hashlib.sha3_256(task_recipe_hash.encode()).digest()
-        receipt = self.ledger.mint(10, proof_hash)
+        try:
+            receipt = self.ledger.mint(10, proof_hash)
+        except SupplyCapError as exc:
+            raise SecurityError(f"supply cap reached: {exc}") from exc
         self._earned_receipts.append(receipt)
         return receipt
+
+    def execute_and_earn(
+        self,
+        spec: TaskSpec,
+        credits: int = 10,
+        timeout_s: float = 30.0,
+    ) -> tuple[ExecutionResult, Receipt]:
+        """
+        Execute a real compute task, verify the result locally, then mint credits.
+
+        This is the full proof-of-compute path:
+          1. Execute the task (real computation)
+          2. Verify result matches expected_output_hash
+          3. Mint credits bound to the verified output hash
+
+        Returns (ExecutionResult, Receipt).
+        Raises TaskExecutionError if execution fails or result is wrong.
+        Raises SecurityError if PUF check or supply cap fails.
+        """
+        result = execute_task(spec, timeout_s=timeout_s)
+        if not result.verified_locally:
+            raise TaskExecutionError(
+                f"local verification failed for task {spec.task_id}: "
+                f"got {result.output_hash}, expected {spec.expected_output_hash}"
+            )
+
+        # Security gate: verify PUF identity before minting
+        if self.puf is not None:
+            identity = self.puf.get_identity()
+            expected_seed = (
+                self._puf_expected_seed
+                if self._puf_expected_seed is not None
+                else self.puf.seed
+            )
+            if not PUFEnclave.verify_identity(identity, expected_seed):
+                raise SecurityError("Sybil detection: PUF identity mismatch")
+
+        # Proof hash = SHA3-256(task_id + output_hash): binds credit to real work
+        proof_material = f"{spec.task_id}:{result.output_hash}".encode()
+        proof_hash = hashlib.sha3_256(proof_material).digest()
+        try:
+            receipt = self.ledger.mint(credits, proof_hash)
+        except SupplyCapError as exc:
+            raise SecurityError(f"supply cap reached: {exc}") from exc
+        self._earned_receipts.append(receipt)
+        return result, receipt
 
     def prove_access(self, root_hash: str, private_claim: bytes) -> bytes:
         return self.zkp.generate_proof(circuit="access_to_hash", private=private_claim)

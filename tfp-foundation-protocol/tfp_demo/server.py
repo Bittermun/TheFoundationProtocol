@@ -5,21 +5,29 @@ import json
 import os
 import sqlite3
 import time
+import threading
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional
 
 from fastapi import FastAPI, Header, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse, Response
 from pydantic import BaseModel, Field
 
 from tfp_broadcaster.broadcaster import Broadcaster
 from tfp_client.lib.bridges.nostr_subscriber import NostrSubscriber
 from tfp_client.lib.core.tfp_engine import TFPClient
-from tfp_client.lib.credit.ledger import CreditLedger, Receipt
+from tfp_client.lib.credit.ledger import CreditLedger, Receipt, MAX_SUPPLY
 from tfp_client.lib.metadata.tag_index import TagOverlayIndex
 from tfp_client.lib.ndn.adapter import Data, NDNAdapter
+from tfp_client.lib.compute.task_executor import (
+    TaskSpec, TaskType, execute_task, verify_result,
+    generate_hash_preimage_task, generate_matrix_verify_task,
+    generate_content_verify_task,
+)
+from tfp_client.lib.compute.verify_habp import HABPVerifier, ExecutionProof, generate_execution_proof
+from tfp_client.lib.compute.credit_formula import CreditFormula
 
 _DEFAULT_DB_PATH = Path(__file__).resolve().parent.parent / "pib.db"
 
@@ -301,6 +309,322 @@ class CreditStore:
 
 
 # ---------------------------------------------------------------------------
+# Task store — SQLite-backed compute task registry
+# ---------------------------------------------------------------------------
+
+class TaskStore:
+    """
+    Persistent store for compute tasks, bids, and results.
+
+    Tasks flow through these states:
+      open → bidding → assigned → verifying → completed | failed
+    """
+
+    _GENERATORS = {
+        "hash_preimage": generate_hash_preimage_task,
+        "matrix_verify": generate_matrix_verify_task,
+        "content_verify": generate_content_verify_task,
+    }
+
+    def __init__(self, conn: sqlite3.Connection) -> None:
+        self._conn = conn
+        self._habp = HABPVerifier(consensus_threshold=3, redundancy_factor=5)
+        self._credit_formula = CreditFormula()
+        self._lock = threading.Lock()
+        self._init_schema()
+
+    def _init_schema(self) -> None:
+        self._conn.executescript(
+            """
+            CREATE TABLE IF NOT EXISTS tasks (
+                task_id      TEXT PRIMARY KEY,
+                task_type    TEXT NOT NULL,
+                difficulty   INT  NOT NULL,
+                spec_json    TEXT NOT NULL,
+                status       TEXT NOT NULL DEFAULT 'open',
+                created_at   REAL NOT NULL,
+                deadline     REAL NOT NULL,
+                credit_reward INT NOT NULL DEFAULT 10
+            );
+            CREATE TABLE IF NOT EXISTS task_results (
+                result_id    INTEGER PRIMARY KEY AUTOINCREMENT,
+                task_id      TEXT NOT NULL,
+                device_id    TEXT NOT NULL,
+                output_hash  TEXT NOT NULL,
+                exec_time_s  REAL NOT NULL,
+                has_tee      INT  NOT NULL DEFAULT 0,
+                submitted_at REAL NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS supply_ledger (
+                id             INTEGER PRIMARY KEY CHECK (id = 1),
+                total_minted   INTEGER NOT NULL DEFAULT 0
+            );
+            INSERT OR IGNORE INTO supply_ledger (id, total_minted) VALUES (1, 0);
+            """
+        )
+        self._conn.commit()
+
+    # -- Supply tracking -------------------------------------------------------
+
+    def get_total_minted(self) -> int:
+        row = self._conn.execute(
+            "SELECT total_minted FROM supply_ledger WHERE id = 1"
+        ).fetchone()
+        return row[0] if row else 0
+
+    def increment_total_minted(self, amount: int) -> int:
+        """Atomically increment and return new total. Raises if cap exceeded."""
+        with self._lock:
+            current = self.get_total_minted()
+            if current + amount > MAX_SUPPLY:
+                from tfp_client.lib.credit.ledger import SupplyCapError
+                raise SupplyCapError(
+                    f"Global supply cap reached: {current}/{MAX_SUPPLY}"
+                )
+            new_total = current + amount
+            self._conn.execute(
+                "UPDATE supply_ledger SET total_minted = ? WHERE id = 1",
+                (new_total,),
+            )
+            self._conn.commit()
+            return new_total
+
+    # -- Task lifecycle --------------------------------------------------------
+
+    def create_task(self, task_type: str, difficulty: int, seed: bytes) -> TaskSpec:
+        """Generate and persist a new compute task."""
+        task_id = hashlib.sha3_256(
+            seed + task_type.encode() + str(time.time()).encode()
+        ).hexdigest()[:16]
+        if task_type == "content_verify":
+            spec = generate_content_verify_task(task_id=task_id, difficulty=difficulty, content=seed)
+        else:
+            gen = self._GENERATORS.get(task_type)
+            if gen is None:
+                raise ValueError(f"Unknown task_type: {task_type!r}")
+            spec = gen(task_id=task_id, difficulty=difficulty, seed=seed)
+        self._conn.execute(
+            """
+            INSERT OR IGNORE INTO tasks
+              (task_id, task_type, difficulty, spec_json, status, created_at, deadline, credit_reward)
+            VALUES (?, ?, ?, ?, 'open', ?, ?, ?)
+            """,
+            (
+                spec.task_id,
+                spec.task_type.value,
+                spec.difficulty,
+                json.dumps(spec.to_dict()),
+                spec.created_at,
+                spec.deadline,
+                spec.credit_reward,
+            ),
+        )
+        self._conn.commit()
+        return spec
+
+    def list_open_tasks(self, limit: int = 20) -> List[dict]:
+        """Return open tasks suitable for device consumption."""
+        now = time.time()
+        rows = self._conn.execute(
+            """
+            SELECT task_id, task_type, difficulty, credit_reward, deadline
+            FROM tasks
+            WHERE status = 'open' AND deadline > ?
+            ORDER BY created_at
+            LIMIT ?
+            """,
+            (now, limit),
+        ).fetchall()
+        return [
+            {
+                "task_id": r[0],
+                "task_type": r[1],
+                "difficulty": r[2],
+                "credit_reward": r[3],
+                "deadline": r[4],
+                "time_left_s": round(r[4] - now),
+            }
+            for r in rows
+        ]
+
+    def get_spec(self, task_id: str) -> Optional[TaskSpec]:
+        row = self._conn.execute(
+            "SELECT spec_json FROM tasks WHERE task_id = ?", (task_id,)
+        ).fetchone()
+        if row is None:
+            return None
+        return TaskSpec.from_dict(json.loads(row[0]))
+
+    def get_task_row(self, task_id: str) -> Optional[dict]:
+        row = self._conn.execute(
+            "SELECT task_id, task_type, difficulty, status, credit_reward, created_at, deadline "
+            "FROM tasks WHERE task_id = ?",
+            (task_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        return {
+            "task_id": row[0],
+            "task_type": row[1],
+            "difficulty": row[2],
+            "status": row[3],
+            "credit_reward": row[4],
+            "created_at": row[5],
+            "deadline": row[6],
+        }
+
+    def submit_result(
+        self, task_id: str, device_id: str, output_hash: str, exec_time_s: float,
+        has_tee: bool = False,
+    ) -> dict:
+        """
+        Accept a result submission.
+
+        Returns a dict with keys: status, verified, credits_earned (0 if not yet verified),
+        and consensus_needed (how many more proofs are required for consensus).
+        """
+        task_row = self.get_task_row(task_id)
+        if task_row is None:
+            raise HTTPException(status_code=404, detail="task not found")
+        if task_row["status"] in ("completed", "failed"):
+            raise HTTPException(status_code=409, detail="task already finalised")
+        if time.time() > task_row["deadline"]:
+            self._conn.execute(
+                "UPDATE tasks SET status = 'failed' WHERE task_id = ?", (task_id,)
+            )
+            self._conn.commit()
+            raise HTTPException(status_code=410, detail="task deadline passed")
+
+        # Record result
+        self._conn.execute(
+            """
+            INSERT INTO task_results
+              (task_id, device_id, output_hash, exec_time_s, has_tee, submitted_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (task_id, device_id, output_hash, exec_time_s, int(has_tee), time.time()),
+        )
+        self._conn.execute(
+            "UPDATE tasks SET status = 'verifying' WHERE task_id = ? AND status = 'open'",
+            (task_id,),
+        )
+        self._conn.commit()
+
+        # Build HABP proof and attempt consensus
+        proof = generate_execution_proof(
+            device_id=device_id,
+            task_id=task_id,
+            output_data=bytes.fromhex(output_hash) if len(output_hash) == 64 else output_hash.encode(),
+            execution_time=exec_time_s,
+            has_tee=has_tee,
+        )
+        # Override the output_hash with what the device reported
+        proof.output_hash = output_hash
+        self._habp.submit_proof(proof)
+
+        consensus = self._habp.verify_consensus(task_id)
+        if consensus and consensus.verified:
+            # Mark completed and compute credits
+            spec = self.get_spec(task_id)
+            calc = self._credit_formula.calculate_credits(
+                difficulty=task_row["difficulty"],
+                hardware_trust=consensus.credit_weight,
+                uptime_hours=24.0,
+                verification_confidence=consensus.confidence,
+                is_charging=False,
+            )
+            credits = calc.final_credits
+            self._conn.execute(
+                "UPDATE tasks SET status = 'completed' WHERE task_id = ?", (task_id,)
+            )
+            self._conn.commit()
+            return {
+                "status": "verified",
+                "verified": True,
+                "credits_earned": credits,
+                "consensus_needed": 0,
+                "matching_devices": consensus.matching_devices,
+                "confidence": consensus.confidence,
+            }
+
+        # Count current proofs
+        proof_count = self._habp.get_proof_count(task_id)
+        needed = max(0, 3 - proof_count)
+        return {
+            "status": "pending_consensus",
+            "verified": False,
+            "credits_earned": 0,
+            "consensus_needed": needed,
+            "proofs_received": proof_count,
+        }
+
+    def stats(self) -> dict:
+        """Return aggregate task statistics."""
+        rows = self._conn.execute(
+            "SELECT status, COUNT(*) FROM tasks GROUP BY status"
+        ).fetchall()
+        counts = {r[0]: r[1] for r in rows}
+        return {
+            "open": counts.get("open", 0),
+            "verifying": counts.get("verifying", 0),
+            "completed": counts.get("completed", 0),
+            "failed": counts.get("failed", 0),
+            "total": sum(counts.values()),
+            "total_minted": self.get_total_minted(),
+            "supply_cap": MAX_SUPPLY,
+            "supply_remaining": MAX_SUPPLY - self.get_total_minted(),
+        }
+
+
+# ---------------------------------------------------------------------------
+# Prometheus metrics (in-process counters)
+# ---------------------------------------------------------------------------
+
+class _Metrics:
+    """
+    Lightweight in-process counters for Prometheus text exposition format.
+    No external dependency — pure Python.  For production, swap to
+    prometheus_client if desired.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._counters: Dict[str, int] = {
+            "tfp_tasks_created_total": 0,
+            "tfp_tasks_completed_total": 0,
+            "tfp_tasks_failed_total": 0,
+            "tfp_results_submitted_total": 0,
+            "tfp_credits_minted_total": 0,
+            "tfp_credits_spent_total": 0,
+            "tfp_content_published_total": 0,
+            "tfp_content_served_total": 0,
+            "tfp_devices_enrolled_total": 0,
+            "tfp_earn_rate_limited_total": 0,
+            "tfp_earn_replay_rejected_total": 0,
+            "tfp_auth_failures_total": 0,
+        }
+
+    def inc(self, name: str, value: int = 1) -> None:
+        with self._lock:
+            self._counters[name] = self._counters.get(name, 0) + value
+
+    def get(self, name: str) -> int:
+        return self._counters.get(name, 0)
+
+    def snapshot(self) -> Dict[str, int]:
+        with self._lock:
+            return dict(self._counters)
+
+    def to_prometheus_text(self) -> str:
+        lines = []
+        with self._lock:
+            for name, value in sorted(self._counters.items()):
+                lines.append(f"# TYPE {name} counter")
+                lines.append(f"{name} {value}")
+        return "\n".join(lines) + "\n"
+
+
+# ---------------------------------------------------------------------------
 # Rate limiter — sliding-window token bucket per device
 # ---------------------------------------------------------------------------
 
@@ -360,6 +684,19 @@ class EnrollRequest(BaseModel):
     puf_entropy_hex: str = Field(min_length=64, max_length=64)
 
 
+class CreateTaskRequest(BaseModel):
+    task_type: str = Field(default="hash_preimage")
+    difficulty: int = Field(default=3, ge=1, le=10)
+    seed_hex: str = Field(default="", max_length=128)
+
+
+class SubmitResultRequest(BaseModel):
+    device_id: str = Field(min_length=1, max_length=120)
+    output_hash: str = Field(min_length=64, max_length=64)  # SHA3-256 hex
+    exec_time_s: float = Field(ge=0.0)
+    has_tee: bool = Field(default=False)
+
+
 # ---------------------------------------------------------------------------
 # App state (initialised in lifespan)
 # ---------------------------------------------------------------------------
@@ -368,11 +705,13 @@ _content_store: Optional[ContentStore] = None
 _device_registry: Optional[DeviceRegistry] = None
 _earn_log: Optional[EarnLog] = None
 _credit_store: Optional[CreditStore] = None
+_task_store: Optional[TaskStore] = None
 _earn_rate_limiter: _RateLimiter = _RateLimiter()
 _tag_overlay: Optional[TagOverlayIndex] = None
 _nostr_subscriber: Optional[NostrSubscriber] = None
 _broadcaster = Broadcaster()
 _clients: Dict[str, TFPClient] = {}
+_metrics: _Metrics = _Metrics()
 _demo_dir = Path(__file__).resolve().parent.parent / "demo"
 
 
@@ -438,6 +777,26 @@ def _seed_sample() -> None:
     ))
 
 
+def _preseed_tasks() -> None:
+    """Pre-create a small pool of open tasks so devices can join immediately."""
+    if _task_store is None:
+        return
+    if _task_store.stats()["open"] >= 5:
+        return  # Already have enough open tasks
+    seeds = [
+        ("hash_preimage", 2, b"tfp-seed-hp-1"),
+        ("hash_preimage", 3, b"tfp-seed-hp-2"),
+        ("matrix_verify", 2, b"tfp-seed-mv-1"),
+        ("matrix_verify", 3, b"tfp-seed-mv-2"),
+        ("content_verify", 2, b"tfp-seed-cv-1"),
+    ]
+    for task_type, difficulty, seed in seeds:
+        try:
+            _task_store.create_task(task_type, difficulty, seed)
+        except Exception:
+            pass  # Don't crash startup if a task type fails
+
+
 def _on_nostr_event(event_dict: dict) -> None:
     """Callback: ingest a remote TFP Nostr announcement into the tag overlay."""
     try:
@@ -459,18 +818,22 @@ def _on_nostr_event(event_dict: dict) -> None:
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    global _content_store, _device_registry, _earn_log, _credit_store, _earn_rate_limiter, _tag_overlay, _nostr_subscriber, _clients
+    global _content_store, _device_registry, _earn_log, _credit_store, _task_store, _earn_rate_limiter, _tag_overlay, _nostr_subscriber, _clients, _metrics
     db_path = os.environ.get("TFP_DB_PATH", str(_DEFAULT_DB_PATH))
     _conn = sqlite3.connect(db_path, check_same_thread=False)
     _content_store = ContentStore(_conn)
     _device_registry = DeviceRegistry(_conn)
     _earn_log = EarnLog(_conn)
     _credit_store = CreditStore(_conn)
+    _task_store = TaskStore(_conn)
     _earn_rate_limiter = _RateLimiter()
+    _metrics = _Metrics()
     _tag_overlay = TagOverlayIndex()
     _clients.clear()
     if _content_store.count() == 0:
         _seed_sample()
+    # Pre-populate a few open tasks so devices can immediately join
+    _preseed_tasks()
 
     # Start Nostr subscriber in offline mode unless NOSTR_RELAY is set
     relay_url = os.environ.get("NOSTR_RELAY", "")
@@ -489,6 +852,7 @@ async def lifespan(_app: FastAPI):
     _device_registry = None
     _earn_log = None
     _credit_store = None
+    _task_store = None
     _tag_overlay = None
     _nostr_subscriber = None
 
@@ -537,6 +901,7 @@ def enroll(payload: EnrollRequest) -> dict:
     except ValueError as exc:
         raise HTTPException(status_code=422, detail="puf_entropy_hex must be valid hex") from exc
     _device_registry.enroll(payload.device_id, puf_entropy)
+    _metrics.inc("tfp_devices_enrolled_total")
     return {"enrolled": True, "device_id": payload.device_id}
 
 
@@ -547,6 +912,7 @@ def publish(
 ) -> dict:
     message = f"{payload.device_id}:{payload.title}"
     if not _verify_device_sig(payload.device_id, x_device_sig, message, _device_registry):
+        _metrics.inc("tfp_auth_failures_total")
         raise HTTPException(
             status_code=401,
             detail="invalid or missing device signature — enroll first via /api/enroll",
@@ -560,6 +926,7 @@ def publish(
         tags=tags,
         data=body,
     ))
+    _metrics.inc("tfp_content_published_total")
     return {
         "root_hash": result["root_hash"],
         "title": payload.title,
@@ -575,26 +942,34 @@ def earn(
 ) -> dict:
     message = f"{payload.device_id}:{payload.task_id}"
     if not _verify_device_sig(payload.device_id, x_device_sig, message, _device_registry):
+        _metrics.inc("tfp_auth_failures_total")
         raise HTTPException(
             status_code=401,
             detail="invalid or missing device signature — enroll first via /api/enroll",
         )
     # Rate-limit check (sliding window per device)
     if not _earn_rate_limiter.is_allowed(payload.device_id):
+        _metrics.inc("tfp_earn_rate_limited_total")
         raise HTTPException(
             status_code=429,
             detail=f"rate limit exceeded — max {_EARN_RATE_MAX} earn calls per {_EARN_RATE_WINDOW}s per device",
         )
     # Deduplication — reject replayed task IDs
     if not _earn_log.record(payload.device_id, payload.task_id):
+        _metrics.inc("tfp_earn_replay_rejected_total")
         raise HTTPException(
             status_code=409,
             detail="task_id already processed — each task may only be submitted once",
         )
     client = _client_for(payload.device_id)
+    # Inject network-wide total so supply cap is enforced
+    client.ledger.set_network_total_minted(_task_store.get_total_minted() if _task_store else 0)
     receipt = client.submit_compute_task(payload.task_id)
+    if _task_store:
+        _task_store.increment_total_minted(receipt.credits)
     # Persist updated ledger so credits survive a server restart
     _credit_store.save(payload.device_id, client)
+    _metrics.inc("tfp_credits_minted_total", receipt.credits)
     return {
         "device_id": payload.device_id,
         "task_id": payload.task_id,
@@ -617,6 +992,8 @@ def get_content(root_hash: str, device_id: str = Query(default="web-demo")) -> d
             raise HTTPException(status_code=402, detail="earn credits first via /api/earn") from exc
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    _metrics.inc("tfp_content_served_total")
+    _metrics.inc("tfp_credits_spent_total")
     return {
         "root_hash": content.root_hash,
         "title": item.title,
@@ -630,12 +1007,16 @@ def get_content(root_hash: str, device_id: str = Query(default="web-demo")) -> d
 def status() -> dict:
     """Node status: local content count, tag index stats, and Nostr subscriber state."""
     nostr_events = len(_nostr_subscriber.get_received()) if _nostr_subscriber else 0
+    task_stats = _task_store.stats() if _task_store else {}
     return {
-        "version": "0.2.0",
+        "version": "0.3.0",
         "content_items": _content_store.count(),
         "nostr_events_received": nostr_events,
         "nostr_subscriber_running": _nostr_subscriber.is_running() if _nostr_subscriber else False,
         "nostr_relay": _nostr_subscriber.relay_url if _nostr_subscriber else None,
+        "tasks": task_stats,
+        "supply_cap": MAX_SUPPLY,
+        "metrics": _metrics.snapshot(),
     }
 
 
@@ -661,3 +1042,240 @@ def discovery(domain: str = Query(default="general")) -> dict:
     except Exception:
         entries = []
     return {"domain": domain, "entries": entries, "source": "nostr"}
+
+
+# ---------------------------------------------------------------------------
+# Compute task dispatch API
+# ---------------------------------------------------------------------------
+
+@app.post("/api/task")
+def create_task(
+    payload: CreateTaskRequest,
+    x_device_sig: str = Header(alias="X-Device-Sig", default=""),
+) -> dict:
+    """
+    Create a new compute task and broadcast it to the mesh.
+
+    Any enrolled device may call this; unenrolled devices may create tasks
+    without auth (tasks are public goods).
+    """
+    seed_bytes = (
+        bytes.fromhex(payload.seed_hex) if payload.seed_hex
+        else os.urandom(16)
+    )
+    try:
+        spec = _task_store.create_task(
+            task_type=payload.task_type,
+            difficulty=payload.difficulty,
+            seed=seed_bytes,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    _metrics.inc("tfp_tasks_created_total")
+    return {
+        "task_id": spec.task_id,
+        "task_type": spec.task_type.value,
+        "difficulty": spec.difficulty,
+        "credit_reward": spec.credit_reward,
+        "deadline": spec.deadline,
+        # Include enough input data for device to execute the task
+        "input_data_hex": spec.input_data.hex(),
+        "expected_output_hash": spec.expected_output_hash,
+    }
+
+
+@app.get("/api/tasks")
+def list_tasks(limit: int = Query(default=20, ge=1, le=100)) -> dict:
+    """Return open tasks available for device execution."""
+    return {"tasks": _task_store.list_open_tasks(limit=limit)}
+
+
+@app.get("/api/task/{task_id}")
+def get_task(task_id: str) -> dict:
+    """Get details and current status of a specific task."""
+    row = _task_store.get_task_row(task_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="task not found")
+    spec = _task_store.get_spec(task_id)
+    result = {**row}
+    if spec is not None:
+        result["input_data_hex"] = spec.input_data.hex()
+        result["expected_output_hash"] = spec.expected_output_hash
+    return result
+
+
+@app.post("/api/task/{task_id}/result")
+def submit_task_result(
+    task_id: str,
+    payload: SubmitResultRequest,
+    x_device_sig: str = Header(alias="X-Device-Sig"),
+) -> dict:
+    """
+    Submit a compute result for a task.
+
+    The device must be enrolled and provide a valid signature.
+    Credits are minted only after HABP consensus (3/5 matching results).
+
+    When credits_earned > 0 the caller should follow up with POST /api/earn
+    (using the task_id as proof) to credit their ledger, or the credits are
+    automatically applied if the device is already tracked server-side.
+    """
+    message = f"{payload.device_id}:{task_id}"
+    if not _verify_device_sig(payload.device_id, x_device_sig, message, _device_registry):
+        _metrics.inc("tfp_auth_failures_total")
+        raise HTTPException(
+            status_code=401,
+            detail="invalid or missing device signature — enroll first via /api/enroll",
+        )
+
+    verification = _task_store.submit_result(
+        task_id=task_id,
+        device_id=payload.device_id,
+        output_hash=payload.output_hash,
+        exec_time_s=payload.exec_time_s,
+        has_tee=payload.has_tee,
+    )
+    _metrics.inc("tfp_results_submitted_total")
+
+    if verification["verified"]:
+        _metrics.inc("tfp_tasks_completed_total")
+        credits = verification["credits_earned"]
+        # Auto-apply credits to the device's ledger if consensus is reached
+        if credits > 0 and not _earn_log.record(payload.device_id, f"task:{task_id}:result"):
+            # Already applied (idempotent guard)
+            pass
+        elif credits > 0:
+            client = _client_for(payload.device_id)
+            client.ledger.set_network_total_minted(
+                _task_store.get_total_minted()
+            )
+            try:
+                proof_material = f"{task_id}:{payload.output_hash}".encode()
+                proof_hash = hashlib.sha3_256(proof_material).digest()
+                receipt = client.ledger.mint(credits, proof_hash)
+                client._earned_receipts.append(receipt)
+                _task_store.increment_total_minted(credits)
+                _credit_store.save(payload.device_id, client)
+                _metrics.inc("tfp_credits_minted_total", credits)
+            except Exception:
+                pass  # Supply cap or other error — result still accepted
+
+        # Replenish task pool
+        try:
+            _preseed_tasks()
+        except Exception:
+            pass
+
+    return verification
+
+
+# ---------------------------------------------------------------------------
+# Prometheus metrics endpoint
+# ---------------------------------------------------------------------------
+
+@app.get("/metrics")
+def metrics() -> Response:
+    """Prometheus-compatible text metrics endpoint."""
+    return Response(
+        content=_metrics.to_prometheus_text(),
+        media_type="text/plain; version=0.0.4; charset=utf-8",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Admin dashboard
+# ---------------------------------------------------------------------------
+
+_ADMIN_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>TFP Admin — Scholo Node</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:system-ui,sans-serif;background:#0f0f14;color:#e0e0e8;padding:24px}
+    h1{font-size:1.5rem;font-weight:700;color:#7c6fcd;margin-bottom:4px}
+    .sub{color:#888;font-size:.85rem;margin-bottom:24px}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;margin-bottom:32px}
+    .card{background:#1a1a24;border:1px solid #2a2a38;border-radius:12px;padding:20px}
+    .card .label{font-size:.75rem;color:#888;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}
+    .card .value{font-size:2rem;font-weight:700;color:#a89cef}
+    .card .sub-value{font-size:.8rem;color:#666;margin-top:4px}
+    table{width:100%;border-collapse:collapse;background:#1a1a24;border-radius:8px;overflow:hidden}
+    th{text-align:left;padding:10px 16px;background:#222230;font-size:.8rem;color:#888;text-transform:uppercase}
+    td{padding:10px 16px;font-size:.9rem;border-top:1px solid #2a2a38}
+    tr:hover td{background:#20202e}
+    .badge{display:inline-block;padding:2px 8px;border-radius:99px;font-size:.75rem;font-weight:600}
+    .open{background:#1e3a2a;color:#4caf78}
+    .completed{background:#1a2e4a;color:#5b9cf6}
+    .verifying{background:#3a2a0e;color:#f0a030}
+    .failed{background:#3a1a1a;color:#f06060}
+    .refresh{margin-top:24px;color:#666;font-size:.8rem}
+    .progress{background:#1a1a24;border-radius:99px;height:8px;margin-top:8px;overflow:hidden}
+    .progress-bar{height:100%;background:linear-gradient(90deg,#7c6fcd,#a89cef);border-radius:99px;transition:width .4s}
+  </style>
+</head>
+<body>
+  <h1>⚡ TFP Node Admin</h1>
+  <div class="sub" id="version">Loading…</div>
+
+  <div class="grid" id="cards"></div>
+
+  <h2 style="margin-bottom:12px;font-size:1.1rem;color:#888">Open Tasks</h2>
+  <table><thead><tr>
+    <th>Task ID</th><th>Type</th><th>Difficulty</th><th>Reward</th><th>Time Left</th>
+  </tr></thead><tbody id="tasks-body"></tbody></table>
+
+  <div class="refresh">Auto-refreshes every 5 seconds · <a href="/api/status" style="color:#7c6fcd">Raw JSON</a> · <a href="/metrics" style="color:#7c6fcd">Prometheus</a></div>
+
+  <script>
+    async function refresh() {
+      const [s, t] = await Promise.all([
+        fetch('/api/status').then(r=>r.json()).catch(()=>({})),
+        fetch('/api/tasks').then(r=>r.json()).catch(()=>({tasks:[]})),
+      ]);
+      const tasks_s = s.tasks || {};
+      const metrics_s = s.metrics || {};
+      const supply_used = tasks_s.total_minted || 0;
+      const supply_cap = s.supply_cap || 21000000;
+      const pct = Math.min(100, (supply_used / supply_cap * 100)).toFixed(4);
+
+      document.getElementById('version').textContent =
+        `v${s.version || '?'} · Content: ${s.content_items||0} · Supply: ${supply_used.toLocaleString()} / ${supply_cap.toLocaleString()} credits`;
+
+      const cards = [
+        {label:'Open Tasks', value: tasks_s.open||0, sub:'awaiting devices'},
+        {label:'Completed', value: tasks_s.completed||0, sub:'verified by consensus'},
+        {label:'Credits Minted', value: (metrics_s.tfp_credits_minted_total||0).toLocaleString(), sub:`of ${supply_cap.toLocaleString()} cap`},
+        {label:'Credits Spent', value: (metrics_s.tfp_credits_spent_total||0).toLocaleString(), sub:'on content access'},
+        {label:'Devices Enrolled', value: metrics_s.tfp_devices_enrolled_total||0, sub:'unique devices'},
+        {label:'Content Served', value: metrics_s.tfp_content_served_total||0, sub:'requests fulfilled'},
+        {label:'Nostr Events', value: s.nostr_events_received||0, sub: s.nostr_subscriber_running?'live':'offline'},
+        {label:'Supply Used', value: pct+'%', sub:'<div class="progress"><div class="progress-bar" style="width:'+pct+'%"></div></div>'},
+      ];
+      document.getElementById('cards').innerHTML = cards.map(c=>
+        `<div class="card"><div class="label">${c.label}</div><div class="value">${c.value}</div><div class="sub-value">${c.sub}</div></div>`
+      ).join('');
+
+      const rows = (t.tasks||[]).map(tk=>`<tr>
+        <td><code>${tk.task_id}</code></td>
+        <td>${tk.task_type}</td>
+        <td>${tk.difficulty}</td>
+        <td>${tk.credit_reward} cr</td>
+        <td>${tk.time_left_s}s</td>
+      </tr>`).join('') || '<tr><td colspan="5" style="text-align:center;color:#555">No open tasks</td></tr>';
+      document.getElementById('tasks-body').innerHTML = rows;
+    }
+    refresh();
+    setInterval(refresh, 5000);
+  </script>
+</body>
+</html>
+"""
+
+
+@app.get("/admin", response_class=HTMLResponse)
+def admin_dashboard() -> HTMLResponse:
+    """Live admin dashboard — shows node health, task pool, and credit supply."""
+    return HTMLResponse(content=_ADMIN_HTML)
