@@ -1,3 +1,4 @@
+import collections
 import hashlib
 import hmac as _hmac
 import json
@@ -16,6 +17,7 @@ from pydantic import BaseModel, Field
 from tfp_broadcaster.broadcaster import Broadcaster
 from tfp_client.lib.bridges.nostr_subscriber import NostrSubscriber
 from tfp_client.lib.core.tfp_engine import TFPClient
+from tfp_client.lib.credit.ledger import CreditLedger, Receipt
 from tfp_client.lib.metadata.tag_index import TagOverlayIndex
 from tfp_client.lib.ndn.adapter import Data, NDNAdapter
 
@@ -184,6 +186,160 @@ def _verify_device_sig(
 
 
 # ---------------------------------------------------------------------------
+# Earn log — prevents credit replay (duplicate task_id per device)
+# ---------------------------------------------------------------------------
+
+class EarnLog:
+    """
+    SQLite-backed deduplication log for ``/api/earn`` calls.
+
+    Each (device_id, task_id) pair is stored exactly once.  A second attempt
+    to record the same pair returns ``False`` so the caller can reject it with
+    HTTP 409 rather than silently minting extra credits.
+    """
+
+    def __init__(self, conn: sqlite3.Connection) -> None:
+        self._conn = conn
+        self._init_schema()
+
+    def _init_schema(self) -> None:
+        self._conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS earn_log (
+                device_id TEXT NOT NULL,
+                task_id   TEXT NOT NULL,
+                earned_at REAL NOT NULL,
+                PRIMARY KEY (device_id, task_id)
+            )
+            """
+        )
+        self._conn.commit()
+
+    def record(self, device_id: str, task_id: str) -> bool:
+        """Attempt to record an earn event.  Returns True if new, False if duplicate."""
+        try:
+            self._conn.execute(
+                "INSERT INTO earn_log (device_id, task_id, earned_at) VALUES (?, ?, ?)",
+                (device_id, task_id, time.time()),
+            )
+            self._conn.commit()
+            return True
+        except sqlite3.IntegrityError:
+            return False
+
+
+# ---------------------------------------------------------------------------
+# Credit store — persists ledger state across server restarts
+# ---------------------------------------------------------------------------
+
+class CreditStore:
+    """
+    SQLite-backed persistence for per-device CreditLedger state.
+
+    Stores the hash chain, current balance, and the unspent receipt hashes so
+    the ledger can be fully reconstructed after a server restart.
+    """
+
+    def __init__(self, conn: sqlite3.Connection) -> None:
+        self._conn = conn
+        self._init_schema()
+
+    def _init_schema(self) -> None:
+        self._conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS credit_ledger (
+                device_id             TEXT PRIMARY KEY,
+                balance               INTEGER NOT NULL DEFAULT 0,
+                chain_json            TEXT    NOT NULL DEFAULT '[]',
+                unspent_receipts_json TEXT    NOT NULL DEFAULT '[]'
+            )
+            """
+        )
+        self._conn.commit()
+
+    def save(self, device_id: str, client: "TFPClient") -> None:
+        """Persist the client's current ledger + unspent receipts."""
+        chain_json = json.dumps([h.hex() for h in client.ledger.chain])
+        balance = client.ledger.balance
+        unspent_json = json.dumps(
+            [r.chain_hash.hex() for r in client._earned_receipts]
+        )
+        self._conn.execute(
+            """
+            INSERT INTO credit_ledger (device_id, balance, chain_json, unspent_receipts_json)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(device_id) DO UPDATE SET
+                balance               = excluded.balance,
+                chain_json            = excluded.chain_json,
+                unspent_receipts_json = excluded.unspent_receipts_json
+            """,
+            (device_id, balance, chain_json, unspent_json),
+        )
+        self._conn.commit()
+
+    def load(self, device_id: str) -> Optional["TFPClient"]:
+        """
+        Restore a TFPClient with a persisted ledger, or return None if no
+        record exists for this device.
+        """
+        row = self._conn.execute(
+            "SELECT balance, chain_json, unspent_receipts_json FROM credit_ledger WHERE device_id = ?",
+            (device_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        balance, chain_json, unspent_json = row
+        chain = [bytes.fromhex(h) for h in json.loads(chain_json)]
+        ledger = CreditLedger.from_snapshot(chain, balance)
+        unspent_receipts = [
+            Receipt(chain_hash=bytes.fromhex(h), credits=10)
+            for h in json.loads(unspent_json)
+        ]
+        client = TFPClient(ndn=DemoNDNAdapter(_content_store), ledger=ledger)
+        client._earned_receipts = unspent_receipts
+        return client
+
+
+# ---------------------------------------------------------------------------
+# Rate limiter — sliding-window token bucket per device
+# ---------------------------------------------------------------------------
+
+_EARN_RATE_MAX = int(os.environ.get("TFP_EARN_RATE_MAX", "10"))
+_EARN_RATE_WINDOW = int(os.environ.get("TFP_EARN_RATE_WINDOW", "60"))
+
+
+class _RateLimiter:
+    """
+    In-memory sliding-window rate limiter.
+
+    Allows at most ``max_calls`` calls per ``window_seconds`` per key.
+    Thread-safe by virtue of the GIL on CPython; each bucket is a deque of
+    float timestamps that is pruned on every check.
+    """
+
+    def __init__(self, max_calls: int = _EARN_RATE_MAX, window_seconds: int = _EARN_RATE_WINDOW) -> None:
+        self._max = max_calls
+        self._window = window_seconds
+        self._buckets: Dict[str, collections.deque] = {}
+
+    def is_allowed(self, key: str) -> bool:
+        """Return True and record the call, or False if the rate limit is exceeded."""
+        now = time.monotonic()
+        bucket = self._buckets.setdefault(key, collections.deque())
+        cutoff = now - self._window
+        while bucket and bucket[0] < cutoff:
+            bucket.popleft()
+        if len(bucket) >= self._max:
+            return False
+        bucket.append(now)
+        return True
+
+    def reset(self, key: str) -> None:
+        """Clear the bucket for a key (useful in tests)."""
+        self._buckets.pop(key, None)
+
+
+# ---------------------------------------------------------------------------
 # Request models
 # ---------------------------------------------------------------------------
 
@@ -210,6 +366,9 @@ class EnrollRequest(BaseModel):
 
 _content_store: Optional[ContentStore] = None
 _device_registry: Optional[DeviceRegistry] = None
+_earn_log: Optional[EarnLog] = None
+_credit_store: Optional[CreditStore] = None
+_earn_rate_limiter: _RateLimiter = _RateLimiter()
 _tag_overlay: Optional[TagOverlayIndex] = None
 _nostr_subscriber: Optional[NostrSubscriber] = None
 _broadcaster = Broadcaster()
@@ -229,9 +388,30 @@ class DemoNDNAdapter(NDNAdapter):
         return Data(name=interest.name, content=item.data)
 
 
+def _make_ndn_adapter() -> NDNAdapter:
+    """Return the real NDN adapter when TFP_REAL_ADAPTERS=1, else the demo store adapter."""
+    if os.environ.get("TFP_REAL_ADAPTERS", "").strip() == "1":
+        from tfp_client.lib.ndn.ndn_real import RealNDNAdapter
+        return RealNDNAdapter()
+    return DemoNDNAdapter(_content_store)
+
+
 def _client_for(device_id: str) -> TFPClient:
+    """Return (and cache) a TFPClient for *device_id*, restoring persisted state if available."""
     if device_id not in _clients:
-        _clients[device_id] = TFPClient(ndn=DemoNDNAdapter(_content_store))
+        restored = _credit_store.load(device_id) if _credit_store else None
+        if restored is not None:
+            # Patch the NDN adapter to point at the current store instance
+            restored.ndn = _make_ndn_adapter()
+            _clients[device_id] = restored
+        else:
+            kwargs: dict = {"ndn": _make_ndn_adapter()}
+            if os.environ.get("TFP_REAL_ADAPTERS", "").strip() == "1":
+                from tfp_client.lib.fountain.fountain_real import RealRaptorQAdapter
+                from tfp_client.lib.zkp.zkp_real import RealZKPAdapter
+                kwargs["raptorq"] = RealRaptorQAdapter()
+                kwargs["zkp"] = RealZKPAdapter()
+            _clients[device_id] = TFPClient(**kwargs)
     return _clients[device_id]
 
 
@@ -279,11 +459,14 @@ def _on_nostr_event(event_dict: dict) -> None:
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    global _content_store, _device_registry, _tag_overlay, _nostr_subscriber, _clients
+    global _content_store, _device_registry, _earn_log, _credit_store, _earn_rate_limiter, _tag_overlay, _nostr_subscriber, _clients
     db_path = os.environ.get("TFP_DB_PATH", str(_DEFAULT_DB_PATH))
     _conn = sqlite3.connect(db_path, check_same_thread=False)
     _content_store = ContentStore(_conn)
     _device_registry = DeviceRegistry(_conn)
+    _earn_log = EarnLog(_conn)
+    _credit_store = CreditStore(_conn)
+    _earn_rate_limiter = _RateLimiter()
     _tag_overlay = TagOverlayIndex()
     _clients.clear()
     if _content_store.count() == 0:
@@ -304,6 +487,8 @@ async def lifespan(_app: FastAPI):
     _conn.close()
     _content_store = None
     _device_registry = None
+    _earn_log = None
+    _credit_store = None
     _tag_overlay = None
     _nostr_subscriber = None
 
@@ -394,8 +579,22 @@ def earn(
             status_code=401,
             detail="invalid or missing device signature — enroll first via /api/enroll",
         )
+    # Rate-limit check (sliding window per device)
+    if not _earn_rate_limiter.is_allowed(payload.device_id):
+        raise HTTPException(
+            status_code=429,
+            detail=f"rate limit exceeded — max {_EARN_RATE_MAX} earn calls per {_EARN_RATE_WINDOW}s per device",
+        )
+    # Deduplication — reject replayed task IDs
+    if not _earn_log.record(payload.device_id, payload.task_id):
+        raise HTTPException(
+            status_code=409,
+            detail="task_id already processed — each task may only be submitted once",
+        )
     client = _client_for(payload.device_id)
     receipt = client.submit_compute_task(payload.task_id)
+    # Persist updated ledger so credits survive a server restart
+    _credit_store.save(payload.device_id, client)
     return {
         "device_id": payload.device_id,
         "task_id": payload.task_id,

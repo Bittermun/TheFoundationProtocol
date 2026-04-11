@@ -10,9 +10,14 @@ class Receipt:
 
 
 class CreditLedger:
-    def __init__(self):
-        self._chain: List[bytes] = []
-        self._balance: int = 0
+    def __init__(self, chain: List[bytes] = None, balance: int = 0):
+        self._chain: List[bytes] = list(chain) if chain else []
+        self._balance: int = balance
+
+    @classmethod
+    def from_snapshot(cls, chain: List[bytes], balance: int) -> "CreditLedger":
+        """Restore a ledger from a persisted chain + balance snapshot."""
+        return cls(chain=chain, balance=balance)
 
     def mint(self, credits: int, proof_hash: bytes) -> Receipt:
         if credits <= 0:

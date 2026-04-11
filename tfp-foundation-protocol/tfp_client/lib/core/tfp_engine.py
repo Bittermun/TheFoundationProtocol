@@ -43,6 +43,12 @@ class TFPClient:
             if not ok:
                 raise SecurityError("recipe validation failed")
 
+        # Security gate: verify caller-supplied ZKP proof before fetching content
+        if zkp_proof is not None:
+            public_input = hashlib.sha3_256(root_hash.encode()).digest()
+            if not self.zkp.verify_proof(zkp_proof, public_input):
+                raise SecurityError("ZKP proof verification failed")
+
         interest = self.ndn.create_interest(root_hash)
         data = self.ndn.express_interest(interest)
         shards = [data.content]
