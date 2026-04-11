@@ -15,10 +15,16 @@
 |----------|---------|
 | **[Integration Guide](tfp-foundation-protocol/docs/v3.0-integration-guide.md)** | API reference, task execution, credit economics, deployment runbook, testing, extension guide — **start here** |
 | **[Security Model & Checklist](tfp-foundation-protocol/docs/SECURITY.md)** | Verified security properties, known limitations, per-release checklist, maintenance policy |
+| **[Deploy & Bootstrap Guide](docs/deploy_demo.md)** | Run locally, Docker, cloud (Render/Railway/Fly.io), Nostr relay setup, compute pool bootstrap |
+| **[Contributing](CONTRIBUTING.md)** | Setup, PR workflow, high-impact areas, security disclosure |
+| **[Code of Conduct](CODE_OF_CONDUCT.md)** | Contributor expectations |
+| **[Governance Manifest](GOVERNANCE_MANIFEST.json)** | Maintainer transparency, contribution model, sustainability, accountability |
 | **[Porting Guide](tfp-foundation-protocol/docs/porting_guide.md)** | C/Rust porting to Cortex-M4 / RISC-V32 |
 | **[Plugin Tutorial](docs/plugin_tutorial_30_min.md)** | Build a plugin in 30 minutes |
 | **[Hackathon Kit](docs/hackathon_kit.md)** | Event materials, starter templates |
 | **[Partnerships Pack](docs/partnerships_outreach_pack.md)** | Community & NGO deployment guide |
+| **[Integrations Playbook](docs/integrations_playbook.md)** | IPFS, Nostr, Kiwix/Wikipedia bridge roadmap |
+| **[Extension Modules](tfp-foundation-protocol/IMPLEMENTATION_SUMMARY.md)** | Optional Redis rate limiter, RAGgraph semantic search, OpenTelemetry tracing |
 | **[Archive](docs/archive/)** | Historical planning docs and legacy integration guides (v2.x) — read-only |
 
 ---
@@ -227,7 +233,7 @@ See the historical hardening notes in [`docs/archive/v2.2-hardening.md`](tfp-fou
 |----------|----------|-----------------|
 | **Rural communities & NGOs** | Offline, low-cost delivery of education, health, and emergency information | See [`docs/partnerships_outreach_pack.md`](docs/partnerships_outreach_pack.md) |
 | **Developers** | Building censorship-resistant apps, plugins, browser extensions | See [`docs/hackathon_kit.md`](docs/hackathon_kit.md) + [`docs/plugin_tutorial_30_min.md`](docs/plugin_tutorial_30_min.md) |
-| **Organizations** | Compliant, low-cost compute/content distribution | See [`TFP_FINAL_STATUS.md`](TFP_FINAL_STATUS.md) (regulatory positioning) |
+| **Organizations** | Compliant, low-cost compute/content distribution | See [`docs/archive/TFP_FINAL_STATUS.md`](docs/archive/TFP_FINAL_STATUS.md) (regulatory positioning) |
 | **Researchers** | Studying decentralized protocols, mesh networks, P2P economics | See [`docs/integrations_playbook.md`](docs/integrations_playbook.md) |
 | **Everyone** | Publishing/sharing without big-tech gatekeepers | Run demo node: `docker compose up` |
 
@@ -296,7 +302,7 @@ python tfp_pilots/community_bootstrap.py --community-id "my-region"
 | **Core Contributor** | Fix bugs, add features, review PRs | Pick a `good first issue` on GitHub |
 | **Plugin Developer** | Build audio galleries, offline packs, browser tools | [`docs/plugin_tutorial_30_min.md`](docs/plugin_tutorial_30_min.md) |
 | **Community Organizer** | Deploy pilots, onboard NGOs, host hackathons | [`docs/partnerships_outreach_pack.md`](docs/partnerships_outreach_pack.md) |
-| **Researcher** | Study protocol economics, mesh behavior, security | [`TFP_VISION_AND_CURRENT_STATE.md`](TFP_VISION_AND_CURRENT_STATE.md) |
+| **Researcher** | Study protocol economics, mesh behavior, security | [`docs/archive/TFP_VISION_AND_CURRENT_STATE.md`](docs/archive/TFP_VISION_AND_CURRENT_STATE.md) |
 | **Donor/Partner** | Fund audits, sponsor pilots, provide infrastructure | Contact: governance@tfp-protocol.org |
 
 ---
@@ -319,7 +325,7 @@ python tfp_pilots/community_bootstrap.py --community-id "my-region"
 | Test Warnings | 1 | 0 | ⚠️ |
 | PII Logged | 0 | 0 | ✅ |
 | Critical Vulnerabilities | 0 | 0 | ✅ |
-| Documentation Pages | 8 | >5 | ✅ |
+| Documentation Pages | 16 | >5 | ✅ |
 | Plugin SDK Modules | 2 | >1 | ✅ |
 | Governance Transparency | 100% | 100% | ✅ |
 
