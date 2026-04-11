@@ -820,3 +820,221 @@ class TestGrandPooledComputeScenario:
             print(f"   Credits minted: {status_r['tasks']['total_minted']}")
             print(f"   Supply cap: {MAX_SUPPLY:,}")
             print(f"   Content served: OK\n")
+
+
+# ---------------------------------------------------------------------------
+# 13. Device leaderboard
+# ---------------------------------------------------------------------------
+
+class TestDeviceLeaderboard:
+    """GET /api/devices and GET /api/device/{id} endpoints."""
+
+    def test_leaderboard_returns_enrolled_devices(self):
+        with TestClient(app) as client:
+            entropy = os.urandom(32)
+            _enroll(client, "lb-dev-1", entropy)
+            r = client.get("/api/devices")
+            assert r.status_code == 200
+            data = r.json()
+            assert "devices" in data
+            ids = [d["device_id"] for d in data["devices"]]
+            assert "lb-dev-1" in ids
+
+    def test_leaderboard_sorted_by_credits(self):
+        with TestClient(app) as client:
+            # Enroll two devices and give one credits
+            e1, e2 = os.urandom(32), os.urandom(32)
+            _enroll(client, "lb-rich", e1)
+            _enroll(client, "lb-poor", e2)
+            # Give lb-rich 10 credits via legacy earn
+            sig = _hmac.new(e1, "lb-rich:lb-sort-task".encode(), hashlib.sha256).hexdigest()
+            client.post("/api/earn", json={"device_id": "lb-rich", "task_id": "lb-sort-task"},
+                        headers={"X-Device-Sig": sig})
+            r = client.get("/api/devices")
+            devices = r.json()["devices"]
+            idx_rich = next((i for i, d in enumerate(devices) if d["device_id"] == "lb-rich"), None)
+            idx_poor = next((i for i, d in enumerate(devices) if d["device_id"] == "lb-poor"), None)
+            if idx_rich is not None and idx_poor is not None:
+                assert idx_rich <= idx_poor  # richer device ranked higher
+
+    def test_get_single_device_stats(self):
+        with TestClient(app) as client:
+            entropy = os.urandom(32)
+            _enroll(client, "single-dev", entropy)
+            r = client.get("/api/device/single-dev")
+            assert r.status_code == 200
+            data = r.json()
+            assert data["device_id"] == "single-dev"
+            assert "credits_balance" in data
+            assert "tasks_contributed" in data
+
+    def test_unknown_device_returns_404(self):
+        with TestClient(app) as client:
+            r = client.get("/api/device/totally-unknown-xyz")
+            assert r.status_code == 404
+
+    def test_total_enrolled_count(self):
+        with TestClient(app) as client:
+            before = client.get("/api/devices").json()["total_enrolled"]
+            _enroll(client, "count-dev", os.urandom(32))
+            after = client.get("/api/devices").json()["total_enrolled"]
+            assert after == before + 1
+
+
+# ---------------------------------------------------------------------------
+# 14. Task expiry reaper
+# ---------------------------------------------------------------------------
+
+class TestTaskExpiryReaper:
+    """Expired tasks should be reaped and pool replenished."""
+
+    def test_expired_tasks_not_returned_in_list(self):
+        import time
+        conn = sqlite3.connect(":memory:")
+        from tfp_demo.server import TaskStore
+        ts = TaskStore(conn)
+        # Manually insert an already-expired task
+        spec_dict = {
+            "task_id": "expired-001",
+            "task_type": "hash_preimage",
+            "difficulty": 1,
+            "input_data_hex": "aa" * 8,
+            "expected_output_hash": "b" * 64,
+            "credit_reward": 5,
+        }
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO tasks
+              (task_id, task_type, difficulty, spec_json, status, created_at, deadline, credit_reward)
+            VALUES ('expired-001', 'hash_preimage', 1, ?, 'open', ?, ?, 5)
+            """,
+            (json.dumps(spec_dict), time.time() - 1000, time.time() - 500),
+        )
+        conn.commit()
+        tasks = ts.list_open_tasks()
+        ids = [t["task_id"] for t in tasks]
+        assert "expired-001" not in ids
+
+    def test_reap_expired_marks_failed(self):
+        import time
+        conn = sqlite3.connect(":memory:")
+        from tfp_demo.server import TaskStore
+        ts = TaskStore(conn)
+        spec_dict = {
+            "task_id": "reap-001",
+            "task_type": "hash_preimage",
+            "difficulty": 1,
+            "input_data_hex": "aa" * 8,
+            "expected_output_hash": "b" * 64,
+            "credit_reward": 5,
+        }
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO tasks
+              (task_id, task_type, difficulty, spec_json, status, created_at, deadline, credit_reward)
+            VALUES ('reap-001', 'hash_preimage', 1, ?, 'open', ?, ?, 5)
+            """,
+            (json.dumps(spec_dict), time.time() - 1000, time.time() - 500),
+        )
+        conn.commit()
+        reaped = ts.reap_expired_tasks()
+        assert reaped >= 1
+        row = conn.execute("SELECT status FROM tasks WHERE task_id = 'reap-001'").fetchone()
+        assert row[0] == "failed"
+
+
+# ---------------------------------------------------------------------------
+# 15. Metrics seed from DB
+# ---------------------------------------------------------------------------
+
+class TestMetricsDbSeed:
+    """Metrics should reflect persisted state on startup."""
+
+    def test_metrics_seeded_from_db(self):
+        """After enrolling and earning in one TestClient, a fresh Metrics
+        object seeded from the same connection should show the counts."""
+        conn = sqlite3.connect(":memory:")
+        from tfp_demo.server import _Metrics, DeviceRegistry
+        # Bootstrap the schema by creating a DeviceRegistry (creates devices table)
+        dr = DeviceRegistry(conn)
+        dr.enroll("seed-test-dev", os.urandom(32))
+        # Create the content table stub (just count check)
+        conn.execute("CREATE TABLE IF NOT EXISTS content (root_hash TEXT PRIMARY KEY, title TEXT, tags TEXT, data BLOB)")
+        # Create supply_ledger
+        conn.execute("CREATE TABLE IF NOT EXISTS supply_ledger (id INTEGER PRIMARY KEY CHECK (id=1), total_minted INTEGER NOT NULL DEFAULT 0)")
+        conn.execute("INSERT OR IGNORE INTO supply_ledger (id, total_minted) VALUES (1, 500)")
+        # Create tasks table
+        conn.execute("CREATE TABLE IF NOT EXISTS tasks (task_id TEXT PRIMARY KEY, task_type TEXT, difficulty INT, spec_json TEXT, status TEXT DEFAULT 'open', created_at REAL, deadline REAL, credit_reward INT DEFAULT 10)")
+        conn.execute("INSERT INTO tasks VALUES ('t1','hash_preimage',1,'{}','completed',0,9999999,10)")
+        conn.execute("INSERT INTO tasks VALUES ('t2','hash_preimage',1,'{}','failed',0,0,10)")
+        conn.execute("CREATE TABLE IF NOT EXISTS task_results (result_id INTEGER PRIMARY KEY AUTOINCREMENT, task_id TEXT, device_id TEXT, output_hash TEXT, exec_time_s REAL, has_tee INT DEFAULT 0, submitted_at REAL, UNIQUE(task_id, device_id))")
+        conn.execute("INSERT INTO task_results (task_id, device_id, output_hash, exec_time_s, has_tee, submitted_at) VALUES ('t1','seed-test-dev','aa'*32,0.1,0,0)")
+        conn.commit()
+        m = _Metrics()
+        m.seed_from_db(conn)
+        assert m.get("tfp_devices_enrolled_total") == 1
+        assert m.get("tfp_credits_minted_total") == 500
+        assert m.get("tfp_tasks_completed_total") == 1
+        assert m.get("tfp_tasks_failed_total") == 1
+
+    def test_admin_dashboard_contains_leaderboard(self):
+        with TestClient(app) as client:
+            r = client.get("/admin")
+            assert r.status_code == 200
+            assert "Device Leaderboard" in r.text
+            assert "/api/devices" in r.text
+
+
+# ---------------------------------------------------------------------------
+# 16. HABP restart survival
+# ---------------------------------------------------------------------------
+
+class TestHABPRestartSurvival:
+    """Consensus state must survive server restart via SQLite persistence."""
+
+    def test_habp_rebuilt_from_persisted_results(self):
+        """
+        Simulate a partial consensus (2 of 3 proofs submitted), then rebuild
+        a new HABPVerifier from the persisted task_results table. The rebuilt
+        verifier should already have 2 proofs and reach consensus on the 3rd.
+        """
+        import time
+        conn = sqlite3.connect(":memory:")
+        from tfp_demo.server import TaskStore
+        from tfp_client.lib.compute.verify_habp import HABPVerifier
+
+        ts = TaskStore(conn)
+        output_hash = "a" * 64
+
+        # Create a task
+        spec = ts.create_task("hash_preimage", 1, b"restart-seed")
+        task_id = spec.task_id
+
+        # Simulate 2 proof submissions persisted to DB
+        for i in range(2):
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO task_results
+                  (task_id, device_id, output_hash, exec_time_s, has_tee, submitted_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (task_id, f"restart-dev-{i}", output_hash, 0.1, 0, time.time()),
+            )
+        conn.execute(
+            "UPDATE tasks SET status = 'verifying' WHERE task_id = ?", (task_id,)
+        )
+        conn.commit()
+
+        # Create a NEW TaskStore (simulates restart) — it rebuilds HABP from DB
+        ts2 = TaskStore(conn)
+        assert ts2._habp.get_proof_count(task_id) == 2
+
+        # Third submission reaches consensus
+        from tfp_client.lib.compute.verify_habp import generate_execution_proof
+        proof3 = generate_execution_proof("restart-dev-2", task_id, bytes.fromhex(output_hash), 0.1)
+        proof3.output_hash = output_hash
+        ts2._habp.submit_proof(proof3)
+        consensus = ts2._habp.verify_consensus(task_id)
+        assert consensus is not None
+        assert consensus.verified
+        assert len(consensus.matching_devices) == 3

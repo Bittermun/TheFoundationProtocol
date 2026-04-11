@@ -2,6 +2,7 @@ import collections
 import hashlib
 import hmac as _hmac
 import json
+import logging
 import os
 import sqlite3
 import time
@@ -30,6 +31,8 @@ from tfp_client.lib.compute.verify_habp import HABPVerifier, ExecutionProof, gen
 from tfp_client.lib.compute.credit_formula import CreditFormula
 
 _DEFAULT_DB_PATH = Path(__file__).resolve().parent.parent / "pib.db"
+
+log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -353,7 +356,8 @@ class TaskStore:
                 output_hash  TEXT NOT NULL,
                 exec_time_s  REAL NOT NULL,
                 has_tee      INT  NOT NULL DEFAULT 0,
-                submitted_at REAL NOT NULL
+                submitted_at REAL NOT NULL,
+                UNIQUE(task_id, device_id)
             );
             CREATE TABLE IF NOT EXISTS supply_ledger (
                 id             INTEGER PRIMARY KEY CHECK (id = 1),
@@ -363,6 +367,33 @@ class TaskStore:
             """
         )
         self._conn.commit()
+        # Rebuild in-memory HABP state from persisted results for tasks still verifying
+        self._rebuild_habp_from_db()
+
+    def _rebuild_habp_from_db(self) -> None:
+        """Replay persisted proofs into HABPVerifier so consensus survives restarts."""
+        rows = self._conn.execute(
+            """
+            SELECT r.task_id, r.device_id, r.output_hash, r.exec_time_s, r.has_tee
+            FROM task_results r
+            JOIN tasks t ON t.task_id = r.task_id
+            WHERE t.status IN ('verifying', 'open')
+            ORDER BY r.submitted_at
+            """
+        ).fetchall()
+        for task_id, device_id, output_hash, exec_time_s, has_tee in rows:
+            proof = generate_execution_proof(
+                device_id=device_id,
+                task_id=task_id,
+                output_data=bytes.fromhex(output_hash) if len(output_hash) == 64 else output_hash.encode(),
+                execution_time=exec_time_s,
+                has_tee=bool(has_tee),
+            )
+            proof.output_hash = output_hash
+            self._habp.submit_proof(proof)
+        if rows:
+            log.info("Rebuilt HABP state from %d persisted proofs across %d tasks",
+                     len(rows), len(set(r[0] for r in rows)))
 
     # -- Supply tracking -------------------------------------------------------
 
@@ -423,7 +454,8 @@ class TaskStore:
         return spec
 
     def list_open_tasks(self, limit: int = 20) -> List[dict]:
-        """Return open tasks suitable for device consumption."""
+        """Return open tasks suitable for device consumption (reaps expired first)."""
+        self.reap_expired_tasks()
         now = time.time()
         rows = self._conn.execute(
             """
@@ -446,6 +478,28 @@ class TaskStore:
             }
             for r in rows
         ]
+
+    def reap_expired_tasks(self) -> int:
+        """
+        Mark all open/verifying tasks past their deadline as failed.
+
+        Returns the count of tasks reaped. Called automatically before listing
+        open tasks so the pool never shows stale entries.
+        """
+        now = time.time()
+        with self._lock:
+            cur = self._conn.execute(
+                """
+                UPDATE tasks SET status = 'failed'
+                WHERE status IN ('open', 'verifying') AND deadline < ?
+                """,
+                (now,),
+            )
+            self._conn.commit()
+            reaped = cur.rowcount
+        if reaped:
+            log.info("Reaped %d expired tasks", reaped)
+        return reaped
 
     def get_spec(self, task_id: str) -> Optional[TaskSpec]:
         row = self._conn.execute(
@@ -498,7 +552,7 @@ class TaskStore:
         # Record result
         self._conn.execute(
             """
-            INSERT INTO task_results
+            INSERT OR IGNORE INTO task_results
               (task_id, device_id, output_hash, exec_time_s, has_tee, submitted_at)
             VALUES (?, ?, ?, ?, ?, ?)
             """,
@@ -525,7 +579,6 @@ class TaskStore:
         consensus = self._habp.verify_consensus(task_id)
         if consensus and consensus.verified:
             # Mark completed and compute credits
-            spec = self.get_spec(task_id)
             calc = self._credit_formula.calculate_credits(
                 difficulty=task_row["difficulty"],
                 hardware_trust=consensus.credit_weight,
@@ -575,6 +628,41 @@ class TaskStore:
             "supply_remaining": MAX_SUPPLY - self.get_total_minted(),
         }
 
+    def device_leaderboard(self, limit: int = 50) -> List[dict]:
+        """
+        Return top contributing devices sorted by credits earned (balance).
+
+        Joins the devices table with credit_ledger for balance and
+        task_results for number of tasks contributed.
+        """
+        rows = self._conn.execute(
+            """
+            SELECT
+                d.device_id,
+                d.enrolled_at,
+                COALESCE(cl.balance, 0)          AS credits_balance,
+                COUNT(DISTINCT tr.task_id)        AS tasks_contributed,
+                MAX(tr.submitted_at)              AS last_active
+            FROM devices d
+            LEFT JOIN credit_ledger cl ON cl.device_id = d.device_id
+            LEFT JOIN task_results   tr ON tr.device_id = d.device_id
+            GROUP BY d.device_id
+            ORDER BY credits_balance DESC, tasks_contributed DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+        return [
+            {
+                "device_id": r[0],
+                "enrolled_at": r[1],
+                "credits_balance": r[2],
+                "tasks_contributed": r[3],
+                "last_active": r[4],
+            }
+            for r in rows
+        ]
+
 
 # ---------------------------------------------------------------------------
 # Prometheus metrics (in-process counters)
@@ -585,6 +673,8 @@ class _Metrics:
     Lightweight in-process counters for Prometheus text exposition format.
     No external dependency — pure Python.  For production, swap to
     prometheus_client if desired.
+
+    Counters are seeded from SQLite on startup so they survive server restarts.
     """
 
     def __init__(self) -> None:
@@ -603,6 +693,37 @@ class _Metrics:
             "tfp_earn_replay_rejected_total": 0,
             "tfp_auth_failures_total": 0,
         }
+
+    def seed_from_db(self, conn: sqlite3.Connection) -> None:
+        """
+        Seed durable counters from SQLite so they survive server restarts.
+
+        Only counters that can be derived from persisted data are seeded;
+        transient counters (rate_limited, replay_rejected, auth_failures)
+        intentionally reset to 0 on restart.
+        """
+        try:
+            tasks_row = conn.execute(
+                "SELECT SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END),"
+                "       SUM(CASE WHEN status='failed'    THEN 1 ELSE 0 END),"
+                "       COUNT(*) FROM tasks"
+            ).fetchone()
+            devices_row = conn.execute("SELECT COUNT(*) FROM devices").fetchone()
+            supply_row = conn.execute(
+                "SELECT total_minted FROM supply_ledger WHERE id = 1"
+            ).fetchone()
+            content_row = conn.execute("SELECT COUNT(*) FROM content").fetchone()
+            results_row = conn.execute("SELECT COUNT(*) FROM task_results").fetchone()
+            with self._lock:
+                self._counters["tfp_tasks_completed_total"] = tasks_row[0] or 0
+                self._counters["tfp_tasks_failed_total"] = tasks_row[1] or 0
+                self._counters["tfp_tasks_created_total"] = tasks_row[2] or 0
+                self._counters["tfp_devices_enrolled_total"] = devices_row[0] or 0
+                self._counters["tfp_credits_minted_total"] = supply_row[0] if supply_row else 0
+                self._counters["tfp_content_published_total"] = content_row[0] or 0
+                self._counters["tfp_results_submitted_total"] = results_row[0] or 0
+        except Exception as exc:
+            log.warning("metrics.seed_from_db failed (non-fatal): %s", exc)
 
     def inc(self, name: str, value: int = 1) -> None:
         with self._lock:
@@ -781,6 +902,7 @@ def _preseed_tasks() -> None:
     """Pre-create a small pool of open tasks so devices can join immediately."""
     if _task_store is None:
         return
+    _task_store.reap_expired_tasks()
     if _task_store.stats()["open"] >= 5:
         return  # Already have enough open tasks
     seeds = [
@@ -793,8 +915,8 @@ def _preseed_tasks() -> None:
     for task_type, difficulty, seed in seeds:
         try:
             _task_store.create_task(task_type, difficulty, seed)
-        except Exception:
-            pass  # Don't crash startup if a task type fails
+        except Exception as exc:
+            log.warning("preseed task %s failed: %s", task_type, exc)
 
 
 def _on_nostr_event(event_dict: dict) -> None:
@@ -828,6 +950,8 @@ async def lifespan(_app: FastAPI):
     _task_store = TaskStore(_conn)
     _earn_rate_limiter = _RateLimiter()
     _metrics = _Metrics()
+    # Seed durable counters from SQLite so they survive restarts
+    _metrics.seed_from_db(_conn)
     _tag_overlay = TagOverlayIndex()
     _clients.clear()
     if _content_store.count() == 0:
@@ -1157,16 +1281,58 @@ def submit_task_result(
                 _task_store.increment_total_minted(credits)
                 _credit_store.save(payload.device_id, client)
                 _metrics.inc("tfp_credits_minted_total", credits)
-            except Exception:
-                pass  # Supply cap or other error — result still accepted
+            except Exception as exc:
+                log.warning(
+                    "Auto-mint failed for device=%s task=%s credits=%d: %s",
+                    payload.device_id, task_id, credits, exc,
+                )
 
         # Replenish task pool
         try:
             _preseed_tasks()
-        except Exception:
-            pass
+        except Exception as exc:
+            log.warning("Task pool replenish failed: %s", exc)
 
     return verification
+
+
+# ---------------------------------------------------------------------------
+# Device leaderboard
+# ---------------------------------------------------------------------------
+
+@app.get("/api/devices")
+def device_leaderboard_endpoint(limit: int = Query(default=50, ge=1, le=200)) -> dict:
+    """
+    Return all enrolled devices sorted by credits earned (descending).
+
+    Useful for leaderboards, network health checks, and federation tooling.
+    """
+    devices = _task_store.device_leaderboard(limit=limit)
+    return {
+        "devices": devices,
+        "total_enrolled": len(devices),
+    }
+
+
+@app.get("/api/device/{device_id}")
+def get_device(device_id: str) -> dict:
+    """Return stats for a single enrolled device."""
+    if not _device_registry.is_enrolled(device_id):
+        raise HTTPException(status_code=404, detail="device not enrolled")
+    rows = _task_store.device_leaderboard(limit=9999)
+    match = next((r for r in rows if r["device_id"] == device_id), None)
+    if match is None:
+        # Enrolled but no tasks yet
+        match = {
+            "device_id": device_id,
+            "enrolled_at": None,
+            "credits_balance": 0,
+            "tasks_contributed": 0,
+            "last_active": None,
+        }
+    client = _clients.get(device_id)
+    match["credits_in_memory"] = client.ledger.balance if client else None
+    return match
 
 
 # ---------------------------------------------------------------------------
@@ -1202,7 +1368,7 @@ _ADMIN_HTML = """<!DOCTYPE html>
     .card .label{font-size:.75rem;color:#888;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}
     .card .value{font-size:2rem;font-weight:700;color:#a89cef}
     .card .sub-value{font-size:.8rem;color:#666;margin-top:4px}
-    table{width:100%;border-collapse:collapse;background:#1a1a24;border-radius:8px;overflow:hidden}
+    table{width:100%;border-collapse:collapse;background:#1a1a24;border-radius:8px;overflow:hidden;margin-bottom:32px}
     th{text-align:left;padding:10px 16px;background:#222230;font-size:.8rem;color:#888;text-transform:uppercase}
     td{padding:10px 16px;font-size:.9rem;border-top:1px solid #2a2a38}
     tr:hover td{background:#20202e}
@@ -1214,6 +1380,7 @@ _ADMIN_HTML = """<!DOCTYPE html>
     .refresh{margin-top:24px;color:#666;font-size:.8rem}
     .progress{background:#1a1a24;border-radius:99px;height:8px;margin-top:8px;overflow:hidden}
     .progress-bar{height:100%;background:linear-gradient(90deg,#7c6fcd,#a89cef);border-radius:99px;transition:width .4s}
+    h2{margin-bottom:12px;font-size:1.1rem;color:#888}
   </style>
 </head>
 <body>
@@ -1222,18 +1389,28 @@ _ADMIN_HTML = """<!DOCTYPE html>
 
   <div class="grid" id="cards"></div>
 
-  <h2 style="margin-bottom:12px;font-size:1.1rem;color:#888">Open Tasks</h2>
+  <h2>Open Tasks</h2>
   <table><thead><tr>
     <th>Task ID</th><th>Type</th><th>Difficulty</th><th>Reward</th><th>Time Left</th>
   </tr></thead><tbody id="tasks-body"></tbody></table>
 
-  <div class="refresh">Auto-refreshes every 5 seconds · <a href="/api/status" style="color:#7c6fcd">Raw JSON</a> · <a href="/metrics" style="color:#7c6fcd">Prometheus</a></div>
+  <h2>Device Leaderboard</h2>
+  <table><thead><tr>
+    <th>#</th><th>Device ID</th><th>Credits</th><th>Tasks</th><th>Last Active</th>
+  </tr></thead><tbody id="devices-body"></tbody></table>
+
+  <div class="refresh">Auto-refreshes every 5 seconds ·
+    <a href="/api/status" style="color:#7c6fcd">Raw JSON</a> ·
+    <a href="/api/devices" style="color:#7c6fcd">Devices</a> ·
+    <a href="/metrics" style="color:#7c6fcd">Prometheus</a>
+  </div>
 
   <script>
     async function refresh() {
-      const [s, t] = await Promise.all([
+      const [s, t, dv] = await Promise.all([
         fetch('/api/status').then(r=>r.json()).catch(()=>({})),
         fetch('/api/tasks').then(r=>r.json()).catch(()=>({tasks:[]})),
+        fetch('/api/devices').then(r=>r.json()).catch(()=>({devices:[]})),
       ]);
       const tasks_s = s.tasks || {};
       const metrics_s = s.metrics || {};
@@ -1266,6 +1443,15 @@ _ADMIN_HTML = """<!DOCTYPE html>
         <td>${tk.time_left_s}s</td>
       </tr>`).join('') || '<tr><td colspan="5" style="text-align:center;color:#555">No open tasks</td></tr>';
       document.getElementById('tasks-body').innerHTML = rows;
+
+      const drows = (dv.devices||[]).slice(0,20).map((d,i)=>`<tr>
+        <td>${i+1}</td>
+        <td><code>${d.device_id}</code></td>
+        <td>${(d.credits_balance||0).toLocaleString()}</td>
+        <td>${d.tasks_contributed||0}</td>
+        <td>${d.last_active ? new Date(d.last_active*1000).toLocaleTimeString() : '—'}</td>
+      </tr>`).join('') || '<tr><td colspan="5" style="text-align:center;color:#555">No devices yet</td></tr>';
+      document.getElementById('devices-body').innerHTML = drows;
     }
     refresh();
     setInterval(refresh, 5000);

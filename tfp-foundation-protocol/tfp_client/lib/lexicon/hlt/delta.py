@@ -5,11 +5,14 @@ Delta encoding allows efficient transmission of lexicon updates by sending
 only the changes (additions, modifications, deletions) rather than full lexicons.
 """
 
+import datetime
 import hashlib
 import json
 import dataclasses
 from enum import Enum
 from typing import Dict, List, Any, Union
+
+_utcnow = lambda: datetime.datetime.now(datetime.timezone.utc).isoformat()
 
 
 class DeltaType(Enum):
@@ -30,7 +33,7 @@ class LexiconDelta:
     source_version: str
     target_version: str
     data: Union[Dict[str, str], List[str]]
-    timestamp: str = dataclasses.field(default_factory=lambda: __import__('datetime').datetime.utcnow().isoformat())
+    timestamp: str = dataclasses.field(default_factory=_utcnow)
     
     def to_dict(self) -> Dict:
         """Serialize delta to dictionary."""
@@ -54,7 +57,7 @@ class LexiconDelta:
             source_version=data["source_version"],
             target_version=data["target_version"],
             data=data["data"],
-            timestamp=data.get("timestamp", __import__('datetime').datetime.utcnow().isoformat())
+            timestamp=data.get("timestamp", _utcnow())
         )
     
     @classmethod

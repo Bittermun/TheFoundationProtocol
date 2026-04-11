@@ -38,17 +38,22 @@ class RealNDNAdapter:
         return Interest(name=f"/tfp/content/{root_hash}")
 
     def express_interest(self, interest: Interest) -> Data:
-        """Sync wrapper — runs async in a new event loop."""
+        """Sync wrapper — always runs in a dedicated event loop to avoid deprecation."""
         try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                # already inside async context — use thread executor
+            # Check if we're already inside a running event loop (e.g. async test)
+            try:
+                running_loop = asyncio.get_running_loop()
+            except RuntimeError:
+                running_loop = None
+
+            if running_loop is not None:
+                # Already inside async context — delegate to thread with its own loop
                 import concurrent.futures
                 with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
                     future = pool.submit(self._sync_express, interest)
                     return future.result(timeout=(_TIMEOUT_MS / 1000) * (_RETRIES + 1) + 1)
             else:
-                return loop.run_until_complete(self._async_express(interest))
+                return self._sync_express(interest)
         except Exception as exc:
             log.warning("NDN express_interest failed (%s), using fallback", exc)
             return self._fallback(interest)
