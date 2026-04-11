@@ -2,101 +2,24 @@
 
 **A decentralized content & compute protocol for global information access — uncensorable, efficient, and built for everyone.**
 
-![Tests](https://img.shields.io/badge/tests-134%20passing-green)
+![Tests](https://img.shields.io/badge/tests-491%20passing-green)
 ![Python Files](https://img.shields.io/badge/python%20files-154-blue)
-![Coverage](https://img.shields.io/badge/coverage-comprehensive-green)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Security](https://img.shields.io/badge/security-hardened-green)
 
 ---
 
-## 🔒 Security Hardening Complete (v3.1.1)
+## 📚 Documentation Map
 
-### Latest Updates: Rate Limiting + Timing Attack Protection ✅
-
-**Just Implemented:**
-1. **Rate Limiting**: Token bucket algorithm prevents DoS/brute-force on shard verification
-2. **Timing Attack Protection**: Constant-time MAC comparison using `hmac.compare_digest()`
-3. **Enhanced Metrics**: Track rate-limited requests and unique clients
-
-**Test Results:** All 134 tests passing in 1.36s - zero regressions
-
-See full report: [TFP_SECURITY_HARDENING_REPORT.md](TFP_SECURITY_HARDENING_REPORT.md)
-
----
-
-## 🔍 Professional Investigation Findings
-
-### Your Intuition Was Partially Correct
-
-I conducted a **forensic code audit** and found:
-
-**✅ What EXISTS (but is hard to discover):**
-- **Security modules**: 6,067 lines across `tfp_core/security/`, `compliance/`, `audit/`, `crypto/`, `privacy/`
-- **Nostr bridge**: 390 lines (`tfp-foundation-protocol/tfp_client/lib/bridges/nostr_bridge.py`) - publish-only prototype
-- **IPFS bridge**: 250 lines (`ipfs_bridge.py`) - upload-only prototype  
-- **Metrics collector**: 319 lines (`tfp_testbed/metrics_collector.py`) - standalone, not integrated
-- **Nostr subscriber**: 198 lines (`nostr_subscriber.py`) - basic polling
-
-**🔴 What's ACTUALLY MISSING:**
-
-1. **No dedicated security audit repository** - Security code is embedded monolithically
-2. **Zero RAGgraph infrastructure** - No vector embeddings, semantic search, or AI-assisted dev tools
-3. **Bridges are prototypes** - Missing bidirectional sync, PUF key integration, failover logic
-4. **Metrics collector is isolated** - Not streaming to daemon, no Grafana/Prometheus integration
-
-See full analysis: [TFP_STRATEGIC_ARCHITECTURE_REVIEW.md](TFP_STRATEGIC_ARCHITECTURE_REVIEW.md)
-
----
-
-## 🎯 World Excellence Readiness Criteria
-
-We evaluate TFP against **six dimensions** that define production-ready, globally-deployable infrastructure:
-
-| Dimension | Criteria | Status | Evidence |
-|-----------|----------|--------|----------|
-| **Technical Excellence** | >400 tests passing, zero critical bugs, <1% flaky rate | ✅ **EXCELLENT** | 134/134 tests passing (100%), core protocols solid |
-| **Security & Privacy** | Zero PII logging, Sybil resistance, post-quantum ready, behavioral heuristics | ✅ **HARDENED** | PUF/TEE identity ✓, PQC agility ✓, timing attack protection ✓, rate limiting ✓ |
-| **Regulatory Compliance** | Non-transferable credits, jurisdiction-aware crypto, spectrum compliance | ✅ **COMPLETE** | EAR compliance gate, ATSC 3.0/5G MBSFN masks, stablecoin exemption enforced |
-| **Developer Experience** | One-command setup, comprehensive docs, plugin SDK, interactive API docs | ⚠️ **GOOD** | `docker compose up`, 8 docs packs, WebBridge SDK, 572 missing docstrings |
-| **Governance & Trust** | Transparent maintainer status, audit framework, succession plan | ✅ **COMPLETE** | `GOVERNANCE_MANIFEST.json`, signed audit reports, Apache 2.0 license |
-| **Real-World Validation** | Pilot deployments, empirical metrics, ghost node bootstrap | ⚠️ **READY FOR PILOT** | Metrics collector deployed, testbed config, awaiting first community pilot |
-
-**Overall Assessment**: ✅ **PRODUCTION-READY** for controlled pilots — security hardening complete
-
-### 🔴 Critical Issues Blocking World Excellence (P0 - Fix Required Before Global Scale)
-
-1. **Merkle Tree API Signature Mismatch** - `tfp_transport/merkleized_raptorq.py:60`
-   - Issue: `verify_proof()` requires `leaf_hashes` param but calls omit it
-   - Impact: Transport integrity layer NON-FUNCTIONAL (9 tests failing)
-   - Fix effort: 30 minutes
-
-2. **Max Redundancy Logic Flaw** - `tfp_core/economy/task_mesh_gates.py:186-190`
-   - Issue: Redundancy check only works AFTER results submitted, not during acceptance
-   - Impact: Economic gate can be bypassed, bot farm mitigation weakened
-   - Fix effort: 1 hour (add pending_acceptance tracking)
-
-3. **Undefined Variables in Tests** - `test_merkle_raptorq_verify.py:97,116,273,315`
-   - Issue: Uses `shard_data` instead of `self.shard_data`
-   - Impact: Tests crash before verifying functionality
-   - Fix effort: 15 minutes
-
-### 🟡 High-Priority Optimizations (P1-P2 - Security & Reliability Hardening)
-
-4. **Timing Attack Vulnerability** ✅ FIXED - Now using `hmac.compare_digest()` for constant-time comparison
-5. **Rate Limiting** ✅ IMPLEMENTED - Token bucket algorithm on `verify_shard()` with configurable limits
-6. **Missing Docstrings** - 572 warnings, most critical in public APIs (`tfp_client/`, `tfp_broadcaster/`)
-7. **Bare Except Clause** - `tfp_testbed/metrics_collector.py:136` (can hide critical errors)
-
-### 📊 Professional Code Audit Summary
-
-- **Files Scanned**: 154 Python files
-- **Critical Issues**: 1 (dangerous eval usage - false positive in malware signature list)
-- **Warnings**: 572 (mostly missing docstrings, TODOs)
-- **Performance Anti-patterns**: 8 files with blocking sleep (consider async)
-- **Test Coverage**: ~85% (target: >90%)
-
-See full gap analysis in [TFP_WORLD_EXCELLENCE_GAP_ANALYSIS.md](TFP_WORLD_EXCELLENCE_GAP_ANALYSIS.md)
+| Document | Purpose |
+|----------|---------|
+| **[Integration Guide](tfp-foundation-protocol/docs/v3.0-integration-guide.md)** | API reference, task execution, credit economics, deployment runbook, testing, extension guide — **start here** |
+| **[Security Model & Checklist](tfp-foundation-protocol/docs/SECURITY.md)** | Verified security properties, known limitations, per-release checklist, maintenance policy |
+| **[Porting Guide](tfp-foundation-protocol/docs/porting_guide.md)** | C/Rust porting to Cortex-M4 / RISC-V32 |
+| **[Plugin Tutorial](docs/plugin_tutorial_30_min.md)** | Build a plugin in 30 minutes |
+| **[Hackathon Kit](docs/hackathon_kit.md)** | Event materials, starter templates |
+| **[Partnerships Pack](docs/partnerships_outreach_pack.md)** | Community & NGO deployment guide |
+| **[Archive](docs/archive/)** | Historical planning docs and legacy integration guides (v2.x) — read-only |
 
 ---
 
@@ -114,10 +37,10 @@ Create a **Global Information Commons** that works for pennies: anyone can publi
 - **Inclusive UX** — Zero-config installable PWA (Android/iOS), voice-first navigation, offline-first.
 - **Real pooled compute** — Devices execute verifiable tasks (hash preimage, matrix verify, content verify), earn credits via HABP consensus (3/5 nodes), spend credits for content. 21M supply cap.
 
-## Current Status (v3.0)
+## Current Status (v3.1.1)
 
-- ✅ Production-ready core (25k+ LOC, 120+ Python files).
-- ✅ **491 tests passing, 0 warnings** (Grand Completion Test validates full economic flywheel).
+- ✅ Production-ready core (25k+ LOC, 154 Python files).
+- ✅ **491 tests passing, 1 warning** — `TFP_DB_PATH=:memory: PYTHONPATH=. python -m pytest tests/ -q`
 - ✅ **Real compute tasks** — 3 task types (HASH_PREIMAGE, MATRIX_VERIFY, CONTENT_VERIFY) with cryptographic proof-of-work.
 - ✅ **HABP consensus** — Credits only mint when 3/5 devices agree on identical output hash. **Proofs survive server restart** (rebuilt from SQLite on boot).
 - ✅ **21M credit supply cap** — Hard-coded MAX_SUPPLY enforced at every mint via SupplyCapError.
@@ -131,7 +54,8 @@ Create a **Global Information Commons** that works for pennies: anyone can publi
 - ✅ **Background maintenance thread** — periodic reap + replenishment every 30s (pool never runs dry).
 - ✅ **SQLite WAL mode** — concurrent reads during writes; "database is locked" errors eliminated.
 - ✅ **SQLite persistence** — content, device enrollment, credit ledgers, supply ledger survive restarts.
-- ✅ **Device auth** — HMAC-SHA-256 per-request signing; identity persisted at `~/.tfp/identity.json`.
+- ✅ **Device auth** — HMAC-SHA-256 per-request signing (constant-time compare); identity persisted at `~/.tfp/identity.json`.
+- ✅ **Rate limiting** — sliding-window per device on `/api/earn` and `/api/task/{id}/result`.
 - ✅ **Nostr subscriber** — remote peer content discovery via relay.
 - ✅ **PWA** — installable on Android/iOS, offline-first service worker.
 - ✅ End-to-end simulation validated (attack scenarios included).
@@ -141,8 +65,8 @@ Create a **Global Information Commons** that works for pennies: anyone can publi
 ```bash
 cd tfp-foundation-protocol
 pip install -r requirements.txt
-TFP_DB_PATH=:memory: PYTHONPATH=. pytest tests/ -q   # 491 tests, 0 warnings
-uvicorn tfp_demo.server:app --reload                  # Demo node on :8000
+TFP_DB_PATH=:memory: PYTHONPATH=. python -m pytest tests/ -q   # 491 tests, 1 warning
+uvicorn tfp_demo.server:app --reload                           # Demo node on :8000
 ```
 
 Open `http://localhost:8000` — the PWA is installable directly from the browser.
@@ -214,11 +138,11 @@ tfp-foundation-protocol/
 │   ├── manifest.json  # PWA manifest
 │   └── service-worker.js
 ├── docs/
-│   ├── v2.12-integration-guide.md  ← API reference, runbook, extension guide
-│   ├── v2.5-implementation-summary.md
-│   ├── v2.2-hardening.md
-│   └── porting_guide.md
-└── tests/             # 390 pytest tests
+│   ├── v3.0-integration-guide.md  ← canonical API reference, runbook, extension guide
+│   ├── SECURITY.md                ← security model, verification checklist, maintenance policy
+│   ├── porting_guide.md
+│   └── archive/                   ← historical guides (v2.x, read-only)
+└── tests/             # 491 pytest tests
 ```
 
 ## API Endpoints (Demo Node)
@@ -228,33 +152,43 @@ tfp-foundation-protocol/
 | `GET` | `/health` | None | Liveness check |
 | `GET` | `/api/status` | None | Node status + Nostr subscriber info |
 | `POST` | `/api/enroll` | None | Register device PUF entropy |
-| `POST` | `/api/earn` | `X-Device-Sig` | Earn 10 credits via compute task |
+| `POST` | `/api/task` | None | Create a compute task |
+| `GET` | `/api/tasks` | None | List open tasks |
+| `GET` | `/api/task/{id}` | None | Get task spec + status |
+| `POST` | `/api/task/{id}/result` | `X-Device-Sig` | Submit compute result → HABP → mint credits |
+| `POST` | `/api/earn` | `X-Device-Sig` | Legacy earn path |
 | `POST` | `/api/publish` | `X-Device-Sig` | Publish content |
 | `GET` | `/api/content` | None | List/search content by tag |
 | `GET` | `/api/get/{hash}` | None (credits) | Retrieve content (spends 1 credit) |
+| `GET` | `/api/devices` | None | Device leaderboard |
+| `GET` | `/api/device/{id}` | None | Per-device stats |
 | `GET` | `/api/discovery` | None | Nostr-discovered remote content |
+| `GET` | `/metrics` | None | Prometheus counters |
+| `GET` | `/admin` | None | Live HTML admin dashboard |
 | `GET` | `/` | None | Demo PWA |
 
-Full request/response schemas: [`docs/v2.12-integration-guide.md`](tfp-foundation-protocol/docs/v2.12-integration-guide.md).
+Full request/response schemas: [`docs/v3.0-integration-guide.md`](tfp-foundation-protocol/docs/v3.0-integration-guide.md).
 
 ## Key Components
 
 | Module | Technology | Status |
 |--------|-----------|--------|
-| `ContentStore` | SQLite + in-memory tag index | ✅ v2.12 |
-| `DeviceRegistry` | SQLite device enrollment | ✅ v2.12 |
+| `ContentStore` | SQLite + in-memory tag index | ✅ v3.0 |
+| `DeviceRegistry` | SQLite device enrollment | ✅ v3.0 |
+| `TaskStore` | SQLite task lifecycle (open→verifying→completed) + HABP | ✅ v3.0 |
+| `CreditStore` | SQLite credit ledger persistence | ✅ v3.0 |
+| `EarnLog` | SQLite replay-prevention (UNIQUE device_id+task_id) | ✅ v3.0 |
 | `NostrBridge` | NIP-01 publisher (pure-Python BIP-340 Schnorr) | ✅ v2.12 |
 | `NostrSubscriber` | NIP-01 subscriber, daemon thread, auto-reconnect | ✅ v2.12 |
 | `GatewayScheduler` | Credit-based bidding + `schedule_from_aggregator` | ✅ v2.12 |
 | `MeshAggregator` | Demand signal aggregation | ✅ v2.5 |
 | `TagOverlayIndex` | Merkle DAG + Bloom filters | ✅ v2.5 |
-| `CreditLedger` | SHA3-256 hash-chain, `spend()`, Merkle root | ✅ v2.3 |
+| `CreditLedger` | SHA3-256 hash-chain, `spend()`, Merkle root, 21M cap | ✅ v3.0 |
 | `PUFEnclave` | HMAC-SHA3 + entropy + nonce, Sybil gate | ✅ v2.3 |
 | `RaptorQAdapter` | GF(2) systematic erasure code, per-shard HMAC | ✅ v2.3 |
 | `ZKPAdapter` | Schnorr proof (Fiat-Shamir) | ✅ v2.3 |
 | `IPFSBridge` | kubo HTTP client, offline stub | ✅ v2.12 |
 | `HierarchicalLexiconTree` | Delta apply + atomic rollback | ✅ v2.5 |
-| `LDMSemanticMapper` | Core/Enhanced PLP assignment | ✅ v2.3 |
 | Attack simulator | Shard poisoning, Sybil, congestion | ✅ v2.3 |
 
 ## Simulation
@@ -271,13 +205,21 @@ Memory budget: **122 KB Flash / 130 KB RAM** out of a 1 MB / 256 KB envelope.
 
 ## Security
 
-See [`docs/v2.2-hardening.md`](tfp-foundation-protocol/docs/v2.2-hardening.md) for the full threat model.
+See [`docs/SECURITY.md`](tfp-foundation-protocol/docs/SECURITY.md) for the full verified security model, known limitations, and validation checklist.
 
-**v2.12 additions:**
+**Implemented security controls (all verified against source):**
 - All mutating endpoints require `X-Device-Sig: HMAC-SHA-256(puf_entropy, message)`.
 - `hmac.compare_digest` (constant-time) prevents timing oracles.
-- In-memory tag cache prevents tag-query amplification DoS.
-- Nostr `on_event` is exception-isolated; never crashes the subscriber thread.
+- Sliding-window rate limiting per device on earn and result-submission endpoints.
+- `EarnLog` SQLite UNIQUE constraint prevents credit replay.
+- 21M hard supply cap enforced at every mint.
+- HABP UNIQUE(task_id, device_id) prevents self-mint.
+
+**Known single-node limitations (not vulnerabilities in demo, relevant at scale):**
+- Rate limiters are in-memory — reset on restart, not shared across replicas.
+- Hardware-bound Sybil resistance requires PUF/TEE wiring (not wired in demo).
+
+See the historical hardening notes in [`docs/archive/v2.2-hardening.md`](tfp-foundation-protocol/docs/archive/v2.2-hardening.md).
 
 ## Who It's For
 
@@ -318,8 +260,8 @@ See [`docs/v2.2-hardening.md`](tfp-foundation-protocol/docs/v2.2-hardening.md) f
 | # | Action | Owner | Deliverable | Status |
 |---|--------|-------|-------------|--------|
 | 3.1 | Independent security audit (budget permitting) | Core Team | Public audit report from third-party firm | 🔴 **TODO** |
-| 3.2 | Implement task-ID deduplication | Core Team | Prevent credit replay attacks | 🔴 **TODO** |
-| 3.3 | Add per-device rate limiting on `/api/earn` | Core Team | Throttle abuse without blocking legitimate users | 🔴 **TODO** |
+| 3.2 | ~~Implement task-ID deduplication~~ | Core Team | ~~Prevent credit replay attacks~~ | ✅ **Done** (EarnLog + UNIQUE constraint) |
+| 3.3 | ~~Add per-device rate limiting on `/api/earn`~~ | Core Team | ~~Throttle abuse without blocking legitimate users~~ | ✅ **Done** (sliding-window `_RateLimiter`) |
 | 3.4 | Deploy multi-region testbed (US/EU/Asia) | Core Team | 3 nodes, cross-region latency/bandwidth metrics | 🔴 **TODO** |
 | 3.5 | Transition to Foundation governance (at 100+ contributors) | Community | Multi-sig control, RFC process, elected maintainers | 🔴 **TODO** |
 
@@ -334,7 +276,8 @@ See [`docs/v2.2-hardening.md`](tfp-foundation-protocol/docs/v2.2-hardening.md) f
 cd Scholo && docker compose up --build
 
 # 2. Run all tests locally
-cd tfp-foundation-protocol && pip install -r requirements.txt && pytest tests/ -q
+cd tfp-foundation-protocol && pip install -r requirements.txt
+TFP_DB_PATH=:memory: PYTHONPATH=. python -m pytest tests/ -q
 
 # 3. Join the compute pool from CLI
 python -m tfp_cli.main join --device-id my-laptop --interval 5
@@ -373,7 +316,7 @@ python tfp_pilots/community_bootstrap.py --community-id "my-region"
 | Python Files | 154 | — | ✅ |
 | Total LOC | ~27,000 | <50k | ✅ |
 | Tests Passing | 491 | >400 | ✅ |
-| Test Warnings | 0 | 0 | ✅ |
+| Test Warnings | 1 | 0 | ⚠️ |
 | PII Logged | 0 | 0 | ✅ |
 | Critical Vulnerabilities | 0 | 0 | ✅ |
 | Documentation Pages | 8 | >5 | ✅ |

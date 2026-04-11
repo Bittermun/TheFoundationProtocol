@@ -37,6 +37,22 @@ jobs:
         working-directory: tfp-foundation-protocol
         run: PYTHONPATH=. python -m pytest tests/ -q --tb=short
 
+      - name: Docs freshness — assert test count
+        working-directory: tfp-foundation-protocol
+        run: |
+          # Count tests collected by pytest
+          ACTUAL=$(TFP_DB_PATH=:memory: PYTHONPATH=. python -m pytest tests/ --collect-only -q 2>&1 | grep -E "^[0-9]+ test" | awk '{print $1}')
+          echo "Actual test count: $ACTUAL"
+          # Extract claimed count from README.md (the "N tests passing" badge)
+          CLAIMED=$(grep -oP 'tests-\K[0-9]+(?=%20passing)' ../README.md | head -1)
+          echo "Claimed test count in README badge: $CLAIMED"
+          if [ "$ACTUAL" != "$CLAIMED" ]; then
+            echo "ERROR: README badge claims $CLAIMED tests but $ACTUAL exist."
+            echo "Update the badge in README.md to match the real count."
+            exit 1
+          fi
+          echo "OK: badge ($CLAIMED) matches actual ($ACTUAL)"
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
