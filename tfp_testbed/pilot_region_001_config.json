@@ -1,0 +1,17 @@
+{
+  "testbed_id": "pilot_region_001",
+  "region": "East Africa (Kenya)",
+  "node_count": 50,
+  "deployment_date": "2026-04-10T20:15:13.698060Z",
+  "duration_days": 30,
+  "target_metrics": [
+    "bandwidth_savings",
+    "reconstruction_time",
+    "node_availability"
+  ],
+  "success_criteria": {
+    "bandwidth_savings": 60.0,
+    "reconstruction_time": 3000.0,
+    "node_availability": 80.0
+  }
+}
