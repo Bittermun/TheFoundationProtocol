@@ -27,9 +27,9 @@ logger = logging.getLogger(__name__)
 
 # Try to import cyclonedx library
 try:
-    from cyclonedx.model.bom import Bom
-    from cyclonedx.model.component import Component
-    from cyclonedx.output.json import JsonV1Dot4
+    from cyclonedx.model.bom import Bom  # noqa: F401
+    from cyclonedx.model.component import Component  # noqa: F401
+    from cyclonedx.output.json import JsonV1Dot4  # noqa: F401
 
     CYCLONEDX_AVAILABLE = True
 except ImportError:

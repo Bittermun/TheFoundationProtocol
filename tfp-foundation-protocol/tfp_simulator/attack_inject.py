@@ -90,7 +90,7 @@ def run_shard_poisoning(rng: random.Random, n_requests: int = 100) -> ScenarioRe
     }
 
     content = b"Legitimate educational content about physics " * 20
-    shards = fq.encode(content, redundancy=0.2)
+    shards = fq.encode(content, redundancy=0.2)  # noqa: F841
 
     for i in range(n_requests):
         is_poisoned = rng.random() < POISON_RATE

@@ -105,6 +105,7 @@ class DistributedRateLimiter:
         self.redis_url = redis_url
         self.default_limits = default_limits
         self.fail_open = fail_open
+        self._connection_pool_size = connection_pool_size
         self._pool: Optional[ConnectionPool] = None
         self._client: Optional[Redis] = None
         self._script_sha: Optional[str] = None
@@ -114,7 +115,7 @@ class DistributedRateLimiter:
         if self._client is None:
             self._pool = ConnectionPool.from_url(
                 self.redis_url,
-                max_connections=connection_pool_size,
+                max_connections=self._connection_pool_size,
                 decode_responses=False,
             )
             self._client = Redis(connection_pool=self._pool)

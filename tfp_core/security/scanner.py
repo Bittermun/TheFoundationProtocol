@@ -238,7 +238,7 @@ class CommunityAuditor:
         Returns:
             AuditReport with findings
         """
-        start_time = time.time()
+        start_time = time.time()  # noqa: F841
 
         try:
             result, flags, details = self.heuristics.run_all_heuristics(

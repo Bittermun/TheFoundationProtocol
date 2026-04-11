@@ -1,0 +1,11 @@
+[lint]
+# E731: lambda assignment is used as a helper pattern in some modules
+ignore = ["E731"]
+
+[lint.per-file-ignores]
+# Tests routinely assign return values for setup/teardown without reading them,
+# use ambiguous single-letter loop vars (l, i), late imports, and optional imports.
+"**/tests/**/*.py" = ["F841", "E741", "F401", "E402"]
+"tests/**/*.py"    = ["F841", "E741", "F401", "E402"]
+"**/test_*.py"     = ["F841", "E741", "F401", "E402"]
+"test_*.py"        = ["F841", "E741", "F401", "E402"]

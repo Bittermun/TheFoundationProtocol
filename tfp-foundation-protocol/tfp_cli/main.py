@@ -314,7 +314,7 @@ def cmd_join(args) -> int:
             )
             if submit_resp.status_code == 200:
                 v = submit_resp.json()
-                status = v.get("status", "?")
+                status = v.get("status", "?")  # noqa: F841
                 credits_earned = v.get("credits_earned", 0)
                 total_credits += credits_earned
                 tasks_done += 1

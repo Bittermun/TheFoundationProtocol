@@ -23,10 +23,10 @@ logger = logging.getLogger(__name__)
 
 # Try to import sigstore, provide graceful fallback
 try:
-    from sigstore.models import Bundle
-    from sigstore.oidc import IdentityToken, detect_credential
-    from sigstore.sign import Signer, SigningContext
-    from sigstore.verify import VerificationPolicy, Verifier
+    from sigstore.models import Bundle  # noqa: F401
+    from sigstore.oidc import IdentityToken, detect_credential  # noqa: F401
+    from sigstore.sign import Signer, SigningContext  # noqa: F401
+    from sigstore.verify import VerificationPolicy, Verifier  # noqa: F401
 
     SIGSTORE_AVAILABLE = True
 except ImportError:

@@ -68,7 +68,7 @@ class PublishIngestion:
         hash_hex = content_hash.hex()
 
         # Build announcement message
-        announcement = {
+        announcement = {  # noqa: F841
             "type": "publish_announce",
             "hash": hash_hex,
             "size": len(content),

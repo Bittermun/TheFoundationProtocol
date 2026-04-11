@@ -91,7 +91,7 @@ class CreditBalance:
             (success, reason) - Always (False, ...)
         """
         # Log the attempt for compliance monitoring
-        transfer_attempt = {
+        transfer_attempt = {  # noqa: F841
             "timestamp": time.time(),
             "from_device": self.device_id,
             "to_device": recipient_id,

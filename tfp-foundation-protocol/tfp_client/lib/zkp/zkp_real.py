@@ -78,7 +78,7 @@ class RealZKPAdapter:
         if model_path is None:
             return self.generate_proof(circuit, private)
         try:
-            import ezkl
+            import ezkl  # noqa: F401
 
             log.info("Using ezkl for circuit=%s", circuit)
             # ezkl workflow would go here — needs compiled model
