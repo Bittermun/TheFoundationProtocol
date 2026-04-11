@@ -19,6 +19,7 @@
 | **[Contributing](CONTRIBUTING.md)** | Setup, PR workflow, high-impact areas, security disclosure |
 | **[Code of Conduct](CODE_OF_CONDUCT.md)** | Contributor expectations |
 | **[Governance Manifest](GOVERNANCE_MANIFEST.json)** | Maintainer transparency, contribution model, sustainability, accountability |
+| **[Governance Charter](Governance.md)** | Stewardship model, decision tiers, founder safeguards, amendment rules |
 | **[Porting Guide](tfp-foundation-protocol/docs/porting_guide.md)** | C/Rust porting to Cortex-M4 / RISC-V32 |
 | **[Plugin Tutorial](docs/plugin_tutorial_30_min.md)** | Build a plugin in 30 minutes |
 | **[Hackathon Kit](docs/hackathon_kit.md)** | Event materials, starter templates |
@@ -99,7 +100,7 @@ python -m tfp_cli.main leaderboard
 ### With Docker
 
 ```bash
-cd Scholo
+cd TheFoundationProtocol
 docker compose up --build
 # Data is persisted in the 'tfp_data' volume
 # Open http://localhost:8000
@@ -279,7 +280,7 @@ See the historical hardening notes in [`docs/archive/v2.2-hardening.md`](tfp-fou
 
 ```bash
 # 1. Run the demo node (Docker)
-cd Scholo && docker compose up --build
+cd TheFoundationProtocol && docker compose up --build
 
 # 2. Run all tests locally
 cd tfp-foundation-protocol && pip install -r requirements.txt

@@ -7,8 +7,8 @@ Thank you for your interest in contributing to the TFP Foundation Protocol! This
 ## Quick Start for Contributors
 
 ```bash
-git clone https://github.com/Bittermun/Scholo.git
-cd Scholo/tfp-foundation-protocol
+git clone https://github.com/Bittermun/TheFoundationProtocol.git
+cd TheFoundationProtocol/tfp-foundation-protocol
 pip install -r requirements.txt
 TFP_DB_PATH=:memory: PYTHONPATH=. python -m pytest tests/ -q   # 491 tests
 ```
@@ -19,7 +19,7 @@ TFP_DB_PATH=:memory: PYTHONPATH=. python -m pytest tests/ -q   # 491 tests
 
 | Type | Where to Start |
 |------|---------------|
-| Bug reports | [Open an Issue](https://github.com/Bittermun/Scholo/issues) with reproduction steps |
+| Bug reports | [Open an Issue](https://github.com/Bittermun/TheFoundationProtocol/issues) with reproduction steps |
 | Feature requests | Open an Issue tagged `enhancement` |
 | Code contributions | Fork → branch → PR (see below) |
 | Documentation | Edit files in `docs/` or `tfp-foundation-protocol/docs/` |

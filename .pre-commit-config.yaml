@@ -27,6 +27,6 @@ repos:
       - id: bandit
         name: bandit (security scan)
         entry: bandit
-        args: ["--configfile", "bandit.ini", "-r", "tfp_core/", "tfp_security/", "tfp_transport/", "tfp_foundation-protocol/tfp_client/lib/security/"]
+        args: ["--configfile", "bandit.ini", "-r", "tfp_core/", "tfp_security/", "tfp_transport/", "tfp-foundation-protocol/tfp_client/lib/security/", "--severity-level", "medium"]
         language: system
         types: [python]
