@@ -1,4 +1,4 @@
-# Scholo — TFP v2.12 Foundation Protocol
+# Scholo — TFP v3.0 Foundation Protocol
 
 A decentralized content & compute protocol for global information access — uncensorable, efficient, and built for everyone.
 
@@ -14,31 +14,49 @@ Create a Global Information Commons that works for pennies: anyone can publish, 
 - **Privacy-first** — Metadata shielding, zero PII logging, device-bound identity.
 - **Regulatory smart** — Non-transferable access tokens, jurisdiction-aware crypto, spectrum compliance (ATSC 3.0, 5G MBSFN).
 - **Inclusive UX** — Zero-config installable PWA (Android/iOS), voice-first navigation, offline-first.
+- **Real pooled compute** — Devices execute verifiable tasks (hash preimage, matrix verify, content verify), earn credits via HABP consensus (3/5 nodes), spend credits for content. 21M supply cap.
 
-## Current Status (v2.12)
+## Current Status (v3.0)
 
-- ✅ Production-ready core (23.5k+ LOC, 119+ Python files).
-- ✅ **390 tests passing** (up from 340 pre-sprint).
-- ✅ **SQLite persistence** — content and device enrollment survive node restarts (`pib.db`).
-- ✅ **Device auth** — HMAC-SHA-256 per-request signing on all mutating endpoints.
-- ✅ **Nostr subscriber** — completes the bridge; remote peer content discovery via relay.
+- ✅ Production-ready core (25k+ LOC, 120+ Python files).
+- ✅ **460 tests passing** (Grand Completion Test validates full economic flywheel).
+- ✅ **Real compute tasks** — 3 task types (HASH_PREIMAGE, MATRIX_VERIFY, CONTENT_VERIFY) with cryptographic proof-of-work.
+- ✅ **HABP consensus** — Credits only mint when 3/5 devices agree on identical output hash.
+- ✅ **21M credit supply cap** — Hard-coded MAX_SUPPLY enforced at every mint via SupplyCapError.
+- ✅ **Task dispatch API** — `POST /api/task`, `GET /api/tasks`, `POST /api/task/{id}/result`.
+- ✅ **Prometheus metrics** — `GET /metrics` with 12 counters (tasks, credits, content, devices).
+- ✅ **Admin dashboard** — `GET /admin` live HTML dashboard (auto-refresh, supply bar).
+- ✅ **`tfp join`** — Single command to join the compute pool, earn credits, spend on content.
+- ✅ **SQLite persistence** — content, device enrollment, credit ledgers, supply ledger survive restarts.
+- ✅ **Device auth** — HMAC-SHA-256 per-request signing; identity persisted at `~/.tfp/identity.json`.
+- ✅ **Nostr subscriber** — remote peer content discovery via relay.
 - ✅ **PWA** — installable on Android/iOS, offline-first service worker.
-- ✅ **Live demand scheduling** — `schedule_from_aggregator` wires MeshAggregator → GatewayScheduler directly.
-- ✅ **In-memory tag cache** — O(matches) tag queries replace O(N) full-table scans.
 - ✅ End-to-end simulation validated (attack scenarios included).
-- ✅ Plugin SDK + web bridge (`tfp://`) ready for extensions.
-- Ready for testbed deployment in 3 regions.
 
 ## Quick Start
 
 ```bash
 cd tfp-foundation-protocol
 pip install -r requirements.txt
-TFP_DB_PATH=:memory: PYTHONPATH=. pytest tests/ -q   # 390 tests
+TFP_DB_PATH=:memory: PYTHONPATH=. pytest tests/ -q   # 460 tests
 uvicorn tfp_demo.server:app --reload                  # Demo node on :8000
 ```
 
 Open `http://localhost:8000` — the PWA is installable directly from the browser.
+Open `http://localhost:8000/admin` — live admin dashboard.
+Open `http://localhost:8000/metrics` — Prometheus metrics.
+
+### Join the compute pool from CLI
+
+```bash
+# Start the server first, then from another terminal:
+python -m tfp_cli.main join --device-id my-laptop --interval 5
+# [join] Enrolled. Polling for tasks …
+# [join] Executing task a1b2c3d4 (type=hash_preimage, diff=2) …
+# [join]   ✓ executed in 0.14s — output_hash=3f8a12…
+# [join]   ⏳ pending consensus (2 more proofs needed)
+# (run on 2 more devices to reach consensus and earn credits)
+```
 
 ### With Docker
 
@@ -46,6 +64,7 @@ Open `http://localhost:8000` — the PWA is installable directly from the browse
 cd Scholo
 docker compose up --build
 # Open http://localhost:8000
+# Open http://localhost:8000/admin (live dashboard)
 # Open http://localhost:8000/docs (interactive API docs)
 ```
 
