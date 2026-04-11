@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "TFP Protocol Starter",
+  "version": "0.1.0",
+  "description": "Minimal tfp:// protocol bridge for Scholo/TFP demos.",
+  "permissions": [
+    "tabs",
+    "webNavigation"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  }
+}

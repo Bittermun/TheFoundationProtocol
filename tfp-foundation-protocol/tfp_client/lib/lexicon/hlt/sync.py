@@ -8,7 +8,7 @@ to prevent semantic drift and ensure consistent content reconstruction.
 import hashlib
 from enum import Enum
 from typing import Dict, List, Optional, Tuple
-from datetime import datetime
+from datetime import datetime, timezone
 
 from .tree import HierarchicalLexiconTree, LexiconNode, NodeType
 from .delta import LexiconDelta, DeltaType
@@ -130,7 +130,7 @@ class LexiconSynchronizer:
                 # For adapter deltas, we create new adapter nodes
                 if delta.delta_type == DeltaType.ADDITION:
                     # Extract precision anchor from delta metadata if present
-                    precision_anchor = f"anchor_{datetime.utcnow().timestamp()}"
+                    precision_anchor = f"anchor_{datetime.now(timezone.utc).timestamp()}"
                     
                     self.local_hlt.add_adapter(
                         domain_id=domain_id,
@@ -148,7 +148,7 @@ class LexiconSynchronizer:
                 pass
             
             self.state = SyncState.SYNCED
-            self.last_sync_time = datetime.utcnow().isoformat()
+            self.last_sync_time = datetime.now(timezone.utc).isoformat()
             self._remote_merkle_root = new_merkle_root
             
             self._log_sync_event("sync_completed", {
@@ -167,7 +167,7 @@ class LexiconSynchronizer:
     def complete_sync(self):
         """Mark synchronization as complete."""
         self.state = SyncState.SYNCED
-        self.last_sync_time = datetime.utcnow().isoformat()
+        self.last_sync_time = datetime.now(timezone.utc).isoformat()
     
     def detect_drift(self, domain_name: str, remote_content_hash: str) -> bool:
         """
@@ -204,7 +204,7 @@ class LexiconSynchronizer:
     def _log_sync_event(self, event_type: str, data: Dict):
         """Log synchronization event for debugging/auditing."""
         self.sync_history.append({
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "event_type": event_type,
             "data": data
         })

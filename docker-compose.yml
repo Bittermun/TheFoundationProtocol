@@ -1,0 +1,25 @@
+services:
+  tfp-demo:
+    build:
+      context: ./tfp-foundation-protocol
+      dockerfile: Dockerfile.demo
+    container_name: tfp-demo-node
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    volumes:
+      - tfp_data:/data
+    environment:
+      - TFP_DB_PATH=/data/pib.db
+      - NOSTR_RELAY=${NOSTR_RELAY:-}
+      - TFP_EARN_RATE_MAX=${TFP_EARN_RATE_MAX:-10}
+      - TFP_EARN_RATE_WINDOW=${TFP_EARN_RATE_WINDOW:-60}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 15s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+
+volumes:
+  tfp_data:

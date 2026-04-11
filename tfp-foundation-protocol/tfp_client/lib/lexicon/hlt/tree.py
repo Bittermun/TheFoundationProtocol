@@ -18,7 +18,7 @@ import json
 import dataclasses
 from enum import Enum
 from typing import Dict, List, Optional, Any
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class NodeType(Enum):
@@ -38,7 +38,7 @@ class LexiconNode:
     parent_id: Optional[str] = None
     tags: List[str] = dataclasses.field(default_factory=list)
     precision_anchor: Optional[str] = None
-    created_at: str = dataclasses.field(default_factory=lambda: datetime.utcnow().isoformat())
+    created_at: str = dataclasses.field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     metadata: Dict[str, Any] = dataclasses.field(default_factory=dict)
     
     def to_dict(self) -> Dict:
@@ -66,7 +66,7 @@ class LexiconNode:
             parent_id=data.get("parent_id"),
             tags=data.get("tags", []),
             precision_anchor=data.get("precision_anchor"),
-            created_at=data.get("created_at", datetime.utcnow().isoformat()),
+            created_at=data.get("created_at", datetime.now(timezone.utc).isoformat()),
             metadata=data.get("metadata", {})
         )
 

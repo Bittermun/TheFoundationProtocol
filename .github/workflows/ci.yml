@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: ["main", "copilot/**"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  test:
+    name: Test (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: tfp-foundation-protocol/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r tfp-foundation-protocol/requirements.txt
+          pip install prometheus_client
+
+      - name: Run protocol tests
+        working-directory: tfp-foundation-protocol
+        run: PYTHONPATH=. python -m pytest tests/ -q --tb=short
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-results-${{ matrix.python-version }}
+          path: tfp-foundation-protocol/.pytest_results.xml
+          if-no-files-found: ignore
