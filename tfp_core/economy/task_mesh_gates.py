@@ -283,27 +283,30 @@ class TaskMeshGates:
         Returns:
             True if slashing successful
         """
-        with self._lock:
-            stake = self._credit_stakes.get(device_id)
-            if not stake:
-                return False
-            
-            current_balance = self.get_stake_balance(device_id)
-            if amount > current_balance:
-                amount = current_balance
-            
-            stake.total_slashed += amount
-            
-            # Log slashing event
-            self._rejected_tasks.append({
-                "device_id": device_id,
-                "action": "SLASH",
-                "amount": amount,
-                "reason": reason,
-                "timestamp": time.time()
-            })
-            
-            return True
+        stake = self._credit_stakes.get(device_id)
+        if not stake:
+            return False
+        
+        # Calculate current balance inline to avoid deadlock (get_stake_balance also acquires _lock)
+        elapsed_hours = (time.time() - stake.stake_timestamp) / 3600.0
+        decay_factor = (1.0 - stake.decay_rate) ** elapsed_hours
+        current_balance = max(0.0, stake.staked_amount * decay_factor + stake.total_earned - stake.total_slashed)
+        
+        if amount > current_balance:
+            amount = current_balance
+        
+        stake.total_slashed += amount
+        
+        # Log slashing event
+        self._rejected_tasks.append({
+            "device_id": device_id,
+            "action": "SLASH",
+            "amount": amount,
+            "reason": reason,
+            "timestamp": time.time()
+        })
+        
+        return True
     
     def get_economic_stats(self) -> Dict[str, Any]:
         """Get economic system statistics."""
