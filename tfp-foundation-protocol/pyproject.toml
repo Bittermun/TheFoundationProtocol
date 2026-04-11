@@ -6,8 +6,20 @@ build-backend = "setuptools.build_meta"
 name = "tfp"
 version = "2.2.0"
 requires-python = ">=3.11"
-dependencies = ["fastapi", "uvicorn", "pytest", "httpx"]
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "python-ndn",
+    "websockets",
+    "prometheus_client",
+]
 
+[project.optional-dependencies]
+test = [
+    "pytest",
+    "pytest-asyncio",
+    "httpx",
+]
 [project.scripts]
 tfp = "tfp_cli.main:main"
 
