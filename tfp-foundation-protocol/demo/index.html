@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#2563eb" />
+  <link rel="manifest" href="/manifest.json" />
+  <title>Scholo / TFP Live Demo</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 2rem; max-width: 900px; }
+    textarea, input { width: 100%; margin: .4rem 0; padding: .5rem; }
+    button { padding: .5rem .8rem; margin-right: .5rem; }
+    .card { border: 1px solid #ddd; border-radius: 8px; padding: 1rem; margin: 1rem 0; }
+    code { word-break: break-all; }
+    #deviceStatus { font-size: .85rem; color: #555; }
+  </style>
+</head>
+<body>
+  <h1>Scholo / TFP Live Demo</h1>
+  <p>Publish and retrieve content from a local TFP demo node.</p>
+
+  <div class="card">
+    <h2>Device identity</h2>
+    <p id="deviceStatus">Loading…</p>
+    <button onclick="resetDevice()">Reset device (new identity)</button>
+  </div>
+
+  <div class="card">
+    <h2>1) Earn credits</h2>
+    <button onclick="earn()">Earn 10 credits</button>
+    <pre id="earnOut"></pre>
+  </div>
+
+  <div class="card">
+    <h2>2) Publish content</h2>
+    <input id="title" placeholder="Title" value="Community Bulletin" />
+    <input id="tags" placeholder="Tags (comma separated)" value="demo,community" />
+    <textarea id="text" rows="4">This is a demo post seeded through the TFP demo API.</textarea>
+    <button onclick="publish()">Publish</button>
+    <pre id="publishOut"></pre>
+  </div>
+
+  <div class="card">
+    <h2>3) Retrieve by hash</h2>
+    <input id="hash" placeholder="Paste root hash" />
+    <button onclick="fetchContent()">Get content</button>
+    <pre id="getOut"></pre>
+  </div>
+
+  <div class="card">
+    <h2>Available content</h2>
+    <button onclick="listContent()">Refresh list</button>
+    <pre id="listOut"></pre>
+  </div>
+
+  <script>
+    // -----------------------------------------------------------------------
+    // Device identity (PUF entropy stored in localStorage)
+    // -----------------------------------------------------------------------
+
+    function getOrCreateDevice() {
+      let stored = localStorage.getItem("tfp_device");
+      if (stored) return JSON.parse(stored);
+      const array = new Uint8Array(32);
+      crypto.getRandomValues(array);
+      const entropy = Array.from(array).map(b => b.toString(16).padStart(2, "0")).join("");
+      const id = "web-" + entropy.slice(0, 12);
+      const device = { id, entropy };
+      localStorage.setItem("tfp_device", JSON.stringify(device));
+      return device;
+    }
+
+    function resetDevice() {
+      localStorage.removeItem("tfp_device");
+      location.reload();
+    }
+
+    // -----------------------------------------------------------------------
+    // HMAC-SHA-256 signing via SubtleCrypto
+    // -----------------------------------------------------------------------
+
+    async function makeDeviceSig(device, message) {
+      const entropyBytes = new Uint8Array(device.entropy.match(/.{2}/g).map(h => parseInt(h, 16)));
+      const key = await crypto.subtle.importKey(
+        "raw", entropyBytes, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
+      );
+      const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(message));
+      return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, "0")).join("");
+    }
+
+    // -----------------------------------------------------------------------
+    // Enrollment (idempotent — safe to call on every page load)
+    // -----------------------------------------------------------------------
+
+    async function ensureEnrolled(device) {
+      await fetch("/api/enroll", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ device_id: device.id, puf_entropy_hex: device.entropy })
+      });
+    }
+
+    // -----------------------------------------------------------------------
+    // API helpers
+    // -----------------------------------------------------------------------
+
+    const DEVICE = getOrCreateDevice();
+
+    async function init() {
+      await ensureEnrolled(DEVICE);
+      document.getElementById("deviceStatus").textContent =
+        `Device ID: ${DEVICE.id} (enrolled)`;
+      listContent();
+    }
+
+    async function earn() {
+      const taskId = "demo-task-" + Date.now();
+      const sig = await makeDeviceSig(DEVICE, `${DEVICE.id}:${taskId}`);
+      const res = await fetch("/api/earn", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Device-Sig": sig },
+        body: JSON.stringify({ device_id: DEVICE.id, task_id: taskId })
+      });
+      document.getElementById("earnOut").textContent = JSON.stringify(await res.json(), null, 2);
+    }
+
+    async function publish() {
+      const title = document.getElementById("title").value;
+      const sig = await makeDeviceSig(DEVICE, `${DEVICE.id}:${title}`);
+      const payload = {
+        title,
+        text: document.getElementById("text").value,
+        tags: document.getElementById("tags").value.split(",").map(t => t.trim()).filter(Boolean),
+        device_id: DEVICE.id
+      };
+      const res = await fetch("/api/publish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Device-Sig": sig },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      document.getElementById("publishOut").textContent = JSON.stringify(data, null, 2);
+      if (data.root_hash) document.getElementById("hash").value = data.root_hash;
+      listContent();
+    }
+
+    async function fetchContent() {
+      const hash = document.getElementById("hash").value.trim();
+      const res = await fetch(`/api/get/${hash}?device_id=${encodeURIComponent(DEVICE.id)}`);
+      document.getElementById("getOut").textContent = JSON.stringify(await res.json(), null, 2);
+    }
+
+    async function listContent() {
+      const res = await fetch("/api/content");
+      document.getElementById("listOut").textContent = JSON.stringify(await res.json(), null, 2);
+    }
+
+    // -----------------------------------------------------------------------
+    // Service worker registration
+    // -----------------------------------------------------------------------
+
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/service-worker.js").catch((err) => {
+        console.warn("Service worker registration failed:", err);
+      });
+    }
+
+    init();
+  </script>
+</body>
+</html>

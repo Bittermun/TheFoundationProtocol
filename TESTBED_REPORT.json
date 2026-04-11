@@ -1,0 +1,60 @@
+{
+  "testbed_id": "pilot_region_001",
+  "region": "East Africa (Kenya)",
+  "deployment_date": "2026-04-10T20:15:13.698060Z",
+  "duration_days": 30,
+  "metrics_summary": {
+    "testbed_id": "pilot_region_001",
+    "time_window_hours": 720,
+    "total_metrics": 60,
+    "statistics": {
+      "bandwidth_savings": {
+        "count": 20,
+        "mean": 60.5,
+        "min": 51.0,
+        "max": 70.0,
+        "median": 61.0,
+        "unit": "percent"
+      },
+      "reconstruction_time": {
+        "count": 20,
+        "mean": 2450.0,
+        "min": 1500,
+        "max": 3400,
+        "median": 2500,
+        "unit": "percent"
+      },
+      "node_availability": {
+        "count": 20,
+        "mean": 71.0,
+        "min": 52.0,
+        "max": 90.0,
+        "median": 72.0,
+        "unit": "percent"
+      }
+    },
+    "generated_at": "2026-04-10T20:15:13.700559Z"
+  },
+  "success_achievements": {
+    "bandwidth_savings": {
+      "target": 60.0,
+      "actual": 60.5,
+      "achieved": true
+    },
+    "reconstruction_time": {
+      "target": 3000.0,
+      "actual": 2450.0,
+      "achieved": true
+    },
+    "node_availability": {
+      "target": 80.0,
+      "actual": 71.0,
+      "achieved": false
+    }
+  },
+  "overall_success_rate": 66.66666666666666,
+  "recommendations": [],
+  "generated_at": "2026-04-10T20:15:13.700670Z",
+  "signature": "28b99a5823ececcc264cb9d2c5d9b6b08c5c0044f1611a7184b725a2c60287ce",
+  "signature_algorithm": "SHA3-256"
+}

@@ -1,0 +1,13 @@
+Module,Language,Flash_KB,RAM_KB,Notes
+CreditLedger,C,6,4,"SHA3-256 via mbedTLS; fixed chain depth=16; no heap alloc"
+NDNAdapter,C,14,8,"NDN-Lite forwarder stub; name encoding + TLV parser"
+RaptorQDecoder,C/Rust,32,48,"GF(2) Gaussian elim; 32 max shards; static shard buffer"
+ZKPProver,C,10,8,"Schnorr Fiat-Shamir; mbedtls_mpi for 256-bit scalars"
+SymbolicPreprocessor,C,4,2,"Pure rule engine; static rule table; <2ms @ 8MHz"
+PUFEnclave,C,8,6,"TRNG read + SHA3-256 + HMAC-SHA3; nonce stored in CCMRAM"
+LexiconDelta,C,12,32,"Delta buffer in RAM; base model in SPI-NOR Flash; rollback via memset"
+UplinkRouter,C,4,2,"Integer weighted cost; no FP required; LUT for channel params"
+NDNForwarder,C,24,16,"Minimal PIT/FIB for embedded; name-prefix matching"
+TFPCore (orchestrator),C,8,4,"Ties all modules; state machine; 4KB stack frame"
+TotalUsed,Mixed,122,130,"Well within 1MB Flash / 256KB RAM budget"
+Headroom,Mixed,902,126,"Available for app-layer extensions or RTOS overhead"

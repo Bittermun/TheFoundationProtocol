@@ -1,0 +1,113 @@
+{
+  "community_id": "nairobi_schools_pilot",
+  "ghost_nodes": [
+    {
+      "node_id": "ghost_nairobi_schools_pilot_0",
+      "region": "Nairobi, Kenya",
+      "content_count": 2,
+      "latency_ms": 154
+    },
+    {
+      "node_id": "ghost_nairobi_schools_pilot_1",
+      "region": "Nairobi, Kenya",
+      "content_count": 3,
+      "latency_ms": 56
+    },
+    {
+      "node_id": "ghost_nairobi_schools_pilot_2",
+      "region": "Nairobi, Kenya",
+      "content_count": 4,
+      "latency_ms": 89
+    },
+    {
+      "node_id": "ghost_nairobi_schools_pilot_3",
+      "region": "Nairobi, Kenya",
+      "content_count": 4,
+      "latency_ms": 33
+    },
+    {
+      "node_id": "ghost_nairobi_schools_pilot_4",
+      "region": "Nairobi, Kenya",
+      "content_count": 2,
+      "latency_ms": 109
+    },
+    {
+      "node_id": "ghost_nairobi_schools_pilot_5",
+      "region": "Nairobi, Kenya",
+      "content_count": 2,
+      "latency_ms": 80
+    },
+    {
+      "node_id": "ghost_nairobi_schools_pilot_6",
+      "region": "Nairobi, Kenya",
+      "content_count": 3,
+      "latency_ms": 153
+    },
+    {
+      "node_id": "ghost_nairobi_schools_pilot_7",
+      "region": "Nairobi, Kenya",
+      "content_count": 2,
+      "latency_ms": 53
+    },
+    {
+      "node_id": "ghost_nairobi_schools_pilot_8",
+      "region": "Nairobi, Kenya",
+      "content_count": 4,
+      "latency_ms": 133
+    },
+    {
+      "node_id": "ghost_nairobi_schools_pilot_9",
+      "region": "Nairobi, Kenya",
+      "content_count": 3,
+      "latency_ms": 113
+    },
+    {
+      "node_id": "ghost_nairobi_schools_pilot_10",
+      "region": "Nairobi, Kenya",
+      "content_count": 4,
+      "latency_ms": 103
+    },
+    {
+      "node_id": "ghost_nairobi_schools_pilot_11",
+      "region": "Nairobi, Kenya",
+      "content_count": 4,
+      "latency_ms": 45
+    },
+    {
+      "node_id": "ghost_nairobi_schools_pilot_12",
+      "region": "Nairobi, Kenya",
+      "content_count": 2,
+      "latency_ms": 181
+    },
+    {
+      "node_id": "ghost_nairobi_schools_pilot_13",
+      "region": "Nairobi, Kenya",
+      "content_count": 2,
+      "latency_ms": 164
+    },
+    {
+      "node_id": "ghost_nairobi_schools_pilot_14",
+      "region": "Nairobi, Kenya",
+      "content_count": 5,
+      "latency_ms": 75
+    }
+  ],
+  "report": {
+    "community_id": "nairobi_schools_pilot",
+    "ghost_node_count": 15,
+    "total_unique_content": 5,
+    "availability_distribution": {
+      "highly_available": 2,
+      "rare": 2,
+      "moderately_available": 1
+    },
+    "average_latency_ms": 102.73333333333333,
+    "pilot_ready": false,
+    "recommendations": [
+      "Increase ghost node count to improve content redundancy",
+      "Focus content library on high-demand items; reduce long-tail content",
+      "Ghost network sufficient for pilot; proceed to real-user testing"
+    ],
+    "generated_at": "2026-04-10T20:15:11.657959Z"
+  }
+}

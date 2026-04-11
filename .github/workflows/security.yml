@@ -1,0 +1,51 @@
+name: Security & Quality Checks
+
+on:
+  pull_request:
+    branches: [ main, develop ]
+  push:
+    branches: [ main ]
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Cache pre-commit
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
+
+      - name: Install dependencies
+        run: pip install bandit safety ruff semgrep pre-commit
+
+      - name: Run pre-commit hooks
+        run: pre-commit run --all-files
+
+      - name: Run Bandit
+        run: bandit -r tfp/ -c bandit.ini --severity-level=medium
+
+      - name: Safety Check
+        run: safety check --full-report
+
+      - name: Semgrep
+        run: semgrep --config=semgrep.yml --error --severity=ERROR
+
+  concurrency-tests:
+    runs-on: ubuntu-latest
+    needs: security
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install pytest pytest-xdist
+      - run: pytest -m "concurrency" --maxfail=3 -q

@@ -1,0 +1,24 @@
+rules:
+  - id: avoid-random-in-security
+    patterns:
+      - pattern: |
+          import random
+          ...
+          random.$FUNC(...)
+    message: "Do not use 'random' module in security-critical code. Use secrets, os.urandom, or PUF-derived entropy."
+    paths:
+      include:
+        - tfp/security/
+        - tfp/puf*.py
+        - tfp/habp*.py
+        - tfp/rate_limiter.py
+    severity: ERROR
+
+  - id: nostr-event-validation
+    pattern: |
+      Event(...)
+    message: "Manually verify Nostr events validate id, sig, and created_at ordering to prevent replay attacks."
+    paths:
+      include:
+        - tfp/nostr*.py
+    severity: WARNING
