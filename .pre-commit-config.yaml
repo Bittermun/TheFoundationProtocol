@@ -30,3 +30,4 @@ repos:
         args: ["--configfile", "bandit.ini", "-r", "tfp_core/", "tfp_security/", "tfp_transport/", "tfp-foundation-protocol/tfp_client/lib/security/", "--severity-level", "medium"]
         language: system
         types: [python]
+        pass_filenames: false

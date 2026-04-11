@@ -63,7 +63,7 @@ These are areas where contributions have the most leverage:
 
 **Do not open public GitHub issues for security vulnerabilities.**
 
-Email: `security@tfp-protocol.org`  
+Email: `security@tfp-protocol.org`
 Response time: 48 hours. See [SECURITY.md](tfp-foundation-protocol/docs/SECURITY.md) for the full disclosure policy.
 
 ---
