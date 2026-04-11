@@ -13,8 +13,8 @@
     "contribution_model": {
         "type": "Open Source Community",
         "license": "MIT",
-        "contribution_guidelines": "https://github.com/Bittermun/Scholo/blob/main/CONTRIBUTING.md",
-        "code_of_conduct": "https://github.com/Bittermun/Scholo/blob/main/CODE_OF_CONDUCT.md",
+        "contribution_guidelines": "https://github.com/Bittermun/TheFoundationProtocol/blob/main/CONTRIBUTING.md",
+        "code_of_conduct": "https://github.com/Bittermun/TheFoundationProtocol/blob/main/CODE_OF_CONDUCT.md",
         "decision_making": "BDFL (Benevolent Dictator For Life) with community RFC process",
         "roadmap_input": "GitHub Issues + Community Forum"
     },

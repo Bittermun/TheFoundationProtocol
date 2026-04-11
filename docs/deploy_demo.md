@@ -132,7 +132,7 @@ tfp leaderboard --server http://localhost:8000
 
 ### Render
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Bittermun/Scholo)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Bittermun/TheFoundationProtocol)
 
 Set environment vars in the Render dashboard:
 - `NOSTR_RELAY` → `wss://relay.damus.io` (or your relay)
@@ -140,7 +140,7 @@ Set environment vars in the Render dashboard:
 
 ### Railway
 
-[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new/template?template=https://github.com/Bittermun/Scholo)
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new/template?template=https://github.com/Bittermun/TheFoundationProtocol)
 
 > Set start command to: `uvicorn tfp_demo.server:app --host 0.0.0.0 --port $PORT`
 
