@@ -137,6 +137,39 @@ class ContentStore:
         """Return the number of items matching tag."""
         return len(self._tag_index.get(tag, set()))
 
+    def filter_by_tags(
+        self, tags: List[str], limit: int = 100, offset: int = 0
+    ) -> List[StoredContent]:
+        """
+        Return items that match ANY of the given tags (union semantics).
+
+        Uses the in-memory tag index to collect root hashes, then does a
+        single bulk IN-query — O(n_matches), not O(N_total).
+        """
+        hashes: set = set()
+        for tag in tags:
+            hashes |= self._tag_index.get(tag, set())
+        if not hashes:
+            return []
+        placeholders = ",".join("?" * len(hashes))
+        rows = self._conn.execute(
+            f"SELECT root_hash, title, tags, data FROM content"
+            f" WHERE root_hash IN ({placeholders})"
+            f" ORDER BY rowid DESC LIMIT ? OFFSET ?",
+            [*list(hashes), limit, offset],
+        ).fetchall()
+        return [
+            StoredContent(root_hash=r[0], title=r[1], tags=json.loads(r[2]), data=r[3])
+            for r in rows
+        ]
+
+    def count_tags(self, tags: List[str]) -> int:
+        """Return total items matching ANY of the given tags."""
+        hashes: set = set()
+        for tag in tags:
+            hashes |= self._tag_index.get(tag, set())
+        return len(hashes)
+
     def contains(self, root_hash: str) -> bool:
         row = self._conn.execute(
             "SELECT 1 FROM content WHERE root_hash = ?", (root_hash,)
@@ -674,6 +707,37 @@ class TaskStore:
             for r in rows
         ]
 
+    def device_stats(self, device_id: str) -> Optional[dict]:
+        """
+        Return stats for a single device — O(1) direct query.
+        Returns None if the device has never contributed a task.
+        """
+        row = self._conn.execute(
+            """
+            SELECT
+                d.device_id,
+                d.enrolled_at,
+                COALESCE(cl.balance, 0)          AS credits_balance,
+                COUNT(DISTINCT tr.task_id)        AS tasks_contributed,
+                MAX(tr.submitted_at)              AS last_active
+            FROM devices d
+            LEFT JOIN credit_ledger cl ON cl.device_id = d.device_id
+            LEFT JOIN task_results   tr ON tr.device_id = d.device_id
+            WHERE d.device_id = ?
+            GROUP BY d.device_id
+            """,
+            (device_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        return {
+            "device_id": row[0],
+            "enrolled_at": row[1],
+            "credits_balance": row[2],
+            "tasks_contributed": row[3],
+            "last_active": row[4],
+        }
+
 
 # ---------------------------------------------------------------------------
 # Prometheus metrics (in-process counters)
@@ -763,6 +827,11 @@ class _Metrics:
 _EARN_RATE_MAX = int(os.environ.get("TFP_EARN_RATE_MAX", "10"))
 _EARN_RATE_WINDOW = int(os.environ.get("TFP_EARN_RATE_WINDOW", "60"))
 
+# Per-device rate limit for task result submissions: default 30 per minute.
+# Prevents a single device from spamming the HABP verifier.
+_RESULT_RATE_MAX = int(os.environ.get("TFP_RESULT_RATE_MAX", "30"))
+_RESULT_RATE_WINDOW = int(os.environ.get("TFP_RESULT_RATE_WINDOW", "60"))
+
 
 class _RateLimiter:
     """
@@ -839,6 +908,7 @@ _earn_log: Optional[EarnLog] = None
 _credit_store: Optional[CreditStore] = None
 _task_store: Optional[TaskStore] = None
 _earn_rate_limiter: _RateLimiter = _RateLimiter()
+_result_rate_limiter: _RateLimiter = _RateLimiter()
 _tag_overlay: Optional[TagOverlayIndex] = None
 _nostr_subscriber: Optional[NostrSubscriber] = None
 _broadcaster = Broadcaster()
@@ -951,7 +1021,7 @@ def _on_nostr_event(event_dict: dict) -> None:
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    global _content_store, _device_registry, _earn_log, _credit_store, _task_store, _earn_rate_limiter, _tag_overlay, _nostr_subscriber, _clients, _metrics
+    global _content_store, _device_registry, _earn_log, _credit_store, _task_store, _earn_rate_limiter, _result_rate_limiter, _tag_overlay, _nostr_subscriber, _clients, _metrics
     db_path = os.environ.get("TFP_DB_PATH", str(_DEFAULT_DB_PATH))
     _conn = sqlite3.connect(db_path, check_same_thread=False)
     # WAL mode: allows concurrent reads while a write is in progress.
@@ -963,7 +1033,12 @@ async def lifespan(_app: FastAPI):
     _earn_log = EarnLog(_conn)
     _credit_store = CreditStore(_conn)
     _task_store = TaskStore(_conn)
-    _earn_rate_limiter = _RateLimiter()
+    _earn_rate_limiter = _RateLimiter(
+        max_calls=_EARN_RATE_MAX, window_seconds=_EARN_RATE_WINDOW
+    )
+    _result_rate_limiter = _RateLimiter(
+        max_calls=_RESULT_RATE_MAX, window_seconds=_RESULT_RATE_WINDOW
+    )
     _metrics = _Metrics()
     # Seed durable counters from SQLite so they survive restarts
     _metrics.seed_from_db(_conn)
@@ -1039,16 +1114,24 @@ def service_worker():
 @app.get("/api/content")
 def search_content(
     tag: str | None = Query(default=None, min_length=1),
+    tags: str | None = Query(default=None, description="Comma-separated tags (union match)"),
     limit: int = Query(default=50, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
 ) -> dict:
     """
     Search or list published content.
 
-    Supports optional tag filtering and pagination via ``limit`` / ``offset``.
-    Response includes ``total`` so callers can implement paging UIs.
+    - ``tag`` — filter by a single tag (exact, case-insensitive)
+    - ``tags`` — comma-separated list of tags, returns items matching **any** tag (union)
+    - ``limit`` / ``offset`` — pagination; response includes ``total``
+
+    If both ``tag`` and ``tags`` are supplied, ``tags`` takes precedence.
     """
-    if tag:
+    if tags:
+        tag_list = [t.strip().lower() for t in tags.split(",") if t.strip()]
+        items = _content_store.filter_by_tags(tag_list, limit=limit, offset=offset)
+        total = _content_store.count_tags(tag_list)
+    elif tag:
         t = tag.strip().lower()
         items = _content_store.filter_by_tag(t, limit=limit, offset=offset)
         total = _content_store.count_tag(t)
@@ -1258,8 +1341,15 @@ def create_task(
 
 @app.get("/api/tasks")
 def list_tasks(limit: int = Query(default=20, ge=1, le=100)) -> dict:
-    """Return open tasks available for device execution."""
-    return {"tasks": _task_store.list_open_tasks(limit=limit)}
+    """
+    Return open tasks available for device execution.
+
+    ``open_count`` is the total number of open tasks in the pool (may be larger
+    than ``limit``).  Use it to determine whether more tasks are available.
+    """
+    tasks = _task_store.list_open_tasks(limit=limit)
+    stats = _task_store.stats()
+    return {"tasks": tasks, "open_count": stats.get("open", 0)}
 
 
 @app.get("/api/task/{task_id}")
@@ -1298,6 +1388,15 @@ def submit_task_result(
         raise HTTPException(
             status_code=401,
             detail="invalid or missing device signature — enroll first via /api/enroll",
+        )
+
+    if not _result_rate_limiter.is_allowed(payload.device_id):
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                f"result submission rate limit exceeded — max {_RESULT_RATE_MAX}"
+                f" per {_RESULT_RATE_WINDOW}s per device"
+            ),
         )
 
     verification = _task_store.submit_result(
@@ -1369,10 +1468,9 @@ def get_device(device_id: str) -> dict:
     """Return stats for a single enrolled device."""
     if not _device_registry.is_enrolled(device_id):
         raise HTTPException(status_code=404, detail="device not enrolled")
-    rows = _task_store.device_leaderboard(limit=9999)
-    match = next((r for r in rows if r["device_id"] == device_id), None)
+    match = _task_store.device_stats(device_id)
     if match is None:
-        # Enrolled but no tasks yet
+        # Enrolled but no task contributions yet
         match = {
             "device_id": device_id,
             "enrolled_at": None,

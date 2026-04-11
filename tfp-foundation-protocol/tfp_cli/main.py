@@ -121,11 +121,32 @@ def cmd_earn(args) -> int:
 
 
 def cmd_search(args) -> int:
-    params = {"tag": args.tag} if args.tag else None
+    """Search published content by tag(s) with optional pagination."""
+    params: dict = {"limit": args.limit, "offset": args.offset}
+    if args.tags:
+        params["tags"] = args.tags
+    elif args.tag:
+        params["tag"] = args.tag
     response = httpx.get(f"{args.api}/api/content", params=params, timeout=10)
     if response.status_code >= 400:
         return _handle_error(response)
-    _print_json(response.json())
+    data = response.json()
+    items = data.get("items", [])
+    total = data.get("total", len(items))
+    offset = data.get("offset", 0)
+    if not items:
+        print("No content found.")
+        return 0
+    print(f"Showing {len(items)} of {total} items (offset {offset}):")
+    print(f"\n{'#':<4} {'ROOT_HASH':<18} {'TAGS':<30} TITLE")
+    print("-" * 80)
+    for i, item in enumerate(items, offset + 1):
+        tags_str = ",".join(item.get("tags", []))[:28]
+        hash_short = item.get("root_hash", "")[:16] + "…"
+        title = item.get("title", "")[:40]
+        print(f"{i:<4} {hash_short:<18} {tags_str:<30} {title}")
+    if total > offset + len(items):
+        print(f"\n  (more results — use --offset {offset + len(items)} to continue)")
     return 0
 
 
@@ -318,8 +339,11 @@ def build_parser() -> argparse.ArgumentParser:
     earn.add_argument("--device-id", default="cli-user", dest="device_id", help="Device id for credit accounting")
     earn.set_defaults(func=cmd_earn)
 
-    search = sub.add_parser("search", help="List published content")
-    search.add_argument("--tag", help="Filter by tag")
+    search = sub.add_parser("search", help="List or search published content")
+    search.add_argument("--tag", help="Filter by a single tag")
+    search.add_argument("--tags", default="", help="Comma-separated tags — returns items matching any (union)")
+    search.add_argument("--limit", type=int, default=20, help="Max results per page (default: 20)")
+    search.add_argument("--offset", type=int, default=0, help="Pagination offset (default: 0)")
     search.set_defaults(func=cmd_search)
 
     status_cmd = sub.add_parser("status", help="Show node status and task pool")

@@ -19,7 +19,7 @@ Create a Global Information Commons that works for pennies: anyone can publish, 
 ## Current Status (v3.0)
 
 - ✅ Production-ready core (25k+ LOC, 120+ Python files).
-- ✅ **478 tests passing, 0 warnings** (Grand Completion Test validates full economic flywheel).
+- ✅ **491 tests passing, 0 warnings** (Grand Completion Test validates full economic flywheel).
 - ✅ **Real compute tasks** — 3 task types (HASH_PREIMAGE, MATRIX_VERIFY, CONTENT_VERIFY) with cryptographic proof-of-work.
 - ✅ **HABP consensus** — Credits only mint when 3/5 devices agree on identical output hash. **Proofs survive server restart** (rebuilt from SQLite on boot).
 - ✅ **21M credit supply cap** — Hard-coded MAX_SUPPLY enforced at every mint via SupplyCapError.
@@ -43,7 +43,7 @@ Create a Global Information Commons that works for pennies: anyone can publish, 
 ```bash
 cd tfp-foundation-protocol
 pip install -r requirements.txt
-TFP_DB_PATH=:memory: PYTHONPATH=. pytest tests/ -q   # 478 tests, 0 warnings
+TFP_DB_PATH=:memory: PYTHONPATH=. pytest tests/ -q   # 491 tests, 0 warnings
 uvicorn tfp_demo.server:app --reload                  # Demo node on :8000
 ```
 

@@ -1212,3 +1212,255 @@ class TestCLITasksAndLeaderboard:
                 assert "DEVICE_ID" in output or "lb-cli-dev" in output
             finally:
                 cli_main.httpx.get = original
+
+
+# ---------------------------------------------------------------------------
+# 20. device_stats() O(1) single-device query
+# ---------------------------------------------------------------------------
+
+class TestDeviceStatsDirect:
+    """GET /api/device/{id} must use the O(1) device_stats() method."""
+
+    def test_device_stats_returns_correct_data(self):
+        import sqlite3 as _sqlite3
+        from tfp_demo.server import TaskStore, DeviceRegistry, CreditStore
+        conn = _sqlite3.connect(":memory:")
+        dr = DeviceRegistry(conn)
+        CreditStore(conn)   # creates credit_ledger table
+        ts = TaskStore(conn)
+        dr.enroll("stats-dev", os.urandom(32))
+        result = ts.device_stats("stats-dev")
+        assert result is not None
+        assert result["device_id"] == "stats-dev"
+        assert result["tasks_contributed"] == 0
+        assert result["credits_balance"] == 0
+
+    def test_device_stats_non_existent(self):
+        import sqlite3 as _sqlite3
+        from tfp_demo.server import TaskStore, DeviceRegistry, CreditStore
+        conn = _sqlite3.connect(":memory:")
+        DeviceRegistry(conn)
+        CreditStore(conn)
+        ts = TaskStore(conn)
+        assert ts.device_stats("ghost-device") is None
+
+    def test_get_device_endpoint_ok(self):
+        with TestClient(app) as client:
+            entropy = os.urandom(32)
+            _enroll(client, "direct-stats-dev", entropy)
+            r = client.get("/api/device/direct-stats-dev")
+            assert r.status_code == 200
+            data = r.json()
+            assert data["device_id"] == "direct-stats-dev"
+            assert "credits_balance" in data
+            assert "tasks_contributed" in data
+
+    def test_get_device_404_for_unknown(self):
+        with TestClient(app) as client:
+            r = client.get("/api/device/totally-unknown-xyz-99")
+            assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# 21. Multi-tag search (union semantics)
+# ---------------------------------------------------------------------------
+
+class TestMultiTagSearch:
+    """?tags=a,b should return items that match ANY listed tag (union)."""
+
+    def test_multi_tag_union_returns_superset(self):
+        with TestClient(app) as client:
+            entropy = os.urandom(32)
+            _enroll(client, "multi-tag-dev", entropy)
+
+            sig_a = _hmac.new(entropy, b"multi-tag-dev:Alpha Article", hashlib.sha256).hexdigest()
+            client.post("/api/publish", json={
+                "title": "Alpha Article", "text": "content",
+                "tags": ["alpha-mt"], "device_id": "multi-tag-dev",
+            }, headers={"X-Device-Sig": sig_a})
+
+            sig_b = _hmac.new(entropy, b"multi-tag-dev:Beta Article", hashlib.sha256).hexdigest()
+            client.post("/api/publish", json={
+                "title": "Beta Article", "text": "content",
+                "tags": ["beta-mt"], "device_id": "multi-tag-dev",
+            }, headers={"X-Device-Sig": sig_b})
+
+            ra = client.get("/api/content", params={"tag": "alpha-mt"}).json()
+            rb = client.get("/api/content", params={"tag": "beta-mt"}).json()
+            r_both = client.get("/api/content", params={"tags": "alpha-mt,beta-mt"}).json()
+
+            hashes_a = {i["root_hash"] for i in ra["items"]}
+            hashes_b = {i["root_hash"] for i in rb["items"]}
+            hashes_both = {i["root_hash"] for i in r_both["items"]}
+
+            assert hashes_a <= hashes_both
+            assert hashes_b <= hashes_both
+            # Total must be at least as large as either individual query
+            assert r_both["total"] >= max(ra["total"], rb["total"])
+
+    def test_tags_param_overrides_tag(self):
+        with TestClient(app) as client:
+            entropy = os.urandom(32)
+            _enroll(client, "override-dev", entropy)
+            sig = _hmac.new(entropy, b"override-dev:Override Test", hashlib.sha256).hexdigest()
+            client.post("/api/publish", json={
+                "title": "Override Test", "text": "content",
+                "tags": ["override-unique-zz9"], "device_id": "override-dev",
+            }, headers={"X-Device-Sig": sig})
+            r = client.get("/api/content", params={"tag": "nonexistent", "tags": "override-unique-zz9"})
+            assert r.status_code == 200
+            assert r.json()["total"] >= 1
+
+    def test_multi_tag_empty_result(self):
+        with TestClient(app) as client:
+            r = client.get("/api/content", params={"tags": "zzz-no-such-tag-ever-9999"})
+            assert r.status_code == 200
+            assert r.json()["total"] == 0
+
+    def test_filter_by_tags_store_method(self):
+        import sqlite3 as _sqlite3
+        from tfp_demo.server import ContentStore, StoredContent
+        conn = _sqlite3.connect(":memory:")
+        cs = ContentStore(conn)
+        cs.put(StoredContent(root_hash="aa" * 32, title="A", tags=["x"], data=b"a"))
+        cs.put(StoredContent(root_hash="bb" * 32, title="B", tags=["y"], data=b"b"))
+        cs.put(StoredContent(root_hash="cc" * 32, title="C", tags=["z"], data=b"c"))
+
+        results = cs.filter_by_tags(["x", "y"])
+        hashes = {r.root_hash for r in results}
+        assert "aa" * 32 in hashes
+        assert "bb" * 32 in hashes
+        assert "cc" * 32 not in hashes
+        assert cs.count_tags(["x", "y"]) == 2
+        assert cs.count_tags(["z"]) == 1
+
+
+# ---------------------------------------------------------------------------
+# 22. Task result rate limiting
+# ---------------------------------------------------------------------------
+
+class TestTaskResultRateLimiting:
+    """POST /api/task/{id}/result must reject burst submissions per device."""
+
+    def test_rate_limit_fires_on_excessive_submissions(self):
+        from tfp_demo import server as _srv
+        original_limiter = _srv._result_rate_limiter
+        try:
+            with TestClient(app) as client:
+                # Patch AFTER lifespan starts (lifespan resets the limiter)
+                _srv._result_rate_limiter = _srv._RateLimiter(max_calls=2, window_seconds=60)
+                entropy = os.urandom(32)
+                _enroll(client, "rl-result-dev", entropy)
+                statuses = []
+                for i in range(3):
+                    task_id = f"rl-task-fake-{i}"
+                    sig = _hmac.new(
+                        entropy, f"rl-result-dev:{task_id}".encode(), hashlib.sha256
+                    ).hexdigest()
+                    r = client.post(
+                        f"/api/task/{task_id}/result",
+                        json={
+                            "device_id": "rl-result-dev",
+                            "output_hash": "a" * 64,
+                            "exec_time_s": 0.1,
+                            "has_tee": False,
+                        },
+                        headers={"X-Device-Sig": sig},
+                    )
+                    statuses.append(r.status_code)
+                # Third submission must be rate-limited (429)
+                assert statuses[2] == 429, f"Expected 429 for 3rd call, statuses={statuses}"
+        finally:
+            _srv._result_rate_limiter = original_limiter
+
+
+# ---------------------------------------------------------------------------
+# 23. /api/tasks open_count field
+# ---------------------------------------------------------------------------
+
+class TestTasksOpenCount:
+    """/api/tasks must include open_count in response."""
+
+    def test_tasks_response_includes_open_count(self):
+        with TestClient(app) as client:
+            r = client.get("/api/tasks")
+            assert r.status_code == 200
+            data = r.json()
+            assert "open_count" in data
+            assert isinstance(data["open_count"], int)
+            assert data["open_count"] >= 0
+
+    def test_open_count_not_less_than_tasks_list(self):
+        with TestClient(app) as client:
+            r = client.get("/api/tasks", params={"limit": 2})
+            data = r.json()
+            assert data["open_count"] >= len(data["tasks"])
+
+
+# ---------------------------------------------------------------------------
+# 24. cmd_search table output and pagination flags
+# ---------------------------------------------------------------------------
+
+class TestCLISearchTableOutput:
+    """cmd_search should print a table and respect --limit/--offset/--tags."""
+
+    def _patch_get(self, client):
+        import tfp_cli.main as cli_main
+        original = cli_main.httpx.get
+
+        def fake(url, **kwargs):
+            path = url.replace("http://127.0.0.1:8000", "")
+            return client.get(path, **{k: v for k, v in kwargs.items() if k != "timeout"})
+
+        cli_main.httpx.get = fake
+        return original
+
+    def test_search_table_output(self):
+        import io
+        from contextlib import redirect_stdout
+        import tfp_cli.main as cli_main
+        from tfp_cli.main import build_parser
+
+        with TestClient(app) as client:
+            orig = self._patch_get(client)
+            try:
+                args = build_parser().parse_args(["--api", "http://127.0.0.1:8000", "search", "--limit", "5"])
+                buf = io.StringIO()
+                with redirect_stdout(buf):
+                    ret = cli_main.cmd_search(args)
+                assert ret == 0
+                out = buf.getvalue()
+                assert "ROOT_HASH" in out or "No content found" in out
+            finally:
+                cli_main.httpx.get = orig
+
+    def test_search_multi_tag_cli(self):
+        import io
+        from contextlib import redirect_stdout
+        import tfp_cli.main as cli_main
+        from tfp_cli.main import build_parser
+
+        with TestClient(app) as client:
+            entropy = os.urandom(32)
+            _enroll(client, "cli-search-multi", entropy)
+            sig = _hmac.new(entropy, b"cli-search-multi:CLI Multi Tag", hashlib.sha256).hexdigest()
+            client.post("/api/publish", json={
+                "title": "CLI Multi Tag", "text": "body",
+                "tags": ["cli-multi-a"], "device_id": "cli-search-multi",
+            }, headers={"X-Device-Sig": sig})
+
+            orig = self._patch_get(client)
+            try:
+                args = build_parser().parse_args([
+                    "--api", "http://127.0.0.1:8000",
+                    "search", "--tags", "cli-multi-a,nonexistent",
+                ])
+                buf = io.StringIO()
+                with redirect_stdout(buf):
+                    ret = cli_main.cmd_search(args)
+                assert ret == 0
+                out = buf.getvalue()
+                assert "CLI Multi Tag" in out or "of" in out
+            finally:
+                cli_main.httpx.get = orig
+
