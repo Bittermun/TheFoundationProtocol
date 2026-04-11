@@ -1,4 +1,5 @@
 import argparse
+import datetime
 import hashlib
 import hmac as _hmac
 import json
@@ -128,7 +129,57 @@ def cmd_search(args) -> int:
     return 0
 
 
+def cmd_tasks(args) -> int:
+    """List open compute tasks from the node."""
+    params = {"limit": args.limit}
+    response = httpx.get(f"{args.api}/api/tasks", params=params, timeout=10)
+    if response.status_code >= 400:
+        return _handle_error(response)
+    data = response.json()
+    tasks = data.get("tasks", [])
+    if not tasks:
+        print("No open tasks at the moment. Try again in a few seconds.")
+        return 0
+    print(f"{'TASK_ID':<18} {'TYPE':<16} {'DIFF':>4} {'REWARD':>7} {'TIME_LEFT':>10}")
+    print("-" * 60)
+    for t in tasks:
+        print(
+            f"{t['task_id']:<18} {t['task_type']:<16} {t['difficulty']:>4}"
+            f" {t['credit_reward']:>7} {t['time_left_s']:>9}s"
+        )
+    return 0
+
+
+def cmd_leaderboard(args) -> int:
+    """Show the top contributing devices."""
+    params = {"limit": args.limit}
+    response = httpx.get(f"{args.api}/api/devices", params=params, timeout=10)
+    if response.status_code >= 400:
+        return _handle_error(response)
+    data = response.json()
+    devices = data.get("devices", [])
+    total = data.get("total_enrolled", len(devices))
+    if not devices:
+        print("No devices enrolled yet.")
+        return 0
+    print(f"Total enrolled: {total}")
+    print(f"\n{'#':<4} {'DEVICE_ID':<24} {'CREDITS':>8} {'TASKS':>6} {'LAST_ACTIVE'}")
+    print("-" * 60)
+    for i, d in enumerate(devices, 1):
+        last = d.get("last_active")
+        if last:
+            ts = datetime.datetime.fromtimestamp(last).strftime("%Y-%m-%d %H:%M")
+        else:
+            ts = "—"
+        print(
+            f"{i:<4} {d['device_id']:<24} {d.get('credits_balance', 0):>8}"
+            f" {d.get('tasks_contributed', 0):>6}  {ts}"
+        )
+    return 0
+
+
 def cmd_status(args) -> int:
+    """Show node status, task pool stats, and supply information."""
     response = httpx.get(f"{args.api}/api/status", timeout=10)
     if response.status_code >= 400:
         return _handle_error(response)
@@ -273,6 +324,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     status_cmd = sub.add_parser("status", help="Show node status and task pool")
     status_cmd.set_defaults(func=cmd_status)
+
+    tasks_cmd = sub.add_parser("tasks", help="List open compute tasks")
+    tasks_cmd.add_argument("--limit", type=int, default=20, help="Max tasks to show (default: 20)")
+    tasks_cmd.set_defaults(func=cmd_tasks)
+
+    leaderboard_cmd = sub.add_parser("leaderboard", help="Show top contributing devices")
+    leaderboard_cmd.add_argument("--limit", type=int, default=20, help="Max devices to show (default: 20)")
+    leaderboard_cmd.set_defaults(func=cmd_leaderboard)
 
     join = sub.add_parser("join", help="Join the compute pool — execute tasks and earn credits")
     join.add_argument("--device-id", default=f"cli-{os.getpid()}", dest="device_id",

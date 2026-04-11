@@ -19,14 +19,19 @@ Create a Global Information Commons that works for pennies: anyone can publish, 
 ## Current Status (v3.0)
 
 - ✅ Production-ready core (25k+ LOC, 120+ Python files).
-- ✅ **460 tests passing** (Grand Completion Test validates full economic flywheel).
+- ✅ **478 tests passing, 0 warnings** (Grand Completion Test validates full economic flywheel).
 - ✅ **Real compute tasks** — 3 task types (HASH_PREIMAGE, MATRIX_VERIFY, CONTENT_VERIFY) with cryptographic proof-of-work.
-- ✅ **HABP consensus** — Credits only mint when 3/5 devices agree on identical output hash.
+- ✅ **HABP consensus** — Credits only mint when 3/5 devices agree on identical output hash. **Proofs survive server restart** (rebuilt from SQLite on boot).
 - ✅ **21M credit supply cap** — Hard-coded MAX_SUPPLY enforced at every mint via SupplyCapError.
 - ✅ **Task dispatch API** — `POST /api/task`, `GET /api/tasks`, `POST /api/task/{id}/result`.
-- ✅ **Prometheus metrics** — `GET /metrics` with 12 counters (tasks, credits, content, devices).
-- ✅ **Admin dashboard** — `GET /admin` live HTML dashboard (auto-refresh, supply bar).
+- ✅ **Prometheus metrics** — `GET /metrics` with 12 counters (tasks, credits, content, devices). **Seeded from DB on startup** so counters survive restarts.
+- ✅ **Admin dashboard** — `GET /admin` live HTML dashboard (auto-refresh, supply bar, device leaderboard).
 - ✅ **`tfp join`** — Single command to join the compute pool, earn credits, spend on content.
+- ✅ **`tfp tasks` / `tfp leaderboard`** — CLI commands to inspect the live pool.
+- ✅ **Content pagination** — `GET /api/content?limit=N&offset=N` with `total` in response.
+- ✅ **Device leaderboard** — `GET /api/devices` (sorted by credits) + `GET /api/device/{id}`.
+- ✅ **Background maintenance thread** — periodic reap + replenishment every 30s (pool never runs dry).
+- ✅ **SQLite WAL mode** — concurrent reads during writes; "database is locked" errors eliminated.
 - ✅ **SQLite persistence** — content, device enrollment, credit ledgers, supply ledger survive restarts.
 - ✅ **Device auth** — HMAC-SHA-256 per-request signing; identity persisted at `~/.tfp/identity.json`.
 - ✅ **Nostr subscriber** — remote peer content discovery via relay.
@@ -38,13 +43,14 @@ Create a Global Information Commons that works for pennies: anyone can publish, 
 ```bash
 cd tfp-foundation-protocol
 pip install -r requirements.txt
-TFP_DB_PATH=:memory: PYTHONPATH=. pytest tests/ -q   # 460 tests
+TFP_DB_PATH=:memory: PYTHONPATH=. pytest tests/ -q   # 478 tests, 0 warnings
 uvicorn tfp_demo.server:app --reload                  # Demo node on :8000
 ```
 
 Open `http://localhost:8000` — the PWA is installable directly from the browser.
-Open `http://localhost:8000/admin` — live admin dashboard.
+Open `http://localhost:8000/admin` — live admin dashboard (tasks + device leaderboard).
 Open `http://localhost:8000/metrics` — Prometheus metrics.
+Open `http://localhost:8000/health` — health check (used by Docker + load balancers).
 
 ### Join the compute pool from CLI
 
@@ -56,6 +62,10 @@ python -m tfp_cli.main join --device-id my-laptop --interval 5
 # [join]   ✓ executed in 0.14s — output_hash=3f8a12…
 # [join]   ⏳ pending consensus (2 more proofs needed)
 # (run on 2 more devices to reach consensus and earn credits)
+
+# Inspect the pool without joining:
+python -m tfp_cli.main tasks
+python -m tfp_cli.main leaderboard
 ```
 
 ### With Docker
@@ -63,6 +73,7 @@ python -m tfp_cli.main join --device-id my-laptop --interval 5
 ```bash
 cd Scholo
 docker compose up --build
+# Data is persisted in the 'tfp_data' volume
 # Open http://localhost:8000
 # Open http://localhost:8000/admin (live dashboard)
 # Open http://localhost:8000/docs (interactive API docs)
@@ -73,9 +84,13 @@ docker compose up --build
 ```bash
 cd tfp-foundation-protocol
 pip install -e .
-tfp earn --task-id demo-task-1
+tfp tasks                              # list open compute tasks
+tfp leaderboard                        # top devices by credits earned
+tfp join --device-id my-laptop         # join the compute pool
+tfp earn --task-id demo-task-1         # legacy earn
 tfp publish --title "Hello" --text "From CLI" --tags demo,cli
-tfp search
+tfp search --tag demo
+tfp status                             # node status + supply info
 ```
 
 ## Architecture

@@ -106,29 +106,36 @@ class ContentStore:
             data=row[3],
         )
 
-    def all(self) -> List[StoredContent]:
+    def all(self, limit: int = 100, offset: int = 0) -> List[StoredContent]:
         rows = self._conn.execute(
-            "SELECT root_hash, title, tags, data FROM content"
+            "SELECT root_hash, title, tags, data FROM content ORDER BY rowid DESC LIMIT ? OFFSET ?",
+            (limit, offset),
         ).fetchall()
         return [
             StoredContent(root_hash=r[0], title=r[1], tags=json.loads(r[2]), data=r[3])
             for r in rows
         ]
 
-    def filter_by_tag(self, tag: str) -> List[StoredContent]:
+    def filter_by_tag(self, tag: str, limit: int = 100, offset: int = 0) -> List[StoredContent]:
         """Return items matching *tag* using the in-memory index (O(n_matches))."""
         hashes = self._tag_index.get(tag, set())
         if not hashes:
             return []
         placeholders = ",".join("?" * len(hashes))
         rows = self._conn.execute(
-            f"SELECT root_hash, title, tags, data FROM content WHERE root_hash IN ({placeholders})",
-            list(hashes),
+            f"SELECT root_hash, title, tags, data FROM content"
+            f" WHERE root_hash IN ({placeholders})"
+            f" ORDER BY rowid DESC LIMIT ? OFFSET ?",
+            [*list(hashes), limit, offset],
         ).fetchall()
         return [
             StoredContent(root_hash=r[0], title=r[1], tags=json.loads(r[2]), data=r[3])
             for r in rows
         ]
+
+    def count_tag(self, tag: str) -> int:
+        """Return the number of items matching tag."""
+        return len(self._tag_index.get(tag, set()))
 
     def contains(self, root_hash: str) -> bool:
         row = self._conn.execute(
@@ -180,6 +187,10 @@ class DeviceRegistry:
 
     def is_enrolled(self, device_id: str) -> bool:
         return self.get_entropy(device_id) is not None
+
+    def count(self) -> int:
+        """Return the total number of enrolled devices."""
+        return self._conn.execute("SELECT COUNT(*) FROM devices").fetchone()[0]
 
 
 def _verify_device_sig(
@@ -943,6 +954,10 @@ async def lifespan(_app: FastAPI):
     global _content_store, _device_registry, _earn_log, _credit_store, _task_store, _earn_rate_limiter, _tag_overlay, _nostr_subscriber, _clients, _metrics
     db_path = os.environ.get("TFP_DB_PATH", str(_DEFAULT_DB_PATH))
     _conn = sqlite3.connect(db_path, check_same_thread=False)
+    # WAL mode: allows concurrent reads while a write is in progress.
+    # Dramatically reduces "database is locked" errors under load.
+    if db_path != ":memory:":
+        _conn.execute("PRAGMA journal_mode=WAL")
     _content_store = ContentStore(_conn)
     _device_registry = DeviceRegistry(_conn)
     _earn_log = EarnLog(_conn)
@@ -959,6 +974,22 @@ async def lifespan(_app: FastAPI):
     # Pre-populate a few open tasks so devices can immediately join
     _preseed_tasks()
 
+    # Background maintenance thread — reaps expired tasks and replenishes pool
+    # every 30 s without requiring any HTTP traffic to trigger it.
+    _stop_maintenance = threading.Event()
+
+    def _maintenance_loop() -> None:
+        while not _stop_maintenance.wait(timeout=30):
+            try:
+                if _task_store is not None:
+                    _task_store.reap_expired_tasks()
+                    _preseed_tasks()
+            except Exception as exc:
+                log.warning("maintenance loop error (non-fatal): %s", exc)
+
+    _maint_thread = threading.Thread(target=_maintenance_loop, name="tfp-maintenance", daemon=True)
+    _maint_thread.start()
+
     # Start Nostr subscriber in offline mode unless NOSTR_RELAY is set
     relay_url = os.environ.get("NOSTR_RELAY", "")
     _nostr_subscriber = NostrSubscriber(
@@ -970,6 +1001,7 @@ async def lifespan(_app: FastAPI):
 
     yield
 
+    _stop_maintenance.set()
     _nostr_subscriber.stop()
     _conn.close()
     _content_store = None
@@ -1005,16 +1037,32 @@ def service_worker():
 
 
 @app.get("/api/content")
-def search_content(tag: str | None = Query(default=None, min_length=1)) -> dict:
+def search_content(
+    tag: str | None = Query(default=None, min_length=1),
+    limit: int = Query(default=50, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+) -> dict:
+    """
+    Search or list published content.
+
+    Supports optional tag filtering and pagination via ``limit`` / ``offset``.
+    Response includes ``total`` so callers can implement paging UIs.
+    """
     if tag:
-        items = _content_store.filter_by_tag(tag.strip().lower())
+        t = tag.strip().lower()
+        items = _content_store.filter_by_tag(t, limit=limit, offset=offset)
+        total = _content_store.count_tag(t)
     else:
-        items = _content_store.all()
+        items = _content_store.all(limit=limit, offset=offset)
+        total = _content_store.count()
     return {
         "items": [
             {"root_hash": item.root_hash, "title": item.title, "tags": item.tags}
             for item in items
-        ]
+        ],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
     }
 
 
@@ -1306,11 +1354,13 @@ def device_leaderboard_endpoint(limit: int = Query(default=50, ge=1, le=200)) ->
     Return all enrolled devices sorted by credits earned (descending).
 
     Useful for leaderboards, network health checks, and federation tooling.
+    ``total_enrolled`` reflects the true count of all devices, regardless of
+    the ``limit`` parameter.
     """
     devices = _task_store.device_leaderboard(limit=limit)
     return {
         "devices": devices,
-        "total_enrolled": len(devices),
+        "total_enrolled": _device_registry.count(),
     }
 
 

@@ -1038,3 +1038,177 @@ class TestHABPRestartSurvival:
         assert consensus is not None
         assert consensus.verified
         assert len(consensus.matching_devices) == 3
+
+
+# ---------------------------------------------------------------------------
+# 17. Content pagination
+# ---------------------------------------------------------------------------
+
+class TestContentPagination:
+    """GET /api/content should respect limit/offset and return total."""
+
+    def test_limit_restricts_results(self):
+        with TestClient(app) as client:
+            # Publish 5 items
+            entropy = os.urandom(32)
+            _enroll(client, "pg-dev", entropy)
+            for i in range(5):
+                sig = _hmac.new(entropy, f"pg-dev:Paging Test {i}".encode(), hashlib.sha256).hexdigest()
+                client.post("/api/publish", json={
+                    "title": f"Paging Test {i}",
+                    "text": f"content {i}",
+                    "tags": ["pagination-test"],
+                    "device_id": "pg-dev",
+                }, headers={"X-Device-Sig": sig})
+
+            r = client.get("/api/content", params={"limit": 2, "offset": 0})
+            assert r.status_code == 200
+            data = r.json()
+            assert len(data["items"]) <= 2
+            assert data["limit"] == 2
+            assert data["offset"] == 0
+            assert "total" in data
+
+    def test_offset_pages_through_results(self):
+        with TestClient(app) as client:
+            entropy = os.urandom(32)
+            _enroll(client, "pg2-dev", entropy)
+            for i in range(4):
+                sig = _hmac.new(entropy, f"pg2-dev:Offset Test {i}".encode(), hashlib.sha256).hexdigest()
+                client.post("/api/publish", json={
+                    "title": f"Offset Test {i}",
+                    "text": f"content {i}",
+                    "tags": ["offset-test"],
+                    "device_id": "pg2-dev",
+                }, headers={"X-Device-Sig": sig})
+
+            p1 = client.get("/api/content", params={"tag": "offset-test", "limit": 2, "offset": 0}).json()
+            p2 = client.get("/api/content", params={"tag": "offset-test", "limit": 2, "offset": 2}).json()
+            hashes_p1 = {i["root_hash"] for i in p1["items"]}
+            hashes_p2 = {i["root_hash"] for i in p2["items"]}
+            # Pages should not overlap
+            assert hashes_p1.isdisjoint(hashes_p2)
+
+    def test_total_matches_db_count(self):
+        with TestClient(app) as client:
+            r_all = client.get("/api/content", params={"limit": 1, "offset": 0})
+            total = r_all.json()["total"]
+            r_count = client.get("/api/status")
+            assert total == r_count.json()["content_items"]
+
+    def test_tag_pagination_total_is_tag_count(self):
+        with TestClient(app) as client:
+            entropy = os.urandom(32)
+            _enroll(client, "tag-pg-dev", entropy)
+            tag = "unique-pg-tag-zz9"
+            for i in range(3):
+                sig = _hmac.new(entropy, f"tag-pg-dev:Tag Page {i}".encode(), hashlib.sha256).hexdigest()
+                client.post("/api/publish", json={
+                    "title": f"Tag Page {i}",
+                    "text": f"content {i}",
+                    "tags": [tag],
+                    "device_id": "tag-pg-dev",
+                }, headers={"X-Device-Sig": sig})
+            r = client.get("/api/content", params={"tag": tag, "limit": 10})
+            data = r.json()
+            assert data["total"] == len(data["items"]) == 3
+
+
+# ---------------------------------------------------------------------------
+# 18. Device count correctness (fix: total_enrolled must not be limited by limit param)
+# ---------------------------------------------------------------------------
+
+class TestDeviceCountAccuracy:
+    """total_enrolled must reflect true DB count, not the page limit."""
+
+    def test_total_enrolled_not_limited_by_limit_param(self):
+        with TestClient(app) as client:
+            # Enroll 5 devices
+            for i in range(5):
+                _enroll(client, f"count-acc-dev-{i}", os.urandom(32))
+
+            # Request with limit=2 — total_enrolled must still be the real count
+            r = client.get("/api/devices", params={"limit": 2})
+            assert r.status_code == 200
+            data = r.json()
+            assert len(data["devices"]) <= 2
+            # total_enrolled must be >= 5 (there are at least the 5 we just enrolled)
+            assert data["total_enrolled"] >= 5
+
+    def test_device_registry_count_method(self):
+        import sqlite3 as _sqlite3
+        from tfp_demo.server import DeviceRegistry
+        conn = _sqlite3.connect(":memory:")
+        dr = DeviceRegistry(conn)
+        assert dr.count() == 0
+        dr.enroll("d1", os.urandom(32))
+        assert dr.count() == 1
+        dr.enroll("d2", os.urandom(32))
+        assert dr.count() == 2
+
+
+# ---------------------------------------------------------------------------
+# 19. CLI commands: tasks and leaderboard
+# ---------------------------------------------------------------------------
+
+class TestCLITasksAndLeaderboard:
+    """Test the new 'tasks' and 'leaderboard' CLI subcommands."""
+
+    def test_cli_tasks_command_with_open_tasks(self):
+        """tfp tasks should print a table and return 0."""
+        with TestClient(app) as client:
+            import io
+            from contextlib import redirect_stdout
+            import tfp_cli.main as cli_main
+            from tfp_cli.main import build_parser
+
+            original = cli_main.httpx.get
+
+            try:
+                def fake_get(url, **kwargs):
+                    path = url.replace("http://127.0.0.1:8000", "")
+                    response = client.get(path, **{k: v for k, v in kwargs.items() if k != "timeout"})
+                    return response
+
+                cli_main.httpx.get = fake_get
+                parser = build_parser()
+                args = parser.parse_args(["--api", "http://127.0.0.1:8000", "tasks"])
+                buf = io.StringIO()
+                with redirect_stdout(buf):
+                    ret = cli_main.cmd_tasks(args)
+                assert ret == 0
+                output = buf.getvalue()
+                # Should print a table header or "No open tasks"
+                assert "TASK_ID" in output or "No open tasks" in output
+            finally:
+                cli_main.httpx.get = original
+
+    def test_cli_leaderboard_command(self):
+        """tfp leaderboard should print a table and return 0."""
+        with TestClient(app) as client:
+            _enroll(client, "lb-cli-dev", os.urandom(32))
+            import io
+            from contextlib import redirect_stdout
+            import tfp_cli.main as cli_main
+            from tfp_cli.main import build_parser
+
+            original = cli_main.httpx.get
+
+            try:
+                def fake_get(url, **kwargs):
+                    path = url.replace("http://127.0.0.1:8000", "")
+                    response = client.get(path, **{k: v for k, v in kwargs.items() if k != "timeout"})
+                    return response
+
+                cli_main.httpx.get = fake_get
+                parser = build_parser()
+                args = parser.parse_args(["--api", "http://127.0.0.1:8000", "leaderboard"])
+                buf = io.StringIO()
+                with redirect_stdout(buf):
+                    ret = cli_main.cmd_leaderboard(args)
+                assert ret == 0
+                output = buf.getvalue()
+                assert "Total enrolled" in output
+                assert "DEVICE_ID" in output or "lb-cli-dev" in output
+            finally:
+                cli_main.httpx.get = original

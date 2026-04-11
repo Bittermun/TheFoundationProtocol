@@ -7,6 +7,14 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 
 COPY . /app
 
+# Use a dedicated data directory so the DB can be volume-mounted
+ENV TFP_DB_PATH=/data/pib.db
+RUN mkdir -p /data
+
 EXPOSE 8000
+
+HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" \
+    || exit 1
 
 CMD ["uvicorn", "tfp_demo.server:app", "--host", "0.0.0.0", "--port", "8000"]
