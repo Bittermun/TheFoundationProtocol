@@ -27,15 +27,15 @@ class GovernanceManifest:
                 "status": "Active (Solo Founder)",
                 "commitment": "Full-time",
                 "contact": "governance@tfp-protocol.org",  # Placeholder
-                "pgp_fingerprint": "TODO_ADD_PGP_FINGERPRINT",
+                "pgp_fingerprint": "Not yet published — see governance@tfp-protocol.org",
             }
         ]
 
         self.contribution_model = {
             "type": "Open Source Community",
             "license": "MIT",
-            "contribution_guidelines": "https://github.com/tfp-protocol/tfp/blob/main/CONTRIBUTING.md",
-            "code_of_conduct": "https://github.com/tfp-protocol/tfp/blob/main/CODE_OF_CONDUCT.md",
+            "contribution_guidelines": "https://github.com/Bittermun/Scholo/blob/main/CONTRIBUTING.md",
+            "code_of_conduct": "https://github.com/Bittermun/Scholo/blob/main/CODE_OF_CONDUCT.md",
             "decision_making": "BDFL (Benevolent Dictator For Life) with community RFC process",
             "roadmap_input": "GitHub Issues + Community Forum",
         }

@@ -12,14 +12,6 @@ dependencies = [
     "python-ndn",
     "websockets",
     "prometheus_client",
-    "redis>=5.2.0",
-    "opentelemetry-api>=1.24.0",
-    "opentelemetry-sdk>=1.24.0",
-    "opentelemetry-instrumentation-fastapi>=0.45b0",
-    "opentelemetry-exporter-otlp>=1.24.0",
-    "chromadb>=0.4.24",
-    "transformers>=4.39.0",
-    "tfp-nostr-bridge>=1.0.0",
 ]
 
 [project.optional-dependencies]
@@ -34,6 +26,23 @@ dev = [
     "black",
     "ruff",
     "mypy",
+]
+# Heavy optional backends — not needed for the core demo node
+distributed = [
+    "redis>=5.2.0",
+]
+rag = [
+    "chromadb>=0.4.24",
+    "transformers>=4.39.0",
+]
+tracing = [
+    "opentelemetry-api>=1.24.0",
+    "opentelemetry-sdk>=1.24.0",
+    "opentelemetry-instrumentation-fastapi>=0.45b0",
+    "opentelemetry-exporter-otlp>=1.24.0",
+]
+all = [
+    "tfp[distributed,rag,tracing]",
 ]
 
 [project.scripts]

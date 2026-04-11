@@ -288,7 +288,7 @@ class TagOverlayIndex:
             return None
 
         # Rebuild leaf hashes
-        entry_data = f"{target_entry.tag}:{target_entry.content_hash.hex()}:{target_entry.popularity_score}"
+        entry_data = f"{target_entry.tag}:{target_entry.content_hash.hex()}:{target_entry.popularity_score}"  # noqa: F841
 
         # Build full tree and collect proof
         entries = dag.entries

@@ -51,7 +51,7 @@ class AuditValidator:
                     "meets_target": False,
                 }
 
-            result = subprocess.run(
+            result = subprocess.run(  # noqa: F841
                 ["python", "-m", "pytest", "--cov=tfp_core", "--cov-report=json", "-q"],
                 cwd=resolved_path,
                 capture_output=True,

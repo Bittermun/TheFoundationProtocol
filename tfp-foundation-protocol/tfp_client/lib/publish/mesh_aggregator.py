@@ -87,7 +87,7 @@ class MeshAggregator:
             Dict mapping hash -> {hash, demand_score, request_count, metadata}
         """
         current_time = time.time()
-        cutoff_time = current_time - time_window
+        cutoff_time = current_time - time_window  # noqa: F841
         aggregated = {}
 
         for hash_hex, count in self._demand_counts.items():

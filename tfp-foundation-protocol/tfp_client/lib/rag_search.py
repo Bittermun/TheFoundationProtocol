@@ -174,7 +174,7 @@ class RAGGraph:
                 # Start new chunk with overlap
                 overlap_lines = max(1, self.chunk_overlap // 4)
                 current_chunk_lines = current_chunk_lines[-overlap_lines:]
-                current_token_count = sum(len(l) // 4 + 1 for l in current_chunk_lines)
+                current_token_count = sum(len(ln) // 4 + 1 for ln in current_chunk_lines)
 
             current_chunk_lines.append(line)
             current_token_count += line_tokens
