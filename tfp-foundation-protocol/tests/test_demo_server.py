@@ -241,9 +241,11 @@ def test_earn_log_class_deduplication():
 def test_credits_persist_across_restarts():
     """Credits earned in one lifespan must be spendable in the next."""
     import tempfile, pathlib
-    db_file = tempfile.mktemp(suffix=".db")
+    orig_env = os.environ.get("TFP_DB_PATH")
+    tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+    tmp.close()
+    db_file = tmp.name
     try:
-        orig_env = os.environ.get("TFP_DB_PATH")
         os.environ["TFP_DB_PATH"] = db_file
 
         puf_entropy = os.urandom(32)
