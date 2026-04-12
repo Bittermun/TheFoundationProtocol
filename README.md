@@ -299,6 +299,4 @@ python tfp_pilots/community_bootstrap.py --community-id "my-region"
 
 ---
 
-*"A mutualistic digital commons for humanity."*
-
-**Ready for world excellence. Ready for you.**
+*"A digital commons for humanity."*
