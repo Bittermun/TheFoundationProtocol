@@ -150,9 +150,7 @@ def test_credits_survive_restart(db_file):
     with TestClient(app) as c2:
         # Credits persisted — content retrieval must succeed (200)
         get_r = c2.get(f"/api/get/{root_hash}", params={"device_id": device_id})
-        assert get_r.status_code == 200, (
-            f"Credits lost on restart: {get_r.json()}"
-        )
+        assert get_r.status_code == 200, f"Credits lost on restart: {get_r.json()}"
         assert get_r.json()["text"] == "credit restart body"
 
 
@@ -204,9 +202,7 @@ def test_metrics_seeded_from_db_on_restart(db_file):
         for line in metrics_text2.splitlines():
             if line.startswith("tfp_credits_minted_total "):
                 value = int(line.split()[-1])
-                assert value >= 10, (
-                    f"Expected minted >= 10 after restart, got {value}"
-                )
+                assert value >= 10, f"Expected minted >= 10 after restart, got {value}"
                 break
 
 
@@ -244,9 +240,7 @@ def test_habp_proofs_rebuilt_after_restart(db_file):
     with TestClient(app) as c2:
         # Submit the 3rd proof post-restart — consensus must still be reachable
         # because proofs are rebuilt from task_results table on startup
-        result = _submit_result(
-            c2, device_ids[2], pufs[2], task_id, expected_hash
-        )
+        result = _submit_result(c2, device_ids[2], pufs[2], task_id, expected_hash)
         assert result["verified"] is True, (
             f"HABP state not rebuilt after restart: {result}"
         )

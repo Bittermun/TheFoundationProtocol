@@ -45,7 +45,9 @@ def _publish(client, device_id: str, puf: bytes, title: str, text: str) -> str:
     return r.json()["root_hash"]
 
 
-def _create_task(client, task_type: str = "content_verify", difficulty: int = 1) -> dict:
+def _create_task(
+    client, task_type: str = "content_verify", difficulty: int = 1
+) -> dict:
     r = client.post(
         "/api/task",
         json={"task_type": task_type, "difficulty": difficulty, "seed_hex": ""},

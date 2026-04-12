@@ -83,7 +83,12 @@ def test_unenrolled_device_publish_returns_401():
         sig = _sig(puf, "ghost:SomeTitle")
         r = client.post(
             "/api/publish",
-            json={"title": "SomeTitle", "text": "body", "tags": [], "device_id": "ghost"},
+            json={
+                "title": "SomeTitle",
+                "text": "body",
+                "tags": [],
+                "device_id": "ghost",
+            },
             headers={"X-Device-Sig": sig},
         )
         assert r.status_code == 401
@@ -132,7 +137,12 @@ def test_wrong_sig_publish_returns_401():
         bad_sig = _sig(wrong_puf, "auth-dev:Title")
         r = client.post(
             "/api/publish",
-            json={"title": "Title", "text": "body", "tags": [], "device_id": "auth-dev"},
+            json={
+                "title": "Title",
+                "text": "body",
+                "tags": [],
+                "device_id": "auth-dev",
+            },
             headers={"X-Device-Sig": bad_sig},
         )
         assert r.status_code == 401

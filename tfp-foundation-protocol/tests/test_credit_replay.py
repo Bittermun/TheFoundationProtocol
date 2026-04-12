@@ -121,9 +121,7 @@ def test_earn_replay_rejected_metric_incremented():
                 assert count >= 1
                 break
         else:
-            raise AssertionError(
-                "tfp_earn_replay_rejected_total not found in /metrics"
-            )
+            raise AssertionError("tfp_earn_replay_rejected_total not found in /metrics")
 
 
 def test_earn_log_class_first_call_returns_true():
