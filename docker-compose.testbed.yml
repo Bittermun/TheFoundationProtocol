@@ -51,7 +51,7 @@ services:
       dockerfile: Dockerfile.demo
     container_name: tfp-node-1
     ports:
-      - "8001:8000"
+      - "9001:8000"
     restart: unless-stopped
     volumes:
       - tfp_data_1:/data
@@ -60,6 +60,7 @@ services:
       - TFP_IPFS_API_URL=http://tfp-ipfs:5001
       - REDIS_URL=redis://tfp-redis:6379/0
       - NOSTR_RELAY_URL=ws://tfp-relay:8080
+      - PYTHONUNBUFFERED=1
     deploy:
       resources:
         limits:
@@ -77,7 +78,7 @@ services:
       dockerfile: Dockerfile.demo
     container_name: tfp-node-2
     ports:
-      - "8002:8000"
+      - "9002:8000"
     restart: unless-stopped
     volumes:
       - tfp_data_2:/data
@@ -103,7 +104,7 @@ services:
       dockerfile: Dockerfile.demo
     container_name: tfp-node-3
     ports:
-      - "8003:8000"
+      - "9003:8000"
     restart: unless-stopped
     volumes:
       - tfp_data_3:/data
@@ -129,7 +130,7 @@ services:
       dockerfile: Dockerfile.demo
     container_name: tfp-node-4
     ports:
-      - "8004:8000"
+      - "9004:8000"
     restart: unless-stopped
     volumes:
       - tfp_data_4:/data
@@ -155,7 +156,7 @@ services:
       dockerfile: Dockerfile.demo
     container_name: tfp-node-5
     ports:
-      - "8005:8000"
+      - "9005:8000"
     restart: unless-stopped
     volumes:
       - tfp_data_5:/data
@@ -181,7 +182,7 @@ services:
       dockerfile: Dockerfile.demo
     container_name: tfp-node-6
     ports:
-      - "8006:8000"
+      - "9006:8000"
     restart: unless-stopped
     volumes:
       - tfp_data_6:/data
@@ -207,7 +208,7 @@ services:
       dockerfile: Dockerfile.demo
     container_name: tfp-node-7
     ports:
-      - "8007:8000"
+      - "9007:8000"
     restart: unless-stopped
     volumes:
       - tfp_data_7:/data
@@ -233,7 +234,7 @@ services:
       dockerfile: Dockerfile.demo
     container_name: tfp-node-8
     ports:
-      - "8011:8000"
+      - "9008:8000"
     restart: unless-stopped
     volumes:
       - tfp_data_8:/data
@@ -259,7 +260,7 @@ services:
       dockerfile: Dockerfile.demo
     container_name: tfp-node-9
     ports:
-      - "8009:8000"
+      - "9009:8000"
     restart: unless-stopped
     volumes:
       - tfp_data_9:/data
@@ -285,7 +286,7 @@ services:
       dockerfile: Dockerfile.demo
     container_name: tfp-node-10
     ports:
-      - "8010:8000"
+      - "9010:8000"
     restart: unless-stopped
     volumes:
       - tfp_data_10:/data

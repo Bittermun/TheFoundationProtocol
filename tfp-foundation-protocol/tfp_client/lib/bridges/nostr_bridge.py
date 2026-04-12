@@ -329,33 +329,42 @@ class NostrBridge:
             tags=tags,
         )
 
-    def publish_content_announcement(
-        self,
-        content_hash: str,
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> NostrEvent:
+    def announce_content(self, content_hash: str, metadata: dict):
         """
-        Build and publish a TFP content announcement to the relay.
-
-        Args:
-            content_hash: Hex SHA3-256 content hash.
-            metadata: Optional metadata dict.
-
-        Returns:
-            The NostrEvent (regardless of delivery success).
+        Announce content availability to the Nostr network.
+        Sets 'content_hash' tag and includes metadata.
         """
-        event = self.build_content_announcement(content_hash, metadata)
+        cid = metadata.get("cid", "")
+        # Use JSON content for rich metadata, and tags for indexing
+        payload = {
+            "hash": content_hash,
+            "cid": cid,
+            "title": metadata.get("title", ""),
+            "tags": metadata.get("tags", [])
+        }
+        
+        event = NostrEvent(
+            content=json.dumps(payload),
+            tags=[
+                ["t", "tfp_content_announcement"], 
+                ["content_hash", content_hash],
+                ["cid", cid]
+            ],
+        )
+        self.publish_event(event)
+
+    def publish_event(self, event: NostrEvent) -> bool:
+        """Publish a generic Nostr event and record it in history."""
         self._history.append(event)
-
         if not self.offline:
             try:
-                self._send_to_relay(event)
+                return self._send_to_relay(event)
             except Exception as exc:
                 logger.warning(
                     "Nostr publish failed (relay=%s): %s", self.relay_url, exc
                 )
-
-        return event
+                return False
+        return True
 
     def get_history(self) -> List[NostrEvent]:
         """Return list of published events (newest last)."""

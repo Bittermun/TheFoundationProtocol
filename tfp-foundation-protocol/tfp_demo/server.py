@@ -12,12 +12,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from fastapi import FastAPI, Header, HTTPException, Query
+from fastapi import FastAPI, Header, HTTPException, Query, Request, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingResponse
+from tfp_client.lib.bridges.ipfs_bridge import IPFSBridge
 from pydantic import BaseModel, Field
 from tfp_broadcaster.broadcaster import Broadcaster
 from tfp_client.lib.bridges.nostr_subscriber import NostrSubscriber
+from tfp_client.lib.bridges.nostr_bridge import NostrBridge
 from tfp_client.lib.compute.credit_formula import CreditFormula
 from tfp_client.lib.compute.task_executor import (
     TaskSpec,
@@ -972,9 +974,15 @@ class _RateLimiter:
 
 class PublishRequest(BaseModel):
     title: str = Field(min_length=1, max_length=120)
-    text: str = Field(min_length=1, max_length=20000)
+    text: str = Field(min_length=1)
     tags: List[str] = Field(default_factory=list)
     device_id: str = Field(min_length=1, max_length=120)
+
+
+class DelegateProofRequest(BaseModel):
+    device_id: str = Field(min_length=1, max_length=120)
+    circuit: str = Field(min_length=1, max_length=120)
+    private_claim_hex: str = Field(min_length=1)
 
 
 class EarnRequest(BaseModel):
@@ -1013,6 +1021,8 @@ _earn_rate_limiter: _RateLimiter = _RateLimiter()
 _result_rate_limiter: _RateLimiter = _RateLimiter()
 _tag_overlay: Optional[TagOverlayIndex] = None
 _nostr_subscriber: Optional[NostrSubscriber] = None
+_nostr_bridge: Optional[NostrBridge] = None
+_ipfs_bridge: Optional[IPFSBridge] = None
 _broadcaster = Broadcaster()
 _clients: Dict[str, TFPClient] = {}
 _metrics: _Metrics = _Metrics()
@@ -1020,15 +1030,26 @@ _demo_dir = Path(__file__).resolve().parent.parent / "demo"
 
 
 class DemoNDNAdapter(NDNAdapter):
-    def __init__(self, store: ContentStore):
+    def __init__(self, store: ContentStore, ipfs_bridge: Optional[IPFSBridge] = None):
         self._store = store
+        self._ipfs = ipfs_bridge
 
     def express_interest(self, interest):
         root_hash = interest.name.rsplit("/", 1)[-1]
         item = self._store.get(root_hash)
-        if item is None:
-            raise ValueError("content not found")
-        return Data(name=interest.name, content=item.data)
+        if item:
+            return Data(name=interest.name, content=item.data)
+
+        # Fallback to IPFS if we know the CID
+        if self._ipfs:
+            cid = self._ipfs.get_cid_for_hash(root_hash)
+            if cid:
+                log.info("NDN: Fallback to IPFS for %s (cid=%s)", root_hash, cid)
+                data_bytes = self._ipfs.get(cid)
+                if data_bytes:
+                    return Data(name=interest.name, content=data_bytes)
+
+        raise ValueError(f"content not found for hash: {root_hash}")
 
 
 def _make_ndn_adapter() -> NDNAdapter:
@@ -1037,7 +1058,7 @@ def _make_ndn_adapter() -> NDNAdapter:
         from tfp_client.lib.ndn.ndn_real import RealNDNAdapter
 
         return RealNDNAdapter()
-    return DemoNDNAdapter(_content_store)
+    return DemoNDNAdapter(_content_store, _ipfs_bridge)
 
 
 def _client_for(device_id: str) -> TFPClient:
@@ -1114,7 +1135,13 @@ def _on_nostr_event(event_dict: dict) -> None:
         payload = json.loads(event_dict.get("content", "{}"))
         content_hash_hex = payload.get("hash", "")
         tags = payload.get("tags", [])
+        cid = payload.get("cid")
+
         if content_hash_hex and len(content_hash_hex) == 64:
+            if cid and _ipfs_bridge:
+                metadata = {"title": payload.get("title", "Remote Content"), "tags": tags}
+                _ipfs_bridge.record_mapping(content_hash_hex, cid, metadata=metadata)
+
             content_hash_bytes = bytes.fromhex(content_hash_hex)
             domain = payload.get("domain", "general")
             _tag_overlay.add_entry(
@@ -1129,86 +1156,114 @@ def _on_nostr_event(event_dict: dict) -> None:
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    global \
-        _content_store, \
-        _device_registry, \
-        _earn_log, \
-        _credit_store, \
-        _task_store, \
-        _earn_rate_limiter, \
-        _result_rate_limiter, \
-        _tag_overlay, \
-        _nostr_subscriber, \
-        _clients, \
-        _metrics
-    db_path = os.environ.get("TFP_DB_PATH", str(_DEFAULT_DB_PATH))
-    _conn = sqlite3.connect(db_path, check_same_thread=False)
-    # WAL mode: allows concurrent reads while a write is in progress.
-    # Dramatically reduces "database is locked" errors under load.
-    if db_path != ":memory:":
-        _conn.execute("PRAGMA journal_mode=WAL")
-    # Single shared lock for all stores to serialize access to the shared connection
-    _db_lock = threading.RLock()
-    _content_store = ContentStore(_conn, _db_lock)
-    _device_registry = DeviceRegistry(_conn, _db_lock)
-    _earn_log = EarnLog(_conn, _db_lock)
-    _credit_store = CreditStore(_conn, _db_lock)
-    _task_store = TaskStore(_conn, _db_lock)
-    _earn_rate_limiter = _RateLimiter(
-        max_calls=_EARN_RATE_MAX, window_seconds=_EARN_RATE_WINDOW
-    )
-    _result_rate_limiter = _RateLimiter(
-        max_calls=_RESULT_RATE_MAX, window_seconds=_RESULT_RATE_WINDOW
-    )
-    _metrics = _Metrics()
-    # Seed durable counters from SQLite so they survive restarts
-    _metrics.seed_from_db(_conn)
-    _tag_overlay = TagOverlayIndex()
-    _clients.clear()
-    if _content_store.count() == 0:
-        _seed_sample()
-    # Pre-populate a few open tasks so devices can immediately join
-    _preseed_tasks()
+    log.info("TFP Server starting up...")
+    try:
+        global \
+            _content_store, \
+            _device_registry, \
+            _earn_log, \
+            _credit_store, \
+            _task_store, \
+            _earn_rate_limiter, \
+            _result_rate_limiter, \
+            _tag_overlay, \
+            _nostr_subscriber, \
+            _nostr_bridge, \
+            _ipfs_bridge, \
+            _clients, \
+            _metrics
+        db_path = os.environ.get("TFP_DB_PATH", str(_DEFAULT_DB_PATH))
+        log.info("Connecting to SQLite: %s", db_path)
+        _conn = sqlite3.connect(db_path, check_same_thread=False)
+        if db_path != ":memory:":
+            _conn.execute("PRAGMA journal_mode=WAL")
+        _db_lock = threading.RLock()
+        _content_store = ContentStore(_conn, _db_lock)
+        _device_registry = DeviceRegistry(_conn, _db_lock)
+        _earn_log = EarnLog(_conn, _db_lock)
+        _credit_store = CreditStore(_conn, _db_lock)
+        _task_store = TaskStore(_conn, _db_lock)
+        _earn_rate_limiter = _RateLimiter(
+            max_calls=_EARN_RATE_MAX, window_seconds=_EARN_RATE_WINDOW
+        )
+        _result_rate_limiter = _RateLimiter(
+            max_calls=_RESULT_RATE_MAX, window_seconds=_RESULT_RATE_WINDOW
+        )
+        _metrics = _Metrics()
+        _metrics.seed_from_db(_conn)
 
-    # Background maintenance thread — reaps expired tasks and replenishes pool
-    # every 30 s without requiring any HTTP traffic to trigger it.
-    _stop_maintenance = threading.Event()
+        _tag_overlay = TagOverlayIndex()
+        _clients.clear()
+        if _content_store.count() == 0:
+            _seed_sample()
+        _preseed_tasks()
 
-    def _maintenance_loop() -> None:
-        while not _stop_maintenance.wait(timeout=30):
-            try:
-                if _task_store is not None:
-                    _task_store.reap_expired_tasks()
-                    _preseed_tasks()
-            except Exception as exc:
-                log.warning("maintenance loop error (non-fatal): %s", exc)
+        _stop_maintenance = threading.Event()
 
-    _maint_thread = threading.Thread(
-        target=_maintenance_loop, name="tfp-maintenance", daemon=True
-    )
-    _maint_thread.start()
+        def _maintenance_loop() -> None:
+            while not _stop_maintenance.wait(timeout=30):
+                try:
+                    if _task_store is not None:
+                        _task_store.reap_expired_tasks()
+                        _preseed_tasks()
+                except Exception as exc:
+                    log.warning("maintenance loop error: %s", exc)
 
-    # Start Nostr subscriber in offline mode unless NOSTR_RELAY is set
-    relay_url = os.environ.get("NOSTR_RELAY", "")
-    _nostr_subscriber = NostrSubscriber(
-        relay_url=relay_url or "wss://relay.damus.io",
-        on_event=_on_nostr_event,
-        offline=not relay_url,
-    )
-    _nostr_subscriber.start()
+        _maint_thread = threading.Thread(
+            target=_maintenance_loop, name="tfp-maintenance", daemon=True
+        )
+        _maint_thread.start()
 
-    yield
+        ipfs_api = os.environ.get("TFP_IPFS_API_URL", "http://tfp-ipfs:5001")
+        _ipfs_bridge = IPFSBridge(api_url=ipfs_api, offline=not ipfs_api)
+        _broadcaster.ipfs_bridge = _ipfs_bridge
 
-    _stop_maintenance.set()
-    _nostr_subscriber.stop()
-    _conn.close()
-    _content_store = None
-    _device_registry = None
-    _earn_log = None
-    _credit_store = None
-    _task_store = None
+        relay_url = os.environ.get("NOSTR_RELAY") or os.environ.get("NOSTR_RELAY_URL", "")
+        _nostr_subscriber = NostrSubscriber(
+            relay_url=relay_url or "wss://relay.damus.io",
+            on_event=_on_nostr_event,
+            offline=not relay_url,
+        )
+        _nostr_subscriber.start()
+
+        _nostr_bridge = NostrBridge(
+            relay_url=relay_url or "wss://relay.damus.io",
+            offline=not relay_url
+        )
+        log.info("TFP Server ready and yielding.")
+
+        yield
+
+    except Exception as e:
+        import traceback
+        err_msg = f"CRITICAL: Lifespan failed: {e}\n{traceback.format_exc()}"
+        log.error(err_msg)
+        # Also write to a file in /data/ to survive uvicorn failure
+        try:
+            with open("/data/crash.log", "a") as f:
+                f.write(f"\n--- {time.ctime()} ---\n{err_msg}\n")
+        except:
+            pass
+        raise e
+    finally:
+        log.info("TFP Server shutting down...")
+        try:
+            if '_stop_maintenance' in locals():
+                _stop_maintenance.set()
+            if '_nostr_subscriber' in locals() and _nostr_subscriber:
+                _nostr_subscriber.stop()
+            if '_conn' in locals() and _conn:
+                _conn.close()
+        except:
+            pass
+        _content_store = None
+        _device_registry = None
+        _earn_log = None
+        _credit_store = None
+        _task_store = None
     _tag_overlay = None
     _nostr_subscriber = None
+    _nostr_bridge = None
 
 
 app = FastAPI(title="TFP Demo Node", version="0.2.0", lifespan=lifespan)
@@ -1301,36 +1356,64 @@ def enroll(payload: EnrollRequest) -> dict:
 
 
 @app.post("/api/publish")
-def publish(
-    payload: PublishRequest,
+async def publish(
+    request: Request,
     x_device_sig: str = Header(alias="X-Device-Sig"),
 ) -> dict:
-    message = f"{payload.device_id}:{payload.title}"
+    content_type = request.headers.get("content-type", "")
+    if "application/json" in content_type:
+        body = await request.json()
+        payload = PublishRequest(**body)
+        device_id = payload.device_id
+        title = payload.title
+        tags_raw = payload.tags
+        body_bytes = payload.text.encode()
+    elif "multipart/form-data" in content_type:
+        form = await request.form()
+        device_id = form.get("device_id")
+        title = form.get("title")
+        tags_str = form.get("tags", "")
+        tags_raw = [t.strip() for t in tags_str.split(",")] if tags_str else []
+        file = form.get("file")
+        if not file:
+            raise HTTPException(status_code=400, detail="Missing file")
+        body_bytes = await file.read()
+    else:
+        raise HTTPException(status_code=415, detail="Unsupported Media Type")
+
+    message = f"{device_id}:{title}"
     if not _verify_device_sig(
-        payload.device_id, x_device_sig, message, _device_registry
+        device_id, x_device_sig, message, _device_registry
     ):
         _metrics.inc("tfp_auth_failures_total")
         raise HTTPException(
             status_code=401,
             detail="invalid or missing device signature — enroll first via /api/enroll",
         )
-    body = payload.text.encode()
+
     result = _broadcaster.seed_content(
-        body, metadata={"title": payload.title}, use_ldm=False
+        body_bytes, metadata={"title": title, "tags": tags_raw}, use_ldm=False
     )
-    tags = _normalize_tags(payload.tags)
+    tags = _normalize_tags(tags_raw)
+
+    # Ensure IPFS CID is included in the Nostr announcement
+    if result.get("cid") and _nostr_bridge:
+        _nostr_bridge.publish_content_announcement(
+            result["root_hash"],
+            metadata={"title": title, "tags": tags, "cid": result["cid"]}
+        )
     _content_store.put(
         StoredContent(
             root_hash=result["root_hash"],
-            title=payload.title,
+            title=title,
             tags=tags,
-            data=body,
+            data=body_bytes,
         )
     )
     _metrics.inc("tfp_content_published_total")
     return {
         "root_hash": result["root_hash"],
-        "title": payload.title,
+        "title": title,
         "tags": tags,
         "status": "broadcasting",
     }
@@ -1384,29 +1467,95 @@ def earn(
 
 
 @app.get("/api/get/{root_hash}")
-def get_content(root_hash: str, device_id: str = Query(default="web-demo")) -> dict:
-    item = _content_store.get(root_hash)
-    if item is None:
-        raise HTTPException(status_code=404, detail="content not found")
-
+def get_content(root_hash: str, stream: bool = Query(False), device_id: str = Query(default="web-demo")):
     client = _client_for(device_id)
+    item = _content_store.get(root_hash)
+
+    # If not in local content store, try fetching via NDN (which now checks IPFS)
     try:
         content = client.request_content(root_hash)
     except ValueError as exc:
-        if "no earned credits" in str(exc):
+        msg = str(exc).lower()
+        if "no earned credits" in msg or "insufficient credits" in msg:
             raise HTTPException(
                 status_code=402, detail="earn credits first via /api/earn"
             ) from exc
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        # Explicit 404 for not found
+        raise HTTPException(status_code=404, detail=f"content {root_hash} not found on local node or via discovery") from exc
+    except Exception as exc:
+        log.error("NDN retrieval error for %s: %s", root_hash, exc)
+        raise HTTPException(status_code=500, detail="Internal error during retrieval") from exc
 
     _metrics.inc("tfp_content_served_total")
     _metrics.inc("tfp_credits_spent_total")
+
+    if stream:
+        def stream_generator():
+            chunk_size = 64 * 1024  # 64KB chunks to mimic constrained device streaming
+            data = content.content if hasattr(content, "content") else content.data
+            for i in range(0, len(data), chunk_size):
+                yield data[i:i + chunk_size]
+        return StreamingResponse(stream_generator(), media_type="application/octet-stream")
+    else:
+        # Use metadata from item (local) or fallback to ipfs bridge metadata
+        title = item.title if item else "Remote Content"
+        tags = item.tags if item else []
+        
+        if not item and _ipfs_bridge:
+            meta = _ipfs_bridge.get_metadata(root_hash)
+            if meta:
+                title = meta.get("title", title)
+                tags = meta.get("tags", tags)
+
+        data_bytes = content.content if hasattr(content, "content") else content.data
+        return {
+            "root_hash": root_hash,
+            "title": title,
+            "tags": tags,
+            "text": data_bytes.decode(errors="replace"),
+            "sha3": hashlib.sha3_256(data_bytes).hexdigest(),
+        }
+
+@app.post("/api/delegate-proof")
+def delegate_proof(
+    payload: DelegateProofRequest,
+    x_device_sig: str = Header(alias="X-Device-Sig"),
+) -> dict:
+    """Prototyped ZKP delegation endpoint. Costs 5 credits."""
+    message = f"{payload.device_id}:{payload.circuit}"
+    if not _verify_device_sig(payload.device_id, x_device_sig, message, _device_registry):
+        _metrics.inc("tfp_auth_failures_total")
+        raise HTTPException(
+            status_code=401,
+            detail="invalid or missing device signature",
+        )
+    
+    client = _client_for(payload.device_id)
+    try:
+        # Cost check: 5 credits for delegated ZKP generation
+        client.spend_for_service(5)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=402, detail=str(exc) + ". Earn credits via /api/earn first."
+        ) from exc
+
+    try:
+        private_bytes = bytes.fromhex(payload.private_claim_hex)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="private_claim_hex must be valid hex")
+
+    # Use client's adapter (could be RealZKPAdapter if TFP_REAL_ADAPTERS=1)
+    proof = client.zkp.generate_proof(circuit=payload.circuit, private=private_bytes)
+
+    # Persist updated ledger balance
+    _credit_store.save(payload.device_id, client)
+    _metrics.inc("tfp_credits_spent_total", 5)
+
     return {
-        "root_hash": content.root_hash,
-        "title": item.title,
-        "tags": item.tags,
-        "text": content.data.decode(errors="replace"),
-        "sha3": hashlib.sha3_256(content.data).hexdigest(),
+        "device_id": payload.device_id,
+        "circuit": payload.circuit,
+        "proof_hex": proof.hex(),
+        "credits_remaining": client.ledger.balance
     }
 
 

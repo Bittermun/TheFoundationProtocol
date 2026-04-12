@@ -45,7 +45,7 @@ Create a **Global Information Commons** that works for pennies: anyone can publi
 - **Inclusive UX** — Zero-config installable PWA (Android/iOS), voice-first navigation, offline-first.
 - **Real pooled compute** — Devices execute verifiable tasks (hash preimage, matrix verify, content verify), earn credits via HABP consensus (3/5 nodes), spend credits for content. 21M supply cap.
 
-## Current Status (v3.1.1)
+## Current Status (v3.1.x)
 
 - ✅ Production-ready core (25k+ LOC, 154 Python files).
 - ✅ **565 tests passing, 1 warning** — `TFP_DB_PATH=:memory: PYTHONPATH=. python -m pytest tests/ -q`
@@ -64,9 +64,15 @@ Create a **Global Information Commons** that works for pennies: anyone can publi
 - ✅ **SQLite persistence** — content, device enrollment, credit ledgers, supply ledger survive restarts.
 - ✅ **Device auth** — HMAC-SHA-256 per-request signing (constant-time compare); identity persisted at `~/.tfp/identity.json`.
 - ✅ **Rate limiting** — sliding-window per device on `/api/earn` and `/api/task/{id}/result`.
-- ✅ **Nostr subscriber** — remote peer content discovery via relay.
+- ✅ **Nostr subscriber + bridge** — remote peer content discovery & publishing via relay (offline-safe).
+- ✅ **IPFS bridge** — content pinning with hash↔CID mapping; offline-safe fallback.
+- ✅ **Multipart upload** — `/api/publish` supports both `application/json` and `multipart/form-data` for large binary payloads.
+- ✅ **Streaming download** — `/api/get/{hash}?stream=true` for chunked 64KB responses.
+- ✅ **Content discovery** — `/api/discovery?domain=X` returns Nostr-announced content hashes.
 - ✅ **PWA** — installable on Android/iOS, offline-first service worker.
 - ✅ End-to-end simulation validated (attack scenarios included).
+- 🔧 **10-node testbed (ports 9001–9010)** — containers run, enrollment being stabilized. See `DELEGATION_BRIEF.md`.
+- ❌ 100-node test — deferred pending 10-node stability.
 
 ## Quick Start
 

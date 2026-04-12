@@ -21,8 +21,8 @@ except ImportError:
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger("TFP-OperationalTest")
 
-NODE_PORTS = [8001, 8002, 8003, 8004, 8005, 8006, 8007, 8009, 8010]
-BASE_URL = "http://127.0.0.1"
+NODE_PORTS = list(range(9001, 9011))
+BASE_URL = "http://localhost"
 
 # Operational sizes for verification
 CONTENT_TYPES = {
@@ -40,8 +40,17 @@ class TFPTester:
         self.client = httpx.AsyncClient(timeout=120.0)
 
     async def enroll_all(self):
-        log.info(f"Enrolling device {self.device_id} on ALL 10 nodes...")
+        log.info(f"Checking health and enrolling device {self.device_id} on ALL 10 nodes...")
         for port in NODE_PORTS:
+            url_health = f"{BASE_URL}:{port}/health"
+            # Wait for node to be ready
+            for _ in range(5):
+                try:
+                    h = await self.client.get(url_health)
+                    if h.status_code == 200: break
+                except: pass
+                await asyncio.sleep(1)
+
             url = f"{BASE_URL}:{port}/api/enroll"
             payload = {
                 "device_id": self.device_id,
@@ -81,23 +90,29 @@ class TFPTester:
         resp.raise_for_status()
         log.info(f"SUCCESS: Earned credits. Receipt: {resp.json().get('chain_hash', '??')[:10]}...")
 
-    async def publish(self, content_type: str) -> str:
+    async def publish(self, content_type: str, stream: bool = False) -> str:
         port = random.choice(NODE_PORTS)
         spec = CONTENT_TYPES[content_type]
         title = f"op_{content_type}_{int(time.time())}"
         
-        log.info(f"Publishing {content_type} ({spec['size']/1024:.0f} KB) to node on port {port}...")
+        log.info(f"Publishing {content_type} ({spec['size']/1024:.0f} KB) to node on port {port} (streaming={stream})...")
         
-        payload = {
-            "device_id": self.device_id,
-            "title": title,
-            "text": "A" * spec["size"],
-            "tags": [spec["tag"], "ops-test"]
-        }
         headers = {"X-Device-Sig": self.sign(f"{self.device_id}:{title}")}
         
         start = time.time()
-        resp = await self.client.post(f"{BASE_URL}:{port}/api/publish", json=payload, headers=headers)
+        if stream:
+            files = {"file": ("blob.bin", b"A" * spec["size"], "application/octet-stream")}
+            data = {"device_id": self.device_id, "title": title, "tags": f"{spec['tag']},ops-test"}
+            resp = await self.client.post(f"{BASE_URL}:{port}/api/publish", data=data, files=files, headers=headers)
+        else:
+            payload = {
+                "device_id": self.device_id,
+                "title": title,
+                "text": "A" * spec["size"],
+                "tags": [spec["tag"], "ops-test"]
+            }
+            resp = await self.client.post(f"{BASE_URL}:{port}/api/publish", json=payload, headers=headers)
+            
         resp.raise_for_status()
         duration = time.time() - start
         
@@ -105,23 +120,51 @@ class TFPTester:
         log.info(f"SUCCESS: Published {content_type}. RootHash: {root_hash[:10]}... (Time: {duration:.2f}s)")
         return root_hash
 
-    async def fetch(self, root_hash: str, label: str):
+    async def fetch(self, root_hash: str, label: str, stream: bool = False):
         # Pick a different random node for retrieval
         port = random.choice(NODE_PORTS)
-        log.info(f"Retrieving {label} from node on port {port}...")
+        log.info(f"Retrieving {label} from node on port {port} (streaming={stream})...")
         
         start = time.time()
-        resp = await self.client.get(f"{BASE_URL}:{port}/api/get/{root_hash}", params={"device_id": self.device_id})
+        params = {"device_id": self.device_id}
+        if stream:
+            params["stream"] = "true"
+            
+        resp = await self.client.get(f"{BASE_URL}:{port}/api/get/{root_hash}", params=params)
         
         if resp.status_code == 402:
             log.warning("Received 402 Payment Required. Earning credits...")
             await self.earn_credits(port)
-            resp = await self.client.get(f"{BASE_URL}:{port}/api/get/{root_hash}", params={"device_id": self.device_id})
+            resp = await self.client.get(f"{BASE_URL}:{port}/api/get/{root_hash}", params=params)
             
         resp.raise_for_status()
         duration = time.time() - start
         
-        log.info(f"SUCCESS: Retrieved {label}. (Time: {duration:.2f}s)")
+        if stream:
+            chunks = 0
+            async for _ in resp.aiter_bytes():
+                chunks += 1
+            log.info(f"SUCCESS: Retrieved {label} as {chunks} stream chunks. (Time: {duration:.2f}s)")
+        else:
+            log.info(f"SUCCESS: Retrieved {label}. (Time: {duration:.2f}s)")
+
+    async def delegate_proof(self):
+        port = random.choice(NODE_PORTS)
+        log.info(f"Testing ZKP Delegation Layer on port {port}...")
+        circuit = "access_to_hash"
+        private_claim = b"demo_private_key_material_00"
+        payload = {
+            "device_id": self.device_id,
+            "circuit": circuit,
+            "private_claim_hex": private_claim.hex()
+        }
+        headers = {"X-Device-Sig": self.sign(f"{self.device_id}:{circuit}")}
+        start = time.time()
+        resp = await self.client.post(f"{BASE_URL}:{port}/api/delegate-proof", json=payload, headers=headers)
+        resp.raise_for_status()
+        duration = time.time() - start
+        proof_hex = resp.json()["proof_hex"]
+        log.info(f"SUCCESS: Delegated proof generated. Proof: {proof_hex[:16]}... (Time: {duration:.2f}s)")
 
 async def main():
     device_id = f"op-bot-{random.randint(100, 999)}"
@@ -135,18 +178,19 @@ async def main():
         
         # 2. Publish various workloads
         msg_hash = await tester.publish("message")
-        audio_hash = await tester.publish("audio_clip")
+        audio_hash = await tester.publish("audio_clip", stream=True)
         video_hash = await tester.publish("video_clip")
         
         log.info("Intermission: Giving nodes a moment to announce via Relay/IPFS...")
-        await asyncio.sleep(5)
+        await asyncio.sleep(2)
         
-        # 3. Cross-node retrieval phase
-        log.info("--- Cross-Node Retrieval Phase ---")
-        # For each piece of content, we fetch it from a random node (likely NOT the one it was published to)
-        await tester.fetch(msg_hash, "Text Message")
-        await tester.fetch(audio_hash, "Audio Clip")
-        await tester.fetch(video_hash, "Video Clip")
+        # 3. Retrieve content cross-node
+        await tester.fetch(msg_hash, "Message")
+        await tester.fetch(audio_hash, "Audio Clip (Streamed Upload)")
+        await tester.fetch(video_hash, "Video Clip", stream=True)
+        
+        # 4. Test Optional ZKP Delegation Layer
+        await tester.delegate_proof()
         
         log.info("=== OPERATIONAL TEST COMPLETE: ALL SYSTEMS NOMINAL ===")
         

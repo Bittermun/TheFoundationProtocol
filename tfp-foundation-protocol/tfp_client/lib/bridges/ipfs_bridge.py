@@ -107,6 +107,8 @@ class IPFSBridge:
         # Bidirectional mapping: TFP hash ↔ IPFS CID
         self._hash_to_cid: Dict[str, str] = {}
         self._cid_to_hash: Dict[str, str] = {}
+        # Metadata storage: TFP hash -> {title, tags, ...}
+        self._metadata: Dict[str, Dict[str, Any]] = {}
 
     # ------------------------------------------------------------------
     # Public API
@@ -230,10 +232,16 @@ class IPFSBridge:
     # Mapping helpers
     # ------------------------------------------------------------------
 
-    def record_mapping(self, content_hash: str, cid: str) -> None:
-        """Store a TFP hash ↔ CID mapping."""
+    def record_mapping(self, content_hash: str, cid: str, metadata: Optional[Dict[str, Any]] = None) -> None:
+        """Store a TFP hash ↔ CID mapping and optional metadata."""
         self._hash_to_cid[content_hash] = cid
         self._cid_to_hash[cid] = content_hash
+        if metadata:
+            self._metadata[content_hash] = metadata
+
+    def get_metadata(self, content_hash: str) -> Optional[Dict[str, Any]]:
+        """Return metadata for a content hash, or None."""
+        return self._metadata.get(content_hash)
 
     def get_cid_for_hash(self, content_hash: str) -> Optional[str]:
         """Return the IPFS CID for a TFP content hash, or None."""

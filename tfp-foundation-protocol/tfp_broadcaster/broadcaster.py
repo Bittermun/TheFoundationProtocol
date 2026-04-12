@@ -22,9 +22,10 @@ class TaskRecipe:
 
 
 class Broadcaster:
-    def __init__(self, raptorq=None, multicast=None):
+    def __init__(self, raptorq=None, multicast=None, ipfs_bridge=None):
         self.raptorq = raptorq or RaptorQAdapter()
         self.multicast = multicast or MulticastAdapter()
+        self.ipfs_bridge = ipfs_bridge
         self._ldm = LDMSemanticMapper()
 
     def seed_content(
@@ -35,8 +36,16 @@ class Broadcaster:
         root_hash = hashlib.sha3_256(file_bytes).hexdigest()
         shards = self.raptorq.encode(file_bytes, redundancy=0.05)
         self.multicast.transmit(shards)
+
+        cid = None
+        if self.ipfs_bridge:
+            pin_result = self.ipfs_bridge.pin(file_bytes, metadata=metadata)
+            if pin_result.pinned:
+                cid = pin_result.cid
+
         result = {
             "root_hash": root_hash,
+            "cid": cid,
             "status": "broadcasting",
             "shard_count": len(shards),
         }
