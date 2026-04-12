@@ -10,7 +10,7 @@ Thank you for your interest in contributing to the TFP Foundation Protocol! This
 git clone https://github.com/Bittermun/TheFoundationProtocol.git
 cd TheFoundationProtocol/tfp-foundation-protocol
 pip install -r requirements.txt
-TFP_DB_PATH=:memory: PYTHONPATH=. python -m pytest tests/ -q   # 491 tests
+TFP_DB_PATH=:memory: PYTHONPATH=. python -m pytest tests/ -q   # 565 tests
 ```
 
 ---
