@@ -46,7 +46,6 @@ from tfp_client.lib.lexicon.hlt.tree import HierarchicalLexiconTree
 from tfp_client.lib.metadata.tag_index import TagOverlayIndex
 from tfp_client.lib.ndn.adapter import Data, NDNAdapter
 from tfp_client.lib.reconstruction.template_assembler import (
-    AssemblyStatus,
     Recipe,
     TemplateAssembler,
 )

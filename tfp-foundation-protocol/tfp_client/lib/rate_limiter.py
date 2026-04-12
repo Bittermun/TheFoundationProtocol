@@ -318,3 +318,79 @@ def create_rate_limit_middleware(limiter: DistributedRateLimiter):
             return response
 
     return RateLimitMiddleware
+
+
+# ---------------------------------------------------------------------------
+# Simple pluggable backends (memory / Redis) — lighter alternative to
+# DistributedRateLimiter for use in tests and local-only nodes.
+# ---------------------------------------------------------------------------
+
+class MemoryRateLimiter:
+    """In-memory sliding-window rate limiter (dev / test / single-node use)."""
+
+    def __init__(self) -> None:
+        self._windows: dict[str, list[float]] = {}
+
+    def is_allowed(self, key: str, max_calls: int, window_seconds: int) -> bool:
+        """Return True if the request is permitted; False if rate-limited."""
+        import time as _time
+
+        now = _time.time()
+        cutoff = now - window_seconds
+        bucket = self._windows.setdefault(key, [])
+        # Remove timestamps outside the current window
+        self._windows[key] = [t for t in bucket if t > cutoff]
+        if len(self._windows[key]) >= max_calls:
+            return False
+        self._windows[key].append(now)
+        return True
+
+
+class _RedisBackedRateLimiter:
+    """Redis-backed sliding-window rate limiter using sorted-set commands.
+
+    Uses ZADD / ZREMRANGEBYSCORE / ZCARD / EXPIRE — all supported by
+    real Redis and by fakeredis in tests.  The operations are not fully
+    atomic (no Lua), but are safe enough for single-process use-cases and
+    CI tests.  For production multi-replica deployments consider wrapping
+    in a Lua script via DistributedRateLimiter.
+    """
+
+    def __init__(self, redis_client: object) -> None:
+        self._redis = redis_client
+
+    def is_allowed(self, key: str, max_calls: int, window_seconds: int) -> bool:
+        import time as _time
+        import hashlib as _hashlib
+        import secrets as _secrets
+
+        now = _time.time()
+        cutoff = now - window_seconds
+        hk = f"tfp:rl:{_hashlib.sha256(key.encode()).hexdigest()[:16]}"
+
+        pipe = self._redis.pipeline()
+        pipe.zremrangebyscore(hk, "-inf", cutoff)
+        pipe.zcard(hk)
+        _, count = pipe.execute()
+
+        if count >= max_calls:
+            return False
+
+        member = f"{now}:{_secrets.token_hex(4)}"
+        self._redis.zadd(hk, {member: now})
+        self._redis.expire(hk, int(window_seconds) + 1)
+        return True
+
+
+def get_rate_limiter(backend: str = "memory", redis_client: object = None):
+    """Factory: return a MemoryRateLimiter or Redis-backed limiter.
+
+    Args:
+        backend: ``"memory"`` (default) or ``"redis"``.
+        redis_client: Required when *backend* is ``"redis"``.
+    """
+    if backend == "redis":
+        if redis_client is None:
+            raise ValueError("redis_client required for Redis backend")
+        return _RedisBackedRateLimiter(redis_client)
+    return MemoryRateLimiter()
