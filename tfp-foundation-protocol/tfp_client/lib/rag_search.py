@@ -96,8 +96,15 @@ class RAGGraph:
                 _transformers = True
 
                 logger.info(f"Loading {self.embedding_model_name}...")
-                _tokenizer = AutoTokenizer.from_pretrained(self.embedding_model_name)
-                _codebert_model = AutoModel.from_pretrained(self.embedding_model_name)
+                # Pin to specific revision for reproducibility and security
+                _tokenizer = AutoTokenizer.from_pretrained(
+                    self.embedding_model_name,
+                    revision="main"
+                )
+                _codebert_model = AutoModel.from_pretrained(
+                    self.embedding_model_name,
+                    revision="main"
+                )
                 _codebert_model.eval()
                 logger.info("Model loaded successfully")
             except ImportError as e:

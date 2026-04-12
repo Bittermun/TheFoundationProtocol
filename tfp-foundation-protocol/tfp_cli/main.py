@@ -10,21 +10,42 @@ from json import JSONDecodeError
 
 import httpx
 from tfp_client.lib.compute.task_executor import TaskSpec, execute_task
+from tfp_cli.identity import load_or_create_identity as _load_encrypted_identity, IdentityError
 
 DEFAULT_API = "http://127.0.0.1:8000"
 
 # ---------------------------------------------------------------------------
-# Device identity helpers (stored in ~/.tfp/identity.json)
+# Device identity helpers (stored in ~/.tfp/identity.enc - encrypted)
 # ---------------------------------------------------------------------------
 
 
-def _identity_path() -> str:
-    return os.path.join(os.path.expanduser("~"), ".tfp", "identity.json")
+def _get_passphrase() -> str:
+    """Get passphrase from environment or prompt."""
+    import getpass
+    passphrase = os.environ.get("TFP_IDENTITY_PASSPHRASE")
+    if passphrase:
+        return passphrase
+    # Try without prompting first - will fail gracefully if no passphrase
+    return ""
 
 
 def _load_or_create_identity(device_id: str) -> dict:
     """Load device identity or create a new one if not found."""
-    path = _identity_path()
+    passphrase = _get_passphrase()
+    
+    # Try with passphrase first (encrypted identity)
+    if passphrase:
+        try:
+            result = _load_encrypted_identity(device_id, passphrase=passphrase)
+            return {
+                "device_id": result["device_id"],
+                "puf_entropy": result["puf_entropy"],
+            }
+        except IdentityError:
+            pass  # Fall through to legacy plaintext method
+    
+    # Legacy fallback: plaintext identity.json
+    path = os.path.join(os.path.expanduser("~"), ".tfp", "identity.json")
     os.makedirs(os.path.dirname(path), exist_ok=True)
     if os.path.exists(path):
         with open(path) as f:
@@ -35,7 +56,7 @@ def _load_or_create_identity(device_id: str) -> dict:
                 "device_id": device_id,
                 "puf_entropy": bytes.fromhex(entry["puf_entropy_hex"]),
             }
-    # Generate new identity
+    # Generate new identity (legacy plaintext format for backward compat)
     puf_entropy = os.urandom(32)
     identities = {}
     if os.path.exists(path):

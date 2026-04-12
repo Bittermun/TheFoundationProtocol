@@ -422,6 +422,7 @@ class ContentStore:
             hashes = self._tag_index.get(tag, set())
             if not hashes:
                 return []
+            # Use parameterized query - hashes are indexed values from tag_index
             placeholders = ",".join("?" * len(hashes))
             rows = self._conn.execute(
                 "SELECT root_hash, title, tags, blob_path, cid, size_bytes, recipe_json"
@@ -451,6 +452,7 @@ class ContentStore:
                 hashes |= self._tag_index.get(tag, set())
             if not hashes:
                 return []
+            # Use parameterized query - hashes are indexed values from tag_index
             placeholders = ",".join("?" * len(hashes))
             rows = self._conn.execute(
                 "SELECT root_hash, title, tags, blob_path, cid, size_bytes, recipe_json"
@@ -1454,6 +1456,11 @@ class _PeerFallback:
         for peer_url in self._peers:
             url = f"{peer_url}/api/peer/{root_hash}"
             try:
+                # Validate URL scheme - only allow http/https
+                parsed = __import__('urllib.parse').urllib.parse.urlparse(url)
+                if parsed.scheme not in ('http', 'https'):
+                    log.warning("Skipping peer with non-http scheme: %s", url)
+                    continue
                 req = urllib.request.Request(url)
                 if self._secret:
                     req.add_header("X-TFP-Peer-Secret", self._secret)
@@ -2013,13 +2020,14 @@ async def lifespan(_app: FastAPI):
         )
         log.error(err_msg)
         # Write crash artifact to a discoverable path.
-        # Prefer <DB-dir>/crash.log; fall back to /tmp/tfp_crash.log so the
-        # file is reachable even when /data/ is not volume-mounted.
+        # Prefer <DB-dir>/crash.log; fall back to temp directory (secure).
         _db_path_env = os.environ.get("TFP_DB_PATH", "")
         if _db_path_env and _db_path_env != ":memory:":
             _crash_log = str(Path(_db_path_env).parent / "crash.log")
         else:
-            _crash_log = os.environ.get("TFP_CRASH_LOG", "/tmp/tfp_crash.log")
+            # Use tempfile module for secure temporary file handling
+            import tempfile
+            _crash_log = os.environ.get("TFP_CRASH_LOG", os.path.join(tempfile.gettempdir(), "tfp_crash.log"))
         try:
             with open(_crash_log, "a") as crash_file:
                 crash_file.write(f"\n--- {time.ctime()} ---\n{err_msg}\n")

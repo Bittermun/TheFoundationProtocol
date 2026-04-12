@@ -87,32 +87,35 @@ def test_publish_hlt_state_merkle_root_changes_when_hlt_changes():
 
 def test_on_nostr_event_kind_30078_updates_hlt():
     """A kind-30078 event must trigger HLT domain addition on the local tree."""
-    from tfp_demo.server import _hlt
+    from tfp_demo.server import _hlt, app as server_app
 
-    if _hlt is None:
-        pytest.skip("HLT not initialised (start TestClient first)")
+    # Ensure HLT is initialised by using TestClient context
+    with TestClient(server_app) as _:
+        from tfp_demo.server import _hlt as hlt_ref
+        if hlt_ref is None:
+            pytest.skip("HLT not initialised")
 
-    domain_hash = hashlib.sha3_256(b"medical v1.0.0").hexdigest()
-    event = NostrEvent.create(
-        privkey=_TEST_PRIVKEY,
-        kind=30078,
-        content=json.dumps(
-            {
-                "domain": "medical",
-                "version": "v1.0.0",
-                "content_hash": domain_hash,
-            }
-        ),
-        tags=[
-            ["d", "tfp-hlt"],
-            ["domain", "medical"],
-            ["version", "v1.0.0"],
-            ["merkle_root", "abcd1234"],
-        ],
-    ).to_dict()
-    _on_nostr_event(event)
-    # After handling the event, HLT should have the medical domain
-    assert _hlt.has_domain("medical")
+        domain_hash = hashlib.sha3_256(b"medical v1.0.0").hexdigest()
+        event = NostrEvent.create(
+            privkey=_TEST_PRIVKEY,
+            kind=30078,
+            content=json.dumps(
+                {
+                    "domain": "medical",
+                    "version": "v1.0.0",
+                    "content_hash": domain_hash,
+                }
+            ),
+            tags=[
+                ["d", "tfp-hlt"],
+                ["domain", "medical"],
+                ["version", "v1.0.0"],
+                ["merkle_root", "abcd1234"],
+            ],
+        ).to_dict()
+        _on_nostr_event(event)
+        # After handling the event, HLT should have the medical domain
+        assert hlt_ref.has_domain("medical")
 
 
 def test_on_nostr_event_kind_30078_with_testclient():
