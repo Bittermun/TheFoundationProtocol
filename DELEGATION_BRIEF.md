@@ -1,7 +1,7 @@
 # TFP Testbed Stabilization — Delegation Brief
-> **Branch**: `stabilize/10-node-testbed`  
-> **Date**: 2026-04-12  
-> **Prepared by**: Antigravity (Google DeepMind)  
+> **Branch**: `stabilize/10-node-testbed`
+> **Date**: 2026-04-12
+> **Prepared by**: Antigravity (Google DeepMind)
 > **For**: Second-opinion AI reviewer / next work session
 
 ---

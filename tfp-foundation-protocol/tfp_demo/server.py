@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from fastapi import FastAPI, Header, HTTPException, Query, Request, File, UploadFile, Form
+from fastapi import FastAPI, Header, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingResponse
 from tfp_client.lib.bridges.ipfs_bridge import IPFSBridge
@@ -53,6 +53,7 @@ class StoredContent:
     title: str
     tags: List[str]
     data: bytes
+    cid: Optional[str] = None  # IPFS CID when available; None until pinned
 
 
 # ---------------------------------------------------------------------------
@@ -88,6 +89,14 @@ class ContentStore:
             """
         )
         self._conn.commit()
+        # Migration: add cid column if this is an existing DB that predates it.
+        # SQLite does not support IF NOT EXISTS for ALTER TABLE, so we use a
+        # try/except on the OperationalError that fires when the column exists.
+        try:
+            self._conn.execute("ALTER TABLE content ADD COLUMN cid TEXT")
+            self._conn.commit()
+        except sqlite3.OperationalError:
+            pass  # column already present — no-op
 
     def _rebuild_tag_index(self) -> None:
         """Rebuild the in-memory tag index from the current DB rows."""
@@ -100,8 +109,14 @@ class ContentStore:
     def put(self, item: StoredContent) -> None:
         with self._db_lock:
             self._conn.execute(
-                "INSERT OR REPLACE INTO content (root_hash, title, tags, data) VALUES (?, ?, ?, ?)",
-                (item.root_hash, item.title, json.dumps(item.tags), item.data),
+                "INSERT OR REPLACE INTO content (root_hash, title, tags, data, cid) VALUES (?, ?, ?, ?, ?)",
+                (
+                    item.root_hash,
+                    item.title,
+                    json.dumps(item.tags),
+                    item.data,
+                    item.cid,
+                ),
             )
             self._conn.commit()
             for tag in item.tags:
@@ -110,7 +125,7 @@ class ContentStore:
     def get(self, root_hash: str) -> Optional[StoredContent]:
         with self._db_lock:
             row = self._conn.execute(
-                "SELECT root_hash, title, tags, data FROM content WHERE root_hash = ?",
+                "SELECT root_hash, title, tags, data, cid FROM content WHERE root_hash = ?",
                 (root_hash,),
             ).fetchone()
             if row is None:
@@ -120,17 +135,22 @@ class ContentStore:
                 title=row[1],
                 tags=json.loads(row[2]),
                 data=row[3],
+                cid=row[4],
             )
 
     def all(self, limit: int = 100, offset: int = 0) -> List[StoredContent]:
         with self._db_lock:
             rows = self._conn.execute(
-                "SELECT root_hash, title, tags, data FROM content ORDER BY rowid DESC LIMIT ? OFFSET ?",
+                "SELECT root_hash, title, tags, data, cid FROM content ORDER BY rowid DESC LIMIT ? OFFSET ?",
                 (limit, offset),
             ).fetchall()
             return [
                 StoredContent(
-                    root_hash=r[0], title=r[1], tags=json.loads(r[2]), data=r[3]
+                    root_hash=r[0],
+                    title=r[1],
+                    tags=json.loads(r[2]),
+                    data=r[3],
+                    cid=r[4],
                 )
                 for r in rows
             ]
@@ -146,14 +166,18 @@ class ContentStore:
             # Use parameterized query with validated hash values to prevent SQL injection
             placeholders = ",".join("?" * len(hashes))
             rows = self._conn.execute(
-                "SELECT root_hash, title, tags, data FROM content"
+                "SELECT root_hash, title, tags, data, cid FROM content"
                 f" WHERE root_hash IN ({placeholders})"
                 " ORDER BY rowid DESC LIMIT ? OFFSET ?",
                 [*list(hashes), limit, offset],
             ).fetchall()
             return [
                 StoredContent(
-                    root_hash=r[0], title=r[1], tags=json.loads(r[2]), data=r[3]
+                    root_hash=r[0],
+                    title=r[1],
+                    tags=json.loads(r[2]),
+                    data=r[3],
+                    cid=r[4],
                 )
                 for r in rows
             ]
@@ -181,14 +205,18 @@ class ContentStore:
             # Use parameterized query with validated hash values to prevent SQL injection
             placeholders = ",".join("?" * len(hashes))
             rows = self._conn.execute(
-                "SELECT root_hash, title, tags, data FROM content"
+                "SELECT root_hash, title, tags, data, cid FROM content"
                 f" WHERE root_hash IN ({placeholders})"
                 " ORDER BY rowid DESC LIMIT ? OFFSET ?",
                 [*list(hashes), limit, offset],
             ).fetchall()
             return [
                 StoredContent(
-                    root_hash=r[0], title=r[1], tags=json.loads(r[2]), data=r[3]
+                    root_hash=r[0],
+                    title=r[1],
+                    tags=json.loads(r[2]),
+                    data=r[3],
+                    cid=r[4],
                 )
                 for r in rows
             ]
@@ -200,6 +228,22 @@ class ContentStore:
             for tag in tags:
                 hashes |= self._tag_index.get(tag, set())
             return len(hashes)
+
+    def put_cid_mapping(self, root_hash: str, cid: str) -> None:
+        """
+        Durably associate *cid* with an existing content record.
+
+        Only updates rows that already exist in the store and have no CID yet.
+        This is intentionally a no-op for unknown hashes — we never create
+        stub rows with empty data — so it is safe to call from Nostr event
+        handlers without risking garbage records.
+        """
+        with self._db_lock:
+            self._conn.execute(
+                "UPDATE content SET cid = ? WHERE root_hash = ? AND (cid IS NULL OR cid = '')",
+                (cid, root_hash),
+            )
+            self._conn.commit()
 
     def contains(self, root_hash: str) -> bool:
         with self._db_lock:
@@ -1028,6 +1072,11 @@ _clients: Dict[str, TFPClient] = {}
 _metrics: _Metrics = _Metrics()
 _demo_dir = Path(__file__).resolve().parent.parent / "demo"
 
+# Readiness gate — set True once lifespan has completed all init steps.
+# Exposed here so tests and the /health endpoint can read it directly.
+_app_ready: bool = False
+_startup_stage: str = "not_started"
+
 
 class DemoNDNAdapter(NDNAdapter):
     def __init__(self, store: ContentStore, ipfs_bridge: Optional[IPFSBridge] = None):
@@ -1037,17 +1086,23 @@ class DemoNDNAdapter(NDNAdapter):
     def express_interest(self, interest):
         root_hash = interest.name.rsplit("/", 1)[-1]
         item = self._store.get(root_hash)
-        if item:
+        if item and item.data:
             return Data(name=interest.name, content=item.data)
 
-        # Fallback to IPFS if we know the CID
-        if self._ipfs:
+        # Resolve CID: prefer durable SQLite record, fall back to in-memory bridge.
+        # The SQLite record survives server restarts; the in-memory bridge is
+        # populated from Nostr announcements in the current session only.
+        cid = None
+        if item and item.cid:
+            cid = item.cid
+        elif self._ipfs:
             cid = self._ipfs.get_cid_for_hash(root_hash)
-            if cid:
-                log.info("NDN: Fallback to IPFS for %s (cid=%s)", root_hash, cid)
-                data_bytes = self._ipfs.get(cid)
-                if data_bytes:
-                    return Data(name=interest.name, content=data_bytes)
+
+        if cid and self._ipfs:
+            log.info("NDN: Fallback to IPFS for %s (cid=%s)", root_hash, cid)
+            data_bytes = self._ipfs.get(cid)
+            if data_bytes:
+                return Data(name=interest.name, content=data_bytes)
 
         raise ValueError(f"content not found for hash: {root_hash}")
 
@@ -1139,8 +1194,15 @@ def _on_nostr_event(event_dict: dict) -> None:
 
         if content_hash_hex and len(content_hash_hex) == 64:
             if cid and _ipfs_bridge:
-                metadata = {"title": payload.get("title", "Remote Content"), "tags": tags}
+                metadata = {
+                    "title": payload.get("title", "Remote Content"),
+                    "tags": tags,
+                }
                 _ipfs_bridge.record_mapping(content_hash_hex, cid, metadata=metadata)
+
+            # Persist the CID durably so IPFS fallback survives server restarts.
+            if cid and _content_store is not None:
+                _content_store.put_cid_mapping(content_hash_hex, cid)
 
             content_hash_bytes = bytes.fromhex(content_hash_hex)
             domain = payload.get("domain", "general")
@@ -1156,24 +1218,33 @@ def _on_nostr_event(event_dict: dict) -> None:
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    log.info("TFP Server starting up...")
+    # Phase A: per-stage startup observability + readiness gate.
+    # Phase B: feature flags read at runtime so tests can use monkeypatch.setenv.
+    global _content_store, _device_registry, _earn_log, _credit_store, _task_store
+    global _earn_rate_limiter, _result_rate_limiter, _tag_overlay, _nostr_subscriber
+    global _nostr_bridge, _ipfs_bridge, _clients, _metrics, _app_ready, _startup_stage
+
+    _app_ready = False
+    _startup_stage = "starting"
+    log.info("TFP Server starting up... (stage=%s)", _startup_stage)
+
+    # Read feature flags at runtime (not module-import time) so that tests
+    # can override them with monkeypatch.setenv before the TestClient starts.
+    _enable_ipfs = os.environ.get("TFP_ENABLE_IPFS", "1").strip() != "0"
+    _enable_nostr = os.environ.get("TFP_ENABLE_NOSTR", "1").strip() != "0"
+    _enable_maintenance = os.environ.get("TFP_ENABLE_MAINTENANCE", "1").strip() != "0"
+    log.info(
+        "Feature flags: IPFS=%s  Nostr=%s  Maintenance=%s",
+        _enable_ipfs,
+        _enable_nostr,
+        _enable_maintenance,
+    )
+
     try:
-        global \
-            _content_store, \
-            _device_registry, \
-            _earn_log, \
-            _credit_store, \
-            _task_store, \
-            _earn_rate_limiter, \
-            _result_rate_limiter, \
-            _tag_overlay, \
-            _nostr_subscriber, \
-            _nostr_bridge, \
-            _ipfs_bridge, \
-            _clients, \
-            _metrics
+        # ── Stage: db_init ────────────────────────────────────────────────
+        _startup_stage = "db_init"
         db_path = os.environ.get("TFP_DB_PATH", str(_DEFAULT_DB_PATH))
-        log.info("Connecting to SQLite: %s", db_path)
+        log.info("Connecting to SQLite: %s  (stage=%s)", db_path, _startup_stage)
         _conn = sqlite3.connect(db_path, check_same_thread=False)
         if db_path != ":memory:":
             _conn.execute("PRAGMA journal_mode=WAL")
@@ -1191,13 +1262,19 @@ async def lifespan(_app: FastAPI):
         )
         _metrics = _Metrics()
         _metrics.seed_from_db(_conn)
+        log.info("DB init complete.")
 
+        # ── Stage: seed_content ───────────────────────────────────────────
+        _startup_stage = "seed_content"
         _tag_overlay = TagOverlayIndex()
         _clients.clear()
         if _content_store.count() == 0:
             _seed_sample()
         _preseed_tasks()
+        log.info("Content/task seeding complete.")
 
+        # ── Stage: maintenance ────────────────────────────────────────────
+        _startup_stage = "maintenance"
         _stop_maintenance = threading.Event()
 
         def _maintenance_loop() -> None:
@@ -1209,61 +1286,105 @@ async def lifespan(_app: FastAPI):
                 except Exception as exc:
                     log.warning("maintenance loop error: %s", exc)
 
-        _maint_thread = threading.Thread(
-            target=_maintenance_loop, name="tfp-maintenance", daemon=True
-        )
-        _maint_thread.start()
+        if _enable_maintenance:
+            _maint_thread = threading.Thread(
+                target=_maintenance_loop, name="tfp-maintenance", daemon=True
+            )
+            _maint_thread.start()
+            log.info("Maintenance thread started.")
+        else:
+            log.info("Maintenance thread disabled (TFP_ENABLE_MAINTENANCE=0).")
 
-        ipfs_api = os.environ.get("TFP_IPFS_API_URL", "http://tfp-ipfs:5001")
-        _ipfs_bridge = IPFSBridge(api_url=ipfs_api, offline=not ipfs_api)
-        _broadcaster.ipfs_bridge = _ipfs_bridge
+        # ── Stage: ipfs_init ──────────────────────────────────────────────
+        _startup_stage = "ipfs_init"
+        if _enable_ipfs:
+            ipfs_api = os.environ.get("TFP_IPFS_API_URL", "http://tfp-ipfs:5001")
+            _ipfs_bridge = IPFSBridge(api_url=ipfs_api, offline=not ipfs_api)
+            _broadcaster.ipfs_bridge = _ipfs_bridge
+            log.info(
+                "IPFS bridge initialised (api=%s, offline=%s).", ipfs_api, not ipfs_api
+            )
+        else:
+            _ipfs_bridge = None
+            _broadcaster.ipfs_bridge = None
+            log.info("IPFS bridge disabled (TFP_ENABLE_IPFS=0).")
 
-        relay_url = os.environ.get("NOSTR_RELAY") or os.environ.get("NOSTR_RELAY_URL", "")
-        _nostr_subscriber = NostrSubscriber(
-            relay_url=relay_url or "wss://relay.damus.io",
-            on_event=_on_nostr_event,
-            offline=not relay_url,
-        )
-        _nostr_subscriber.start()
+        # ── Stage: nostr_init ─────────────────────────────────────────────
+        _startup_stage = "nostr_init"
+        if _enable_nostr:
+            relay_url = os.environ.get("NOSTR_RELAY") or os.environ.get(
+                "NOSTR_RELAY_URL", ""
+            )
+            _nostr_subscriber = NostrSubscriber(
+                relay_url=relay_url or "wss://relay.damus.io",
+                on_event=_on_nostr_event,
+                offline=not relay_url,
+            )
+            _nostr_subscriber.start()
+            _nostr_bridge = NostrBridge(
+                relay_url=relay_url or "wss://relay.damus.io",
+                offline=not relay_url,
+            )
+            log.info(
+                "Nostr initialised (relay=%s, offline=%s).",
+                relay_url or "wss://relay.damus.io",
+                not relay_url,
+            )
+        else:
+            _nostr_subscriber = None
+            _nostr_bridge = None
+            log.info("Nostr disabled (TFP_ENABLE_NOSTR=0).")
 
-        _nostr_bridge = NostrBridge(
-            relay_url=relay_url or "wss://relay.damus.io",
-            offline=not relay_url
-        )
+        # ── Stage: ready ──────────────────────────────────────────────────
+        _startup_stage = "ready"
+        _app_ready = True
         log.info("TFP Server ready and yielding.")
 
         yield
 
     except Exception as e:
         import traceback
-        err_msg = f"CRITICAL: Lifespan failed: {e}\n{traceback.format_exc()}"
+
+        err_msg = (
+            f"CRITICAL: Lifespan failed at stage={_startup_stage!r}: {e}\n"
+            f"{traceback.format_exc()}"
+        )
         log.error(err_msg)
-        # Also write to a file in /data/ to survive uvicorn failure
+        # Write crash artifact to a discoverable path.
+        # Prefer <DB-dir>/crash.log; fall back to /tmp/tfp_crash.log so the
+        # file is reachable even when /data/ is not volume-mounted.
+        _db_path_env = os.environ.get("TFP_DB_PATH", "")
+        if _db_path_env and _db_path_env != ":memory:":
+            _crash_log = str(Path(_db_path_env).parent / "crash.log")
+        else:
+            _crash_log = os.environ.get("TFP_CRASH_LOG", "/tmp/tfp_crash.log")
         try:
-            with open("/data/crash.log", "a") as f:
-                f.write(f"\n--- {time.ctime()} ---\n{err_msg}\n")
-        except:
+            with open(_crash_log, "a") as crash_file:
+                crash_file.write(f"\n--- {time.ctime()} ---\n{err_msg}\n")
+        except Exception:
             pass
         raise e
     finally:
         log.info("TFP Server shutting down...")
+        _app_ready = False
+        _startup_stage = "shutdown"
         try:
-            if '_stop_maintenance' in locals():
+            if "_stop_maintenance" in locals():
                 _stop_maintenance.set()
-            if '_nostr_subscriber' in locals() and _nostr_subscriber:
+            if "_nostr_subscriber" in locals() and _nostr_subscriber:
                 _nostr_subscriber.stop()
-            if '_conn' in locals() and _conn:
+            if "_conn" in locals() and _conn:
                 _conn.close()
-        except:
+        except Exception:
             pass
         _content_store = None
         _device_registry = None
         _earn_log = None
         _credit_store = None
         _task_store = None
-    _tag_overlay = None
-    _nostr_subscriber = None
-    _nostr_bridge = None
+        _tag_overlay = None
+        _nostr_subscriber = None
+        _nostr_bridge = None
 
 
 app = FastAPI(title="TFP Demo Node", version="0.2.0", lifespan=lifespan)
@@ -1280,7 +1401,12 @@ app.add_middleware(
 
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok", "content_items": _content_store.count()}
+    return {
+        "status": "ok",
+        "ready": _app_ready,
+        "startup_stage": _startup_stage,
+        "content_items": _content_store.count() if _content_store is not None else 0,
+    }
 
 
 @app.get("/")
@@ -1385,9 +1511,7 @@ async def publish(
         raise HTTPException(status_code=415, detail="Unsupported Media Type")
 
     message = f"{device_id}:{title}"
-    if not _verify_device_sig(
-        device_id, x_device_sig, message, _device_registry
-    ):
+    if not _verify_device_sig(device_id, x_device_sig, message, _device_registry):
         _metrics.inc("tfp_auth_failures_total")
         raise HTTPException(
             status_code=401,
@@ -1403,7 +1527,7 @@ async def publish(
     if result.get("cid") and _nostr_bridge:
         _nostr_bridge.publish_content_announcement(
             result["root_hash"],
-            metadata={"title": title, "tags": tags, "cid": result["cid"]}
+            metadata={"title": title, "tags": tags, "cid": result["cid"]},
         )
     _content_store.put(
         StoredContent(
@@ -1411,6 +1535,9 @@ async def publish(
             title=title,
             tags=tags,
             data=body_bytes,
+            cid=result.get(
+                "cid"
+            ),  # durably persist CID so IPFS fallback survives restart
         )
     )
     _metrics.inc("tfp_content_published_total")
@@ -1470,7 +1597,11 @@ def earn(
 
 
 @app.get("/api/get/{root_hash}")
-def get_content(root_hash: str, stream: bool = Query(False), device_id: str = Query(default="web-demo")):
+def get_content(
+    root_hash: str,
+    stream: bool = Query(False),
+    device_id: str = Query(default="web-demo"),
+):
     client = _client_for(device_id)
     item = _content_store.get(root_hash)
 
@@ -1484,26 +1615,35 @@ def get_content(root_hash: str, stream: bool = Query(False), device_id: str = Qu
                 status_code=402, detail="earn credits first via /api/earn"
             ) from exc
         # Explicit 404 for not found
-        raise HTTPException(status_code=404, detail=f"content {root_hash} not found on local node or via discovery") from exc
+        raise HTTPException(
+            status_code=404,
+            detail=f"content {root_hash} not found on local node or via discovery",
+        ) from exc
     except Exception as exc:
         log.error("NDN retrieval error for %s: %s", root_hash, exc)
-        raise HTTPException(status_code=500, detail="Internal error during retrieval") from exc
+        raise HTTPException(
+            status_code=500, detail="Internal error during retrieval"
+        ) from exc
 
     _metrics.inc("tfp_content_served_total")
     _metrics.inc("tfp_credits_spent_total")
 
     if stream:
+
         def stream_generator():
             chunk_size = 64 * 1024  # 64KB chunks to mimic constrained device streaming
             data = content.content if hasattr(content, "content") else content.data
             for i in range(0, len(data), chunk_size):
-                yield data[i:i + chunk_size]
-        return StreamingResponse(stream_generator(), media_type="application/octet-stream")
+                yield data[i : i + chunk_size]
+
+        return StreamingResponse(
+            stream_generator(), media_type="application/octet-stream"
+        )
     else:
         # Use metadata from item (local) or fallback to ipfs bridge metadata
         title = item.title if item else "Remote Content"
         tags = item.tags if item else []
-        
+
         if not item and _ipfs_bridge:
             meta = _ipfs_bridge.get_metadata(root_hash)
             if meta:
@@ -1519,6 +1659,7 @@ def get_content(root_hash: str, stream: bool = Query(False), device_id: str = Qu
             "sha3": hashlib.sha3_256(data_bytes).hexdigest(),
         }
 
+
 @app.post("/api/delegate-proof")
 def delegate_proof(
     payload: DelegateProofRequest,
@@ -1526,13 +1667,15 @@ def delegate_proof(
 ) -> dict:
     """Prototyped ZKP delegation endpoint. Costs 5 credits."""
     message = f"{payload.device_id}:{payload.circuit}"
-    if not _verify_device_sig(payload.device_id, x_device_sig, message, _device_registry):
+    if not _verify_device_sig(
+        payload.device_id, x_device_sig, message, _device_registry
+    ):
         _metrics.inc("tfp_auth_failures_total")
         raise HTTPException(
             status_code=401,
             detail="invalid or missing device signature",
         )
-    
+
     client = _client_for(payload.device_id)
     try:
         # Cost check: 5 credits for delegated ZKP generation
@@ -1545,7 +1688,9 @@ def delegate_proof(
     try:
         private_bytes = bytes.fromhex(payload.private_claim_hex)
     except ValueError:
-        raise HTTPException(status_code=400, detail="private_claim_hex must be valid hex")
+        raise HTTPException(
+            status_code=400, detail="private_claim_hex must be valid hex"
+        )
 
     # Use client's adapter (could be RealZKPAdapter if TFP_REAL_ADAPTERS=1)
     proof = client.zkp.generate_proof(circuit=payload.circuit, private=private_bytes)
@@ -1558,7 +1703,7 @@ def delegate_proof(
         "device_id": payload.device_id,
         "circuit": payload.circuit,
         "proof_hex": proof.hex(),
-        "credits_remaining": client.ledger.balance
+        "credits_remaining": client.ledger.balance,
     }
 
 

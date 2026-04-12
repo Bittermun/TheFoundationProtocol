@@ -232,7 +232,9 @@ class IPFSBridge:
     # Mapping helpers
     # ------------------------------------------------------------------
 
-    def record_mapping(self, content_hash: str, cid: str, metadata: Optional[Dict[str, Any]] = None) -> None:
+    def record_mapping(
+        self, content_hash: str, cid: str, metadata: Optional[Dict[str, Any]] = None
+    ) -> None:
         """Store a TFP hash ↔ CID mapping and optional metadata."""
         self._hash_to_cid[content_hash] = cid
         self._cid_to_hash[cid] = content_hash
