@@ -334,7 +334,7 @@ class NostrBridge:
         Announce content availability to the Nostr network.
         Sets 'content_hash' tag and includes metadata.
         """
-        self.publish_content_announcement(content_hash, metadata)
+        return self.publish_content_announcement(content_hash, metadata)
 
     def publish_content_announcement(
         self,
