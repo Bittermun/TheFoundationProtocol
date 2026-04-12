@@ -9,40 +9,18 @@ env/
 venv/
 .venv/
 .ENV
-.ENV.*
 .venv.bak/
-.python-version
-
-# Testing
-.pytest_cache/
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
 .coverage
-coverage/
-htmlcov/
-.noserc
-.noseids
-
-# Distribution / packaging
-dist/
-build/
-*.egg-info/
-.eggs/
-.installed.cfg
-*.egg
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+.git/modules/
 .DS_Store
 Thumbs.db
-
-# Logs
-*.log
-
-# Environment variables
-.env
-.env.local
-.env.*
 ```

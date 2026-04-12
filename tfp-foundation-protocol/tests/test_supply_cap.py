@@ -8,6 +8,7 @@ ledger level (CreditLedger.mint) and at the server level (TaskStore).
 import hashlib
 import os
 import sqlite3
+import threading
 
 os.environ.setdefault("TFP_DB_PATH", ":memory:")
 
@@ -77,7 +78,8 @@ def test_ledger_network_total_tracked_after_mint():
 def test_task_store_increment_total_minted_enforces_cap():
     """TaskStore.increment_total_minted must raise SupplyCapError at the cap."""
     conn = sqlite3.connect(":memory:")
-    store = TaskStore(conn)
+    db_lock = threading.RLock()
+    store = TaskStore(conn, db_lock)
 
     # Manually push the supply ledger near the cap
     conn.execute(
@@ -93,7 +95,8 @@ def test_task_store_increment_total_minted_enforces_cap():
 def test_task_store_get_total_minted_reflects_increments():
     """get_total_minted returns the running total after each increment."""
     conn = sqlite3.connect(":memory:")
-    store = TaskStore(conn)
+    db_lock = threading.RLock()
+    store = TaskStore(conn, db_lock)
 
     assert store.get_total_minted() == 0
     store.increment_total_minted(10)
@@ -105,7 +108,8 @@ def test_task_store_get_total_minted_reflects_increments():
 def test_task_store_stats_supply_fields():
     """stats() must expose total_minted, supply_cap, and supply_remaining."""
     conn = sqlite3.connect(":memory:")
-    store = TaskStore(conn)
+    db_lock = threading.RLock()
+    store = TaskStore(conn, db_lock)
     store.increment_total_minted(100)
 
     stats = store.stats()

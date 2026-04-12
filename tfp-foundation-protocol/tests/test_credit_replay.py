@@ -9,6 +9,7 @@ import hashlib
 import hmac as _hmac
 import os
 import sqlite3
+import threading
 
 os.environ.setdefault("TFP_DB_PATH", ":memory:")
 
@@ -127,14 +128,16 @@ def test_earn_replay_rejected_metric_incremented():
 def test_earn_log_class_first_call_returns_true():
     """EarnLog.record returns True on the first insert for a (device, task) pair."""
     conn = sqlite3.connect(":memory:")
-    log = EarnLog(conn)
+    db_lock = threading.RLock()
+    log = EarnLog(conn, db_lock)
     assert log.record("dev-1", "task-1") is True
 
 
 def test_earn_log_class_duplicate_returns_false():
     """EarnLog.record returns False when the same pair is inserted a second time."""
     conn = sqlite3.connect(":memory:")
-    log = EarnLog(conn)
+    db_lock = threading.RLock()
+    log = EarnLog(conn, db_lock)
     log.record("dev-1", "task-1")
     assert log.record("dev-1", "task-1") is False
 
@@ -142,7 +145,8 @@ def test_earn_log_class_duplicate_returns_false():
 def test_earn_log_class_different_device_same_task_returns_true():
     """Different devices can each earn the same task (different row)."""
     conn = sqlite3.connect(":memory:")
-    log = EarnLog(conn)
+    db_lock = threading.RLock()
+    log = EarnLog(conn, db_lock)
     assert log.record("alice", "task-1") is True
     assert log.record("bob", "task-1") is True
 
@@ -150,7 +154,8 @@ def test_earn_log_class_different_device_same_task_returns_true():
 def test_earn_log_class_same_device_different_tasks_returns_true():
     """One device can earn multiple different tasks."""
     conn = sqlite3.connect(":memory:")
-    log = EarnLog(conn)
+    db_lock = threading.RLock()
+    log = EarnLog(conn, db_lock)
     assert log.record("dev-1", "task-a") is True
     assert log.record("dev-1", "task-b") is True
     assert log.record("dev-1", "task-a") is False  # duplicate
