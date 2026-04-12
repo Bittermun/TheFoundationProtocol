@@ -1,0 +1,84 @@
+# TFP v3.2 Production Deployment
+# Usage: docker compose up -d
+# Includes: server, Redis (rate limiting), PostgreSQL (optional), Caddy (auto-TLS)
+
+services:
+  # TFP Server
+  tfp-server:
+    image: python:3.12-slim
+    working_dir: /app
+    volumes:
+      - ..:/app
+      - tfp-data:/data
+    environment:
+      - TFP_DB_PATH=/data/tfp.db
+      - TFP_ENV=production
+      - REDIS_URL=redis://redis:6379/0
+      - NOSTR_RELAY=wss://relay.damus.io
+      - OTEL_SERVICE_NAME=tfp-server
+      - OTEL_TRACES_EXPORTER=none
+      - OTEL_METRICS_EXPORTER=prometheus
+    ports:
+      - "8000:8000"
+    depends_on:
+      - redis
+    command: >
+      bash -c "pip install -r requirements.txt &&
+               uvicorn tfp_demo.server:app --host 0.0.0.0 --port 8000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis for rate limiting persistence
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Optional: PostgreSQL for production scaling (>100 users)
+  # Uncomment to use instead of SQLite
+  # postgres:
+  #   image: postgres:15-alpine
+  #   environment:
+  #     - POSTGRES_USER=tfp
+  #     - POSTGRES_PASSWORD=changeme
+  #     - POSTGRES_DB=tfp
+  #   volumes:
+  #     - pg-data:/var/lib/postgresql/data
+  #   restart: unless-stopped
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U tfp"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 3
+
+  # Caddy reverse proxy with automatic HTTPS
+  caddy:
+    image: caddy:2-alpine
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy-data:/data
+      - caddy-config:/config
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - tfp-server
+    restart: unless-stopped
+
+volumes:
+  tfp-data:
+  redis-data:
+  # pg-data:
+  caddy-data:
+  caddy-config:

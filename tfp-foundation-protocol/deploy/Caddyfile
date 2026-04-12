@@ -1,0 +1,13 @@
+# Caddy reverse proxy configuration
+# Replace your-domain.com with your actual domain
+# For local testing, use localhost
+
+localhost:80 {
+    reverse_proxy tfp-server:8000
+}
+
+# Production example (uncomment and replace domain)
+# your-domain.com {
+#     reverse_proxy tfp-server:8000
+#     tls your-email@example.com
+# }
