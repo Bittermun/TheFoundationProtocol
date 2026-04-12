@@ -3,7 +3,7 @@
 ## Local (recommended first)
 
 ```bash
-cd Scholo
+cd TheFoundationProtocol
 docker compose up --build
 ```
 
@@ -106,24 +106,25 @@ nak event --content "Running TFP v3.1 node..." -t t=tfp -t t=scholo wss://relay.
 ## Bootstrap: Join the Compute Pool
 
 ```bash
-# Install CLI
+# Install CLI (run from repo root)
 pip install -e tfp-foundation-protocol/
 
 # Start a server in one terminal
+cd tfp-foundation-protocol
 uvicorn tfp_demo.server:app --reload
 
 # Join from another terminal — enroll, earn credits, spend on content
-tfp join --server http://localhost:8000
+tfp --api http://localhost:8000 join
 ```
 
 Shortcut to run a compute worker loop:
 ```bash
-tfp tasks --server http://localhost:8000
+tfp --api http://localhost:8000 tasks
 ```
 
 Check leaderboard:
 ```bash
-tfp leaderboard --server http://localhost:8000
+tfp --api http://localhost:8000 leaderboard
 ```
 
 ---
