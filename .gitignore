@@ -1,5 +1,5 @@
-```gitignore
-# Python compiled files
+```
+# Python
 __pycache__/
 *.pyc
 *.pyo
@@ -11,34 +11,17 @@ venv/
 env/
 pip-log.txt
 pip-delete-this-directory.txt
-.tox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.log
-*.pot
 
 # Testing
 .pytest_cache/
-.hypothesis/
-.installed.cfg
-.lib/
-.eggs/
-eggs/
-parts/
-var/
-sdist/
-develop-eggs/
-.conda/
-.conda-env/
+.coverage
+htmlcov/
 
-# Distribution / packaging
-dist/
-build/
-*.egg-info/
-MANIFEST
-.tags*
+# Logs
+*.log
+
+# Environment
+.env
+.env.local
+.env.*
 ```

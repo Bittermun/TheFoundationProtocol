@@ -10,41 +10,15 @@ from json import JSONDecodeError
 
 import httpx
 from tfp_client.lib.compute.task_executor import TaskSpec, execute_task
+from tfp_cli.identity import (
+    load_or_create_identity,
+    recover_identity,
+    export_identity,
+    change_passphrase,
+    IdentityError,
+)
 
 DEFAULT_API = "http://127.0.0.1:8000"
-
-# ---------------------------------------------------------------------------
-# Device identity helpers (stored in ~/.tfp/identity.json)
-# ---------------------------------------------------------------------------
-
-
-def _identity_path() -> str:
-    return os.path.join(os.path.expanduser("~"), ".tfp", "identity.json")
-
-
-def _load_or_create_identity(device_id: str) -> dict:
-    """Load device identity or create a new one if not found."""
-    path = _identity_path()
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    if os.path.exists(path):
-        with open(path) as f:
-            identities = json.load(f)
-        if device_id in identities:
-            entry = identities[device_id]
-            return {
-                "device_id": device_id,
-                "puf_entropy": bytes.fromhex(entry["puf_entropy_hex"]),
-            }
-    # Generate new identity
-    puf_entropy = os.urandom(32)
-    identities = {}
-    if os.path.exists(path):
-        with open(path) as f:
-            identities = json.load(f)
-    identities[device_id] = {"puf_entropy_hex": puf_entropy.hex()}
-    with open(path, "w") as f:
-        json.dump(identities, f, indent=2)
-    return {"device_id": device_id, "puf_entropy": puf_entropy}
 
 
 def _make_sig(puf_entropy: bytes, message: str) -> str:
@@ -80,7 +54,13 @@ def _handle_error(response: httpx.Response) -> int:
 
 
 def cmd_publish(args) -> int:
-    identity = _load_or_create_identity(args.device_id)
+    passphrase = args.passphrase or os.environ.get("TFP_IDENTITY_PASSPHRASE")
+    try:
+        identity = load_or_create_identity(args.device_id, passphrase=passphrase)
+    except IdentityError as e:
+        print(f"ERROR: {e}")
+        return 1
+    
     puf_entropy = identity["puf_entropy"]
     _ensure_enrolled(args.api, args.device_id, puf_entropy)
     tags = [value.strip() for value in args.tags.split(",") if value.strip()]
@@ -116,7 +96,13 @@ def cmd_get(args) -> int:
 
 
 def cmd_earn(args) -> int:
-    identity = _load_or_create_identity(args.device_id)
+    passphrase = args.passphrase or os.environ.get("TFP_IDENTITY_PASSPHRASE")
+    try:
+        identity = load_or_create_identity(args.device_id, passphrase=passphrase)
+    except IdentityError as e:
+        print(f"ERROR: {e}")
+        return 1
+    
     puf_entropy = identity["puf_entropy"]
     _ensure_enrolled(args.api, args.device_id, puf_entropy)
     payload = {"device_id": args.device_id, "task_id": args.task_id}
@@ -231,7 +217,13 @@ def cmd_join(args) -> int:
 
     Press Ctrl-C to stop.
     """
-    identity = _load_or_create_identity(args.device_id)
+    passphrase = args.passphrase or os.environ.get("TFP_IDENTITY_PASSPHRASE")
+    try:
+        identity = load_or_create_identity(args.device_id, passphrase=passphrase)
+    except IdentityError as e:
+        print(f"[join] ERROR: {e}")
+        return 1
+    
     device_id = identity["device_id"]
     puf_entropy = identity["puf_entropy"]
 
@@ -359,6 +351,10 @@ def build_parser() -> argparse.ArgumentParser:
     publish.add_argument(
         "--device-id", default="cli-user", dest="device_id", help="Device id"
     )
+    publish.add_argument(
+        "--passphrase", default=None, dest="passphrase",
+        help="Identity passphrase (or set TFP_IDENTITY_PASSPHRASE env var)"
+    )
     publish.set_defaults(func=cmd_publish)
 
     get = sub.add_parser("get", help="Fetch content by root hash")
@@ -368,6 +364,10 @@ def build_parser() -> argparse.ArgumentParser:
         default="cli-user",
         dest="device_id",
         help="Device id for credit accounting",
+    )
+    get.add_argument(
+        "--passphrase", default=None, dest="passphrase",
+        help="Identity passphrase (or set TFP_IDENTITY_PASSPHRASE env var)"
     )
     get.set_defaults(func=cmd_get)
 
@@ -380,6 +380,10 @@ def build_parser() -> argparse.ArgumentParser:
         default="cli-user",
         dest="device_id",
         help="Device id for credit accounting",
+    )
+    earn.add_argument(
+        "--passphrase", default=None, dest="passphrase",
+        help="Identity passphrase (or set TFP_IDENTITY_PASSPHRASE env var)"
     )
     earn.set_defaults(func=cmd_earn)
 
@@ -425,6 +429,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Device id (auto-generated per-process if not set)",
     )
     join.add_argument(
+        "--passphrase",
+        default=None,
+        dest="passphrase",
+        help="Identity encryption passphrase (or set TFP_IDENTITY_PASSPHRASE env var)",
+    )
+    join.add_argument(
         "--interval",
         type=float,
         default=2.0,
@@ -438,12 +448,82 @@ def build_parser() -> argparse.ArgumentParser:
     )
     join.set_defaults(func=cmd_join)
 
+    # Identity management commands
+    identity_parser = sub.add_parser("identity", help="Manage device identity")
+    identity_sub = identity_parser.add_subparsers(dest="identity_command")
+
+    # identity export
+    export = identity_sub.add_parser("export", help="Export encrypted identity backup")
+    export.add_argument(
+        "--passphrase", required=True, help="Current identity passphrase"
+    )
+    export.add_argument(
+        "--output", default=None, help="Output file path (default: ~/.tfp/backups/)"
+    )
+    export.set_defaults(func=lambda args: cmd_identity_export(args))
+
+    # identity recover
+    recover = identity_sub.add_parser("recover", help="Recover identity from mnemonic")
+    recover.add_argument("--mnemonic", required=True, help="Recovery mnemonic phrase")
+    recover.add_argument("--device-id", required=True, help="Device ID to recover")
+    recover.add_argument(
+        "--passphrase", required=True, help="New passphrase for recovered identity"
+    )
+    recover.set_defaults(func=lambda args: cmd_identity_recover(args))
+
+    # identity change-passphrase
+    change_pw = identity_sub.add_parser(
+        "change-passphrase", help="Change identity encryption passphrase"
+    )
+    change_pw.add_argument("--old-passphrase", required=True, help="Current passphrase")
+    change_pw.add_argument("--new-passphrase", required=True, help="New passphrase")
+    change_pw.set_defaults(func=lambda args: cmd_identity_change_passphrase(args))
+
     return parser
+
+
+def cmd_identity_export(args) -> int:
+    """Export encrypted identity backup."""
+    try:
+        output_path = export_identity(args.passphrase, args.output)
+        print(f"✓ Identity exported to: {output_path}")
+        print(f"⚠️  Store this backup securely - it contains your encrypted identity.")
+        return 0
+    except IdentityError as e:
+        print(f"ERROR: {e}")
+        return 1
+
+
+def cmd_identity_recover(args) -> int:
+    """Recover identity from mnemonic."""
+    try:
+        recover_identity(args.mnemonic, args.device_id, args.passphrase)
+        return 0
+    except IdentityError as e:
+        print(f"ERROR: {e}")
+        return 1
+
+
+def cmd_identity_change_passphrase(args) -> int:
+    """Change identity encryption passphrase."""
+    try:
+        change_passphrase(args.old_passphrase, args.new_passphrase)
+        return 0
+    except IdentityError as e:
+        print(f"ERROR: {e}")
+        return 1
 
 
 def main(argv=None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    
+    # Handle identity subcommands
+    if args.command == "identity" and not getattr(args, 'identity_command', None):
+        parser.print_help()
+        print("\nIdentity subcommands: export, recover, change-passphrase")
+        return 1
+    
     try:
         return args.func(args)
     except httpx.RequestError as exc:
