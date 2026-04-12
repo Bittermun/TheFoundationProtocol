@@ -75,6 +75,7 @@ def _submit_result(client, device_id, puf, task_id, output_hash):
 @pytest.fixture()
 def db_file():
     """Yield a temporary file-backed SQLite path, restore env on teardown."""
+    import shutil
     orig = os.environ.get("TFP_DB_PATH")
     tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
     tmp.close()
@@ -86,6 +87,7 @@ def db_file():
     else:
         os.environ["TFP_DB_PATH"] = ":memory:"
     pathlib.Path(tmp.name).unlink(missing_ok=True)
+    shutil.rmtree(pathlib.Path(tmp.name).with_suffix(".blobs"), ignore_errors=True)
 
 
 # ---------------------------------------------------------------------------

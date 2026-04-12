@@ -381,6 +381,57 @@ class NostrBridge:
         """Clear local event history."""
         self._history.clear()
 
+    def publish_hlt_state(self, hlt) -> dict:
+        """
+        Build and publish a NIP-78 kind-30078 HLT Merkle-root gossip event.
+
+        Announces the current state of the local HierarchicalLexiconTree so that
+        peer nodes can detect semantic drift and request delta updates.
+
+        The event tags include:
+        - ``["d", "tfp-hlt"]``: parameterized replaceable identifier
+        - ``["domain", <name>]``: one tag per domain in the HLT
+        - ``["merkle_root", <hex>]``: Merkle root of the current HLT state
+        - ``["version", <version>]``: latest adapter version per domain
+
+        Args:
+            hlt: A ``HierarchicalLexiconTree`` instance.
+
+        Returns:
+            The event as a plain dict (for test assertions and logging).
+        """
+        merkle_root = hlt.compute_merkle_root()
+
+        tags: List[List[str]] = [
+            ["d", "tfp-hlt"],
+            ["merkle_root", merkle_root],
+        ]
+        for domain_name in hlt.domain_names:
+            tags.append(["domain", domain_name])
+            version_info = hlt.get_latest_version(domain_name)
+            if version_info.get("version"):
+                tags.append(["version", version_info["version"]])
+
+        content_payload = {
+            "merkle_root": merkle_root,
+            "domains": list(hlt.domain_names.keys()),
+        }
+        event = NostrEvent.create(
+            privkey=self._privkey,
+            kind=30078,
+            content=json.dumps(content_payload, separators=(",", ":")),
+            tags=tags,
+        )
+        self._history.append(event)
+        if not self.offline:
+            try:
+                self._send_to_relay(event)
+            except Exception as exc:
+                logger.warning(
+                    "HLT gossip publish failed (relay=%s): %s", self.relay_url, exc
+                )
+        return event.to_dict()
+
     # ------------------------------------------------------------------
     # Internal helpers (injectable for testing)
     # ------------------------------------------------------------------

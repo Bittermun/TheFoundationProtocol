@@ -67,6 +67,7 @@ def _publish_json(
 @pytest.fixture()
 def db_file():
     """Yield a temporary file-backed SQLite path; restore env on teardown."""
+    import shutil
     orig = os.environ.get("TFP_DB_PATH")
     tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
     tmp.close()
@@ -77,6 +78,9 @@ def db_file():
     else:
         os.environ["TFP_DB_PATH"] = ":memory:"
     pathlib.Path(tmp.name).unlink(missing_ok=True)
+    # Clean up the blob directory derived from the db path
+    blob_dir = pathlib.Path(tmp.name).with_suffix(".blobs")
+    shutil.rmtree(blob_dir, ignore_errors=True)
 
 
 # ---------------------------------------------------------------------------

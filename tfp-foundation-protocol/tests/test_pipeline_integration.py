@@ -20,6 +20,7 @@ import hashlib
 import hmac as _hmac
 import json
 import os
+import pathlib
 import tempfile
 
 from fastapi.testclient import TestClient
@@ -216,6 +217,7 @@ class TestDemoServerPipeline:
 
 class TestPersistence:
     def test_content_survives_restart(self):
+        import shutil
         fd, db_file = tempfile.mkstemp(suffix=".db")
         os.close(fd)
         os.unlink(db_file)  # let SQLite create a fresh file
@@ -260,3 +262,6 @@ class TestPersistence:
                 os.unlink(db_file)
             except OSError:
                 pass
+            shutil.rmtree(
+                pathlib.Path(db_file).with_suffix(".blobs"), ignore_errors=True
+            )

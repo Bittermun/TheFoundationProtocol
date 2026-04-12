@@ -4,13 +4,16 @@ import hmac as _hmac
 import json
 import logging
 import os
+import re
 import sqlite3
+import tempfile
 import threading
 import time
+import urllib.request
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, Iterator, List, Optional
 
 from fastapi import FastAPI, Header, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -33,8 +36,11 @@ from tfp_client.lib.compute.verify_habp import (
 )
 from tfp_client.lib.core.tfp_engine import TFPClient
 from tfp_client.lib.credit.ledger import MAX_SUPPLY, CreditLedger, Receipt
+from tfp_client.lib.fountain.fountain_real import RealRaptorQAdapter
+from tfp_client.lib.lexicon.hlt.tree import HierarchicalLexiconTree
 from tfp_client.lib.metadata.tag_index import TagOverlayIndex
 from tfp_client.lib.ndn.adapter import Data, NDNAdapter
+from tfp_client.lib.reconstruction.template_assembler import Recipe
 
 _DEFAULT_DB_PATH = Path(__file__).resolve().parent.parent / "pib.db"
 
@@ -52,135 +58,370 @@ class StoredContent:
     root_hash: str
     title: str
     tags: List[str]
-    data: bytes
+    data: Optional[bytes] = None  # populated by ContentStore.get(); None for metadata-only
     cid: Optional[str] = None  # IPFS CID when available; None until pinned
+    blob_path: Optional[str] = None  # BlobStore key; None for seed-only items
+    size_bytes: int = 0
+    recipe_json: Optional[str] = None  # Recipe JSON when chunking was used
 
 
 # ---------------------------------------------------------------------------
-# Content store (SQLite-backed)
+# Blob store — filesystem/in-memory separation of raw blob data from metadata
+# ---------------------------------------------------------------------------
+
+
+class BlobStore:
+    """
+    Manages raw content blobs separately from the SQLite metadata tables.
+
+    Two modes:
+    - ``blob_dir=None``: in-memory dict; suitable for :memory: test DBs.
+      Data is lost on restart but all tests pass without disk access.
+    - ``blob_dir=Path``: filesystem; data survives restarts.
+      Each blob is a file at ``<blob_dir>/<root_hash>``.
+      Each shard is at ``<blob_dir>/<root_hash>/shards/shard_{N:04d}``.
+
+    The key returned by :meth:`put` is opaque — store it as ``blob_path``
+    in SQLite and pass it back to :meth:`get` / :meth:`open_stream`.
+    """
+
+    def __init__(self, blob_dir: Optional[Path]) -> None:
+        self._dir = blob_dir
+        self._mem: Dict[str, bytes] = {}
+
+    def put(self, root_hash: str, data: bytes) -> str:
+        """Write blob data; return the opaque key for later retrieval."""
+        if self._dir is not None:
+            path = self._dir / root_hash
+            path.write_bytes(data)
+            return str(path)
+        self._mem[root_hash] = data
+        return root_hash
+
+    def get(self, key: str) -> Optional[bytes]:
+        """Read blob by key; return None if not found."""
+        if self._dir is not None:
+            p = Path(key)
+            return p.read_bytes() if p.exists() else None
+        return self._mem.get(key)
+
+    def exists(self, key: str) -> bool:
+        if self._dir is not None:
+            return Path(key).exists()
+        return key in self._mem
+
+    def get_size(self, key: str) -> int:
+        """Return byte size of the stored blob; 0 if not found."""
+        if self._dir is not None:
+            p = Path(key)
+            return p.stat().st_size if p.exists() else 0
+        return len(self._mem.get(key, b""))
+
+    def open_stream(self, key: str, chunk_size: int = 65536) -> Iterator[bytes]:
+        """Yield blob bytes in *chunk_size* chunks (O(1) memory in filesystem mode)."""
+        if self._dir is not None:
+            p = Path(key)
+            if p.exists():
+                with open(p, "rb") as f:
+                    while True:
+                        chunk = f.read(chunk_size)
+                        if not chunk:
+                            break
+                        yield chunk
+        else:
+            data = self._mem.get(key, b"")
+            for i in range(0, len(data), chunk_size):
+                yield data[i : i + chunk_size]
+
+    def put_shard(self, root_hash: str, shard_idx: int, data: bytes) -> str:
+        """Write a shard; return its opaque key."""
+        shard_name = f"shard_{shard_idx:04d}"
+        if self._dir is not None:
+            shard_dir = self._dir / f"{root_hash}.shards"
+            shard_dir.mkdir(parents=True, exist_ok=True)
+            path = shard_dir / shard_name
+            path.write_bytes(data)
+            return str(path)
+        key = f"{root_hash}/shards/{shard_name}"
+        self._mem[key] = data
+        return key
+
+    def get_shard(self, root_hash: str, shard_idx: int) -> Optional[bytes]:
+        """Read shard by root_hash and index; return None if not found."""
+        shard_name = f"shard_{shard_idx:04d}"
+        if self._dir is not None:
+            path = self._dir / f"{root_hash}.shards" / shard_name
+            return path.read_bytes() if path.exists() else None
+        key = f"{root_hash}/shards/{shard_name}"
+        return self._mem.get(key)
+
+    def shard_count(self, root_hash: str) -> int:
+        """Return the number of shards stored for *root_hash*."""
+        if self._dir is not None:
+            shard_dir = self._dir / f"{root_hash}.shards"
+            if not shard_dir.exists():
+                return 0
+            return sum(1 for f in shard_dir.iterdir() if f.name.startswith("shard_"))
+        prefix = f"{root_hash}/shards/shard_"
+        return sum(1 for k in self._mem if k.startswith(prefix))
+
+
+# ---------------------------------------------------------------------------
+# Content store (SQLite-backed metadata + BlobStore for blobs)
 # ---------------------------------------------------------------------------
 
 
 class ContentStore:
     """
-    Persistent content store backed by SQLite with an in-memory tag index.
+    Persistent content store: SQLite for metadata, BlobStore for raw blobs.
 
-    The in-memory ``_tag_index`` maps tag → set[root_hash] for O(1) tag
-    look-ups on the hot ``filter_by_tag`` path.  It is rebuilt from the DB
-    on construction and kept in sync on every ``put``.
+    Schema (new):  root_hash, title, tags, blob_path, cid, size_bytes, recipe_json
+    The ``blob_path`` column holds the opaque key returned by BlobStore.put().
+
+    Migration: if an existing DB has the old ``data BLOB NOT NULL`` schema, the
+    migration method is called automatically on construction.  All existing blob
+    data is moved to the provided (or default in-memory) BlobStore.
+
+    The in-memory ``_tag_index`` maps tag → set[root_hash] for O(1) tag lookups
+    on the hot ``filter_by_tag`` path.  It is rebuilt from the DB on construction
+    and kept in sync on every ``put``.
     """
 
-    def __init__(self, conn: sqlite3.Connection, db_lock: threading.RLock) -> None:
+    def __init__(
+        self,
+        conn: sqlite3.Connection,
+        db_lock: threading.RLock,
+        blob_store: Optional[BlobStore] = None,
+    ) -> None:
         self._conn = conn
         self._db_lock = db_lock
-        self._tag_index: Dict[str, set] = {}  # tag → {root_hash, ...}
+        # Default to in-memory BlobStore so tests work without a filesystem.
+        self._blob_store: BlobStore = blob_store if blob_store is not None else BlobStore(None)
+        self._tag_index: Dict[str, set] = {}
         self._init_schema()
         self._rebuild_tag_index()
 
+    # ------------------------------------------------------------------
+    # Schema init + migration
+    # ------------------------------------------------------------------
+
     def _init_schema(self) -> None:
+        with self._db_lock:
+            existing = self._conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='content'"
+            ).fetchone()
+
+            if existing:
+                cols = {
+                    row[1]
+                    for row in self._conn.execute(
+                        "PRAGMA table_info(content)"
+                    ).fetchall()
+                }
+                if "blob_path" not in cols:
+                    # Legacy schema: has 'data BLOB' — migrate to BlobStore schema.
+                    self._migrate_from_blob_schema(cols)
+                else:
+                    # New schema already present; add any columns added after initial migration.
+                    for col_name, col_def in [
+                        ("size_bytes", "INTEGER NOT NULL DEFAULT 0"),
+                        ("recipe_json", "TEXT"),
+                    ]:
+                        if col_name not in cols:
+                            self._conn.execute(
+                                f"ALTER TABLE content ADD COLUMN {col_name} {col_def}"
+                            )
+                    self._conn.commit()
+            else:
+                # Fresh DB: create new schema directly.
+                self._conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS content (
+                        root_hash   TEXT PRIMARY KEY,
+                        title       TEXT NOT NULL,
+                        tags        TEXT NOT NULL,
+                        blob_path   TEXT,
+                        cid         TEXT,
+                        size_bytes  INTEGER NOT NULL DEFAULT 0,
+                        recipe_json TEXT
+                    )
+                    """
+                )
+                self._conn.commit()
+
+    def _migrate_from_blob_schema(self, existing_cols: set) -> None:
+        """
+        Migrate the old ``content`` table (data BLOB NOT NULL) to the new
+        schema (blob_path TEXT + size_bytes + recipe_json).
+
+        Each existing BLOB is written to ``_blob_store`` so that subsequent
+        ``get()`` calls can retrieve the data transparently.
+        """
+        log.info("ContentStore: migrating legacy BLOB schema → BlobStore schema")
+        has_cid = "cid" in existing_cols
+        if has_cid:
+            rows = self._conn.execute(
+                "SELECT root_hash, title, tags, data, cid FROM content"
+            ).fetchall()
+        else:
+            rows = self._conn.execute(
+                "SELECT root_hash, title, tags, data FROM content"
+            ).fetchall()
+
+        # Build new table while old one still exists.
         self._conn.execute(
             """
-            CREATE TABLE IF NOT EXISTS content (
-                root_hash TEXT PRIMARY KEY,
-                title     TEXT NOT NULL,
-                tags      TEXT NOT NULL,
-                data      BLOB NOT NULL
+            CREATE TABLE content_new (
+                root_hash   TEXT PRIMARY KEY,
+                title       TEXT NOT NULL,
+                tags        TEXT NOT NULL,
+                blob_path   TEXT,
+                cid         TEXT,
+                size_bytes  INTEGER NOT NULL DEFAULT 0,
+                recipe_json TEXT
             )
             """
         )
+        for row in rows:
+            root_hash, title, tags = row[0], row[1], row[2]
+            raw_data = row[3]
+            data = bytes(raw_data) if raw_data is not None else b""
+            cid = row[4] if has_cid else None
+            blob_path: Optional[str] = None
+            if data:
+                blob_path = self._blob_store.put(root_hash, data)
+            self._conn.execute(
+                "INSERT INTO content_new"
+                " (root_hash, title, tags, blob_path, cid, size_bytes)"
+                " VALUES (?, ?, ?, ?, ?, ?)",
+                (root_hash, title, tags, blob_path, cid, len(data)),
+            )
+
+        # executescript issues an implicit COMMIT before running each statement.
+        self._conn.executescript(
+            "DROP TABLE content; ALTER TABLE content_new RENAME TO content;"
+        )
         self._conn.commit()
-        # Migration: add cid column if this is an existing DB that predates it.
-        # SQLite does not support IF NOT EXISTS for ALTER TABLE, so we use a
-        # try/except on the OperationalError that fires when the column exists.
-        try:
-            self._conn.execute("ALTER TABLE content ADD COLUMN cid TEXT")
-            self._conn.commit()
-        except sqlite3.OperationalError:
-            pass  # column already present — no-op
+        log.info(
+            "ContentStore: migration complete (%d rows moved to BlobStore)", len(rows)
+        )
+
+    # ------------------------------------------------------------------
+    # Tag index
+    # ------------------------------------------------------------------
 
     def _rebuild_tag_index(self) -> None:
-        """Rebuild the in-memory tag index from the current DB rows."""
+        """Rebuild the in-memory tag index from current DB rows."""
         self._tag_index.clear()
         rows = self._conn.execute("SELECT root_hash, tags FROM content").fetchall()
         for root_hash, tags_json in rows:
             for tag in json.loads(tags_json):
                 self._tag_index.setdefault(tag, set()).add(root_hash)
 
+    # ------------------------------------------------------------------
+    # Write path
+    # ------------------------------------------------------------------
+
     def put(self, item: StoredContent) -> None:
+        """Persist *item*; raw blob is written to BlobStore, metadata to SQLite."""
+        blob_path: Optional[str] = item.blob_path
+        size_bytes: int = item.size_bytes
+
+        if item.data:
+            # Write blob to BlobStore if not already stored (idempotent).
+            blob_path = self._blob_store.put(item.root_hash, item.data)
+            size_bytes = len(item.data)
+
         with self._db_lock:
             self._conn.execute(
-                "INSERT OR REPLACE INTO content (root_hash, title, tags, data, cid) VALUES (?, ?, ?, ?, ?)",
+                """
+                INSERT OR REPLACE INTO content
+                    (root_hash, title, tags, blob_path, cid, size_bytes, recipe_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
                 (
                     item.root_hash,
                     item.title,
                     json.dumps(item.tags),
-                    item.data,
+                    blob_path,
                     item.cid,
+                    size_bytes,
+                    item.recipe_json,
                 ),
             )
             self._conn.commit()
             for tag in item.tags:
                 self._tag_index.setdefault(tag, set()).add(item.root_hash)
 
+    # ------------------------------------------------------------------
+    # Read paths
+    # ------------------------------------------------------------------
+
+    def _row_to_stored_content(
+        self, row: tuple, include_data: bool = False
+    ) -> StoredContent:
+        """Convert a DB row tuple to StoredContent."""
+        blob_path = row[3]
+        data: Optional[bytes] = None
+        if include_data and blob_path:
+            data = self._blob_store.get(blob_path)
+        return StoredContent(
+            root_hash=row[0],
+            title=row[1],
+            tags=json.loads(row[2]),
+            data=data,
+            blob_path=blob_path,
+            cid=row[4],
+            size_bytes=row[5] or 0,
+            recipe_json=row[6] if len(row) > 6 else None,
+        )
+
     def get(self, root_hash: str) -> Optional[StoredContent]:
+        """Return StoredContent with blob data loaded from BlobStore."""
         with self._db_lock:
             row = self._conn.execute(
-                "SELECT root_hash, title, tags, data, cid FROM content WHERE root_hash = ?",
+                "SELECT root_hash, title, tags, blob_path, cid, size_bytes, recipe_json"
+                " FROM content WHERE root_hash = ?",
                 (root_hash,),
             ).fetchone()
             if row is None:
                 return None
-            return StoredContent(
-                root_hash=row[0],
-                title=row[1],
-                tags=json.loads(row[2]),
-                data=row[3],
-                cid=row[4],
-            )
+            return self._row_to_stored_content(row, include_data=True)
+
+    def get_blob_path(self, root_hash: str) -> Optional[str]:
+        """Return the BlobStore key for *root_hash* without loading the blob."""
+        with self._db_lock:
+            row = self._conn.execute(
+                "SELECT blob_path FROM content WHERE root_hash = ?", (root_hash,)
+            ).fetchone()
+            return row[0] if row else None
 
     def all(self, limit: int = 100, offset: int = 0) -> List[StoredContent]:
+        """Return metadata-only items (data=None) in reverse-insertion order."""
         with self._db_lock:
             rows = self._conn.execute(
-                "SELECT root_hash, title, tags, data, cid FROM content ORDER BY rowid DESC LIMIT ? OFFSET ?",
+                "SELECT root_hash, title, tags, blob_path, cid, size_bytes, recipe_json"
+                " FROM content ORDER BY rowid DESC LIMIT ? OFFSET ?",
                 (limit, offset),
             ).fetchall()
-            return [
-                StoredContent(
-                    root_hash=r[0],
-                    title=r[1],
-                    tags=json.loads(r[2]),
-                    data=r[3],
-                    cid=r[4],
-                )
-                for r in rows
-            ]
+            return [self._row_to_stored_content(r) for r in rows]
 
     def filter_by_tag(
         self, tag: str, limit: int = 100, offset: int = 0
     ) -> List[StoredContent]:
-        """Return items matching *tag* using the in-memory index (O(n_matches))."""
+        """Return metadata-only items matching *tag*."""
         with self._db_lock:
             hashes = self._tag_index.get(tag, set())
             if not hashes:
                 return []
-            # Use parameterized query with validated hash values to prevent SQL injection
             placeholders = ",".join("?" * len(hashes))
             rows = self._conn.execute(
-                "SELECT root_hash, title, tags, data, cid FROM content"
-                f" WHERE root_hash IN ({placeholders})"
+                "SELECT root_hash, title, tags, blob_path, cid, size_bytes, recipe_json"
+                f" FROM content WHERE root_hash IN ({placeholders})"
                 " ORDER BY rowid DESC LIMIT ? OFFSET ?",
                 [*list(hashes), limit, offset],
             ).fetchall()
-            return [
-                StoredContent(
-                    root_hash=r[0],
-                    title=r[1],
-                    tags=json.loads(r[2]),
-                    data=r[3],
-                    cid=r[4],
-                )
-                for r in rows
-            ]
+            return [self._row_to_stored_content(r) for r in rows]
 
     def count_tag(self, tag: str) -> int:
         """Return the number of items matching tag."""
@@ -191,7 +432,7 @@ class ContentStore:
         self, tags: List[str], limit: int = 100, offset: int = 0
     ) -> List[StoredContent]:
         """
-        Return items that match ANY of the given tags (union semantics).
+        Return metadata-only items matching ANY of the given tags (union semantics).
 
         Uses the in-memory tag index to collect root hashes, then does a
         single bulk IN-query — O(n_matches), not O(N_total).
@@ -202,24 +443,14 @@ class ContentStore:
                 hashes |= self._tag_index.get(tag, set())
             if not hashes:
                 return []
-            # Use parameterized query with validated hash values to prevent SQL injection
             placeholders = ",".join("?" * len(hashes))
             rows = self._conn.execute(
-                "SELECT root_hash, title, tags, data, cid FROM content"
-                f" WHERE root_hash IN ({placeholders})"
+                "SELECT root_hash, title, tags, blob_path, cid, size_bytes, recipe_json"
+                f" FROM content WHERE root_hash IN ({placeholders})"
                 " ORDER BY rowid DESC LIMIT ? OFFSET ?",
                 [*list(hashes), limit, offset],
             ).fetchall()
-            return [
-                StoredContent(
-                    root_hash=r[0],
-                    title=r[1],
-                    tags=json.loads(r[2]),
-                    data=r[3],
-                    cid=r[4],
-                )
-                for r in rows
-            ]
+            return [self._row_to_stored_content(r) for r in rows]
 
     def count_tags(self, tags: List[str]) -> int:
         """Return total items matching ANY of the given tags."""
@@ -233,10 +464,8 @@ class ContentStore:
         """
         Durably associate *cid* with an existing content record.
 
-        Only updates rows that already exist in the store and have no CID yet.
-        This is intentionally a no-op for unknown hashes — we never create
-        stub rows with empty data — so it is safe to call from Nostr event
-        handlers without risking garbage records.
+        Only updates rows that already exist and have no CID yet.  Safe to call
+        from Nostr event handlers without risking stub rows with missing blobs.
         """
         with self._db_lock:
             self._conn.execute(
@@ -439,7 +668,7 @@ class CreditStore:
                 Receipt(chain_hash=bytes.fromhex(h), credits=10)
                 for h in json.loads(unspent_json)
             ]
-            client = TFPClient(ndn=DemoNDNAdapter(_content_store), ledger=ledger)
+            client = TFPClient(ndn=DemoNDNAdapter(_content_store, blob_store=_blob_store, peer_fallback=_peer_fallback), ledger=ledger)
             client._earned_receipts = unspent_receipts
             return client
 
@@ -1071,6 +1300,9 @@ _broadcaster = Broadcaster()
 _clients: Dict[str, TFPClient] = {}
 _metrics: _Metrics = _Metrics()
 _demo_dir = Path(__file__).resolve().parent.parent / "demo"
+_blob_store: Optional[BlobStore] = None
+_peer_fallback = None  # type: Optional[_PeerFallback] — class defined below
+_hlt: Optional[HierarchicalLexiconTree] = None
 
 # Readiness gate — set True once lifespan has completed all init steps.
 # Exposed here so tests and the /health endpoint can read it directly.
@@ -1079,15 +1311,40 @@ _startup_stage: str = "not_started"
 
 
 class DemoNDNAdapter(NDNAdapter):
-    def __init__(self, store: ContentStore, ipfs_bridge: Optional[IPFSBridge] = None):
+    def __init__(
+        self,
+        store: ContentStore,
+        ipfs_bridge: Optional[IPFSBridge] = None,
+        blob_store: Optional[BlobStore] = None,
+        peer_fallback: Optional["_PeerFallback"] = None,
+    ):
         self._store = store
         self._ipfs = ipfs_bridge
+        self._blob_store = blob_store
+        self._peer_fallback = peer_fallback
 
     def express_interest(self, interest):
-        root_hash = interest.name.rsplit("/", 1)[-1]
+        name = interest.name
+
+        # ── Shard interest: /tfp/content/{hash}/shard/{idx} ──────────────
+        _shard_prefix = "/shard/"
+        if _shard_prefix in name:
+            parts = name.split("/")
+            try:
+                shard_idx = int(parts[-1])
+                root_hash = parts[-3]
+            except (ValueError, IndexError) as exc:
+                raise ValueError(f"malformed shard interest: {name}") from exc
+            shard_data = self._blob_store.get_shard(root_hash, shard_idx) if self._blob_store else None
+            if shard_data is not None:
+                return Data(name=name, content=shard_data)
+            raise ValueError(f"shard not found: {name}")
+
+        # ── Normal content interest ──────────────────────────────────────
+        root_hash = name.rsplit("/", 1)[-1]
         item = self._store.get(root_hash)
         if item and item.data:
-            return Data(name=interest.name, content=item.data)
+            return Data(name=name, content=item.data)
 
         # Resolve CID: prefer durable SQLite record, fall back to in-memory bridge.
         # The SQLite record survives server restarts; the in-memory bridge is
@@ -1102,9 +1359,50 @@ class DemoNDNAdapter(NDNAdapter):
             log.info("NDN: Fallback to IPFS for %s (cid=%s)", root_hash, cid)
             data_bytes = self._ipfs.get(cid)
             if data_bytes:
-                return Data(name=interest.name, content=data_bytes)
+                return Data(name=name, content=data_bytes)
+
+        # ── Peer HTTP fallback ────────────────────────────────────────────
+        if self._peer_fallback:
+            data_bytes = self._peer_fallback.get(root_hash)
+            if data_bytes:
+                log.info("NDN: Peer fallback succeeded for %s", root_hash)
+                return Data(name=name, content=data_bytes)
 
         raise ValueError(f"content not found for hash: {root_hash}")
+
+
+# ---------------------------------------------------------------------------
+# Peer HTTP fallback — try sibling nodes when local store misses
+# ---------------------------------------------------------------------------
+
+
+class _PeerFallback:
+    """
+    HTTP fallback: query configured peer nodes for content blobs.
+
+    Peers are read from ``TFP_PEER_NODES`` (comma-separated URLs) in the
+    environment.  Each peer is tried in order; the first successful response
+    is returned.  All network errors are swallowed and logged at DEBUG level.
+
+    The peer nodes must expose ``GET /api/peer/{root_hash}`` which returns raw
+    bytes without requiring device auth or credits (internal mesh endpoint).
+    """
+
+    def __init__(self, peer_urls: List[str]) -> None:
+        self._peers = [u.rstrip("/") for u in peer_urls if u.strip()]
+
+    def get(self, root_hash: str) -> Optional[bytes]:
+        """Try each configured peer; return raw bytes on first hit, else None."""
+        for peer_url in self._peers:
+            url = f"{peer_url}/api/peer/{root_hash}"
+            try:
+                req = urllib.request.Request(url)
+                with urllib.request.urlopen(req, timeout=5) as resp:
+                    if resp.status == 200:
+                        return resp.read()
+            except Exception as exc:
+                log.debug("Peer fallback failed for %s from %s: %s", root_hash, peer_url, exc)
+        return None
 
 
 def _make_ndn_adapter() -> NDNAdapter:
@@ -1113,7 +1411,7 @@ def _make_ndn_adapter() -> NDNAdapter:
         from tfp_client.lib.ndn.ndn_real import RealNDNAdapter
 
         return RealNDNAdapter()
-    return DemoNDNAdapter(_content_store, _ipfs_bridge)
+    return DemoNDNAdapter(_content_store, _ipfs_bridge, _blob_store, _peer_fallback)
 
 
 def _client_for(device_id: str) -> TFPClient:
@@ -1127,7 +1425,6 @@ def _client_for(device_id: str) -> TFPClient:
         else:
             kwargs: dict = {"ndn": _make_ndn_adapter()}
             if os.environ.get("TFP_REAL_ADAPTERS", "").strip() == "1":
-                from tfp_client.lib.fountain.fountain_real import RealRaptorQAdapter
                 from tfp_client.lib.zkp.zkp_real import RealZKPAdapter
 
                 kwargs["raptorq"] = RealRaptorQAdapter()
@@ -1185,8 +1482,16 @@ def _preseed_tasks() -> None:
 
 
 def _on_nostr_event(event_dict: dict) -> None:
-    """Callback: ingest a remote TFP Nostr announcement into the tag overlay."""
+    """Callback: ingest a remote TFP Nostr announcement into the tag overlay or HLT."""
     try:
+        kind = event_dict.get("kind", 1)
+
+        # ── Kind 30078: HLT Merkle-root gossip ────────────────────────────
+        if kind == 30078:
+            _handle_hlt_gossip_event(event_dict)
+            return
+
+        # ── Kind 1 / default: content discovery announcement ──────────────
         payload = json.loads(event_dict.get("content", "{}"))
         content_hash_hex = payload.get("hash", "")
         tags = payload.get("tags", [])
@@ -1216,6 +1521,31 @@ def _on_nostr_event(event_dict: dict) -> None:
         log.warning("Failed to process Nostr event: %s", e)
 
 
+def _handle_hlt_gossip_event(event_dict: dict) -> None:
+    """
+    Handle a NIP-78 kind-30078 HLT Merkle-root gossip event.
+
+    If the event announces a domain that is newer than our local HLT state,
+    add it so that semantic drift is prevented across nodes.
+    """
+    if _hlt is None:
+        return
+    try:
+        payload = json.loads(event_dict.get("content", "{}"))
+        domain = payload.get("domain")
+        version = payload.get("version", "v1.0.0")
+        content_hash = payload.get("content_hash", "a" * 64)
+        # Collect domain tags from event tags array
+        domain_tags = [
+            t[1] for t in event_dict.get("tags", []) if len(t) >= 2 and t[0] == "t"
+        ]
+        if domain and not _hlt.has_domain(domain):
+            _hlt.add_domain(domain, version, content_hash, tags=domain_tags)
+            log.info("HLT: added domain %r v%s from Nostr gossip", domain, version)
+    except (json.JSONDecodeError, ValueError, KeyError, TypeError) as exc:
+        log.warning("Failed to process HLT gossip event: %s", exc)
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     # Phase A: per-stage startup observability + readiness gate.
@@ -1223,6 +1553,7 @@ async def lifespan(_app: FastAPI):
     global _content_store, _device_registry, _earn_log, _credit_store, _task_store
     global _earn_rate_limiter, _result_rate_limiter, _tag_overlay, _nostr_subscriber
     global _nostr_bridge, _ipfs_bridge, _clients, _metrics, _app_ready, _startup_stage
+    global _blob_store, _peer_fallback, _hlt
 
     _app_ready = False
     _startup_stage = "starting"
@@ -1249,7 +1580,36 @@ async def lifespan(_app: FastAPI):
         if db_path != ":memory:":
             _conn.execute("PRAGMA journal_mode=WAL")
         _db_lock = threading.RLock()
-        _content_store = ContentStore(_conn, _db_lock)
+
+        # ── BlobStore: filesystem for file-backed DB, in-memory for :memory: ──
+        _tmp_blob_dir: Optional[str] = None
+        if db_path != ":memory:":
+            blob_dir_env = os.environ.get("TFP_BLOB_DIR", "")
+            if blob_dir_env:
+                _bs_path = Path(blob_dir_env)
+            else:
+                # Derive blob dir from DB path: /data/pib.db → /data/pib.blobs/
+                _bs_path = Path(db_path).with_suffix(".blobs")
+            _bs_path.mkdir(parents=True, exist_ok=True)
+            _blob_store = BlobStore(_bs_path)
+            log.info("BlobStore: filesystem at %s", _bs_path)
+        else:
+            # :memory: mode — use in-memory BlobStore (tests, dev)
+            _blob_store = BlobStore(None)
+            log.info("BlobStore: in-memory (TFP_DB_PATH=:memory:)")
+
+        # ── Peer fallback: read TFP_PEER_NODES env var ────────────────────
+        peer_nodes_env = os.environ.get("TFP_PEER_NODES", "")
+        _peer_urls = [u.strip() for u in peer_nodes_env.split(",") if u.strip()]
+        _peer_fallback = _PeerFallback(_peer_urls)
+        if _peer_urls:
+            log.info("Peer fallback configured: %s", _peer_urls)
+
+        # ── Hierarchical Lexicon Tree ─────────────────────────────────────
+        _hlt = HierarchicalLexiconTree()
+        log.info("HLT initialised (root node)")
+
+        _content_store = ContentStore(_conn, _db_lock, blob_store=_blob_store)
         _device_registry = DeviceRegistry(_conn, _db_lock)
         _earn_log = EarnLog(_conn, _db_lock)
         _credit_store = CreditStore(_conn, _db_lock)
@@ -1385,6 +1745,9 @@ async def lifespan(_app: FastAPI):
         _tag_overlay = None
         _nostr_subscriber = None
         _nostr_bridge = None
+        _blob_store = None
+        _peer_fallback = None
+        _hlt = None
 
 
 app = FastAPI(title="TFP Demo Node", version="0.2.0", lifespan=lifespan)
@@ -1522,31 +1885,94 @@ async def publish(
         body_bytes, metadata={"title": title, "tags": tags_raw}, use_ldm=False
     )
     tags = _normalize_tags(tags_raw)
+    root_hash: str = result["root_hash"]
+
+    # ── Recipe / chunking pipeline (TFP_ENABLE_CHUNKING, default=1) ──────
+    recipe_json: Optional[str] = None
+    recipe_dict: Optional[dict] = None
+    _enable_chunking = os.environ.get("TFP_ENABLE_CHUNKING", "1").strip() != "0"
+    if _enable_chunking and _blob_store is not None and len(body_bytes) > 0:
+        try:
+            recipe_json, recipe_dict = _build_recipe(root_hash, body_bytes, tags, _blob_store)
+        except Exception as exc:
+            log.warning("Recipe build failed (content will be served without recipe): %s", exc)
 
     # Ensure IPFS CID is included in the Nostr announcement
     if result.get("cid") and _nostr_bridge:
         _nostr_bridge.publish_content_announcement(
-            result["root_hash"],
+            root_hash,
             metadata={"title": title, "tags": tags, "cid": result["cid"]},
         )
     _content_store.put(
         StoredContent(
-            root_hash=result["root_hash"],
+            root_hash=root_hash,
             title=title,
             tags=tags,
             data=body_bytes,
-            cid=result.get(
-                "cid"
-            ),  # durably persist CID so IPFS fallback survives restart
+            cid=result.get("cid"),
+            recipe_json=recipe_json,
         )
     )
     _metrics.inc("tfp_content_published_total")
     return {
-        "root_hash": result["root_hash"],
+        "root_hash": root_hash,
         "title": title,
         "tags": tags,
         "status": "broadcasting",
+        "recipe": recipe_dict,
     }
+
+
+def _build_recipe(
+    root_hash: str,
+    data: bytes,
+    tags: List[str],
+    blob_store: BlobStore,
+) -> tuple:
+    """
+    Encode *data* into RaptorQ shards, write each shard to *blob_store*, and
+    return ``(recipe_json_str, recipe_dict)`` for storage and HTTP response.
+
+    The ``Recipe`` object follows the TFP content-addressable model:
+    - ``content_hash``: SHA3-256 of the raw content (root_hash)
+    - ``template_id``: same as content_hash (content IS the template)
+    - ``chunk_ids``: SHA3-256 of the raw shard payload (source shards only)
+    - ``ai_adapter``: first tag or "general" (domain hint for LexiconAdapter)
+    """
+    # Configurable shard size: TFP_SHARD_SIZE_KB * 1024 bytes, or codec default
+    shard_size_kb = int(os.environ.get("TFP_SHARD_SIZE_KB", "0"))
+    if shard_size_kb > 0:
+        encoder = RealRaptorQAdapter(shard_size=shard_size_kb * 1024)
+    else:
+        encoder = RealRaptorQAdapter()
+
+    shards = encoder.encode(data, redundancy=0.10)
+    if not shards:
+        raise ValueError("RaptorQ encode produced no shards")
+
+    # Decode k (number of source blocks) from the first shard header
+    import struct
+    _orig_len, k, _idx = struct.unpack(">QII", shards[0][:16])
+    source_shards = shards[:k]
+
+    chunk_ids: List[str] = []
+    for idx, shard_bytes in enumerate(shards):
+        blob_store.put_shard(root_hash, idx, shard_bytes)
+        if idx < k:
+            # chunk_id = SHA3-256 of the shard payload (bytes after 16-byte header)
+            payload = shard_bytes[16:]
+            chunk_ids.append(hashlib.sha3_256(payload).hexdigest())
+
+    ai_adapter = tags[0] if tags else "general"
+    recipe = Recipe(
+        content_hash=root_hash,
+        template_id=root_hash,
+        chunk_ids=chunk_ids,
+        ai_adapter=ai_adapter,
+    )
+    recipe_dict = recipe.to_dict()
+    recipe_json = json.dumps(recipe_dict, separators=(",", ":"))
+    return recipe_json, recipe_dict
 
 
 @app.post("/api/earn")
@@ -1599,6 +2025,7 @@ def earn(
 @app.get("/api/get/{root_hash}")
 def get_content(
     root_hash: str,
+    request: Request,
     stream: bool = Query(False),
     device_id: str = Query(default="web-demo"),
 ):
@@ -1629,16 +2056,28 @@ def get_content(
     _metrics.inc("tfp_credits_spent_total")
 
     if stream:
+        data_bytes = content.content if hasattr(content, "content") else content.data
+
+        # ── HTTP Range request (RFC 7233) ─────────────────────────────────
+        range_header = request.headers.get("range")
+        if range_header:
+            range_response = _build_range_response(data_bytes, range_header)
+            if range_response is not None:
+                return range_response
+
+        # ── Full streaming response ───────────────────────────────────────
+        blob_path = _content_store.get_blob_path(root_hash) if _content_store else None
+        if blob_path and _blob_store and _blob_store.exists(blob_path):
+            def _fs_stream():
+                yield from _blob_store.open_stream(blob_path)
+            return StreamingResponse(_fs_stream(), media_type="application/octet-stream")
 
         def stream_generator():
-            chunk_size = 64 * 1024  # 64KB chunks to mimic constrained device streaming
-            data = content.content if hasattr(content, "content") else content.data
-            for i in range(0, len(data), chunk_size):
-                yield data[i : i + chunk_size]
+            chunk_size = 64 * 1024
+            for i in range(0, len(data_bytes), chunk_size):
+                yield data_bytes[i : i + chunk_size]
 
-        return StreamingResponse(
-            stream_generator(), media_type="application/octet-stream"
-        )
+        return StreamingResponse(stream_generator(), media_type="application/octet-stream")
     else:
         # Use metadata from item (local) or fallback to ipfs bridge metadata
         title = item.title if item else "Remote Content"
@@ -1658,6 +2097,90 @@ def get_content(
             "text": data_bytes.decode(errors="replace"),
             "sha3": hashlib.sha3_256(data_bytes).hexdigest(),
         }
+
+
+def _build_range_response(data: bytes, range_header: str) -> Optional[Response]:
+    """
+    Parse a ``Range: bytes=start-end`` header and return a 206 Partial Content
+    Response, or None if the header cannot be parsed.
+    """
+    match = re.match(r"bytes=(\d*)-(\d*)", range_header.strip())
+    if not match:
+        return None
+    total = len(data)
+    start_str, end_str = match.group(1), match.group(2)
+    start = int(start_str) if start_str else 0
+    end = int(end_str) if end_str else total - 1
+    end = min(end, total - 1)
+    if start > end or start >= total:
+        return Response(
+            status_code=416,
+            headers={"Content-Range": f"bytes */{total}"},
+        )
+    length = end - start + 1
+    return Response(
+        content=data[start : end + 1],
+        status_code=206,
+        media_type="application/octet-stream",
+        headers={
+            "Content-Range": f"bytes {start}-{end}/{total}",
+            "Content-Length": str(length),
+            "Accept-Ranges": "bytes",
+        },
+    )
+
+
+@app.get("/api/content/{root_hash}/recipe")
+def get_recipe(root_hash: str) -> dict:
+    """Return the Recipe JSON for chunked content (produced at publish time)."""
+    if _content_store is None:
+        raise HTTPException(status_code=503, detail="store not ready")
+    item = _content_store.get(root_hash)
+    if item is None:
+        raise HTTPException(status_code=404, detail="content not found")
+    if not item.recipe_json:
+        raise HTTPException(
+            status_code=404,
+            detail="no recipe for this content (publish with TFP_ENABLE_CHUNKING=1)",
+        )
+    return json.loads(item.recipe_json)
+
+
+@app.get("/api/content/{root_hash}/shard/{index}")
+def get_shard(root_hash: str, index: int) -> Response:
+    """
+    Return the raw shard bytes for a single RaptorQ-encoded shard.
+
+    NDN interest name equivalent: ``/tfp/content/{root_hash}/shard/{index}``
+    """
+    if _blob_store is None:
+        raise HTTPException(status_code=503, detail="blob store not ready")
+    if _content_store is None or not _content_store.contains(root_hash):
+        raise HTTPException(status_code=404, detail="content not found")
+    shard_data = _blob_store.get_shard(root_hash, index)
+    if shard_data is None:
+        raise HTTPException(status_code=404, detail=f"shard {index} not found")
+    return Response(content=shard_data, media_type="application/octet-stream")
+
+
+@app.get("/api/peer/{root_hash}")
+def peer_get(root_hash: str) -> Response:
+    """
+    Internal mesh endpoint — serves raw blob bytes to peer nodes without credit check.
+
+    This endpoint is intended only for intra-cluster communication (Docker internal
+    network) and should not be exposed to the public internet.  It is used by the
+    _PeerFallback mechanism so cold-start nodes can bootstrap content from siblings.
+    """
+    if _content_store is None or _blob_store is None:
+        raise HTTPException(status_code=503, detail="store not ready")
+    blob_path = _content_store.get_blob_path(root_hash)
+    if blob_path is None:
+        raise HTTPException(status_code=404, detail="content not found")
+    data = _blob_store.get(blob_path)
+    if data is None:
+        raise HTTPException(status_code=404, detail="blob not found")
+    return Response(content=data, media_type="application/octet-stream")
 
 
 @app.post("/api/delegate-proof")
@@ -1723,6 +2246,8 @@ def status() -> dict:
         "tasks": task_stats,
         "supply_cap": MAX_SUPPLY,
         "metrics": _metrics.snapshot(),
+        "hlt_domains": len(_hlt.domain_names) if _hlt is not None else 0,
+        "peer_nodes": len(_peer_fallback._peers) if _peer_fallback is not None else 0,
     }
 
 
