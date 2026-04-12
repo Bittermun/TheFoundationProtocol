@@ -69,6 +69,7 @@ class ContentStore:
 
     def __init__(self, conn: sqlite3.Connection) -> None:
         self._conn = conn
+        self._lock = threading.Lock()
         self._tag_index: Dict[str, set] = {}  # tag → {root_hash, ...}
         self._init_schema()
         self._rebuild_tag_index()
@@ -95,13 +96,14 @@ class ContentStore:
                 self._tag_index.setdefault(tag, set()).add(root_hash)
 
     def put(self, item: StoredContent) -> None:
-        self._conn.execute(
-            "INSERT OR REPLACE INTO content (root_hash, title, tags, data) VALUES (?, ?, ?, ?)",
-            (item.root_hash, item.title, json.dumps(item.tags), item.data),
-        )
-        self._conn.commit()
-        for tag in item.tags:
-            self._tag_index.setdefault(tag, set()).add(item.root_hash)
+        with self._lock:
+            self._conn.execute(
+                "INSERT OR REPLACE INTO content (root_hash, title, tags, data) VALUES (?, ?, ?, ?)",
+                (item.root_hash, item.title, json.dumps(item.tags), item.data),
+            )
+            self._conn.commit()
+            for tag in item.tags:
+                self._tag_index.setdefault(tag, set()).add(item.root_hash)
 
     def get(self, root_hash: str) -> Optional[StoredContent]:
         row = self._conn.execute(
@@ -205,6 +207,7 @@ class DeviceRegistry:
 
     def __init__(self, conn: sqlite3.Connection) -> None:
         self._conn = conn
+        self._lock = threading.Lock()
         self._init_schema()
 
     def _init_schema(self) -> None:
@@ -220,12 +223,13 @@ class DeviceRegistry:
         self._conn.commit()
 
     def enroll(self, device_id: str, puf_entropy: bytes) -> None:
-        self._conn.execute(
-            "INSERT OR REPLACE INTO devices (device_id, puf_entropy, enrolled_at) "
-            "VALUES (?, ?, ?)",
-            (device_id, puf_entropy, time.time()),
-        )
-        self._conn.commit()
+        with self._lock:
+            self._conn.execute(
+                "INSERT OR REPLACE INTO devices (device_id, puf_entropy, enrolled_at) "
+                "VALUES (?, ?, ?)",
+                (device_id, puf_entropy, time.time()),
+            )
+            self._conn.commit()
 
     def get_entropy(self, device_id: str) -> Optional[bytes]:
         row = self._conn.execute(
@@ -271,6 +275,7 @@ class EarnLog:
 
     def __init__(self, conn: sqlite3.Connection) -> None:
         self._conn = conn
+        self._lock = threading.Lock()
         self._init_schema()
 
     def _init_schema(self) -> None:
@@ -288,15 +293,16 @@ class EarnLog:
 
     def record(self, device_id: str, task_id: str) -> bool:
         """Attempt to record an earn event.  Returns True if new, False if duplicate."""
-        try:
-            self._conn.execute(
-                "INSERT INTO earn_log (device_id, task_id, earned_at) VALUES (?, ?, ?)",
-                (device_id, task_id, time.time()),
-            )
-            self._conn.commit()
-            return True
-        except sqlite3.IntegrityError:
-            return False
+        with self._lock:
+            try:
+                self._conn.execute(
+                    "INSERT INTO earn_log (device_id, task_id, earned_at) VALUES (?, ?, ?)",
+                    (device_id, task_id, time.time()),
+                )
+                self._conn.commit()
+                return True
+            except sqlite3.IntegrityError:
+                return False
 
 
 # ---------------------------------------------------------------------------
@@ -314,6 +320,7 @@ class CreditStore:
 
     def __init__(self, conn: sqlite3.Connection) -> None:
         self._conn = conn
+        self._lock = threading.Lock()
         self._init_schema()
 
     def _init_schema(self) -> None:
@@ -334,18 +341,19 @@ class CreditStore:
         chain_json = json.dumps([h.hex() for h in client.ledger.chain])
         balance = client.ledger.balance
         unspent_json = json.dumps([r.chain_hash.hex() for r in client._earned_receipts])
-        self._conn.execute(
-            """
-            INSERT INTO credit_ledger (device_id, balance, chain_json, unspent_receipts_json)
-            VALUES (?, ?, ?, ?)
-            ON CONFLICT(device_id) DO UPDATE SET
-                balance               = excluded.balance,
-                chain_json            = excluded.chain_json,
-                unspent_receipts_json = excluded.unspent_receipts_json
-            """,
-            (device_id, balance, chain_json, unspent_json),
-        )
-        self._conn.commit()
+        with self._lock:
+            self._conn.execute(
+                """
+                INSERT INTO credit_ledger (device_id, balance, chain_json, unspent_receipts_json)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(device_id) DO UPDATE SET
+                    balance               = excluded.balance,
+                    chain_json            = excluded.chain_json,
+                    unspent_receipts_json = excluded.unspent_receipts_json
+                """,
+                (device_id, balance, chain_json, unspent_json),
+            )
+            self._conn.commit()
 
     def load(self, device_id: str) -> Optional["TFPClient"]:
         """
@@ -393,7 +401,9 @@ class TaskStore:
         self._conn = conn
         self._habp = HABPVerifier(consensus_threshold=3, redundancy_factor=5)
         self._credit_formula = CreditFormula()
-        self._lock = threading.Lock()
+        # RLock so that submit_result() (outer) can call increment_total_minted() (inner)
+        # without deadlocking on re-entry.
+        self._lock = threading.RLock()
         self._init_schema()
 
     def _init_schema(self) -> None:
@@ -608,82 +618,102 @@ class TaskStore:
 
         Returns a dict with keys: status, verified, credits_earned (0 if not yet verified),
         and consensus_needed (how many more proofs are required for consensus).
+
+        The entire method runs under ``self._lock`` to serialise concurrent
+        submissions and prevent HABP proof accumulation (self-mint attack).
         """
-        task_row = self.get_task_row(task_id)
-        if task_row is None:
-            raise HTTPException(status_code=404, detail="task not found")
-        if task_row["status"] in ("completed", "failed"):
-            raise HTTPException(status_code=409, detail="task already finalised")
-        if time.time() > task_row["deadline"]:
+        with self._lock:
+            task_row = self.get_task_row(task_id)
+            if task_row is None:
+                raise HTTPException(status_code=404, detail="task not found")
+            if task_row["status"] in ("completed", "failed"):
+                raise HTTPException(status_code=409, detail="task already finalised")
+            if time.time() > task_row["deadline"]:
+                self._conn.execute(
+                    "UPDATE tasks SET status = 'failed' WHERE task_id = ?", (task_id,)
+                )
+                self._conn.commit()
+                raise HTTPException(status_code=410, detail="task deadline passed")
+
+            # Record result — UNIQUE(task_id, device_id) prevents duplicate rows.
+            # Check rowcount: if 0 the device already submitted for this task and
+            # we must NOT add another HABP proof (would allow a single device to
+            # accumulate enough proofs to reach consensus alone — self-mint attack).
+            cursor = self._conn.execute(
+                """
+                INSERT OR IGNORE INTO task_results
+                  (task_id, device_id, output_hash, exec_time_s, has_tee, submitted_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    task_id,
+                    device_id,
+                    output_hash,
+                    exec_time_s,
+                    int(has_tee),
+                    time.time(),
+                ),
+            )
+            if cursor.rowcount == 0:
+                raise HTTPException(
+                    status_code=409,
+                    detail="result already submitted for this device and task",
+                )
             self._conn.execute(
-                "UPDATE tasks SET status = 'failed' WHERE task_id = ?", (task_id,)
+                "UPDATE tasks SET status = 'verifying' WHERE task_id = ? AND status = 'open'",
+                (task_id,),
             )
             self._conn.commit()
-            raise HTTPException(status_code=410, detail="task deadline passed")
 
-        # Record result
-        self._conn.execute(
-            """
-            INSERT OR IGNORE INTO task_results
-              (task_id, device_id, output_hash, exec_time_s, has_tee, submitted_at)
-            VALUES (?, ?, ?, ?, ?, ?)
-            """,
-            (task_id, device_id, output_hash, exec_time_s, int(has_tee), time.time()),
-        )
-        self._conn.execute(
-            "UPDATE tasks SET status = 'verifying' WHERE task_id = ? AND status = 'open'",
-            (task_id,),
-        )
-        self._conn.commit()
-
-        # Build HABP proof and attempt consensus
-        proof = generate_execution_proof(
-            device_id=device_id,
-            task_id=task_id,
-            output_data=bytes.fromhex(output_hash)
-            if len(output_hash) == 64
-            else output_hash.encode(),
-            execution_time=exec_time_s,
-            has_tee=has_tee,
-        )
-        # Override the output_hash with what the device reported
-        proof.output_hash = output_hash
-        self._habp.submit_proof(proof)
-
-        consensus = self._habp.verify_consensus(task_id)
-        if consensus and consensus.verified:
-            # Mark completed and compute credits
-            calc = self._credit_formula.calculate_credits(
-                difficulty=task_row["difficulty"],
-                hardware_trust=consensus.credit_weight,
-                uptime_hours=24.0,
-                verification_confidence=consensus.confidence,
-                is_charging=False,
+            # Build HABP proof and attempt consensus
+            proof = generate_execution_proof(
+                device_id=device_id,
+                task_id=task_id,
+                output_data=bytes.fromhex(output_hash)
+                if len(output_hash) == 64
+                else output_hash.encode(),
+                execution_time=exec_time_s,
+                has_tee=has_tee,
             )
-            credits = calc.final_credits
-            self._conn.execute(
-                "UPDATE tasks SET status = 'completed' WHERE task_id = ?", (task_id,)
-            )
-            self._conn.commit()
+            # Override the output_hash with what the device reported
+            proof.output_hash = output_hash
+            self._habp.submit_proof(proof)
+
+            consensus = self._habp.verify_consensus(task_id)
+            if consensus and consensus.verified:
+                # Mark completed and compute credits
+                calc = self._credit_formula.calculate_credits(
+                    difficulty=task_row["difficulty"],
+                    hardware_trust=consensus.credit_weight,
+                    uptime_hours=24.0,
+                    verification_confidence=consensus.confidence,
+                    is_charging=False,
+                )
+                credits = calc.final_credits
+                self._conn.execute(
+                    "UPDATE tasks SET status = 'completed' WHERE task_id = ?",
+                    (task_id,),
+                )
+                self._conn.commit()
+                return {
+                    "status": "verified",
+                    "verified": True,
+                    "credits_earned": credits,
+                    "consensus_needed": 0,
+                    "matching_devices": consensus.matching_devices,
+                    "confidence": consensus.confidence,
+                }
+
+            # Count current proofs
+            proof_count = self._habp.get_proof_count(task_id)
+            needed = max(0, 3 - proof_count)
             return {
-                "status": "verified",
-                "verified": True,
-                "credits_earned": credits,
-                "consensus_needed": 0,
-                "matching_devices": consensus.matching_devices,
-                "confidence": consensus.confidence,
+                "status": "pending_consensus",
+                "verified": False,
+                "credits_earned": 0,
+                "consensus_needed": needed,
+                "proofs_received": proof_count,
             }
-
-        # Count current proofs
-        proof_count = self._habp.get_proof_count(task_id)
-        needed = max(0, 3 - proof_count)
-        return {
-            "status": "pending_consensus",
-            "verified": False,
-            "credits_earned": 0,
-            "consensus_needed": needed,
-            "proofs_received": proof_count,
-        }
 
     def stats(self) -> dict:
         """Return aggregate task statistics."""

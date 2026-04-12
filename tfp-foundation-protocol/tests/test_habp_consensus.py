@@ -161,10 +161,10 @@ def test_habp_verifier_proof_count():
 
 def test_single_device_cannot_self_mint():
     """
-    A single device submitting a result can only appear once per task
-    (UNIQUE(task_id, device_id) in task_results). A second identical
-    submission is silently ignored (INSERT OR IGNORE), so consensus is
-    never reached from one device alone.
+    A single device submitting the same result twice must receive 409 on the
+    second call.  The UNIQUE(task_id, device_id) DB constraint plus the
+    rowcount=0 guard in TaskStore.submit_result() prevent a device from
+    accumulating multiple HABP proofs and triggering self-mint.
     """
     with TestClient(app) as client:
         puf = os.urandom(32)
@@ -175,12 +175,13 @@ def test_single_device_cannot_self_mint():
         task_id = task["task_id"]
         output_hash = task["expected_output_hash"]
 
-        # First submission
+        # First submission — accepted, no consensus yet (only 1 of 3 required)
         r1 = _submit_result(client, device_id, puf, task_id, output_hash)
         assert r1["verified"] is False
         assert r1["credits_earned"] == 0
 
-        # Second submission — same device, same task — server returns 409
+        # Second submission — same device, same task.
+        # The DB UNIQUE constraint fires (rowcount=0) → 409 before submit_proof is called.
         sig = _sig(puf, f"{device_id}:{task_id}")
         r2 = client.post(
             f"/api/task/{task_id}/result",
@@ -192,12 +193,24 @@ def test_single_device_cannot_self_mint():
             },
             headers={"X-Device-Sig": sig},
         )
-        # Task is finalised after 1st submission; second returns 409
-        assert r2.status_code in (200, 409)
-        # If 200, verified must still be False (one device cannot self-mint)
-        if r2.status_code == 200:
-            assert r2.json()["verified"] is False
-            assert r2.json()["credits_earned"] == 0
+        assert r2.status_code == 409, (
+            "Duplicate submission must be rejected with 409 to prevent self-mint"
+        )
+
+        # Third submission — still 409, HABP proof count must still be 1
+        r3 = client.post(
+            f"/api/task/{task_id}/result",
+            json={
+                "device_id": device_id,
+                "output_hash": output_hash,
+                "exec_time_s": 0.1,
+                "has_tee": False,
+            },
+            headers={"X-Device-Sig": sig},
+        )
+        assert r3.status_code == 409, (
+            "Third submission must also be rejected — device must not accumulate proofs"
+        )
 
 
 def test_two_devices_insufficient_for_consensus():

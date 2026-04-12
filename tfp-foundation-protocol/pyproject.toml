@@ -52,3 +52,6 @@ tfp = "tfp_cli.main:main"
 testpaths = ["tests"]
 asyncio_mode = "auto"
 timeout = 30
+markers = [
+    "concurrency: tests that exercise thread-safety and concurrent access patterns",
+]

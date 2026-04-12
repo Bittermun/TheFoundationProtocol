@@ -2,7 +2,7 @@
 
 **A decentralized content & compute protocol for global information access — uncensorable, efficient, and built for everyone.**
 
-![Tests](https://img.shields.io/badge/tests-565%20passing-green)
+![Tests](https://img.shields.io/badge/tests-570%20passing-green)
 ![Python Files](https://img.shields.io/badge/python%20files-154-blue)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Security](https://img.shields.io/badge/security-hardened-green)
