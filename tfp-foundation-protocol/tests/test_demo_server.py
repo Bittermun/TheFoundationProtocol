@@ -2,6 +2,7 @@ import hashlib
 import hmac as _hmac
 import os
 import sqlite3
+import threading
 
 os.environ["TFP_DB_PATH"] = ":memory:"
 
@@ -230,7 +231,8 @@ def test_earn_different_task_ids_both_succeed():
 def test_earn_log_class_deduplication():
     """EarnLog.record returns True on first insert, False on duplicate."""
     conn = sqlite3.connect(":memory:")
-    log = EarnLog(conn)
+    db_lock = threading.RLock()
+    log = EarnLog(conn, db_lock)
     assert log.record("dev-a", "task-1") is True
     assert log.record("dev-a", "task-1") is False  # duplicate
     assert log.record("dev-a", "task-2") is True  # different task
@@ -301,7 +303,8 @@ def test_credits_persist_across_restarts():
 def test_credit_store_class_save_and_load():
     """CreditStore round-trips a ledger + unspent receipts correctly."""
     conn = sqlite3.connect(":memory:")
-    store = CreditStore(conn)
+    db_lock = threading.RLock()
+    store = CreditStore(conn, db_lock)
 
     # Build a client with credits
     ledger = CreditLedger()
@@ -313,7 +316,8 @@ def test_credit_store_class_save_and_load():
     from tfp_demo.server import ContentStore, DemoNDNAdapter
 
     content_conn = sqlite3.connect(":memory:")
-    cs = ContentStore(content_conn)
+    content_db_lock = threading.RLock()
+    cs = ContentStore(content_conn, content_db_lock)
     client = TFPClient(ndn=DemoNDNAdapter(cs), ledger=ledger)
     client._earned_receipts = [r1, r2]
 
@@ -321,9 +325,10 @@ def test_credit_store_class_save_and_load():
 
     # Wipe in-memory state and reload
     conn2 = sqlite3.connect(":memory:")
+    db_lock2 = threading.RLock()
     # Copy schema + data via backup
     conn.backup(conn2)
-    store2 = CreditStore(conn2)
+    store2 = CreditStore(conn2, db_lock2)
 
     # CreditStore.load needs _content_store set; patch temporarily
     import tfp_demo.server as srv

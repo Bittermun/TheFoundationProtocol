@@ -67,9 +67,9 @@ class ContentStore:
     on construction and kept in sync on every ``put``.
     """
 
-    def __init__(self, conn: sqlite3.Connection) -> None:
+    def __init__(self, conn: sqlite3.Connection, db_lock: threading.RLock) -> None:
         self._conn = conn
-        self._lock = threading.Lock()
+        self._db_lock = db_lock
         self._tag_index: Dict[str, set] = {}  # tag → {root_hash, ...}
         self._init_schema()
         self._rebuild_tag_index()
@@ -96,7 +96,7 @@ class ContentStore:
                 self._tag_index.setdefault(tag, set()).add(root_hash)
 
     def put(self, item: StoredContent) -> None:
-        with self._lock:
+        with self._db_lock:
             self._conn.execute(
                 "INSERT OR REPLACE INTO content (root_hash, title, tags, data) VALUES (?, ?, ?, ?)",
                 (item.root_hash, item.title, json.dumps(item.tags), item.data),
@@ -106,52 +106,56 @@ class ContentStore:
                 self._tag_index.setdefault(tag, set()).add(item.root_hash)
 
     def get(self, root_hash: str) -> Optional[StoredContent]:
-        row = self._conn.execute(
-            "SELECT root_hash, title, tags, data FROM content WHERE root_hash = ?",
-            (root_hash,),
-        ).fetchone()
-        if row is None:
-            return None
-        return StoredContent(
-            root_hash=row[0],
-            title=row[1],
-            tags=json.loads(row[2]),
-            data=row[3],
-        )
+        with self._db_lock:
+            row = self._conn.execute(
+                "SELECT root_hash, title, tags, data FROM content WHERE root_hash = ?",
+                (root_hash,),
+            ).fetchone()
+            if row is None:
+                return None
+            return StoredContent(
+                root_hash=row[0],
+                title=row[1],
+                tags=json.loads(row[2]),
+                data=row[3],
+            )
 
     def all(self, limit: int = 100, offset: int = 0) -> List[StoredContent]:
-        rows = self._conn.execute(
-            "SELECT root_hash, title, tags, data FROM content ORDER BY rowid DESC LIMIT ? OFFSET ?",
-            (limit, offset),
-        ).fetchall()
-        return [
-            StoredContent(root_hash=r[0], title=r[1], tags=json.loads(r[2]), data=r[3])
-            for r in rows
-        ]
+        with self._db_lock:
+            rows = self._conn.execute(
+                "SELECT root_hash, title, tags, data FROM content ORDER BY rowid DESC LIMIT ? OFFSET ?",
+                (limit, offset),
+            ).fetchall()
+            return [
+                StoredContent(root_hash=r[0], title=r[1], tags=json.loads(r[2]), data=r[3])
+                for r in rows
+            ]
 
     def filter_by_tag(
         self, tag: str, limit: int = 100, offset: int = 0
     ) -> List[StoredContent]:
         """Return items matching *tag* using the in-memory index (O(n_matches))."""
-        hashes = self._tag_index.get(tag, set())
-        if not hashes:
-            return []
-        # Use parameterized query with validated hash values to prevent SQL injection
-        placeholders = ",".join("?" * len(hashes))
-        rows = self._conn.execute(
-            "SELECT root_hash, title, tags, data FROM content"
-            f" WHERE root_hash IN ({placeholders})"
-            " ORDER BY rowid DESC LIMIT ? OFFSET ?",
-            [*list(hashes), limit, offset],
-        ).fetchall()
-        return [
-            StoredContent(root_hash=r[0], title=r[1], tags=json.loads(r[2]), data=r[3])
-            for r in rows
-        ]
+        with self._db_lock:
+            hashes = self._tag_index.get(tag, set())
+            if not hashes:
+                return []
+            # Use parameterized query with validated hash values to prevent SQL injection
+            placeholders = ",".join("?" * len(hashes))
+            rows = self._conn.execute(
+                "SELECT root_hash, title, tags, data FROM content"
+                f" WHERE root_hash IN ({placeholders})"
+                " ORDER BY rowid DESC LIMIT ? OFFSET ?",
+                [*list(hashes), limit, offset],
+            ).fetchall()
+            return [
+                StoredContent(root_hash=r[0], title=r[1], tags=json.loads(r[2]), data=r[3])
+                for r in rows
+            ]
 
     def count_tag(self, tag: str) -> int:
         """Return the number of items matching tag."""
-        return len(self._tag_index.get(tag, set()))
+        with self._db_lock:
+            return len(self._tag_index.get(tag, set()))
 
     def filter_by_tags(
         self, tags: List[str], limit: int = 100, offset: int = 0
@@ -162,39 +166,43 @@ class ContentStore:
         Uses the in-memory tag index to collect root hashes, then does a
         single bulk IN-query — O(n_matches), not O(N_total).
         """
-        hashes: set = set()
-        for tag in tags:
-            hashes |= self._tag_index.get(tag, set())
-        if not hashes:
-            return []
-        # Use parameterized query with validated hash values to prevent SQL injection
-        placeholders = ",".join("?" * len(hashes))
-        rows = self._conn.execute(
-            "SELECT root_hash, title, tags, data FROM content"
-            f" WHERE root_hash IN ({placeholders})"
-            " ORDER BY rowid DESC LIMIT ? OFFSET ?",
-            [*list(hashes), limit, offset],
-        ).fetchall()
-        return [
-            StoredContent(root_hash=r[0], title=r[1], tags=json.loads(r[2]), data=r[3])
-            for r in rows
-        ]
+        with self._db_lock:
+            hashes: set = set()
+            for tag in tags:
+                hashes |= self._tag_index.get(tag, set())
+            if not hashes:
+                return []
+            # Use parameterized query with validated hash values to prevent SQL injection
+            placeholders = ",".join("?" * len(hashes))
+            rows = self._conn.execute(
+                "SELECT root_hash, title, tags, data FROM content"
+                f" WHERE root_hash IN ({placeholders})"
+                " ORDER BY rowid DESC LIMIT ? OFFSET ?",
+                [*list(hashes), limit, offset],
+            ).fetchall()
+            return [
+                StoredContent(root_hash=r[0], title=r[1], tags=json.loads(r[2]), data=r[3])
+                for r in rows
+            ]
 
     def count_tags(self, tags: List[str]) -> int:
         """Return total items matching ANY of the given tags."""
-        hashes: set = set()
-        for tag in tags:
-            hashes |= self._tag_index.get(tag, set())
-        return len(hashes)
+        with self._db_lock:
+            hashes: set = set()
+            for tag in tags:
+                hashes |= self._tag_index.get(tag, set())
+            return len(hashes)
 
     def contains(self, root_hash: str) -> bool:
-        row = self._conn.execute(
-            "SELECT 1 FROM content WHERE root_hash = ?", (root_hash,)
-        ).fetchone()
-        return row is not None
+        with self._db_lock:
+            row = self._conn.execute(
+                "SELECT 1 FROM content WHERE root_hash = ?", (root_hash,)
+            ).fetchone()
+            return row is not None
 
     def count(self) -> int:
-        return self._conn.execute("SELECT COUNT(*) FROM content").fetchone()[0]
+        with self._db_lock:
+            return self._conn.execute("SELECT COUNT(*) FROM content").fetchone()[0]
 
 
 # ---------------------------------------------------------------------------
@@ -205,25 +213,26 @@ class ContentStore:
 class DeviceRegistry:
     """Stores enrolled device PUF entropy for request-signing verification."""
 
-    def __init__(self, conn: sqlite3.Connection) -> None:
+    def __init__(self, conn: sqlite3.Connection, db_lock: threading.RLock) -> None:
         self._conn = conn
-        self._lock = threading.Lock()
+        self._db_lock = db_lock
         self._init_schema()
 
     def _init_schema(self) -> None:
-        self._conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS devices (
-                device_id   TEXT PRIMARY KEY,
-                puf_entropy BLOB NOT NULL,
-                enrolled_at REAL NOT NULL
+        with self._db_lock:
+            self._conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS devices (
+                    device_id   TEXT PRIMARY KEY,
+                    puf_entropy BLOB NOT NULL,
+                    enrolled_at REAL NOT NULL
+                )
+                """
             )
-            """
-        )
-        self._conn.commit()
+            self._conn.commit()
 
     def enroll(self, device_id: str, puf_entropy: bytes) -> None:
-        with self._lock:
+        with self._db_lock:
             self._conn.execute(
                 "INSERT OR REPLACE INTO devices (device_id, puf_entropy, enrolled_at) "
                 "VALUES (?, ?, ?)",
@@ -232,17 +241,19 @@ class DeviceRegistry:
             self._conn.commit()
 
     def get_entropy(self, device_id: str) -> Optional[bytes]:
-        row = self._conn.execute(
-            "SELECT puf_entropy FROM devices WHERE device_id = ?", (device_id,)
-        ).fetchone()
-        return bytes(row[0]) if row else None
+        with self._db_lock:
+            row = self._conn.execute(
+                "SELECT puf_entropy FROM devices WHERE device_id = ?", (device_id,)
+            ).fetchone()
+            return bytes(row[0]) if row else None
 
     def is_enrolled(self, device_id: str) -> bool:
         return self.get_entropy(device_id) is not None
 
     def count(self) -> int:
         """Return the total number of enrolled devices."""
-        return self._conn.execute("SELECT COUNT(*) FROM devices").fetchone()[0]
+        with self._db_lock:
+            return self._conn.execute("SELECT COUNT(*) FROM devices").fetchone()[0]
 
 
 def _verify_device_sig(
@@ -273,27 +284,28 @@ class EarnLog:
     HTTP 409 rather than silently minting extra credits.
     """
 
-    def __init__(self, conn: sqlite3.Connection) -> None:
+    def __init__(self, conn: sqlite3.Connection, db_lock: threading.RLock) -> None:
         self._conn = conn
-        self._lock = threading.Lock()
+        self._db_lock = db_lock
         self._init_schema()
 
     def _init_schema(self) -> None:
-        self._conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS earn_log (
-                device_id TEXT NOT NULL,
-                task_id   TEXT NOT NULL,
-                earned_at REAL NOT NULL,
-                PRIMARY KEY (device_id, task_id)
+        with self._db_lock:
+            self._conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS earn_log (
+                    device_id TEXT NOT NULL,
+                    task_id   TEXT NOT NULL,
+                    earned_at REAL NOT NULL,
+                    PRIMARY KEY (device_id, task_id)
+                )
+                """
             )
-            """
-        )
-        self._conn.commit()
+            self._conn.commit()
 
     def record(self, device_id: str, task_id: str) -> bool:
         """Attempt to record an earn event.  Returns True if new, False if duplicate."""
-        with self._lock:
+        with self._db_lock:
             try:
                 self._conn.execute(
                     "INSERT INTO earn_log (device_id, task_id, earned_at) VALUES (?, ?, ?)",
@@ -318,30 +330,31 @@ class CreditStore:
     the ledger can be fully reconstructed after a server restart.
     """
 
-    def __init__(self, conn: sqlite3.Connection) -> None:
+    def __init__(self, conn: sqlite3.Connection, db_lock: threading.RLock) -> None:
         self._conn = conn
-        self._lock = threading.Lock()
+        self._db_lock = db_lock
         self._init_schema()
 
     def _init_schema(self) -> None:
-        self._conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS credit_ledger (
-                device_id             TEXT PRIMARY KEY,
-                balance               INTEGER NOT NULL DEFAULT 0,
-                chain_json            TEXT    NOT NULL DEFAULT '[]',
-                unspent_receipts_json TEXT    NOT NULL DEFAULT '[]'
+        with self._db_lock:
+            self._conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS credit_ledger (
+                    device_id             TEXT PRIMARY KEY,
+                    balance               INTEGER NOT NULL DEFAULT 0,
+                    chain_json            TEXT    NOT NULL DEFAULT '[]',
+                    unspent_receipts_json TEXT    NOT NULL DEFAULT '[]'
+                )
+                """
             )
-            """
-        )
-        self._conn.commit()
+            self._conn.commit()
 
     def save(self, device_id: str, client: "TFPClient") -> None:
         """Persist the client's current ledger + unspent receipts."""
         chain_json = json.dumps([h.hex() for h in client.ledger.chain])
         balance = client.ledger.balance
         unspent_json = json.dumps([r.chain_hash.hex() for r in client._earned_receipts])
-        with self._lock:
+        with self._db_lock:
             self._conn.execute(
                 """
                 INSERT INTO credit_ledger (device_id, balance, chain_json, unspent_receipts_json)
@@ -360,22 +373,23 @@ class CreditStore:
         Restore a TFPClient with a persisted ledger, or return None if no
         record exists for this device.
         """
-        row = self._conn.execute(
-            "SELECT balance, chain_json, unspent_receipts_json FROM credit_ledger WHERE device_id = ?",
-            (device_id,),
-        ).fetchone()
-        if row is None:
-            return None
-        balance, chain_json, unspent_json = row
-        chain = [bytes.fromhex(h) for h in json.loads(chain_json)]
-        ledger = CreditLedger.from_snapshot(chain, balance)
-        unspent_receipts = [
-            Receipt(chain_hash=bytes.fromhex(h), credits=10)
-            for h in json.loads(unspent_json)
-        ]
-        client = TFPClient(ndn=DemoNDNAdapter(_content_store), ledger=ledger)
-        client._earned_receipts = unspent_receipts
-        return client
+        with self._db_lock:
+            row = self._conn.execute(
+                "SELECT balance, chain_json, unspent_receipts_json FROM credit_ledger WHERE device_id = ?",
+                (device_id,),
+            ).fetchone()
+            if row is None:
+                return None
+            balance, chain_json, unspent_json = row
+            chain = [bytes.fromhex(h) for h in json.loads(chain_json)]
+            ledger = CreditLedger.from_snapshot(chain, balance)
+            unspent_receipts = [
+                Receipt(chain_hash=bytes.fromhex(h), credits=10)
+                for h in json.loads(unspent_json)
+            ]
+            client = TFPClient(ndn=DemoNDNAdapter(_content_store), ledger=ledger)
+            client._earned_receipts = unspent_receipts
+            return client
 
 
 # ---------------------------------------------------------------------------
@@ -397,8 +411,9 @@ class TaskStore:
         "content_verify": generate_content_verify_task,
     }
 
-    def __init__(self, conn: sqlite3.Connection) -> None:
+    def __init__(self, conn: sqlite3.Connection, db_lock: threading.RLock) -> None:
         self._conn = conn
+        self._db_lock = db_lock
         self._habp = HABPVerifier(consensus_threshold=3, redundancy_factor=5)
         self._credit_formula = CreditFormula()
         # RLock so that submit_result() (outer) can call increment_total_minted() (inner)
@@ -407,7 +422,8 @@ class TaskStore:
         self._init_schema()
 
     def _init_schema(self) -> None:
-        self._conn.executescript(
+        with self._db_lock:
+            self._conn.executescript(
             """
             CREATE TABLE IF NOT EXISTS tasks (
                 task_id      TEXT PRIMARY KEY,
@@ -473,28 +489,30 @@ class TaskStore:
     # -- Supply tracking -------------------------------------------------------
 
     def get_total_minted(self) -> int:
-        row = self._conn.execute(
-            "SELECT total_minted FROM supply_ledger WHERE id = 1"
-        ).fetchone()
-        return row[0] if row else 0
+        with self._db_lock:
+            row = self._conn.execute(
+                "SELECT total_minted FROM supply_ledger WHERE id = 1"
+            ).fetchone()
+            return row[0] if row else 0
 
     def increment_total_minted(self, amount: int) -> int:
         """Atomically increment and return new total. Raises if cap exceeded."""
-        with self._lock:
-            current = self.get_total_minted()
-            if current + amount > MAX_SUPPLY:
-                from tfp_client.lib.credit.ledger import SupplyCapError
+        with self._db_lock:
+            with self._lock:
+                current = self.get_total_minted()
+                if current + amount > MAX_SUPPLY:
+                    from tfp_client.lib.credit.ledger import SupplyCapError
 
-                raise SupplyCapError(
-                    f"Global supply cap reached: {current}/{MAX_SUPPLY}"
+                    raise SupplyCapError(
+                        f"Global supply cap reached: {current}/{MAX_SUPPLY}"
+                    )
+                new_total = current + amount
+                self._conn.execute(
+                    "UPDATE supply_ledger SET total_minted = ? WHERE id = 1",
+                    (new_total,),
                 )
-            new_total = current + amount
-            self._conn.execute(
-                "UPDATE supply_ledger SET total_minted = ? WHERE id = 1",
-                (new_total,),
-            )
-            self._conn.commit()
-            return new_total
+                self._conn.commit()
+                return new_total
 
     # -- Task lifecycle --------------------------------------------------------
 
@@ -512,50 +530,52 @@ class TaskStore:
             if gen is None:
                 raise ValueError(f"Unknown task_type: {task_type!r}")
             spec = gen(task_id=task_id, difficulty=difficulty, seed=seed)
-        self._conn.execute(
-            """
-            INSERT OR IGNORE INTO tasks
-              (task_id, task_type, difficulty, spec_json, status, created_at, deadline, credit_reward)
-            VALUES (?, ?, ?, ?, 'open', ?, ?, ?)
-            """,
-            (
-                spec.task_id,
-                spec.task_type.value,
-                spec.difficulty,
-                json.dumps(spec.to_dict()),
-                spec.created_at,
-                spec.deadline,
-                spec.credit_reward,
-            ),
-        )
-        self._conn.commit()
+        with self._db_lock:
+            self._conn.execute(
+                """
+                INSERT OR IGNORE INTO tasks
+                  (task_id, task_type, difficulty, spec_json, status, created_at, deadline, credit_reward)
+                VALUES (?, ?, ?, ?, 'open', ?, ?, ?)
+                """,
+                (
+                    spec.task_id,
+                    spec.task_type.value,
+                    spec.difficulty,
+                    json.dumps(spec.to_dict()),
+                    spec.created_at,
+                    spec.deadline,
+                    spec.credit_reward,
+                ),
+            )
+            self._conn.commit()
         return spec
 
     def list_open_tasks(self, limit: int = 20) -> List[dict]:
         """Return open tasks suitable for device consumption (reaps expired first)."""
         self.reap_expired_tasks()
         now = time.time()
-        rows = self._conn.execute(
-            """
-            SELECT task_id, task_type, difficulty, credit_reward, deadline
-            FROM tasks
-            WHERE status = 'open' AND deadline > ?
-            ORDER BY created_at
-            LIMIT ?
-            """,
-            (now, limit),
-        ).fetchall()
-        return [
-            {
-                "task_id": r[0],
-                "task_type": r[1],
-                "difficulty": r[2],
-                "credit_reward": r[3],
-                "deadline": r[4],
-                "time_left_s": round(r[4] - now),
-            }
-            for r in rows
-        ]
+        with self._db_lock:
+            rows = self._conn.execute(
+                """
+                SELECT task_id, task_type, difficulty, credit_reward, deadline
+                FROM tasks
+                WHERE status = 'open' AND deadline > ?
+                ORDER BY created_at
+                LIMIT ?
+                """,
+                (now, limit),
+            ).fetchall()
+            return [
+                {
+                    "task_id": r[0],
+                    "task_type": r[1],
+                    "difficulty": r[2],
+                    "credit_reward": r[3],
+                    "deadline": r[4],
+                    "time_left_s": round(r[4] - now),
+                }
+                for r in rows
+            ]
 
     def reap_expired_tasks(self) -> int:
         """
@@ -565,45 +585,48 @@ class TaskStore:
         open tasks so the pool never shows stale entries.
         """
         now = time.time()
-        with self._lock:
-            cur = self._conn.execute(
-                """
-                UPDATE tasks SET status = 'failed'
-                WHERE status IN ('open', 'verifying') AND deadline < ?
-                """,
-                (now,),
-            )
-            self._conn.commit()
-            reaped = cur.rowcount
+        with self._db_lock:
+            with self._lock:
+                cur = self._conn.execute(
+                    """
+                    UPDATE tasks SET status = 'failed'
+                    WHERE status IN ('open', 'verifying') AND deadline < ?
+                    """,
+                    (now,),
+                )
+                self._conn.commit()
+                reaped = cur.rowcount
         if reaped:
             log.info("Reaped %d expired tasks", reaped)
         return reaped
 
     def get_spec(self, task_id: str) -> Optional[TaskSpec]:
-        row = self._conn.execute(
-            "SELECT spec_json FROM tasks WHERE task_id = ?", (task_id,)
-        ).fetchone()
-        if row is None:
-            return None
-        return TaskSpec.from_dict(json.loads(row[0]))
+        with self._db_lock:
+            row = self._conn.execute(
+                "SELECT spec_json FROM tasks WHERE task_id = ?", (task_id,)
+            ).fetchone()
+            if row is None:
+                return None
+            return TaskSpec.from_dict(json.loads(row[0]))
 
     def get_task_row(self, task_id: str) -> Optional[dict]:
-        row = self._conn.execute(
-            "SELECT task_id, task_type, difficulty, status, credit_reward, created_at, deadline "
-            "FROM tasks WHERE task_id = ?",
-            (task_id,),
-        ).fetchone()
-        if row is None:
-            return None
-        return {
-            "task_id": row[0],
-            "task_type": row[1],
-            "difficulty": row[2],
-            "status": row[3],
-            "credit_reward": row[4],
-            "created_at": row[5],
-            "deadline": row[6],
-        }
+        with self._db_lock:
+            row = self._conn.execute(
+                "SELECT task_id, task_type, difficulty, status, credit_reward, created_at, deadline "
+                "FROM tasks WHERE task_id = ?",
+                (task_id,),
+            ).fetchone()
+            if row is None:
+                return None
+            return {
+                "task_id": row[0],
+                "task_type": row[1],
+                "difficulty": row[2],
+                "status": row[3],
+                "credit_reward": row[4],
+                "created_at": row[5],
+                "deadline": row[6],
+            }
 
     def submit_result(
         self,
@@ -619,118 +642,120 @@ class TaskStore:
         Returns a dict with keys: status, verified, credits_earned (0 if not yet verified),
         and consensus_needed (how many more proofs are required for consensus).
 
-        The entire method runs under ``self._lock`` to serialise concurrent
+        The entire method runs under both locks to serialize concurrent
         submissions and prevent HABP proof accumulation (self-mint attack).
         """
-        with self._lock:
-            task_row = self.get_task_row(task_id)
-            if task_row is None:
-                raise HTTPException(status_code=404, detail="task not found")
-            if task_row["status"] in ("completed", "failed"):
-                raise HTTPException(status_code=409, detail="task already finalised")
-            if time.time() > task_row["deadline"]:
+        with self._db_lock:
+            with self._lock:
+                task_row = self.get_task_row(task_id)
+                if task_row is None:
+                    raise HTTPException(status_code=404, detail="task not found")
+                if task_row["status"] in ("completed", "failed"):
+                    raise HTTPException(status_code=409, detail="task already finalised")
+                if time.time() > task_row["deadline"]:
+                    self._conn.execute(
+                        "UPDATE tasks SET status = 'failed' WHERE task_id = ?", (task_id,)
+                    )
+                    self._conn.commit()
+                    raise HTTPException(status_code=410, detail="task deadline passed")
+
+                # Record result — UNIQUE(task_id, device_id) prevents duplicate rows.
+                # Check rowcount: if 0 the device already submitted for this task and
+                # we must NOT add another HABP proof (would allow a single device to
+                # accumulate enough proofs to reach consensus alone — self-mint attack).
+                cursor = self._conn.execute(
+                    """
+                    INSERT OR IGNORE INTO task_results
+                      (task_id, device_id, output_hash, exec_time_s, has_tee, submitted_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        task_id,
+                        device_id,
+                        output_hash,
+                        exec_time_s,
+                        int(has_tee),
+                        time.time(),
+                    ),
+                )
+                if cursor.rowcount == 0:
+                    raise HTTPException(
+                        status_code=409,
+                        detail="result already submitted for this device and task",
+                    )
                 self._conn.execute(
-                    "UPDATE tasks SET status = 'failed' WHERE task_id = ?", (task_id,)
-                )
-                self._conn.commit()
-                raise HTTPException(status_code=410, detail="task deadline passed")
-
-            # Record result — UNIQUE(task_id, device_id) prevents duplicate rows.
-            # Check rowcount: if 0 the device already submitted for this task and
-            # we must NOT add another HABP proof (would allow a single device to
-            # accumulate enough proofs to reach consensus alone — self-mint attack).
-            cursor = self._conn.execute(
-                """
-                INSERT OR IGNORE INTO task_results
-                  (task_id, device_id, output_hash, exec_time_s, has_tee, submitted_at)
-                VALUES (?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    task_id,
-                    device_id,
-                    output_hash,
-                    exec_time_s,
-                    int(has_tee),
-                    time.time(),
-                ),
-            )
-            if cursor.rowcount == 0:
-                raise HTTPException(
-                    status_code=409,
-                    detail="result already submitted for this device and task",
-                )
-            self._conn.execute(
-                "UPDATE tasks SET status = 'verifying' WHERE task_id = ? AND status = 'open'",
-                (task_id,),
-            )
-            self._conn.commit()
-
-            # Build HABP proof and attempt consensus
-            proof = generate_execution_proof(
-                device_id=device_id,
-                task_id=task_id,
-                output_data=bytes.fromhex(output_hash)
-                if len(output_hash) == 64
-                else output_hash.encode(),
-                execution_time=exec_time_s,
-                has_tee=has_tee,
-            )
-            # Override the output_hash with what the device reported
-            proof.output_hash = output_hash
-            self._habp.submit_proof(proof)
-
-            consensus = self._habp.verify_consensus(task_id)
-            if consensus and consensus.verified:
-                # Mark completed and compute credits
-                calc = self._credit_formula.calculate_credits(
-                    difficulty=task_row["difficulty"],
-                    hardware_trust=consensus.credit_weight,
-                    uptime_hours=24.0,
-                    verification_confidence=consensus.confidence,
-                    is_charging=False,
-                )
-                credits = calc.final_credits
-                self._conn.execute(
-                    "UPDATE tasks SET status = 'completed' WHERE task_id = ?",
+                    "UPDATE tasks SET status = 'verifying' WHERE task_id = ? AND status = 'open'",
                     (task_id,),
                 )
                 self._conn.commit()
-                return {
-                    "status": "verified",
-                    "verified": True,
-                    "credits_earned": credits,
-                    "consensus_needed": 0,
-                    "matching_devices": consensus.matching_devices,
-                    "confidence": consensus.confidence,
-                }
 
-            # Count current proofs
-            proof_count = self._habp.get_proof_count(task_id)
-            needed = max(0, 3 - proof_count)
-            return {
-                "status": "pending_consensus",
-                "verified": False,
-                "credits_earned": 0,
-                "consensus_needed": needed,
-                "proofs_received": proof_count,
-            }
+                # Build HABP proof and attempt consensus
+                proof = generate_execution_proof(
+                    device_id=device_id,
+                    task_id=task_id,
+                    output_data=bytes.fromhex(output_hash)
+                    if len(output_hash) == 64
+                    else output_hash.encode(),
+                    execution_time=exec_time_s,
+                    has_tee=has_tee,
+                )
+                # Override the output_hash with what the device reported
+                proof.output_hash = output_hash
+                self._habp.submit_proof(proof)
+
+                consensus = self._habp.verify_consensus(task_id)
+                if consensus and consensus.verified:
+                    # Mark completed and compute credits
+                    calc = self._credit_formula.calculate_credits(
+                        difficulty=task_row["difficulty"],
+                        hardware_trust=consensus.credit_weight,
+                        uptime_hours=24.0,
+                        verification_confidence=consensus.confidence,
+                        is_charging=False,
+                    )
+                    credits = calc.final_credits
+                    self._conn.execute(
+                        "UPDATE tasks SET status = 'completed' WHERE task_id = ?",
+                        (task_id,),
+                    )
+                    self._conn.commit()
+                    return {
+                        "status": "verified",
+                        "verified": True,
+                        "credits_earned": credits,
+                        "consensus_needed": 0,
+                        "matching_devices": consensus.matching_devices,
+                        "confidence": consensus.confidence,
+                    }
+
+                # Count current proofs
+                proof_count = self._habp.get_proof_count(task_id)
+                needed = max(0, 3 - proof_count)
+                return {
+                    "status": "pending_consensus",
+                    "verified": False,
+                    "credits_earned": 0,
+                    "consensus_needed": needed,
+                    "proofs_received": proof_count,
+                }
 
     def stats(self) -> dict:
         """Return aggregate task statistics."""
-        rows = self._conn.execute(
-            "SELECT status, COUNT(*) FROM tasks GROUP BY status"
-        ).fetchall()
-        counts = {r[0]: r[1] for r in rows}
-        return {
-            "open": counts.get("open", 0),
-            "verifying": counts.get("verifying", 0),
-            "completed": counts.get("completed", 0),
-            "failed": counts.get("failed", 0),
-            "total": sum(counts.values()),
-            "total_minted": self.get_total_minted(),
-            "supply_cap": MAX_SUPPLY,
-            "supply_remaining": MAX_SUPPLY - self.get_total_minted(),
-        }
+        with self._db_lock:
+            rows = self._conn.execute(
+                "SELECT status, COUNT(*) FROM tasks GROUP BY status"
+            ).fetchall()
+            counts = {r[0]: r[1] for r in rows}
+            return {
+                "open": counts.get("open", 0),
+                "verifying": counts.get("verifying", 0),
+                "completed": counts.get("completed", 0),
+                "failed": counts.get("failed", 0),
+                "total": sum(counts.values()),
+                "total_minted": self.get_total_minted(),
+                "supply_cap": MAX_SUPPLY,
+                "supply_remaining": MAX_SUPPLY - self.get_total_minted(),
+            }
 
     def device_leaderboard(self, limit: int = 50) -> List[dict]:
         """
@@ -739,64 +764,66 @@ class TaskStore:
         Joins the devices table with credit_ledger for balance and
         task_results for number of tasks contributed.
         """
-        rows = self._conn.execute(
-            """
-            SELECT
-                d.device_id,
-                d.enrolled_at,
-                COALESCE(cl.balance, 0)          AS credits_balance,
-                COUNT(DISTINCT tr.task_id)        AS tasks_contributed,
-                MAX(tr.submitted_at)              AS last_active
-            FROM devices d
-            LEFT JOIN credit_ledger cl ON cl.device_id = d.device_id
-            LEFT JOIN task_results   tr ON tr.device_id = d.device_id
-            GROUP BY d.device_id
-            ORDER BY credits_balance DESC, tasks_contributed DESC
-            LIMIT ?
-            """,
-            (limit,),
-        ).fetchall()
-        return [
-            {
-                "device_id": r[0],
-                "enrolled_at": r[1],
-                "credits_balance": r[2],
-                "tasks_contributed": r[3],
-                "last_active": r[4],
-            }
-            for r in rows
-        ]
+        with self._db_lock:
+            rows = self._conn.execute(
+                """
+                SELECT
+                    d.device_id,
+                    d.enrolled_at,
+                    COALESCE(cl.balance, 0)          AS credits_balance,
+                    COUNT(DISTINCT tr.task_id)        AS tasks_contributed,
+                    MAX(tr.submitted_at)              AS last_active
+                FROM devices d
+                LEFT JOIN credit_ledger cl ON cl.device_id = d.device_id
+                LEFT JOIN task_results   tr ON tr.device_id = d.device_id
+                GROUP BY d.device_id
+                ORDER BY credits_balance DESC, tasks_contributed DESC
+                LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+            return [
+                {
+                    "device_id": r[0],
+                    "enrolled_at": r[1],
+                    "credits_balance": r[2],
+                    "tasks_contributed": r[3],
+                    "last_active": r[4],
+                }
+                for r in rows
+            ]
 
     def device_stats(self, device_id: str) -> Optional[dict]:
         """
         Return stats for a single device — O(1) direct query.
         Returns None if the device has never contributed a task.
         """
-        row = self._conn.execute(
-            """
-            SELECT
-                d.device_id,
-                d.enrolled_at,
-                COALESCE(cl.balance, 0)          AS credits_balance,
-                COUNT(DISTINCT tr.task_id)        AS tasks_contributed,
-                MAX(tr.submitted_at)              AS last_active
-            FROM devices d
-            LEFT JOIN credit_ledger cl ON cl.device_id = d.device_id
-            LEFT JOIN task_results   tr ON tr.device_id = d.device_id
-            WHERE d.device_id = ?
-            GROUP BY d.device_id
-            """,
-            (device_id,),
-        ).fetchone()
-        if row is None:
-            return None
-        return {
-            "device_id": row[0],
-            "enrolled_at": row[1],
-            "credits_balance": row[2],
-            "tasks_contributed": row[3],
-            "last_active": row[4],
-        }
+        with self._db_lock:
+            row = self._conn.execute(
+                """
+                SELECT
+                    d.device_id,
+                    d.enrolled_at,
+                    COALESCE(cl.balance, 0)          AS credits_balance,
+                    COUNT(DISTINCT tr.task_id)        AS tasks_contributed,
+                    MAX(tr.submitted_at)              AS last_active
+                FROM devices d
+                LEFT JOIN credit_ledger cl ON cl.device_id = d.device_id
+                LEFT JOIN task_results   tr ON tr.device_id = d.device_id
+                WHERE d.device_id = ?
+                GROUP BY d.device_id
+                """,
+                (device_id,),
+            ).fetchone()
+            if row is None:
+                return None
+            return {
+                "device_id": row[0],
+                "enrolled_at": row[1],
+                "credits_balance": row[2],
+                "tasks_contributed": row[3],
+                "last_active": row[4],
+            }
 
 
 # ---------------------------------------------------------------------------
@@ -1111,11 +1138,13 @@ async def lifespan(_app: FastAPI):
     # Dramatically reduces "database is locked" errors under load.
     if db_path != ":memory:":
         _conn.execute("PRAGMA journal_mode=WAL")
-    _content_store = ContentStore(_conn)
-    _device_registry = DeviceRegistry(_conn)
-    _earn_log = EarnLog(_conn)
-    _credit_store = CreditStore(_conn)
-    _task_store = TaskStore(_conn)
+    # Single shared lock for all stores to serialize access to the shared connection
+    _db_lock = threading.RLock()
+    _content_store = ContentStore(_conn, _db_lock)
+    _device_registry = DeviceRegistry(_conn, _db_lock)
+    _earn_log = EarnLog(_conn, _db_lock)
+    _credit_store = CreditStore(_conn, _db_lock)
+    _task_store = TaskStore(_conn, _db_lock)
     _earn_rate_limiter = _RateLimiter(
         max_calls=_EARN_RATE_MAX, window_seconds=_EARN_RATE_WINDOW
     )

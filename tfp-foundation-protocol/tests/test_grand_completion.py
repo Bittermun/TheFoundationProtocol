@@ -24,6 +24,7 @@ import hmac as _hmac
 import json
 import os
 import sqlite3
+import threading
 
 os.environ["TFP_DB_PATH"] = ":memory:"
 
@@ -1085,7 +1086,8 @@ class TestTaskExpiryReaper:
         import time
 
         conn = sqlite3.connect(":memory:")
-        ts = TaskStore(conn)
+        db_lock = threading.RLock()
+        ts = TaskStore(conn, db_lock)
         # Manually insert an already-expired task
         spec_dict = {
             "task_id": "expired-001",
@@ -1112,7 +1114,8 @@ class TestTaskExpiryReaper:
         import time
 
         conn = sqlite3.connect(":memory:")
-        ts = TaskStore(conn)
+        db_lock = threading.RLock()
+        ts = TaskStore(conn, db_lock)
         spec_dict = {
             "task_id": "reap-001",
             "task_type": "hash_preimage",
@@ -1150,10 +1153,11 @@ class TestMetricsDbSeed:
         """After enrolling and earning in one TestClient, a fresh Metrics
         object seeded from the same connection should show the counts."""
         conn = sqlite3.connect(":memory:")
+        db_lock = threading.RLock()
         from tfp_demo.server import DeviceRegistry
 
         # Bootstrap the schema by creating a DeviceRegistry (creates devices table)
-        dr = DeviceRegistry(conn)
+        dr = DeviceRegistry(conn, db_lock)
         dr.enroll("seed-test-dev", os.urandom(32))
         # Create the content table stub (just count check)
         conn.execute(
@@ -1215,8 +1219,9 @@ class TestHABPRestartSurvival:
         import time
 
         conn = sqlite3.connect(":memory:")
+        db_lock = threading.RLock()
 
-        ts = TaskStore(conn)
+        ts = TaskStore(conn, db_lock)
         output_hash = "a" * 64
 
         # Create a task
@@ -1239,7 +1244,7 @@ class TestHABPRestartSurvival:
         conn.commit()
 
         # Create a NEW TaskStore (simulates restart) — it rebuilds HABP from DB
-        ts2 = TaskStore(conn)
+        ts2 = TaskStore(conn, db_lock)
         assert ts2._habp.get_proof_count(task_id) == 2
 
         # Third submission reaches consensus
@@ -1381,7 +1386,8 @@ class TestDeviceCountAccuracy:
         from tfp_demo.server import DeviceRegistry
 
         conn = _sqlite3.connect(":memory:")
-        dr = DeviceRegistry(conn)
+        db_lock = threading.RLock()
+        dr = DeviceRegistry(conn, db_lock)
         assert dr.count() == 0
         dr.enroll("d1", os.urandom(32))
         assert dr.count() == 1
@@ -1481,9 +1487,10 @@ class TestDeviceStatsDirect:
         from tfp_demo.server import CreditStore, DeviceRegistry
 
         conn = _sqlite3.connect(":memory:")
-        dr = DeviceRegistry(conn)
-        CreditStore(conn)  # creates credit_ledger table
-        ts = TaskStore(conn)
+        db_lock = threading.RLock()
+        dr = DeviceRegistry(conn, db_lock)
+        CreditStore(conn, db_lock)  # creates credit_ledger table
+        ts = TaskStore(conn, db_lock)
         dr.enroll("stats-dev", os.urandom(32))
         result = ts.device_stats("stats-dev")
         assert result is not None
@@ -1497,9 +1504,10 @@ class TestDeviceStatsDirect:
         from tfp_demo.server import CreditStore, DeviceRegistry
 
         conn = _sqlite3.connect(":memory:")
-        DeviceRegistry(conn)
-        CreditStore(conn)
-        ts = TaskStore(conn)
+        db_lock = threading.RLock()
+        DeviceRegistry(conn, db_lock)
+        CreditStore(conn, db_lock)
+        ts = TaskStore(conn, db_lock)
         assert ts.device_stats("ghost-device") is None
 
     def test_get_device_endpoint_ok(self):
@@ -1611,7 +1619,8 @@ class TestMultiTagSearch:
         from tfp_demo.server import ContentStore, StoredContent
 
         conn = _sqlite3.connect(":memory:")
-        cs = ContentStore(conn)
+        db_lock = threading.RLock()
+        cs = ContentStore(conn, db_lock)
         cs.put(StoredContent(root_hash="aa" * 32, title="A", tags=["x"], data=b"a"))
         cs.put(StoredContent(root_hash="bb" * 32, title="B", tags=["y"], data=b"b"))
         cs.put(StoredContent(root_hash="cc" * 32, title="C", tags=["z"], data=b"c"))

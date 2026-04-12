@@ -15,7 +15,6 @@ import os
 
 os.environ.setdefault("TFP_DB_PATH", ":memory:")
 
-import pytest
 from fastapi.testclient import TestClient
 from tfp_client.lib.compute.verify_habp import HABPVerifier, generate_execution_proof
 from tfp_demo.server import app

@@ -4,7 +4,7 @@
 # Operability smoke test for TFP Demo Node.
 #
 # Usage:
-#   ./scripts/smoke_test.sh [BASE_URL]
+#   ./scripts/smoke_test.sh [BASE_URL] [--ops-only]
 #
 # Defaults to http://localhost:8000.
 # Exits 0 when all checks pass, 1 on the first failure.
@@ -22,8 +22,22 @@
 
 set -euo pipefail
 
-BASE_URL="${1:-http://localhost:8000}"
-OPS_ONLY="${SMOKE_OPS_ONLY:-0}"
+BASE_URL="http://localhost:8000"
+OPS_ONLY="0"
+
+# Parse command-line arguments
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --ops-only)
+      OPS_ONLY="1"
+      shift
+      ;;
+    *)
+      BASE_URL="$1"
+      shift
+      ;;
+  esac
+done
 
 # ── Colour helpers ────────────────────────────────────────────────────────────
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
