@@ -2747,6 +2747,29 @@ def rag_reindex(
             ),
         )
 
+    # ── Path safety: resolve and validate against sensitive system paths ──
+    _SENSITIVE_PATH_PREFIXES = (
+        "/etc", "/proc", "/sys", "/dev", "/root", "/boot", "/run",
+    )
+    try:
+        resolved_dir = Path(payload.directory).resolve()
+    except (OSError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=f"invalid directory: {exc}") from exc
+    resolved_str = str(resolved_dir)
+    if any(
+        resolved_str == prefix or resolved_str.startswith(prefix + "/")
+        for prefix in _SENSITIVE_PATH_PREFIXES
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail="directory resolves to a restricted system path",
+        )
+    if not resolved_dir.is_dir():
+        raise HTTPException(
+            status_code=422,
+            detail=f"directory does not exist: {resolved_dir}",
+        )
+
     pattern_list: Optional[List[str]] = (
         [p.strip() for p in payload.patterns.split(",") if p.strip()]
         if payload.patterns
@@ -2755,13 +2778,13 @@ def rag_reindex(
 
     try:
         indexed = _rag_graph.index_directory(
-            payload.directory, patterns=pattern_list
+            str(resolved_dir), patterns=pattern_list
         )
     except Exception as exc:
         log.error("RAG reindex error: %s", exc)
         raise HTTPException(status_code=500, detail=f"reindex failed: {exc}") from exc
 
-    log.info("RAG reindex complete: %d chunks from %s", indexed, payload.directory)
+    log.info("RAG reindex complete: %d chunks from %s", indexed, resolved_dir)
     _metrics.inc("tfp_rag_reindex_total")
 
     # Publish a search-index summary to Nostr so peer nodes can detect drift.
@@ -2769,7 +2792,7 @@ def rag_reindex(
         try:
             stats = _rag_graph.get_stats()
             index_hash = hashlib.sha3_256(
-                f"{payload.directory}:{stats.get('total_chunks', 0)}".encode()
+                f"{resolved_dir}:{stats.get('total_chunks', 0)}".encode()
             ).hexdigest()
             _nostr_bridge.publish_search_index_summary(
                 domain="general",
@@ -2781,7 +2804,7 @@ def rag_reindex(
 
     return {
         "indexed_chunks": indexed,
-        "directory": payload.directory,
+        "directory": str(resolved_dir),
         "rag_stats": _rag_graph.get_stats(),
     }
 

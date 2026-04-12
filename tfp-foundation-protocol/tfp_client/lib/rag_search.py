@@ -308,7 +308,7 @@ class RAGGraph:
                 "venv",
             ]
 
-        root_path = Path(directory)
+        root_path = Path(directory).resolve()
         if not root_path.exists():
             logger.error(f"Directory not found: {directory}")
             return 0

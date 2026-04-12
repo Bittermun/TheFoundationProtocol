@@ -274,12 +274,36 @@ def test_rag_reindex_with_mock_rag_returns_indexed_count():
             assert r.status_code == 200
             data = r.json()
             assert data["indexed_chunks"] == 42
-            assert data["directory"] == "./tfp_client"
+            # directory is returned as the resolved absolute path
+            from pathlib import Path
+
+            assert Path(data["directory"]).is_absolute()
         finally:
             srv._rag_graph = original
 
 
-def test_rag_reindex_metric_incremented():
+def test_rag_reindex_rejects_sensitive_path():
+    """Directories resolving to sensitive system paths return 422."""
+    import tfp_demo.server as srv
+
+    with TestClient(app) as client:
+        puf = os.urandom(32)
+        did = "rag-pathsec-dev"
+        _enroll(client, did, puf)
+
+        original = srv._rag_graph
+        srv._rag_graph = _make_mock_rag()
+        try:
+            msg = f"{did}:reindex:/etc"
+            sig = _sig(puf, msg)
+            r = client.post(
+                "/api/admin/rag/reindex",
+                json={"device_id": did, "directory": "/etc"},
+                headers={"X-Device-Sig": sig},
+            )
+            assert r.status_code == 422
+        finally:
+            srv._rag_graph = original
     import tfp_demo.server as srv
 
     with TestClient(app) as client:
