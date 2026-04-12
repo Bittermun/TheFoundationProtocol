@@ -8,11 +8,10 @@ Marked with @pytest.mark.concurrency so they can be selectively run by the CI
 security job: ``pytest -m concurrency``
 """
 
-import hashlib
 import os
 import sqlite3
 import threading
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 
 os.environ.setdefault("TFP_DB_PATH", ":memory:")
 
@@ -30,16 +29,18 @@ pytestmark = pytest.mark.concurrency
 
 def _make_store() -> tuple[sqlite3.Connection, TaskStore]:
     conn = sqlite3.connect(":memory:", check_same_thread=False)
-    store = TaskStore(conn)
+    db_lock = threading.RLock()
+    store = TaskStore(conn, db_lock)
     return conn, store
 
 
 def _output_hash(tag: str) -> str:
+    import hashlib
     return hashlib.sha3_256(tag.encode()).hexdigest()
 
 
 def _device_enroll(conn: sqlite3.Connection, device_id: str) -> None:
-    reg = DeviceRegistry(conn)
+    reg = DeviceRegistry(conn, threading.RLock())
     reg.enroll(device_id, os.urandom(32))
 
 
@@ -51,7 +52,8 @@ def _device_enroll(conn: sqlite3.Connection, device_id: str) -> None:
 def test_concurrent_enrollments_no_crash():
     """Concurrent enroll calls for distinct devices must all succeed without errors."""
     conn = sqlite3.connect(":memory:", check_same_thread=False)
-    reg = DeviceRegistry(conn)
+    db_lock = threading.RLock()
+    reg = DeviceRegistry(conn, db_lock)
     errors = []
     lock = threading.Lock()
 
@@ -78,7 +80,8 @@ def test_concurrent_earn_log_idempotent():
     once across all racing threads and False for every subsequent duplicate.
     """
     conn = sqlite3.connect(":memory:", check_same_thread=False)
-    earn_log = EarnLog(conn)
+    db_lock = threading.RLock()
+    earn_log = EarnLog(conn, db_lock)
     device_id = "conc-earn-dev"
     task_id = "conc-task-abc"
 
@@ -217,7 +220,8 @@ def test_supply_cap_enforced_under_concurrent_mint():
     from tfp_client.lib.credit.ledger import MAX_SUPPLY, SupplyCapError
 
     conn = sqlite3.connect(":memory:", check_same_thread=False)
-    store = TaskStore(conn)
+    db_lock = threading.RLock()
+    store = TaskStore(conn, db_lock)
 
     MINT_AMOUNT = 3_000_000
     NUM_THREADS = 10  # 10 × 3M = 30M > 21M cap

@@ -9,7 +9,6 @@ comparison so there is no timing oracle.
 import hashlib
 import hmac as _hmac
 import os
-import time
 
 os.environ.setdefault("TFP_DB_PATH", ":memory:")
 
