@@ -16,7 +16,6 @@ import os
 
 os.environ.setdefault("TFP_DB_PATH", ":memory:")
 
-import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock
 
@@ -87,11 +86,6 @@ def test_publish_hlt_state_merkle_root_changes_when_hlt_changes():
 
 def test_on_nostr_event_kind_30078_updates_hlt():
     """A kind-30078 event must trigger HLT domain addition on the local tree."""
-    from tfp_demo.server import _hlt
-
-    if _hlt is None:
-        pytest.skip("HLT not initialised (start TestClient first)")
-
     domain_hash = hashlib.sha3_256(b"medical v1.0.0").hexdigest()
     event = NostrEvent.create(
         privkey=_TEST_PRIVKEY,
@@ -110,9 +104,13 @@ def test_on_nostr_event_kind_30078_updates_hlt():
             ["merkle_root", "abcd1234"],
         ],
     ).to_dict()
-    _on_nostr_event(event)
-    # After handling the event, HLT should have the medical domain
-    assert _hlt.has_domain("medical")
+    with TestClient(app) as _:
+        from tfp_demo.server import _hlt as hlt_ref
+
+        assert hlt_ref is not None
+        _on_nostr_event(event)
+        # After handling the event, HLT should have the medical domain
+        assert hlt_ref.has_domain("medical")
 
 
 def test_on_nostr_event_kind_30078_with_testclient():

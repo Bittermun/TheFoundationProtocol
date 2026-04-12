@@ -1,4 +1,4 @@
-# TFP v3.1 Foundation Protocol
+# TFP v3.2 Foundation Protocol
 
 **A decentralized content & compute protocol for global information access — uncensorable, efficient, and built for everyone.**
 
@@ -45,7 +45,7 @@ Create a **Global Information Commons** that works for pennies: anyone can publi
 - **Inclusive UX** — Zero-config installable PWA (Android/iOS), voice-first navigation, offline-first.
 - **Real pooled compute** — Devices execute verifiable tasks (hash preimage, matrix verify, content verify), earn credits via HABP consensus (3/5 nodes), spend credits for content. 21M supply cap.
 
-## Current Status (v3.1.x)
+## Current Status (v3.2.x)
 
 - ✅ Production-ready core (25k+ LOC, 154 Python files).
 - ✅ **732 tests passing, 1 skipped** — `TFP_DB_PATH=:memory: PYTHONPATH=. python -m pytest tests/ -q`

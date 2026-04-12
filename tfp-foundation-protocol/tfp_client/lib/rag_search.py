@@ -62,6 +62,7 @@ class RAGGraph:
         persist_directory: str = "./rag_storage",
         collection_name: str = "tfp_codebase",
         embedding_model: str = "microsoft/codebert-base",
+        model_revision: Optional[str] = None,
         chunk_size: int = 512,
         chunk_overlap: int = 128,
     ):
@@ -72,12 +73,15 @@ class RAGGraph:
             persist_directory: Directory to store ChromaDB data
             collection_name: Name of ChromaDB collection
             embedding_model: HuggingFace model for embeddings
+            model_revision: Required revision pin for remote HuggingFace models
             chunk_size: Size of text chunks in tokens
             chunk_overlap: Overlap between consecutive chunks
         """
         self.persist_directory = persist_directory
         self.collection_name = collection_name
         self.embedding_model_name = embedding_model
+        env_revision = os.environ.get("TFP_RAG_MODEL_REVISION", "").strip()
+        self.embedding_model_revision = model_revision or env_revision or None
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
 
@@ -95,9 +99,22 @@ class RAGGraph:
 
                 _transformers = True
 
+                local_model = Path(self.embedding_model_name).exists()
+                if not local_model and not self.embedding_model_revision:
+                    raise ValueError(
+                        "TFP_RAG_MODEL_REVISION must be set for remote HuggingFace models."
+                    )
+
                 logger.info(f"Loading {self.embedding_model_name}...")
-                _tokenizer = AutoTokenizer.from_pretrained(self.embedding_model_name)
-                _codebert_model = AutoModel.from_pretrained(self.embedding_model_name)
+                model_kwargs: Dict[str, Any] = {}
+                if self.embedding_model_revision:
+                    model_kwargs["revision"] = self.embedding_model_revision
+                _tokenizer = AutoTokenizer.from_pretrained(
+                    self.embedding_model_name, **model_kwargs
+                )
+                _codebert_model = AutoModel.from_pretrained(
+                    self.embedding_model_name, **model_kwargs
+                )
                 _codebert_model.eval()
                 logger.info("Model loaded successfully")
             except ImportError as e:

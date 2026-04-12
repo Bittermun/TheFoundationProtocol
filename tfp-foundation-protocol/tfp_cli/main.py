@@ -11,6 +11,11 @@ from json import JSONDecodeError
 import httpx
 from tfp_client.lib.compute.task_executor import TaskSpec, execute_task
 
+try:
+    from tfp_cli import identity as secure_identity
+except Exception:  # pragma: no cover - optional dependency path
+    secure_identity = None
+
 DEFAULT_API = "http://127.0.0.1:8000"
 
 # ---------------------------------------------------------------------------
@@ -22,7 +27,7 @@ def _identity_path() -> str:
     return os.path.join(os.path.expanduser("~"), ".tfp", "identity.json")
 
 
-def _load_or_create_identity(device_id: str) -> dict:
+def _legacy_load_or_create_identity(device_id: str) -> dict:
     """Load device identity or create a new one if not found."""
     path = _identity_path()
     os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -45,6 +50,22 @@ def _load_or_create_identity(device_id: str) -> dict:
     with open(path, "w") as f:
         json.dump(identities, f, indent=2)
     return {"device_id": device_id, "puf_entropy": puf_entropy}
+
+
+def _load_or_create_identity(
+    device_id: str, passphrase: str | None = None, mnemonic: str | None = None
+) -> dict:
+    passphrase = passphrase or None
+    mnemonic = mnemonic or None
+    if passphrase:
+        if secure_identity is None:
+            raise RuntimeError(
+                "Secure identity module unavailable; install security extras for encrypted identities."
+            )
+        return secure_identity.load_or_create_identity(
+            device_id=device_id, passphrase=passphrase, mnemonic=mnemonic
+        )
+    return _legacy_load_or_create_identity(device_id)
 
 
 def _make_sig(puf_entropy: bytes, message: str) -> str:
@@ -80,7 +101,9 @@ def _handle_error(response: httpx.Response) -> int:
 
 
 def cmd_publish(args) -> int:
-    identity = _load_or_create_identity(args.device_id)
+    identity = _load_or_create_identity(
+        args.device_id, args.identity_passphrase, args.identity_mnemonic
+    )
     puf_entropy = identity["puf_entropy"]
     _ensure_enrolled(args.api, args.device_id, puf_entropy)
     tags = [value.strip() for value in args.tags.split(",") if value.strip()]
@@ -116,7 +139,9 @@ def cmd_get(args) -> int:
 
 
 def cmd_earn(args) -> int:
-    identity = _load_or_create_identity(args.device_id)
+    identity = _load_or_create_identity(
+        args.device_id, args.identity_passphrase, args.identity_mnemonic
+    )
     puf_entropy = identity["puf_entropy"]
     _ensure_enrolled(args.api, args.device_id, puf_entropy)
     payload = {"device_id": args.device_id, "task_id": args.task_id}
@@ -231,7 +256,9 @@ def cmd_join(args) -> int:
 
     Press Ctrl-C to stop.
     """
-    identity = _load_or_create_identity(args.device_id)
+    identity = _load_or_create_identity(
+        args.device_id, args.identity_passphrase, args.identity_mnemonic
+    )
     device_id = identity["device_id"]
     puf_entropy = identity["puf_entropy"]
 
@@ -349,6 +376,16 @@ def cmd_join(args) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="tfp", description="TFP demo CLI")
     parser.add_argument("--api", default=DEFAULT_API, help="TFP demo API base URL")
+    parser.add_argument(
+        "--identity-passphrase",
+        default=os.environ.get("TFP_IDENTITY_PASSPHRASE", ""),
+        help="Passphrase for encrypted identity storage (v3.2 identity module)",
+    )
+    parser.add_argument(
+        "--identity-mnemonic",
+        default=os.environ.get("TFP_IDENTITY_MNEMONIC", ""),
+        help="Optional recovery mnemonic when creating encrypted identities",
+    )
 
     sub = parser.add_subparsers(dest="command", required=True)
 

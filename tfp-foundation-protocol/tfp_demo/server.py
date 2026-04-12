@@ -6,8 +6,10 @@ import logging
 import os
 import re
 import sqlite3
+import tempfile
 import threading
 import time
+import urllib.parse
 import urllib.request
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -423,10 +425,13 @@ class ContentStore:
             if not hashes:
                 return []
             placeholders = ",".join("?" * len(hashes))
-            rows = self._conn.execute(
+            query = (
                 "SELECT root_hash, title, tags, blob_path, cid, size_bytes, recipe_json"
-                f" FROM content WHERE root_hash IN ({placeholders})"
-                " ORDER BY rowid DESC LIMIT ? OFFSET ?",
+                f" FROM content WHERE root_hash IN ({placeholders})"  # nosec B608
+                " ORDER BY rowid DESC LIMIT ? OFFSET ?"
+            )
+            rows = self._conn.execute(
+                query,
                 [*list(hashes), limit, offset],
             ).fetchall()
             return [self._row_to_stored_content(r) for r in rows]
@@ -452,10 +457,13 @@ class ContentStore:
             if not hashes:
                 return []
             placeholders = ",".join("?" * len(hashes))
-            rows = self._conn.execute(
+            query = (
                 "SELECT root_hash, title, tags, blob_path, cid, size_bytes, recipe_json"
-                f" FROM content WHERE root_hash IN ({placeholders})"
-                " ORDER BY rowid DESC LIMIT ? OFFSET ?",
+                f" FROM content WHERE root_hash IN ({placeholders})"  # nosec B608
+                " ORDER BY rowid DESC LIMIT ? OFFSET ?"
+            )
+            rows = self._conn.execute(
+                query,
                 [*list(hashes), limit, offset],
             ).fetchall()
             return [self._row_to_stored_content(r) for r in rows]
@@ -1446,7 +1454,16 @@ class _PeerFallback:
     """
 
     def __init__(self, peer_urls: List[str], peer_secret: str = "") -> None:
-        self._peers = [u.rstrip("/") for u in peer_urls if u.strip()]
+        self._peers: List[str] = []
+        for peer_url in peer_urls:
+            candidate = peer_url.strip().rstrip("/")
+            if not candidate:
+                continue
+            parsed = urllib.parse.urlparse(candidate)
+            if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+                log.warning("Skipping peer with unsupported URL scheme: %s", peer_url)
+                continue
+            self._peers.append(candidate)
         self._secret = peer_secret
 
     def get(self, root_hash: str) -> Optional[bytes]:
@@ -1457,7 +1474,7 @@ class _PeerFallback:
                 req = urllib.request.Request(url)
                 if self._secret:
                     req.add_header("X-TFP-Peer-Secret", self._secret)
-                with urllib.request.urlopen(req, timeout=5) as resp:
+                with urllib.request.urlopen(req, timeout=5) as resp:  # nosec B310
                     if resp.status == 200:
                         return resp.read()
             except Exception as exc:
@@ -2019,7 +2036,9 @@ async def lifespan(_app: FastAPI):
         if _db_path_env and _db_path_env != ":memory:":
             _crash_log = str(Path(_db_path_env).parent / "crash.log")
         else:
-            _crash_log = os.environ.get("TFP_CRASH_LOG", "/tmp/tfp_crash.log")
+            _crash_log = os.environ.get(
+                "TFP_CRASH_LOG", str(Path(tempfile.gettempdir()) / "tfp_crash.log")
+            )
         try:
             with open(_crash_log, "a") as crash_file:
                 crash_file.write(f"\n--- {time.ctime()} ---\n{err_msg}\n")
