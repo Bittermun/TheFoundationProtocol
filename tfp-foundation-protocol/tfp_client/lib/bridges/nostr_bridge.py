@@ -46,6 +46,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 TFP_CONTENT_KIND: int = 30078  # parameterized replaceable, application-specific
+TFP_SEARCH_INDEX_KIND: int = 30079  # semantic search index summary / delta gossip
 
 # ---------------------------------------------------------------------------
 # Secp256k1 field / order constants (simplified Schnorr, no external lib)
@@ -429,6 +430,74 @@ class NostrBridge:
             except Exception as exc:
                 logger.warning(
                     "HLT gossip publish failed (relay=%s): %s", self.relay_url, exc
+                )
+        return event.to_dict()
+
+    def publish_search_index_summary(
+        self,
+        domain: str,
+        index_hash: str,
+        chunk_count: int,
+        schema_version: str = "1",
+        created_at: Optional[int] = None,
+    ) -> dict:
+        """
+        Publish a NIP-78 kind-30079 semantic search index summary event.
+
+        Gossips a signed, content-addressed summary of the local semantic index
+        so that peer nodes can detect stale indices and request delta updates.
+
+        The event tags include:
+        - ``["d", "tfp-search-index"]``: parameterized replaceable identifier
+        - ``["domain", <domain>]``: content domain the index covers
+        - ``["index_hash", <hex>]``: SHA3-256 of the index state
+        - ``["chunk_count", <n>]``: number of chunks currently indexed
+        - ``["schema_version", <v>]``: index schema version for compatibility checks
+
+        Args:
+            domain: Domain name the index covers (e.g. ``"general"``, ``"code"``).
+            index_hash: Hex SHA3-256 of the index state (deterministic fingerprint).
+            chunk_count: Total indexed chunks in this domain.
+            schema_version: Index schema version string for compatibility checks.
+            created_at: Optional Unix timestamp (defaults to ``int(time.time())``).
+
+        Returns:
+            The event as a plain dict (for test assertions and logging).
+        """
+        ts = created_at if created_at is not None else int(time.time())
+
+        tags: list = [
+            ["d", "tfp-search-index"],
+            ["domain", domain],
+            ["index_hash", index_hash],
+            ["chunk_count", str(chunk_count)],
+            ["schema_version", schema_version],
+        ]
+
+        content_payload = {
+            "domain": domain,
+            "index_hash": index_hash,
+            "chunk_count": chunk_count,
+            "schema_version": schema_version,
+            "published_at": ts,
+        }
+
+        event = NostrEvent.create(
+            privkey=self._privkey,
+            kind=TFP_SEARCH_INDEX_KIND,
+            content=json.dumps(content_payload, separators=(",", ":")),
+            tags=tags,
+            created_at=ts,
+        )
+        self._history.append(event)
+        if not self.offline:
+            try:
+                self._send_to_relay(event)
+            except Exception as exc:
+                logger.warning(
+                    "Search index gossip publish failed (relay=%s): %s",
+                    self.relay_url,
+                    exc,
                 )
         return event.to_dict()
 

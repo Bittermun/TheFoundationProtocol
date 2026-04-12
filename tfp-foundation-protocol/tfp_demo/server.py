@@ -39,7 +39,11 @@ from tfp_client.lib.fountain.fountain_real import RealRaptorQAdapter
 from tfp_client.lib.lexicon.hlt.tree import HierarchicalLexiconTree
 from tfp_client.lib.metadata.tag_index import TagOverlayIndex
 from tfp_client.lib.ndn.adapter import Data, NDNAdapter
-from tfp_client.lib.reconstruction.template_assembler import Recipe
+from tfp_client.lib.reconstruction.template_assembler import (
+    AssemblyStatus,
+    Recipe,
+    TemplateAssembler,
+)
 
 _DEFAULT_DB_PATH = Path(__file__).resolve().parent.parent / "pib.db"
 
@@ -1239,6 +1243,51 @@ class _RateLimiter:
         self._buckets.pop(key, None)
 
 
+class _RedisRateLimiterAdapter:
+    """
+    Wraps ``DistributedRateLimiter`` (Redis sliding-window) with the same
+    ``is_allowed(key) -> bool`` / ``reset(key)`` interface as ``_RateLimiter``.
+
+    Falls back silently to ``_RateLimiter`` behaviour on any import error or
+    Redis connectivity problem (``fail_open=True`` is the default).
+    """
+
+    def __init__(
+        self,
+        redis_url: str,
+        max_calls: int,
+        window_seconds: int,
+        endpoint_type: str,
+    ) -> None:
+        from tfp_client.lib.rate_limiter import DistributedRateLimiter
+
+        self._endpoint_type = endpoint_type
+        self._limiter = DistributedRateLimiter(
+            redis_url=redis_url,
+            default_limits={endpoint_type: (max_calls, window_seconds)},
+            fail_open=True,
+        )
+
+    def is_allowed(self, key: str) -> bool:
+        result = self._limiter.check_rate_limit(
+            client_id=key, endpoint_type=self._endpoint_type
+        )
+        return result.allowed
+
+    def reset(self, key: str) -> None:
+        # Sliding-window Redis counters cannot be instantly reset without
+        # deleting the key; that operation is not exposed here.  Acceptable
+        # in production since windows expire naturally.
+        pass
+
+    def close(self) -> None:
+        """Release Redis connection pool (call on shutdown)."""
+        try:
+            self._limiter.close()
+        except Exception:
+            pass
+
+
 # ---------------------------------------------------------------------------
 # Request models
 # ---------------------------------------------------------------------------
@@ -1291,6 +1340,7 @@ _credit_store: Optional[CreditStore] = None
 _task_store: Optional[TaskStore] = None
 _earn_rate_limiter: _RateLimiter = _RateLimiter()
 _result_rate_limiter: _RateLimiter = _RateLimiter()
+_rag_rate_limiter: _RateLimiter = _RateLimiter(max_calls=20, window_seconds=60)
 _tag_overlay: Optional[TagOverlayIndex] = None
 _nostr_subscriber: Optional[NostrSubscriber] = None
 _nostr_bridge: Optional[NostrBridge] = None
@@ -1302,6 +1352,9 @@ _demo_dir = Path(__file__).resolve().parent.parent / "demo"
 _blob_store: Optional[BlobStore] = None
 _peer_fallback = None  # type: Optional[_PeerFallback] — class defined below
 _hlt: Optional[HierarchicalLexiconTree] = None
+_peer_secret: str = ""  # TFP_PEER_SECRET shared secret for /api/peer auth
+_rag_graph = None  # RAGGraph instance when TFP_ENABLE_RAG=1; Optional[Any]
+_chunk_store = None  # ChunkStore for shard-pin reward tracking; Optional[Any]
 
 # Readiness gate — set True once lifespan has completed all init steps.
 # Exposed here so tests and the /health endpoint can read it directly.
@@ -1387,8 +1440,9 @@ class _PeerFallback:
     bytes without requiring device auth or credits (internal mesh endpoint).
     """
 
-    def __init__(self, peer_urls: List[str]) -> None:
+    def __init__(self, peer_urls: List[str], peer_secret: str = "") -> None:
         self._peers = [u.rstrip("/") for u in peer_urls if u.strip()]
+        self._secret = peer_secret
 
     def get(self, root_hash: str) -> Optional[bytes]:
         """Try each configured peer; return raw bytes on first hit, else None."""
@@ -1396,6 +1450,8 @@ class _PeerFallback:
             url = f"{peer_url}/api/peer/{root_hash}"
             try:
                 req = urllib.request.Request(url)
+                if self._secret:
+                    req.add_header("X-TFP-Peer-Secret", self._secret)
                 with urllib.request.urlopen(req, timeout=5) as resp:
                     if resp.status == 200:
                         return resp.read()
@@ -1423,6 +1479,14 @@ def _client_for(device_id: str) -> TFPClient:
             _clients[device_id] = restored
         else:
             kwargs: dict = {"ndn": _make_ndn_adapter()}
+            # Use DictLexiconAdapter for text/dictionary domains; it expands
+            # well-known TFP/protocol abbreviations for richer semantic output.
+            try:
+                from tfp_client.lib.lexicon.dict_lexicon_adapter import DictLexiconAdapter
+
+                kwargs["lexicon"] = DictLexiconAdapter()
+            except Exception as _lex_exc:
+                log.debug("DictLexiconAdapter unavailable, using stub: %s", _lex_exc)
             if os.environ.get("TFP_REAL_ADAPTERS", "").strip() == "1":
                 from tfp_client.lib.zkp.zkp_real import RealZKPAdapter
 
@@ -1490,6 +1554,11 @@ def _on_nostr_event(event_dict: dict) -> None:
             _handle_hlt_gossip_event(event_dict)
             return
 
+        # ── Kind 30079: semantic search index summary ─────────────────────
+        if kind == 30079:
+            _handle_search_index_event(event_dict)
+            return
+
         # ── Kind 1 / default: content discovery announcement ──────────────
         payload = json.loads(event_dict.get("content", "{}"))
         content_hash_hex = payload.get("hash", "")
@@ -1545,14 +1614,97 @@ def _handle_hlt_gossip_event(event_dict: dict) -> None:
         log.warning("Failed to process HLT gossip event: %s", exc)
 
 
+# Maximum age (seconds) accepted for search-index gossip events.  Events older
+# than this are silently dropped to prevent index-poisoning via replay.
+_SEARCH_INDEX_REPLAY_WINDOW_S: int = 300  # 5 minutes
+
+
+def _handle_search_index_event(event_dict: dict) -> None:
+    """
+    Handle a NIP-78 kind-30079 semantic search index summary gossip event.
+
+    Verifies:
+    1. ``created_at`` is within ``_SEARCH_INDEX_REPLAY_WINDOW_S`` of now
+       (replay-window guard prevents stale/replayed index poisoning).
+    2. Required fields (``domain``, ``index_hash``, ``chunk_count``,
+       ``schema_version``) are present and well-formed.
+
+    On success, logs the peer index summary so the operator can detect
+    nodes whose local RAG index has drifted from the network median.
+    Future work: trigger a delta-sync request when our own index_hash differs.
+    """
+    try:
+        created_at = int(event_dict.get("created_at", 0))
+        age = int(time.time()) - created_at
+        if abs(age) > _SEARCH_INDEX_REPLAY_WINDOW_S:
+            log.debug(
+                "Dropping search-index gossip event: age=%ds exceeds replay "
+                "window=%ds (possible replay attack).",
+                age,
+                _SEARCH_INDEX_REPLAY_WINDOW_S,
+            )
+            return
+
+        payload = json.loads(event_dict.get("content", "{}"))
+        domain = payload.get("domain", "")
+        index_hash = payload.get("index_hash", "")
+        chunk_count = int(payload.get("chunk_count", 0))
+        schema_version = str(payload.get("schema_version", "1"))
+        pubkey = event_dict.get("pubkey", "")
+
+        if not domain or not index_hash or len(index_hash) not in (64,):
+            log.debug(
+                "Ignoring malformed search-index gossip: domain=%r index_hash=%r",
+                domain,
+                index_hash,
+            )
+            return
+
+        log.info(
+            "Search-index gossip received: peer=%s… domain=%r chunks=%d "
+            "hash=%s… schema_v=%s",
+            pubkey[:16] if pubkey else "?",
+            domain,
+            chunk_count,
+            index_hash[:16],
+            schema_version,
+        )
+        _metrics.inc("tfp_search_index_gossip_received_total")
+
+        # If we have a local RAG graph, compare index hashes to detect drift.
+        if _rag_graph is not None:
+            try:
+                local_stats = _rag_graph.get_stats()
+                local_chunks = local_stats.get("total_chunks", 0)
+                if local_chunks == 0:
+                    log.debug(
+                        "Local RAG index is empty; peer has %d chunks for %r.",
+                        chunk_count,
+                        domain,
+                    )
+                elif abs(local_chunks - chunk_count) > max(10, local_chunks * 0.20):
+                    log.warning(
+                        "RAG index drift detected: local=%d chunks, peer=%d "
+                        "chunks for domain=%r.  Consider triggering reindex.",
+                        local_chunks,
+                        chunk_count,
+                        domain,
+                    )
+            except Exception as exc:
+                log.debug("Could not compare RAG stats: %s", exc)
+
+    except (json.JSONDecodeError, ValueError, TypeError, KeyError) as exc:
+        log.warning("Failed to process search-index gossip event: %s", exc)
+
+
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     # Phase A: per-stage startup observability + readiness gate.
     # Phase B: feature flags read at runtime so tests can use monkeypatch.setenv.
     global _content_store, _device_registry, _earn_log, _credit_store, _task_store
-    global _earn_rate_limiter, _result_rate_limiter, _tag_overlay, _nostr_subscriber
+    global _earn_rate_limiter, _result_rate_limiter, _rag_rate_limiter, _tag_overlay, _nostr_subscriber
     global _nostr_bridge, _ipfs_bridge, _clients, _metrics, _app_ready, _startup_stage
-    global _blob_store, _peer_fallback, _hlt
+    global _blob_store, _peer_fallback, _hlt, _peer_secret, _rag_graph, _chunk_store
 
     _app_ready = False
     _startup_stage = "starting"
@@ -1563,11 +1715,13 @@ async def lifespan(_app: FastAPI):
     _enable_ipfs = os.environ.get("TFP_ENABLE_IPFS", "1").strip() != "0"
     _enable_nostr = os.environ.get("TFP_ENABLE_NOSTR", "1").strip() != "0"
     _enable_maintenance = os.environ.get("TFP_ENABLE_MAINTENANCE", "1").strip() != "0"
+    _enable_rag = os.environ.get("TFP_ENABLE_RAG", "0").strip() != "0"
     log.info(
-        "Feature flags: IPFS=%s  Nostr=%s  Maintenance=%s",
+        "Feature flags: IPFS=%s  Nostr=%s  Maintenance=%s  RAG=%s",
         _enable_ipfs,
         _enable_nostr,
         _enable_maintenance,
+        _enable_rag,
     )
 
     try:
@@ -1597,10 +1751,20 @@ async def lifespan(_app: FastAPI):
             _blob_store = BlobStore(None)
             log.info("BlobStore: in-memory (TFP_DB_PATH=:memory:)")
 
+        # ── Peer secret: TFP_PEER_SECRET ─────────────────────────────────
+        _peer_secret = os.environ.get("TFP_PEER_SECRET", "").strip()
+        if _peer_secret:
+            log.info("Peer secret configured (X-TFP-Peer-Secret enforcement enabled).")
+        else:
+            log.info(
+                "TFP_PEER_SECRET not set; /api/peer endpoint is unauthenticated. "
+                "Set TFP_PEER_SECRET for production deployments."
+            )
+
         # ── Peer fallback: read TFP_PEER_NODES env var ────────────────────
         peer_nodes_env = os.environ.get("TFP_PEER_NODES", "")
         _peer_urls = [u.strip() for u in peer_nodes_env.split(",") if u.strip()]
-        _peer_fallback = _PeerFallback(_peer_urls)
+        _peer_fallback = _PeerFallback(_peer_urls, peer_secret=_peer_secret)
         if _peer_urls:
             log.info("Peer fallback configured: %s", _peer_urls)
 
@@ -1613,12 +1777,79 @@ async def lifespan(_app: FastAPI):
         _earn_log = EarnLog(_conn, _db_lock)
         _credit_store = CreditStore(_conn, _db_lock)
         _task_store = TaskStore(_conn, _db_lock)
-        _earn_rate_limiter = _RateLimiter(
-            max_calls=_EARN_RATE_MAX, window_seconds=_EARN_RATE_WINDOW
-        )
-        _result_rate_limiter = _RateLimiter(
-            max_calls=_RESULT_RATE_MAX, window_seconds=_RESULT_RATE_WINDOW
-        )
+
+        # ── Rate limiters: Redis-backed when TFP_REDIS_URL is set ─────────
+        _redis_url = os.environ.get("TFP_REDIS_URL", "").strip()
+        if _redis_url:
+            try:
+                _earn_rate_limiter = _RedisRateLimiterAdapter(
+                    redis_url=_redis_url,
+                    max_calls=_EARN_RATE_MAX,
+                    window_seconds=_EARN_RATE_WINDOW,
+                    endpoint_type="earn",
+                )
+                _result_rate_limiter = _RedisRateLimiterAdapter(
+                    redis_url=_redis_url,
+                    max_calls=_RESULT_RATE_MAX,
+                    window_seconds=_RESULT_RATE_WINDOW,
+                    endpoint_type="task_submit",
+                )
+                _rag_rate_limiter = _RedisRateLimiterAdapter(
+                    redis_url=_redis_url,
+                    max_calls=20,
+                    window_seconds=60,
+                    endpoint_type="rag_search",
+                )
+                log.info("Rate limiters: Redis-backed (%s)", _redis_url)
+            except Exception as exc:
+                log.warning(
+                    "Redis rate limiter init failed (%s); falling back to "
+                    "in-memory rate limiters.  Multi-worker deployments will "
+                    "not share rate-limit state until Redis is available: %s",
+                    _redis_url,
+                    exc,
+                )
+                _earn_rate_limiter = _RateLimiter(
+                    max_calls=_EARN_RATE_MAX, window_seconds=_EARN_RATE_WINDOW
+                )
+                _result_rate_limiter = _RateLimiter(
+                    max_calls=_RESULT_RATE_MAX, window_seconds=_RESULT_RATE_WINDOW
+                )
+                _rag_rate_limiter = _RateLimiter(max_calls=20, window_seconds=60)
+        else:
+            _earn_rate_limiter = _RateLimiter(
+                max_calls=_EARN_RATE_MAX, window_seconds=_EARN_RATE_WINDOW
+            )
+            _result_rate_limiter = _RateLimiter(
+                max_calls=_RESULT_RATE_MAX, window_seconds=_RESULT_RATE_WINDOW
+            )
+            _rag_rate_limiter = _RateLimiter(max_calls=20, window_seconds=60)
+            log.info(
+                "Rate limiters: in-memory (set TFP_REDIS_URL for distributed "
+                "limiting required before enabling --workers > 1)."
+            )
+
+        # ── Shard size sanity guard ───────────────────────────────────────
+        _shard_size_kb = int(os.environ.get("TFP_SHARD_SIZE_KB", "0"))
+        _chunking_enabled = os.environ.get("TFP_ENABLE_CHUNKING", "1").strip() != "0"
+        if _chunking_enabled and 0 < _shard_size_kb < 64:
+            log.warning(
+                "TFP_SHARD_SIZE_KB=%d is below 64 KB with TFP_ENABLE_CHUNKING=1.  "
+                "For audio/video workloads set TFP_SHARD_SIZE_KB to 256–2048 to "
+                "avoid excessive shard counts and poor streaming performance.",
+                _shard_size_kb,
+            )
+
+        # ── ChunkStore for shard-pin economics ────────────────────────────
+        try:
+            from tfp_client.lib.cache.chunk_store import ChunkStore as _ChunkStore
+
+            _chunk_store = _ChunkStore(max_chunks=10_000, max_bytes=256 * 1024 * 1024)
+            log.info("ChunkStore initialised (shard-pin reward tracking active).")
+        except Exception as exc:
+            log.warning("ChunkStore init failed (pin rewards disabled): %s", exc)
+            _chunk_store = None
+
         _metrics = _Metrics()
         _metrics.seed_from_db(_conn)
         log.info("DB init complete.")
@@ -1694,6 +1925,25 @@ async def lifespan(_app: FastAPI):
             _nostr_bridge = None
             log.info("Nostr disabled (TFP_ENABLE_NOSTR=0).")
 
+        # ── Stage: rag_init (optional) ────────────────────────────────────
+        if _enable_rag:
+            try:
+                from tfp_client.lib.rag_search import RAGGraph
+
+                rag_dir = os.environ.get("TFP_RAG_DIR", "./rag_storage")
+                _rag_graph = RAGGraph(persist_directory=rag_dir)
+                log.info("RAG search enabled (persist_dir=%s).", rag_dir)
+            except ImportError as exc:
+                log.warning(
+                    "TFP_ENABLE_RAG=1 but required dependencies missing (%s). "
+                    "Install chromadb and transformers to enable semantic search.",
+                    exc,
+                )
+                _rag_graph = None
+        else:
+            _rag_graph = None
+            log.info("RAG search disabled (set TFP_ENABLE_RAG=1 to enable).")
+
         # ── Stage: ready ──────────────────────────────────────────────────
         _startup_stage = "ready"
         _app_ready = True
@@ -1734,6 +1984,13 @@ async def lifespan(_app: FastAPI):
                 _nostr_subscriber.stop()
             if "_conn" in locals() and _conn:
                 _conn.close()
+            # Close Redis connections if distributed limiters were in use.
+            for _lim in (_earn_rate_limiter, _result_rate_limiter, _rag_rate_limiter):
+                if hasattr(_lim, "close"):
+                    try:
+                        _lim.close()
+                    except Exception:
+                        pass
         except Exception:
             pass
         _content_store = None
@@ -1747,6 +2004,9 @@ async def lifespan(_app: FastAPI):
         _blob_store = None
         _peer_fallback = None
         _hlt = None
+        _rag_graph = None
+        _chunk_store = None
+        _peer_secret = ""
 
 
 app = FastAPI(title="TFP Demo Node", version="0.2.0", lifespan=lifespan)
@@ -1973,6 +2233,46 @@ def _build_recipe(
     return recipe_json, recipe_dict
 
 
+def _get_assembly_plan(root_hash: str, recipe_json: str) -> Optional[dict]:
+    """
+    Return a ``TemplateAssembler`` assembly plan for the recipe, or ``None``
+    if chunking prerequisites are not available.
+
+    Attempts to pre-populate a transient ``ChunkStore`` from the local
+    ``BlobStore`` so the assembler can report which shards are locally cached.
+    This is used to annotate ``/api/get/{hash}`` responses with HLT-sync status
+    and cache-hit metrics; it does **not** change the content bytes returned.
+    """
+    if _blob_store is None or _hlt is None:
+        return None
+    try:
+        recipe_dict = json.loads(recipe_json)
+        recipe = Recipe.from_dict(recipe_dict)
+
+        from tfp_client.lib.cache.chunk_store import ChunkStore as _CS
+
+        cs = _CS(max_chunks=len(recipe.chunk_ids) + 1)
+        for idx, chunk_id in enumerate(recipe.chunk_ids):
+            shard_data = _blob_store.get_shard(root_hash, idx)
+            if shard_data is not None:
+                # chunk_id is SHA3-256 of the shard payload (bytes after 16-byte header)
+                payload = shard_data[16:] if len(shard_data) > 16 else shard_data
+                cs.put(payload, category="shard", chunk_id_hint=chunk_id)
+
+        assembler = TemplateAssembler(cs, _hlt)
+        plan = assembler.get_assembly_plan(recipe)
+        return {
+            "hlt_synced": plan["hlt_synced"],
+            "cache_hit_rate": plan["cache_hit_rate"],
+            "cached_chunks": len(plan["cached_chunks"]),
+            "missing_chunks": len(plan["missing_chunks"]),
+            "ready_to_assemble": plan["ready_to_assemble"],
+        }
+    except Exception as exc:
+        log.debug("Assembly plan failed for %s: %s", root_hash, exc)
+        return None
+
+
 @app.post("/api/earn")
 def earn(
     payload: EarnRequest,
@@ -2088,13 +2388,20 @@ def get_content(
                 tags = meta.get("tags", tags)
 
         data_bytes = content.content if hasattr(content, "content") else content.data
-        return {
+        response: dict = {
             "root_hash": root_hash,
             "title": title,
             "tags": tags,
             "text": data_bytes.decode(errors="replace"),
             "sha3": hashlib.sha3_256(data_bytes).hexdigest(),
         }
+        # Annotate with assembly plan (HLT-sync status + chunk cache hit metrics)
+        # when a recipe is available.  Never changes the returned content bytes.
+        if item and item.recipe_json:
+            plan = _get_assembly_plan(root_hash, item.recipe_json)
+            if plan is not None:
+                response["assembly_plan"] = plan
+        return response
 
 
 def _build_range_response(data: bytes, range_header: str) -> Optional[Response]:
@@ -2150,6 +2457,10 @@ def get_shard(root_hash: str, index: int) -> Response:
     Return the raw shard bytes for a single RaptorQ-encoded shard.
 
     NDN interest name equivalent: ``/tfp/content/{root_hash}/shard/{index}``
+
+    Also tracks the shard in the local ``ChunkStore`` for pin-reward accounting:
+    rare shards (low access count) earn a higher reward proportional to rarity.
+    The reward is recorded as ``tfp_pin_rewards_total`` in the Prometheus metrics.
     """
     if _blob_store is None:
         raise HTTPException(status_code=503, detail="blob store not ready")
@@ -2158,18 +2469,47 @@ def get_shard(root_hash: str, index: int) -> Response:
     shard_data = _blob_store.get_shard(root_hash, index)
     if shard_data is None:
         raise HTTPException(status_code=404, detail=f"shard {index} not found")
+
+    # ── Shard-pin economics ───────────────────────────────────────────────
+    if _chunk_store is not None:
+        try:
+            chunk_id = f"{root_hash}:shard:{index}"
+            is_new_pin = not _chunk_store.contains(chunk_id)
+            if is_new_pin:
+                # Register this shard in the chunk store so rarity is tracked.
+                payload_bytes = shard_data[16:] if len(shard_data) > 16 else shard_data
+                _chunk_store.put(payload_bytes, category="shard", chunk_id_hint=chunk_id)
+                reward = _chunk_store.calculate_pin_reward(chunk_id)
+                if reward > 0:
+                    _metrics.inc("tfp_pin_rewards_total")
+        except Exception as _pin_exc:
+            log.debug("Pin reward tracking failed for %s shard %d: %s", root_hash, index, _pin_exc)
+
     return Response(content=shard_data, media_type="application/octet-stream")
 
 
 @app.get("/api/peer/{root_hash}")
-def peer_get(root_hash: str) -> Response:
+def peer_get(
+    root_hash: str,
+    x_tfp_peer_secret: str = Header(default="", alias="X-TFP-Peer-Secret"),
+) -> Response:
     """
     Internal mesh endpoint — serves raw blob bytes to peer nodes without credit check.
 
     This endpoint is intended only for intra-cluster communication (Docker internal
     network) and should not be exposed to the public internet.  It is used by the
     _PeerFallback mechanism so cold-start nodes can bootstrap content from siblings.
+
+    When ``TFP_PEER_SECRET`` is set, callers **must** supply the matching value in the
+    ``X-TFP-Peer-Secret`` header.  Mismatched or missing secrets → 401 Unauthorized.
     """
+    if _peer_secret and not _hmac.compare_digest(x_tfp_peer_secret, _peer_secret):
+        _metrics.inc("tfp_auth_failures_total")
+        raise HTTPException(
+            status_code=401,
+            detail="invalid or missing X-TFP-Peer-Secret — "
+            "set TFP_PEER_SECRET on both nodes to enable peer mesh access",
+        )
     if _content_store is None or _blob_store is None:
         raise HTTPException(status_code=503, detail="store not ready")
     blob_path = _content_store.get_blob_path(root_hash)
@@ -2233,6 +2573,12 @@ def status() -> dict:
     """Node status: local content count, tag index stats, and Nostr subscriber state."""
     nostr_events = len(_nostr_subscriber.get_received()) if _nostr_subscriber else 0
     task_stats = _task_store.stats() if _task_store else {}
+    rag_stats: Optional[dict] = None
+    if _rag_graph is not None:
+        try:
+            rag_stats = _rag_graph.get_stats()
+        except Exception:
+            rag_stats = {"error": "unavailable"}
     return {
         "version": "0.3.0",
         "content_items": _content_store.count(),
@@ -2246,6 +2592,10 @@ def status() -> dict:
         "metrics": _metrics.snapshot(),
         "hlt_domains": len(_hlt.domain_names) if _hlt is not None else 0,
         "peer_nodes": len(_peer_fallback._peers) if _peer_fallback is not None else 0,
+        "rag_enabled": _rag_graph is not None,
+        "rag_stats": rag_stats,
+        "peer_secret_enforced": bool(_peer_secret),
+        "pin_rewards_active": _chunk_store is not None,
     }
 
 
@@ -2272,6 +2622,168 @@ def discovery(domain: str = Query(default="general")) -> dict:
         log.warning("Failed to build Merkle DAG for domain %s: %s", domain, e)
         entries = []
     return {"domain": domain, "entries": entries, "source": "nostr"}
+
+
+# ---------------------------------------------------------------------------
+# Semantic search API (production RAG)
+# ---------------------------------------------------------------------------
+
+
+class SemanticSearchRequest(BaseModel):
+    """Request body for POST /api/search/semantic."""
+
+    device_id: str = Field(min_length=1, max_length=120)
+    query: str = Field(min_length=1, max_length=512)
+    top_k: int = Field(default=5, ge=1, le=20)
+    min_score: float = Field(default=0.5, ge=0.0, le=1.0)
+
+
+class AdminReindexRequest(BaseModel):
+    """Request body for POST /api/admin/rag/reindex."""
+
+    device_id: str = Field(min_length=1, max_length=120)
+    directory: str = Field(min_length=1, max_length=512)
+    patterns: Optional[str] = Field(
+        default=None,
+        description="Comma-separated file patterns (default: *.py,*.md)",
+    )
+
+
+@app.post("/api/search/semantic")
+def semantic_search(
+    payload: SemanticSearchRequest,
+    x_device_sig: str = Header(alias="X-Device-Sig"),
+) -> dict:
+    """
+    Semantic similarity search over the local RAG index.
+
+    Requires a valid device signature (same as other device-authed endpoints).
+    Rate-limited to 20 queries / 60 s per device.  Returns 503 when the RAG
+    index has not been initialised (``TFP_ENABLE_RAG=0`` or deps missing).
+
+    Responses include cosine-similarity scored results from the local
+    CodeBERT/ChromaDB index.  For hybrid distributed retrieval, combine this
+    with ``GET /api/discovery`` to cross-reference peer-announced content.
+    """
+    message = f"{payload.device_id}:{payload.query}"
+    if not _verify_device_sig(payload.device_id, x_device_sig, message, _device_registry):
+        _metrics.inc("tfp_auth_failures_total")
+        raise HTTPException(
+            status_code=401,
+            detail="invalid or missing device signature — enroll first via /api/enroll",
+        )
+
+    if not _rag_rate_limiter.is_allowed(payload.device_id):
+        raise HTTPException(
+            status_code=429,
+            detail="semantic search rate limit exceeded — max 20 queries per 60 s per device",
+        )
+
+    if _rag_graph is None:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "semantic search is not available on this node "
+                "(set TFP_ENABLE_RAG=1 and install chromadb + transformers)"
+            ),
+        )
+
+    try:
+        results = _rag_graph.search(
+            query=payload.query,
+            top_k=payload.top_k,
+            min_score=payload.min_score,
+        )
+    except Exception as exc:
+        log.error("Semantic search error: %s", exc)
+        raise HTTPException(status_code=500, detail="semantic search failed") from exc
+
+    _metrics.inc("tfp_semantic_search_total")
+    return {
+        "query": payload.query,
+        "results": [
+            {
+                "content": r.content,
+                "metadata": r.metadata,
+                "score": r.score,
+                "chunk_id": r.chunk_id,
+            }
+            for r in results
+        ],
+        "total": len(results),
+        "rag_stats": _rag_graph.get_stats(),
+    }
+
+
+@app.post("/api/admin/rag/reindex")
+def rag_reindex(
+    payload: AdminReindexRequest,
+    x_device_sig: str = Header(alias="X-Device-Sig"),
+) -> dict:
+    """
+    Rebuild the local RAG semantic index from a directory.
+
+    Admin-only: requires a valid enrolled device signature.
+    This is a **synchronous, blocking** call — for large codebases run it
+    off-peak or via a background worker.  Index writes are idempotent (existing
+    chunks are overwritten by content hash).
+
+    Returns 503 when ``TFP_ENABLE_RAG=0`` or dependencies are missing.
+    """
+    message = f"{payload.device_id}:reindex:{payload.directory}"
+    if not _verify_device_sig(payload.device_id, x_device_sig, message, _device_registry):
+        _metrics.inc("tfp_auth_failures_total")
+        raise HTTPException(
+            status_code=401,
+            detail="invalid or missing device signature — enroll first via /api/enroll",
+        )
+
+    if _rag_graph is None:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "RAG index not available "
+                "(set TFP_ENABLE_RAG=1 and install chromadb + transformers)"
+            ),
+        )
+
+    pattern_list: Optional[List[str]] = (
+        [p.strip() for p in payload.patterns.split(",") if p.strip()]
+        if payload.patterns
+        else None
+    )
+
+    try:
+        indexed = _rag_graph.index_directory(
+            payload.directory, patterns=pattern_list
+        )
+    except Exception as exc:
+        log.error("RAG reindex error: %s", exc)
+        raise HTTPException(status_code=500, detail=f"reindex failed: {exc}") from exc
+
+    log.info("RAG reindex complete: %d chunks from %s", indexed, payload.directory)
+    _metrics.inc("tfp_rag_reindex_total")
+
+    # Publish a search-index summary to Nostr so peer nodes can detect drift.
+    if _nostr_bridge is not None:
+        try:
+            stats = _rag_graph.get_stats()
+            index_hash = hashlib.sha3_256(
+                f"{payload.directory}:{stats.get('total_chunks', 0)}".encode()
+            ).hexdigest()
+            _nostr_bridge.publish_search_index_summary(
+                domain="general",
+                index_hash=index_hash,
+                chunk_count=stats.get("total_chunks", 0),
+            )
+        except Exception as exc:
+            log.debug("Failed to publish search-index gossip after reindex: %s", exc)
+
+    return {
+        "indexed_chunks": indexed,
+        "directory": payload.directory,
+        "rag_stats": _rag_graph.get_stats(),
+    }
 
 
 # ---------------------------------------------------------------------------
