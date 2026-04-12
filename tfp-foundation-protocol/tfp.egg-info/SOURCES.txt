@@ -1,5 +1,6 @@
 pyproject.toml
 tests/test_asymmetric_uplink.py
+tests/test_blob_store.py
 tests/test_bridge3_economics.py
 tests/test_broadcaster.py
 tests/test_caliper_adapter.py
@@ -16,15 +17,19 @@ tests/test_feature_flags.py
 tests/test_grand_completion.py
 tests/test_habp_consensus.py
 tests/test_hlt.py
+tests/test_hlt_nostr.py
 tests/test_input_validation.py
 tests/test_integration_real.py
 tests/test_ipfs_bridge.py
 tests/test_lexicon_delta.py
 tests/test_nostr_bridge.py
 tests/test_nostr_subscriber.py
+tests/test_peer_fallback.py
 tests/test_pipeline_integration.py
 tests/test_puf_enclave.py
+tests/test_range_requests.py
 tests/test_rate_limiting.py
+tests/test_recipe_pipeline.py
 tests/test_restart_safety.py
 tests/test_scheduler_demand_wiring.py
 tests/test_simulation_scenarios.py
