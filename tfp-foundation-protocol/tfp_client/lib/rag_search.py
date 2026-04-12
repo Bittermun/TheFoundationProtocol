@@ -288,8 +288,13 @@ class RAGGraph:
         """
         Index all matching files in a directory.
 
+        The *directory* argument must resolve to a path that is within the
+        process's current working directory (or a parent directory configured
+        by the caller).  Use ``Path.relative_to()`` to verify containment before
+        calling this function from user-facing endpoints.
+
         Args:
-            directory: Root directory to index
+            directory: Root directory to index (pre-validated by caller)
             patterns: File patterns to include (default: ['*.py', '*.md', '*.rst'])
             exclude_dirs: Directories to exclude (default: ['__pycache__', '.git', 'node_modules'])
 
@@ -308,9 +313,11 @@ class RAGGraph:
                 "venv",
             ]
 
+        # Resolve to absolute path.  Callers are responsible for validating
+        # that this path is within the intended scope (use relative_to()).
         root_path = Path(directory).resolve()
-        if not root_path.exists():
-            logger.error(f"Directory not found: {directory}")
+        if not root_path.exists() or not root_path.is_dir():
+            logger.error("Directory not found or not a directory: %s", root_path)
             return 0
 
         total_chunks = 0
@@ -318,6 +325,12 @@ class RAGGraph:
 
         for pattern in patterns:
             for file_path in root_path.rglob(pattern):
+                # Verify the file is still within root_path (symlink containment)
+                try:
+                    file_path.resolve().relative_to(root_path)
+                except ValueError:
+                    logger.debug("Skipping path outside root: %s", file_path)
+                    continue
                 # Check exclusions
                 if any(excl in str(file_path) for excl in exclude_dirs):
                     continue

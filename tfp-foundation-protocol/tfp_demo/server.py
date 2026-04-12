@@ -2747,23 +2747,25 @@ def rag_reindex(
             ),
         )
 
-    # ── Path safety: resolve and validate against sensitive system paths ──
-    _SENSITIVE_PATH_PREFIXES = (
-        "/etc", "/proc", "/sys", "/dev", "/root", "/boot", "/run",
-    )
+    # ── Path safety: resolve and validate with Path.relative_to() ────────
+    # Determine the allowed base: TFP_RAG_BASE_DIR env var, else process cwd.
+    # Path.relative_to() raises ValueError if resolved_dir is outside the base —
+    # this is the canonical containment check recognised by static analysis tools.
+    _rag_base_env = os.environ.get("TFP_RAG_BASE_DIR", "").strip()
+    _allowed_base = Path(_rag_base_env).resolve() if _rag_base_env else Path.cwd().resolve()
     try:
         resolved_dir = Path(payload.directory).resolve()
-    except (OSError, ValueError) as exc:
-        raise HTTPException(status_code=422, detail=f"invalid directory: {exc}") from exc
-    resolved_str = str(resolved_dir)
-    if any(
-        resolved_str == prefix or resolved_str.startswith(prefix + "/")
-        for prefix in _SENSITIVE_PATH_PREFIXES
-    ):
+        resolved_dir.relative_to(_allowed_base)  # Raises ValueError if outside
+    except ValueError:
         raise HTTPException(
             status_code=422,
-            detail="directory resolves to a restricted system path",
+            detail=(
+                f"directory resolves outside allowed base {_allowed_base}. "
+                "Set TFP_RAG_BASE_DIR to allow a different base directory."
+            ),
         )
+    except (OSError, TypeError) as exc:
+        raise HTTPException(status_code=422, detail=f"invalid directory: {exc}") from exc
     if not resolved_dir.is_dir():
         raise HTTPException(
             status_code=422,

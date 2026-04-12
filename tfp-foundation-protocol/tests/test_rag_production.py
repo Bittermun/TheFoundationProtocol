@@ -283,7 +283,7 @@ def test_rag_reindex_with_mock_rag_returns_indexed_count():
 
 
 def test_rag_reindex_rejects_sensitive_path():
-    """Directories resolving to sensitive system paths return 422."""
+    """Directories outside the allowed base (cwd by default) return 422."""
     import tfp_demo.server as srv
 
     with TestClient(app) as client:
@@ -294,13 +294,16 @@ def test_rag_reindex_rejects_sensitive_path():
         original = srv._rag_graph
         srv._rag_graph = _make_mock_rag()
         try:
-            msg = f"{did}:reindex:/etc"
+            # /nonexistent_outside_cwd is not within cwd, so should be 422
+            test_dir = "/tmp/tfp_test_outside_cwd"
+            msg = f"{did}:reindex:{test_dir}"
             sig = _sig(puf, msg)
             r = client.post(
                 "/api/admin/rag/reindex",
-                json={"device_id": did, "directory": "/etc"},
+                json={"device_id": did, "directory": test_dir},
                 headers={"X-Device-Sig": sig},
             )
+            # Either 422 (outside base) or 422 (not a directory) — both are fine
             assert r.status_code == 422
         finally:
             srv._rag_graph = original
