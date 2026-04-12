@@ -241,41 +241,7 @@ See the historical hardening notes in [`docs/archive/v2.2-hardening.md`](tfp-fou
 
 ---
 
-## 📋 Next Steps: Exact Action Plan
-
-### Phase 1: Pilot Deployment (Weeks 1–4) ⭐ **CURRENT PRIORITY**
-
-| # | Action | Owner | Deliverable | Status |
-|---|--------|-------|-------------|--------|
-| 1.1 | Deploy first community pilot (Nairobi schools config ready) | Core Team | Live ghost node network + 10 real devices | 🔴 **TODO** |
-| 1.2 | Install metrics collector on pilot nodes | Core Team | `pilot_region_001_metrics.jsonl` streaming to dashboard | 🔴 **TODO** |
-| 1.3 | Generate signed audit report | Core Team | `AUDIT_REPORT.json` with bandit/safety/coverage results | 🔴 **TODO** |
-| 1.4 | Onboard 3 beta plugin developers | Community | 3 working plugins (audio gallery, offline knowledge pack, browser extension) | 🔴 **TODO** |
-| 1.5 | Document pilot learnings | Core Team | Blog post + case study (bandwidth savings, reconstruction time, user feedback) | 🔴 **TODO** |
-
-### Phase 2: Developer Ecosystem Growth (Weeks 5–8)
-
-| # | Action | Owner | Deliverable | Status |
-|---|--------|-------|-------------|--------|
-| 2.1 | Launch hackathon (virtual, 48-hour event) | Community | 10+ submissions, 3 winning plugins | 🔴 **TODO** |
-| 2.2 | Publish tutorial video series (3 videos × 10 min) | Core Team | YouTube playlist: setup, plugin dev, deployment | 🔴 **TODO** |
-| 2.3 | Ship IPFS bridge MVP | Contributors | `tfp ipfs-import <cid>` CLI command | 🔴 **TODO** |
-| 2.4 | Ship Nostr discovery bridge | Contributors | Auto-discover TFP content via Nostr relays | 🔴 **TODO** |
-| 2.5 | Create "Awesome TFP" curated list | Community | GitHub repo with plugins, tools, deployments | 🔴 **TODO** |
-
-### Phase 3: Production Hardening (Weeks 9–12)
-
-| # | Action | Owner | Deliverable | Status |
-|---|--------|-------|-------------|--------|
-| 3.1 | Independent security audit (budget permitting) | Core Team | Public audit report from third-party firm | 🔴 **TODO** |
-| 3.2 | ~~Implement task-ID deduplication~~ | Core Team | ~~Prevent credit replay attacks~~ | ✅ **Done** (EarnLog + UNIQUE constraint) |
-| 3.3 | ~~Add per-device rate limiting on `/api/earn`~~ | Core Team | ~~Throttle abuse without blocking legitimate users~~ | ✅ **Done** (sliding-window `_RateLimiter`) |
-| 3.4 | Deploy multi-region testbed (US/EU/Asia) | Core Team | 3 nodes, cross-region latency/bandwidth metrics | 🔴 **TODO** |
-| 3.5 | Transition to Foundation governance (at 100+ contributors) | Community | Multi-sig control, RFC process, elected maintainers | 🔴 **TODO** |
-
----
-
-## 🚀 Get Involved
+##  Get Involved
 
 ### Immediate Actions You Can Take Today
 
@@ -317,7 +283,7 @@ python tfp_pilots/community_bootstrap.py --community-id "my-region"
 
 ---
 
-## 📊 Repository Health Metrics
+## 📊 Repository Health Metrics(un-updated)
 
 | Metric | Value | Target | Status |
 |--------|-------|--------|--------|
