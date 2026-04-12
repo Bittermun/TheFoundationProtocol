@@ -1,4 +1,4 @@
-# Scholo — TFP v3.1 Foundation Protocol
+# TFP v3.1 Foundation Protocol
 
 **A decentralized content & compute protocol for global information access — uncensorable, efficient, and built for everyone.**
 
