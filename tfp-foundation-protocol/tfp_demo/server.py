@@ -127,7 +127,9 @@ class ContentStore:
                 (limit, offset),
             ).fetchall()
             return [
-                StoredContent(root_hash=r[0], title=r[1], tags=json.loads(r[2]), data=r[3])
+                StoredContent(
+                    root_hash=r[0], title=r[1], tags=json.loads(r[2]), data=r[3]
+                )
                 for r in rows
             ]
 
@@ -148,7 +150,9 @@ class ContentStore:
                 [*list(hashes), limit, offset],
             ).fetchall()
             return [
-                StoredContent(root_hash=r[0], title=r[1], tags=json.loads(r[2]), data=r[3])
+                StoredContent(
+                    root_hash=r[0], title=r[1], tags=json.loads(r[2]), data=r[3]
+                )
                 for r in rows
             ]
 
@@ -181,7 +185,9 @@ class ContentStore:
                 [*list(hashes), limit, offset],
             ).fetchall()
             return [
-                StoredContent(root_hash=r[0], title=r[1], tags=json.loads(r[2]), data=r[3])
+                StoredContent(
+                    root_hash=r[0], title=r[1], tags=json.loads(r[2]), data=r[3]
+                )
                 for r in rows
             ]
 
@@ -424,7 +430,7 @@ class TaskStore:
     def _init_schema(self) -> None:
         with self._db_lock:
             self._conn.executescript(
-            """
+                """
             CREATE TABLE IF NOT EXISTS tasks (
                 task_id      TEXT PRIMARY KEY,
                 task_type    TEXT NOT NULL,
@@ -451,7 +457,7 @@ class TaskStore:
             );
             INSERT OR IGNORE INTO supply_ledger (id, total_minted) VALUES (1, 0);
             """
-        )
+            )
         self._conn.commit()
         # Rebuild in-memory HABP state from persisted results for tasks still verifying
         self._rebuild_habp_from_db()
@@ -651,10 +657,13 @@ class TaskStore:
                 if task_row is None:
                     raise HTTPException(status_code=404, detail="task not found")
                 if task_row["status"] in ("completed", "failed"):
-                    raise HTTPException(status_code=409, detail="task already finalised")
+                    raise HTTPException(
+                        status_code=409, detail="task already finalised"
+                    )
                 if time.time() > task_row["deadline"]:
                     self._conn.execute(
-                        "UPDATE tasks SET status = 'failed' WHERE task_id = ?", (task_id,)
+                        "UPDATE tasks SET status = 'failed' WHERE task_id = ?",
+                        (task_id,),
                     )
                     self._conn.commit()
                     raise HTTPException(status_code=410, detail="task deadline passed")
