@@ -16,7 +16,7 @@ from fastapi import FastAPI, Header, HTTPException, Query, Request, File, Upload
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingResponse
 from tfp_client.lib.bridges.ipfs_bridge import IPFSBridge
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 from tfp_broadcaster.broadcaster import Broadcaster
 from tfp_client.lib.bridges.nostr_subscriber import NostrSubscriber
 from tfp_client.lib.bridges.nostr_bridge import NostrBridge
@@ -974,7 +974,7 @@ class _RateLimiter:
 
 class PublishRequest(BaseModel):
     title: str = Field(min_length=1, max_length=120)
-    text: str = Field(min_length=1)
+    text: str = Field(min_length=1, max_length=20000)
     tags: List[str] = Field(default_factory=list)
     device_id: str = Field(min_length=1, max_length=120)
 
@@ -1363,7 +1363,10 @@ async def publish(
     content_type = request.headers.get("content-type", "")
     if "application/json" in content_type:
         body = await request.json()
-        payload = PublishRequest(**body)
+        try:
+            payload = PublishRequest(**body)
+        except ValidationError as exc:
+            raise HTTPException(status_code=422, detail=exc.errors()) from exc
         device_id = payload.device_id
         title = payload.title
         tags_raw = payload.tags

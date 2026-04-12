@@ -48,14 +48,12 @@ class TFPClient:
                 "no earned credits to spend; call submit_compute_task first"
             )
         if self.ledger.balance < credits:
-             raise ValueError(f"insufficient balance: {self.ledger.balance} < {credits}")
-        
-        # We use the oldest receipt as authority to spend. 
-        # In this demo, we assume the receipt stays "valid" for multiple spends 
-        # as long as the total balance is sufficient.
-        receipt = self._earned_receipts[0] 
+            raise ValueError(f"insufficient balance: {self.ledger.balance} < {credits}")
+
+        receipt = self._earned_receipts[0]
         self.ledger.spend(credits, receipt)
-        
+        self._spends.append(receipt)
+
         # If balance hits zero, we can discard the receipt (for simplicity)
         if self.ledger.balance == 0:
             self._earned_receipts.pop(0)

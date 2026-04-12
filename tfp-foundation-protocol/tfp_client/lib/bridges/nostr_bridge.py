@@ -334,24 +334,31 @@ class NostrBridge:
         Announce content availability to the Nostr network.
         Sets 'content_hash' tag and includes metadata.
         """
-        cid = metadata.get("cid", "")
-        # Use JSON content for rich metadata, and tags for indexing
-        payload = {
-            "hash": content_hash,
-            "cid": cid,
-            "title": metadata.get("title", ""),
-            "tags": metadata.get("tags", [])
-        }
-        
-        event = NostrEvent(
-            content=json.dumps(payload),
-            tags=[
-                ["t", "tfp_content_announcement"], 
-                ["content_hash", content_hash],
-                ["cid", cid]
-            ],
-        )
-        self.publish_event(event)
+        self.publish_content_announcement(content_hash, metadata)
+
+    def publish_content_announcement(
+        self,
+        content_hash: str,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> NostrEvent:
+        """
+        Build and publish a TFP content announcement to the relay.
+
+        Returns:
+            The NostrEvent (regardless of delivery success).
+        """
+        event = self.build_content_announcement(content_hash, metadata)
+        self._history.append(event)
+
+        if not self.offline:
+            try:
+                self._send_to_relay(event)
+            except Exception as exc:
+                logger.warning(
+                    "Nostr publish failed (relay=%s): %s", self.relay_url, exc
+                )
+
+        return event
 
     def publish_event(self, event: NostrEvent) -> bool:
         """Publish a generic Nostr event and record it in history."""
