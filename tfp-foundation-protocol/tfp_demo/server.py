@@ -2696,7 +2696,6 @@ class AdminReindexRequest(BaseModel):
     """Request body for POST /api/admin/rag/reindex."""
 
     device_id: str = Field(min_length=1, max_length=120)
-    directory: str = Field(min_length=1, max_length=512)
     patterns: Optional[str] = Field(
         default=None,
         description="Comma-separated file patterns (default: *.py,*.md)",
@@ -2784,7 +2783,7 @@ def rag_reindex(
 
     Returns 503 when ``TFP_ENABLE_RAG=0`` or dependencies are missing.
     """
-    message = f"{payload.device_id}:reindex:{payload.directory}"
+    message = f"{payload.device_id}:reindex"
     if not _verify_device_sig(payload.device_id, x_device_sig, message, _device_registry):
         _metrics.inc("tfp_auth_failures_total")
         raise HTTPException(
@@ -2801,31 +2800,19 @@ def rag_reindex(
             ),
         )
 
-    # ── Path safety: resolve and validate with Path.relative_to() ────────
-    # Determine the allowed base: TFP_RAG_BASE_DIR env var, else process cwd.
-    # Path.relative_to() raises ValueError if resolved_dir is outside the base —
-    # this is the canonical containment check recognised by static analysis tools.
-    _rag_base_env = os.environ.get("TFP_RAG_BASE_DIR", "").strip()
-    _allowed_base = Path(_rag_base_env).resolve() if _rag_base_env else Path.cwd().resolve()
-    try:
-        resolved_dir = Path(payload.directory).resolve()
-        _rel = resolved_dir.relative_to(_allowed_base)  # Raises ValueError if outside
-    except ValueError:
+    # The index root is determined exclusively by TFP_RAG_DIR — never by user input.
+    # This prevents path injection: only the server operator configures what is indexed.
+    _rag_dir_env = os.environ.get("TFP_RAG_DIR", "").strip()
+    if not _rag_dir_env:
         raise HTTPException(
-            status_code=422,
-            detail=(
-                f"directory resolves outside allowed base {_allowed_base}. "
-                "Set TFP_RAG_BASE_DIR to allow a different base directory."
-            ),
+            status_code=503,
+            detail="TFP_RAG_DIR is not configured; set it to the directory to index",
         )
-    except (OSError, TypeError) as exc:
-        raise HTTPException(status_code=422, detail=f"invalid directory: {exc}") from exc
-    # Reconstruct from trusted base + validated relative component to break taint chain.
-    safe_dir = _allowed_base / _rel
-    if not safe_dir.is_dir():
+    index_dir = Path(_rag_dir_env)
+    if not index_dir.is_dir():
         raise HTTPException(
-            status_code=422,
-            detail=f"directory does not exist: {safe_dir}",
+            status_code=503,
+            detail=f"TFP_RAG_DIR does not exist or is not a directory: {index_dir}",
         )
 
     pattern_list: Optional[List[str]] = (
@@ -2836,13 +2823,13 @@ def rag_reindex(
 
     try:
         indexed = _rag_graph.index_directory(
-            str(safe_dir), patterns=pattern_list
+            str(index_dir), patterns=pattern_list
         )
     except Exception as exc:
         log.error("RAG reindex error: %s", exc)
         raise HTTPException(status_code=500, detail=f"reindex failed: {exc}") from exc
 
-    log.info("RAG reindex complete: %d chunks from %s", indexed, safe_dir)
+    log.info("RAG reindex complete: %d chunks from %s", indexed, index_dir)
     _metrics.inc("tfp_rag_reindex_total")
 
     # Publish a search-index summary to Nostr so peer nodes can detect drift.
@@ -2850,7 +2837,7 @@ def rag_reindex(
         try:
             stats = _rag_graph.get_stats()
             index_hash = hashlib.sha3_256(
-                f"{safe_dir}:{stats.get('total_chunks', 0)}".encode()
+                f"{index_dir}:{stats.get('total_chunks', 0)}".encode()
             ).hexdigest()
             _nostr_bridge.publish_search_index_summary(
                 domain="general",
@@ -2862,7 +2849,7 @@ def rag_reindex(
 
     return {
         "indexed_chunks": indexed,
-        "directory": str(safe_dir),
+        "directory": str(index_dir),
         "rag_stats": _rag_graph.get_stats(),
     }
 

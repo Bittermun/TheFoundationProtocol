@@ -17,6 +17,7 @@ Verifies:
 import hashlib
 import hmac as _hmac
 import os
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 os.environ.setdefault("TFP_DB_PATH", ":memory:")
@@ -233,11 +234,11 @@ def test_rag_reindex_503_when_rag_disabled(monkeypatch):
         puf = os.urandom(32)
         did = "rag-reindex-dev"
         _enroll(client, did, puf)
-        msg = f"{did}:reindex:./tfp_client"
+        msg = f"{did}:reindex"
         sig = _sig(puf, msg)
         r = client.post(
             "/api/admin/rag/reindex",
-            json={"device_id": did, "directory": "./tfp_client"},
+            json={"device_id": did},
             headers={"X-Device-Sig": sig},
         )
         assert r.status_code == 503
@@ -247,20 +248,21 @@ def test_rag_reindex_401_bad_sig():
     with TestClient(app) as client:
         r = client.post(
             "/api/admin/rag/reindex",
-            json={"device_id": "somedev", "directory": "."},
+            json={"device_id": "somedev"},
             headers={"X-Device-Sig": "bad"},
         )
         assert r.status_code == 401
 
 
-def test_rag_reindex_with_mock_rag_returns_indexed_count():
+def test_rag_reindex_with_mock_rag_returns_indexed_count(monkeypatch, tmp_path):
     import tfp_demo.server as srv
 
+    monkeypatch.setenv("TFP_RAG_DIR", str(tmp_path))
     with TestClient(app) as client:
         puf = os.urandom(32)
         did = "rag-admin-dev"
         _enroll(client, did, puf)
-        msg = f"{did}:reindex:./tfp_client"
+        msg = f"{did}:reindex"
         sig = _sig(puf, msg)
 
         original = srv._rag_graph
@@ -268,52 +270,52 @@ def test_rag_reindex_with_mock_rag_returns_indexed_count():
         try:
             r = client.post(
                 "/api/admin/rag/reindex",
-                json={"device_id": did, "directory": "./tfp_client"},
+                json={"device_id": did},
                 headers={"X-Device-Sig": sig},
             )
             assert r.status_code == 200
             data = r.json()
             assert data["indexed_chunks"] == 42
-            # directory is returned as the resolved absolute path
-            from pathlib import Path
-
             assert Path(data["directory"]).is_absolute()
         finally:
             srv._rag_graph = original
 
 
-def test_rag_reindex_rejects_sensitive_path():
-    """Directories outside the allowed base (cwd by default) return 422."""
+def test_rag_reindex_503_when_rag_dir_not_configured(monkeypatch):
+    """503 when TFP_RAG_DIR is not set."""
     import tfp_demo.server as srv
 
+    monkeypatch.delenv("TFP_RAG_DIR", raising=False)
     with TestClient(app) as client:
         puf = os.urandom(32)
-        did = "rag-pathsec-dev"
+        did = "rag-nodir-dev"
         _enroll(client, did, puf)
+        msg = f"{did}:reindex"
+        sig = _sig(puf, msg)
 
         original = srv._rag_graph
         srv._rag_graph = _make_mock_rag()
         try:
-            # /nonexistent_outside_cwd is not within cwd, so should be 422
-            test_dir = "/tmp/tfp_test_outside_cwd"
-            msg = f"{did}:reindex:{test_dir}"
-            sig = _sig(puf, msg)
             r = client.post(
                 "/api/admin/rag/reindex",
-                json={"device_id": did, "directory": test_dir},
+                json={"device_id": did},
                 headers={"X-Device-Sig": sig},
             )
-            # Either 422 (outside base) or 422 (not a directory) — both are fine
-            assert r.status_code == 422
+            assert r.status_code == 503
         finally:
             srv._rag_graph = original
+
+
+def test_rag_reindex_increments_metric(monkeypatch, tmp_path):
+    """Successful reindex increments tfp_rag_reindex_total."""
     import tfp_demo.server as srv
 
+    monkeypatch.setenv("TFP_RAG_DIR", str(tmp_path))
     with TestClient(app) as client:
         puf = os.urandom(32)
-        did = "rag-metric2-dev"
+        did = "rag-metric-dev"
         _enroll(client, did, puf)
-        msg = f"{did}:reindex:./docs"
+        msg = f"{did}:reindex"
         sig = _sig(puf, msg)
 
         original = srv._rag_graph
@@ -322,7 +324,7 @@ def test_rag_reindex_rejects_sensitive_path():
             before = srv._metrics.get("tfp_rag_reindex_total")
             r = client.post(
                 "/api/admin/rag/reindex",
-                json={"device_id": did, "directory": "./docs"},
+                json={"device_id": did},
                 headers={"X-Device-Sig": sig},
             )
             assert r.status_code == 200
