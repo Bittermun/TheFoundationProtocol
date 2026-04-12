@@ -21,7 +21,13 @@ from tfp_client.lib.bridges.ipfs_bridge import IPFSBridge
 from pydantic import BaseModel, Field, ValidationError
 from tfp_broadcaster.broadcaster import Broadcaster
 from tfp_client.lib.bridges.nostr_subscriber import NostrSubscriber
-from tfp_client.lib.bridges.nostr_bridge import NostrBridge
+from tfp_client.lib.bridges.nostr_bridge import (
+    NostrBridge,
+    TFP_CONTENT_KIND,
+    TFP_SEARCH_INDEX_KIND,
+    TFP_CONTENT_ANNOUNCE_KIND,
+    _schnorr_verify,
+)
 from tfp_client.lib.compute.credit_formula import CreditFormula
 from tfp_client.lib.compute.task_executor import (
     TaskSpec,
@@ -1544,22 +1550,63 @@ def _preseed_tasks() -> None:
             log.warning("preseed task %s failed: %s", task_type, exc)
 
 
+def _verify_nostr_event(event_dict: dict) -> bool:
+    """
+    Verify a NIP-01 event: recompute the event ID from the canonical
+    serialization and check the BIP-340 Schnorr signature.
+
+    Returns False on any structural error or signature mismatch.
+    Intentionally strict — invalid events are silently dropped.
+    """
+    try:
+        pubkey = event_dict["pubkey"]
+        created_at = event_dict["created_at"]
+        kind = event_dict["kind"]
+        tags = event_dict["tags"]
+        content = event_dict["content"]
+        event_id = event_dict["id"]
+        sig = event_dict["sig"]
+
+        # Recompute NIP-01 canonical event ID
+        serialized = json.dumps(
+            [0, pubkey, created_at, kind, tags, content],
+            separators=(",", ":"),
+            ensure_ascii=False,
+        )
+        expected_id = hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+        if expected_id != event_id:
+            return False
+
+        return _schnorr_verify(pubkey, event_id, sig)
+    except (KeyError, ValueError, TypeError):
+        return False
+
+
 def _on_nostr_event(event_dict: dict) -> None:
     """Callback: ingest a remote TFP Nostr announcement into the tag overlay or HLT."""
     try:
         kind = event_dict.get("kind", 1)
 
+        # ── Signature verification (drop forged/tampered events) ──────────
+        if not _verify_nostr_event(event_dict):
+            log.warning(
+                "Dropped Nostr event with invalid id/sig: id=%s kind=%s",
+                str(event_dict.get("id", ""))[:16],
+                kind,
+            )
+            return
+
         # ── Kind 30078: HLT Merkle-root gossip ────────────────────────────
-        if kind == 30078:
+        if kind == TFP_CONTENT_KIND:
             _handle_hlt_gossip_event(event_dict)
             return
 
         # ── Kind 30079: semantic search index summary ─────────────────────
-        if kind == 30079:
+        if kind == TFP_SEARCH_INDEX_KIND:
             _handle_search_index_event(event_dict)
             return
 
-        # ── Kind 1 / default: content discovery announcement ──────────────
+        # ── Kind 30080: content-availability announcement ─────────────────
         payload = json.loads(event_dict.get("content", "{}"))
         content_hash_hex = payload.get("hash", "")
         tags = payload.get("tags", [])
@@ -1909,6 +1956,13 @@ async def lifespan(_app: FastAPI):
                 relay_url=relay_url or "wss://relay.damus.io",
                 on_event=_on_nostr_event,
                 offline=not relay_url,
+                filters={
+                    "kinds": [
+                        TFP_CONTENT_KIND,
+                        TFP_SEARCH_INDEX_KIND,
+                        TFP_CONTENT_ANNOUNCE_KIND,
+                    ]
+                },
             )
             _nostr_subscriber.start()
             _nostr_bridge = NostrBridge(

@@ -23,8 +23,22 @@ from fastapi.testclient import TestClient
 
 from tfp_client.lib.bridges.nostr_bridge import (
     NostrBridge,
+    NostrEvent,
     TFP_SEARCH_INDEX_KIND,
 )
+
+_TEST_PRIVKEY = b"\xbb" * 32
+
+
+def _signed_event(kind: int, content: str, tags=None, created_at=None) -> dict:
+    """Return a properly signed NIP-01 event dict for use in server ingest tests."""
+    return NostrEvent.create(
+        privkey=_TEST_PRIVKEY,
+        kind=kind,
+        content=content,
+        tags=tags or [],
+        created_at=created_at,
+    ).to_dict()
 
 
 # ---------------------------------------------------------------------------
@@ -122,11 +136,9 @@ def test_kind_30079_increments_gossip_metric():
     with TestClient(__import__("tfp_demo.server", fromlist=["app"]).app):
         before = srv._metrics.get("tfp_search_index_gossip_received_total")
         srv._on_nostr_event(
-            {
-                "kind": 30079,
-                "created_at": int(time.time()),
-                "pubkey": "a" * 64,
-                "content": json.dumps(
+            _signed_event(
+                30079,
+                json.dumps(
                     {
                         "domain": "general",
                         "index_hash": "a" * 64,
@@ -134,8 +146,7 @@ def test_kind_30079_increments_gossip_metric():
                         "schema_version": "1",
                     }
                 ),
-                "tags": [],
-            }
+            )
         )
         after = srv._metrics.get("tfp_search_index_gossip_received_total")
     assert after == before + 1
@@ -149,11 +160,9 @@ def test_kind_30079_replay_guard_old_event():
         before = srv._metrics.get("tfp_search_index_gossip_received_total")
         old_ts = int(time.time()) - 600  # 10 minutes ago
         srv._on_nostr_event(
-            {
-                "kind": 30079,
-                "created_at": old_ts,
-                "pubkey": "b" * 64,
-                "content": json.dumps(
+            _signed_event(
+                30079,
+                json.dumps(
                     {
                         "domain": "general",
                         "index_hash": "b" * 64,
@@ -161,8 +170,8 @@ def test_kind_30079_replay_guard_old_event():
                         "schema_version": "1",
                     }
                 ),
-                "tags": [],
-            }
+                created_at=old_ts,
+            )
         )
         after = srv._metrics.get("tfp_search_index_gossip_received_total")
     assert after == before  # Dropped: metric not incremented
@@ -176,11 +185,9 @@ def test_kind_30079_replay_guard_future_event():
         before = srv._metrics.get("tfp_search_index_gossip_received_total")
         future_ts = int(time.time()) + 600  # 10 minutes in the future
         srv._on_nostr_event(
-            {
-                "kind": 30079,
-                "created_at": future_ts,
-                "pubkey": "c" * 64,
-                "content": json.dumps(
+            _signed_event(
+                30079,
+                json.dumps(
                     {
                         "domain": "general",
                         "index_hash": "c" * 64,
@@ -188,8 +195,8 @@ def test_kind_30079_replay_guard_future_event():
                         "schema_version": "1",
                     }
                 ),
-                "tags": [],
-            }
+                created_at=future_ts,
+            )
         )
         after = srv._metrics.get("tfp_search_index_gossip_received_total")
     assert after == before  # Dropped
@@ -202,13 +209,7 @@ def test_kind_30079_malformed_content_ignored():
     with TestClient(__import__("tfp_demo.server", fromlist=["app"]).app):
         before = srv._metrics.get("tfp_search_index_gossip_received_total")
         srv._on_nostr_event(
-            {
-                "kind": 30079,
-                "created_at": int(time.time()),
-                "pubkey": "d" * 64,
-                "content": "not valid json {{",
-                "tags": [],
-            }
+            _signed_event(30079, "not valid json {{")
         )
         after = srv._metrics.get("tfp_search_index_gossip_received_total")
     # Malformed JSON → exception caught → no increment
@@ -222,13 +223,10 @@ def test_kind_30079_missing_index_hash_ignored():
     with TestClient(__import__("tfp_demo.server", fromlist=["app"]).app):
         before = srv._metrics.get("tfp_search_index_gossip_received_total")
         srv._on_nostr_event(
-            {
-                "kind": 30079,
-                "created_at": int(time.time()),
-                "pubkey": "e" * 64,
-                "content": json.dumps({"domain": "general", "chunk_count": 5}),
-                "tags": [],
-            }
+            _signed_event(
+                30079,
+                json.dumps({"domain": "general", "chunk_count": 5}),
+            )
         )
         after = srv._metrics.get("tfp_search_index_gossip_received_total")
     # Empty index_hash → ignored

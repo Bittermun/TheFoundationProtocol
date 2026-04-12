@@ -11,6 +11,7 @@ Verifies:
 """
 
 import hashlib
+import json
 import os
 
 os.environ.setdefault("TFP_DB_PATH", ":memory:")
@@ -20,8 +21,10 @@ from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock
 
 from tfp_client.lib.lexicon.hlt.tree import HierarchicalLexiconTree
-from tfp_client.lib.bridges.nostr_bridge import NostrBridge
+from tfp_client.lib.bridges.nostr_bridge import NostrBridge, NostrEvent
 from tfp_demo.server import app, _on_nostr_event
+
+_TEST_PRIVKEY = b"\xaa" * 32
 
 
 # ---------------------------------------------------------------------------
@@ -84,29 +87,29 @@ def test_publish_hlt_state_merkle_root_changes_when_hlt_changes():
 
 def test_on_nostr_event_kind_30078_updates_hlt():
     """A kind-30078 event must trigger HLT domain addition on the local tree."""
-    import json
     from tfp_demo.server import _hlt
 
     if _hlt is None:
         pytest.skip("HLT not initialised (start TestClient first)")
 
     domain_hash = hashlib.sha3_256(b"medical v1.0.0").hexdigest()
-    event = {
-        "kind": 30078,
-        "tags": [
-            ["d", "tfp-hlt"],
-            ["domain", "medical"],
-            ["version", "v1.0.0"],
-            ["merkle_root", "abcd1234"],
-        ],
-        "content": json.dumps(
+    event = NostrEvent.create(
+        privkey=_TEST_PRIVKEY,
+        kind=30078,
+        content=json.dumps(
             {
                 "domain": "medical",
                 "version": "v1.0.0",
                 "content_hash": domain_hash,
             }
         ),
-    }
+        tags=[
+            ["d", "tfp-hlt"],
+            ["domain", "medical"],
+            ["version", "v1.0.0"],
+            ["merkle_root", "abcd1234"],
+        ],
+    ).to_dict()
     _on_nostr_event(event)
     # After handling the event, HLT should have the medical domain
     assert _hlt.has_domain("medical")
@@ -114,25 +117,24 @@ def test_on_nostr_event_kind_30078_updates_hlt():
 
 def test_on_nostr_event_kind_30078_with_testclient():
     """Integration: HLT domain added via Nostr event survives within a lifecycle."""
-    import json
-
     domain_hash = hashlib.sha3_256(b"legal v1.0.0").hexdigest()
-    event = {
-        "kind": 30078,
-        "tags": [
-            ["d", "tfp-hlt"],
-            ["domain", "legal"],
-            ["version", "v1.0.0"],
-            ["merkle_root", "feed1234"],
-        ],
-        "content": json.dumps(
+    event = NostrEvent.create(
+        privkey=_TEST_PRIVKEY,
+        kind=30078,
+        content=json.dumps(
             {
                 "domain": "legal",
                 "version": "v1.0.0",
                 "content_hash": domain_hash,
             }
         ),
-    }
+        tags=[
+            ["d", "tfp-hlt"],
+            ["domain", "legal"],
+            ["version", "v1.0.0"],
+            ["merkle_root", "feed1234"],
+        ],
+    ).to_dict()
     with TestClient(app) as _:
         from tfp_demo.server import _hlt as hlt_ref
 
