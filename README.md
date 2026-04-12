@@ -19,6 +19,7 @@
 | **[Contributing](CONTRIBUTING.md)** | Setup, PR workflow, high-impact areas, security disclosure |
 | **[Code of Conduct](CODE_OF_CONDUCT.md)** | Contributor expectations |
 | **[Governance Manifest](GOVERNANCE_MANIFEST.json)** | Maintainer transparency, contribution model, sustainability, accountability |
+| **[Definition of Done](DEFINITION_OF_DONE.md)** | North star, end goals, hard acceptance criteria, release DoD, and release scorecard |
 | **[Governance Charter](Governance.md)** | Stewardship model, decision tiers, founder safeguards, amendment rules |
 | **[Porting Guide](tfp-foundation-protocol/docs/porting_guide.md)** | C/Rust porting to Cortex-M4 / RISC-V32 |
 | **[Plugin Tutorial](docs/plugin_tutorial_30_min.md)** | Build a plugin in 30 minutes |
