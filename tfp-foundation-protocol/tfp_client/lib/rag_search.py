@@ -474,14 +474,25 @@ def create_rag_router(rag: Optional[RAGGraph] = None):
 
     @router.post("/index")
     async def index_directory(
-        directory: str = Query(..., description="Directory to index"),
         patterns: Optional[str] = Query(None, description="Comma-separated patterns"),
     ):
-        """Index a directory (admin-only endpoint)."""
+        """Index TFP_RAG_DIR (admin-only endpoint)."""
+        rag_dir = os.environ.get("TFP_RAG_DIR", "").strip()
+        if not rag_dir:
+            raise HTTPException(
+                status_code=503,
+                detail="TFP_RAG_DIR is not configured",
+            )
+        index_path = Path(rag_dir)
+        if not index_path.is_dir():
+            raise HTTPException(
+                status_code=503,
+                detail=f"TFP_RAG_DIR does not exist: {index_path}",
+            )
         try:
             pattern_list = patterns.split(",") if patterns else None
-            count = rag.index_directory(directory, patterns=pattern_list)
-            return {"indexed_chunks": count, "directory": directory}
+            count = rag.index_directory(str(index_path), patterns=pattern_list)
+            return {"indexed_chunks": count, "directory": str(index_path)}
         except Exception as e:
             logger.error(f"Index error: {e}")
             raise HTTPException(status_code=500, detail=str(e))
