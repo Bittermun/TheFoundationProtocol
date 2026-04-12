@@ -13,7 +13,9 @@
 
 | Document | Purpose |
 |----------|---------|
-| **[Integration Guide](tfp-foundation-protocol/docs/v3.0-integration-guide.md)** | API reference, task execution, credit economics, deployment runbook, testing, extension guide — **start here** |
+| **[Plain Language Setup](docs/SETUP_PLAIN_LANGUAGE.md)** | **START HERE** — No jargon, step-by-step guides for testing, credit earning, and production deployment |
+| **[Red Team Analysis](docs/RED_TEAM_SETUP_ANALYSIS.md)** | Critical self-assessment of setup methodology, pitfalls, and security gaps — read before production |
+| **[Integration Guide](tfp-foundation-protocol/docs/v3.0-integration-guide.md)** | API reference, task execution, credit economics, deployment runbook, testing, extension guide |
 | **[Security Model & Checklist](tfp-foundation-protocol/docs/SECURITY.md)** | Verified security properties, known limitations, per-release checklist, maintenance policy |
 | **[Deploy & Bootstrap Guide](docs/deploy_demo.md)** | Run locally, Docker, cloud (Render/Railway/Fly.io), Nostr relay setup, compute pool bootstrap |
 | **[Contributing](CONTRIBUTING.md)** | Setup, PR workflow, high-impact areas, security disclosure |

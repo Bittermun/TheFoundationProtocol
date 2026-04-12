@@ -1,70 +1,44 @@
-```
-# Dependencies
-venv/
-.venv/
+```gitignore
+# Python compiled files
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-.pytest_cache/
-.mypy_cache/
-.coverage
-coverage/
-htmlcov/
 
-# Build artifacts
+# Dependencies
+.venv/
+venv/
+env/
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+*.pot
+
+# Testing
+.pytest_cache/
+.hypothesis/
+.installed.cfg
+.lib/
+.eggs/
+eggs/
+parts/
+var/
+sdist/
+develop-eggs/
+.conda/
+.conda-env/
+
+# Distribution / packaging
 dist/
 build/
-target/
-
-# Environment files
-.env
-.env.local
-*.env.*
-
-# IDE and editor files
-.vscode/
-.idea/
-*.swp
-*.swo
-*.tmp
-
-# OS specific files
-.DS_Store
-Thumbs.db
-
-# Logs
-*.log
-
-# Database files
-*.db
-pib.db
-
-# Docker related
-.dockerenv
-Dockerfile.demo
-
-# Compressed files
-*.zip
-*.gz
-*.tar
-*.tgz
-*.bz2
-*.xz
-*.7z
-*.rar
-*.zst
-*.lz4
-*.lzh
-*.cab
-*.arj
-*.rpm
-*.deb
-*.Z
-*.lz
-*.lzo
-*.tar.gz
-*.tar.bz2
-*.tar.xz
-*.tar.zst
+*.egg-info/
+MANIFEST
+.tags*
 ```
