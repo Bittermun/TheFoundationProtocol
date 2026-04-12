@@ -5,7 +5,7 @@ websockets>=12.0
 prometheus_client>=0.20.0
 
 [all]
-tfp[distributed,rag,tracing]
+tfp[distributed,rag,security,tracing]
 
 [dev]
 black>=24.0.0
@@ -18,6 +18,9 @@ redis>=5.2.0
 [rag]
 chromadb>=0.4.24
 transformers>=4.39.0
+
+[security]
+cryptography>=41.0.0
 
 [test]
 pytest>=8.0.0

@@ -32,6 +32,7 @@ tests/test_pipeline_integration.py
 tests/test_puf_enclave.py
 tests/test_rag_production.py
 tests/test_range_requests.py
+tests/test_rate_limiter.py
 tests/test_rate_limiting.py
 tests/test_recipe_pipeline.py
 tests/test_restart_safety.py
@@ -64,6 +65,7 @@ tfp_broadcaster/src/multicast/multicast_real.py
 tfp_broadcaster/src/seed/__init__.py
 tfp_broadcaster/src/task_broadcast/__init__.py
 tfp_cli/__init__.py
+tfp_cli/identity.py
 tfp_cli/main.py
 tfp_client/__init__.py
 tfp_client/lib/__init__.py
