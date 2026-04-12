@@ -23,6 +23,7 @@ Offline mode (no kubo required):
 
 import hashlib
 import logging
+import os
 from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
@@ -91,7 +92,7 @@ class IPFSBridge:
         offline: If True, all network calls are suppressed; useful for testing.
     """
 
-    DEFAULT_API_URL = "http://127.0.0.1:5001"
+    DEFAULT_API_URL = os.getenv("TFP_IPFS_API_URL", "http://127.0.0.1:5001")
 
     def __init__(
         self,

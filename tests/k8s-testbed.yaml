@@ -1,0 +1,133 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: tfp-testbed
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tfp-redis
+  namespace: tfp-testbed
+spec:
+  ports:
+    - port: 6379
+  selector:
+    app: tfp-redis
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tfp-redis
+  namespace: tfp-testbed
+spec:
+  selector:
+    matchLabels:
+      app: tfp-redis
+  template:
+    metadata:
+      labels:
+        app: tfp-redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          resources:
+            limits:
+              memory: "128Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tfp-ipfs
+  namespace: tfp-testbed
+spec:
+  ports:
+    - name: api
+      port: 5001
+    - name: gateway
+      port: 8080
+  selector:
+    app: tfp-ipfs
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tfp-ipfs
+  namespace: tfp-testbed
+spec:
+  selector:
+    matchLabels:
+      app: tfp-ipfs
+  template:
+    metadata:
+      labels:
+        app: tfp-ipfs
+    spec:
+      containers:
+        - name: kubo
+          image: ipfs/kubo:latest
+          ports:
+            - containerPort: 5001
+            - containerPort: 8080
+          resources:
+            limits:
+              memory: "512Mi"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tfp-nodes
+  namespace: tfp-testbed
+spec:
+  type: NodePort
+  selector:
+    app: tfp-node
+  ports:
+    - name: api
+      port: 8000
+      targetPort: 8000
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: tfp-node
+  namespace: tfp-testbed
+spec:
+  serviceName: "tfp-nodes"
+  replicas: 10
+  selector:
+    matchLabels:
+      app: tfp-node
+  template:
+    metadata:
+      labels:
+        app: tfp-node
+    spec:
+      containers:
+        - name: tfp-node
+          image: tfp-node:latest # User must build this image locally: docker build -t tfp-node:latest ./tfp-foundation-protocol
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: TFP_DB_PATH
+              value: "/data/pib.db"
+            - name: TFP_IPFS_API_URL
+              value: "http://tfp-ipfs:5001"
+            - name: REDIS_URL
+              value: "redis://tfp-redis:6379/0"
+          ports:
+            - containerPort: 8000
+          resources:
+            limits:
+              cpu: "200m"
+              memory: "256Mi"
+          volumeMounts:
+            - name: tfp-data
+              mountPath: /data
+  volumeClaimTemplates:
+    - metadata:
+        name: tfp-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi
