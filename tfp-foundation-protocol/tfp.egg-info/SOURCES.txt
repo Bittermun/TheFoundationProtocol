@@ -5,12 +5,14 @@ tests/test_broadcaster.py
 tests/test_caliper_adapter.py
 tests/test_chunk_registry.py
 tests/test_chunk_store.py
+tests/test_cid_persistence.py
 tests/test_concurrency.py
 tests/test_credit_ledger.py
 tests/test_credit_replay.py
 tests/test_demo_server.py
 tests/test_device_auth.py
 tests/test_e2e_flow.py
+tests/test_feature_flags.py
 tests/test_grand_completion.py
 tests/test_habp_consensus.py
 tests/test_hlt.py
@@ -26,6 +28,7 @@ tests/test_rate_limiting.py
 tests/test_restart_safety.py
 tests/test_scheduler_demand_wiring.py
 tests/test_simulation_scenarios.py
+tests/test_startup_contract.py
 tests/test_supply_cap.py
 tests/test_symbolic_preprocessor.py
 tests/test_tag_index.py
