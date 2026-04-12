@@ -29,7 +29,7 @@ os.environ.setdefault("TFP_DB_PATH", ":memory:")
 
 from tfp_broadcaster.broadcaster import Broadcaster
 from tfp_client.lib.bridges.ipfs_bridge import IPFSBridge
-from tfp_client.lib.bridges.nostr_bridge import TFP_CONTENT_KIND, NostrBridge
+from tfp_client.lib.bridges.nostr_bridge import TFP_CONTENT_KIND, TFP_CONTENT_ANNOUNCE_KIND, NostrBridge
 from tfp_client.lib.bridges.nostr_subscriber import NostrSubscriber
 from tfp_demo.server import app
 
@@ -96,7 +96,7 @@ class TestNostrAnnounceThenDiscover:
         event = bridge.publish_content_announcement(
             root_hash, metadata={"title": "Nostr Test", "tags": ["integration"]}
         )
-        assert event.kind == TFP_CONTENT_KIND
+        assert event.kind == TFP_CONTENT_ANNOUNCE_KIND
         assert root_hash in event.content
 
         # Subscriber receives event via _handle_message (simulates relay delivery)

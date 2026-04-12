@@ -42,8 +42,11 @@ tracing = [
     "opentelemetry-instrumentation-fastapi>=0.45b0",
     "opentelemetry-exporter-otlp>=1.24.0",
 ]
+security = [
+    "cryptography>=41.0.0",
+]
 all = [
-    "tfp[distributed,rag,tracing]",
+    "tfp[distributed,rag,tracing,security]",
 ]
 
 [tool.setuptools.packages.find]

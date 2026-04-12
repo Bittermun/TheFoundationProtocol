@@ -14,7 +14,11 @@ import time
 from typing import Any, Dict
 from unittest.mock import MagicMock, patch
 
-from tfp_client.lib.bridges.nostr_bridge import TFP_CONTENT_KIND
+from tfp_client.lib.bridges.nostr_bridge import (
+    TFP_CONTENT_KIND,
+    TFP_CONTENT_ANNOUNCE_KIND,
+    TFP_SEARCH_INDEX_KIND,
+)
 from tfp_client.lib.bridges.nostr_subscriber import _SUB_ID, NostrSubscriber
 
 # ---------------------------------------------------------------------------
@@ -194,7 +198,7 @@ class TestMockedWebSocket:
         msg = json.loads(first_call_args)
         assert msg[0] == "REQ"
         assert msg[1] == _SUB_ID
-        assert msg[2]["kinds"] == [TFP_CONTENT_KIND]
+        assert msg[2]["kinds"] == [TFP_CONTENT_KIND, TFP_SEARCH_INDEX_KIND, TFP_CONTENT_ANNOUNCE_KIND]
 
     def test_event_delivered_via_mocked_ws(self):
         received = []

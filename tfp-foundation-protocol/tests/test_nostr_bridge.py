@@ -20,9 +20,11 @@ import pytest
 try:
     from tfp_client.lib.bridges.nostr_bridge import (
         TFP_CONTENT_KIND,
+        TFP_CONTENT_ANNOUNCE_KIND,
         NostrBridge,
         NostrBridgeError,
         NostrEvent,
+        _schnorr_verify,
     )
 
     NOSTR_AVAILABLE = True
@@ -157,7 +159,7 @@ class TestNostrPublishAnnouncement:
         bridge = NostrBridge(offline=True, privkey=b"\x01" * 32)
         event = bridge.build_content_announcement(SAMPLE_HASH, SAMPLE_METADATA)
         assert isinstance(event, NostrEvent)
-        assert event.kind == TFP_CONTENT_KIND
+        assert event.kind == TFP_CONTENT_ANNOUNCE_KIND
 
     def test_announcement_contains_hash(self):
         bridge = NostrBridge(offline=True, privkey=b"\x01" * 32)
@@ -244,3 +246,50 @@ class TestNostrTFPContentKind:
         # NIP-01: kinds 1000-9999 are custom/application-specific
         # or ephemeral 20000-29999, parameterized replaceable 30000-39999
         assert TFP_CONTENT_KIND >= 1000
+
+
+@pytest.mark.skipif(not NOSTR_AVAILABLE, reason="nostr_bridge not available")
+class TestSchnorrVerify:
+    """Tests for _schnorr_verify: BIP-340 round-trip with _schnorr_sign."""
+
+    _PRIVKEY = b"\x01" * 32
+
+    def _make_event(self, kind=30078, content="hello"):
+        return NostrEvent.create(
+            privkey=self._PRIVKEY, kind=kind, content=content, tags=[]
+        )
+
+    def test_valid_sig_verifies(self):
+        ev = self._make_event()
+        assert _schnorr_verify(ev.pubkey, ev.id, ev.sig) is True
+
+    def test_wrong_sig_rejected(self):
+        ev = self._make_event()
+        bad_sig = "ff" * 64
+        assert _schnorr_verify(ev.pubkey, ev.id, bad_sig) is False
+
+    def test_wrong_id_rejected(self):
+        ev = self._make_event()
+        bad_id = "00" * 32
+        assert _schnorr_verify(ev.pubkey, bad_id, ev.sig) is False
+
+    def test_wrong_pubkey_rejected(self):
+        ev = self._make_event()
+        other = NostrEvent.create(privkey=b"\x02" * 32, kind=1, content="x", tags=[])
+        assert _schnorr_verify(other.pubkey, ev.id, ev.sig) is False
+
+    def test_different_privkeys_produce_different_sigs(self):
+        ev1 = NostrEvent.create(privkey=b"\x01" * 32, kind=1, content="x", tags=[])
+        ev2 = NostrEvent.create(privkey=b"\x02" * 32, kind=1, content="x", tags=[])
+        assert ev1.sig != ev2.sig
+
+    def test_sig_length_64_bytes(self):
+        ev = self._make_event()
+        assert len(bytes.fromhex(ev.sig)) == 64
+
+    def test_garbage_pubkey_returns_false(self):
+        ev = self._make_event()
+        assert _schnorr_verify("zz" * 32, ev.id, ev.sig) is False
+
+    def test_empty_strings_return_false(self):
+        assert _schnorr_verify("", "", "") is False

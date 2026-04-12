@@ -45,7 +45,9 @@ logger = logging.getLogger(__name__)
 # TFP-specific Nostr event kind
 # ---------------------------------------------------------------------------
 
-TFP_CONTENT_KIND: int = 30078  # parameterized replaceable, application-specific
+TFP_CONTENT_KIND: int = 30078         # HLT Merkle-root gossip (parameterized replaceable)
+TFP_SEARCH_INDEX_KIND: int = 30079    # semantic search index summary / delta gossip
+TFP_CONTENT_ANNOUNCE_KIND: int = 30080  # content-availability announcements
 
 # ---------------------------------------------------------------------------
 # Secp256k1 field / order constants (simplified Schnorr, no external lib)
@@ -155,6 +157,52 @@ def _schnorr_sign(privkey: bytes, msg32: bytes) -> bytes:
     e = int.from_bytes(hashlib.sha256(Rx + Px + msg32).digest(), "big") % _N
     s = (k_raw + e * sk) % _N
     return Rx + s.to_bytes(32, "big")
+
+
+def _schnorr_verify(pubkey_hex: str, event_id_hex: str, sig_hex: str) -> bool:
+    """
+    BIP-340 Schnorr signature verification (pure-Python, matches _schnorr_sign).
+
+    Uses the same simplified SHA-256 challenge (not the tagged-hash BIP-340
+    variant) so it is consistent with _schnorr_sign's nonce derivation.
+
+    Returns True iff the signature is valid; False on any error or mismatch.
+    """
+    try:
+        px = int(pubkey_hex, 16)
+        msg = bytes.fromhex(event_id_hex)
+        sig = bytes.fromhex(sig_hex)
+        if len(sig) != 64 or len(msg) != 32:
+            return False
+
+        rx = int.from_bytes(sig[:32], "big")
+        s = int.from_bytes(sig[32:], "big")
+
+        # Range checks per BIP-340
+        if px >= _P or rx >= _P or s >= _N:
+            return False
+
+        # lift_x: recover even-y point from the 32-byte x-only public key
+        y_sq = (pow(px, 3, _P) + 7) % _P
+        y = pow(y_sq, (_P + 1) // 4, _P)
+        if pow(y, 2, _P) != y_sq:
+            return False  # px is not on the curve
+        P = (px, y if y % 2 == 0 else _P - y)
+
+        # e = SHA-256(bytes(rx) || bytes(px) || msg)  — matches _schnorr_sign
+        rx_bytes = rx.to_bytes(32, "big")
+        px_bytes = px.to_bytes(32, "big")
+        e = int.from_bytes(hashlib.sha256(rx_bytes + px_bytes + msg).digest(), "big") % _N
+
+        # R = s·G − e·P; verify R.y is even and R.x == rx
+        sG = _point_mul(s, _G_POINT)
+        neg_e = (_N - e) % _N
+        neg_eP = _point_mul(neg_e, P) if neg_e else None
+        R = _point_add(sG, neg_eP)
+
+        return R is not None and R[1] % 2 == 0 and R[0] == rx
+    except Exception:
+        return False
 
 
 # ---------------------------------------------------------------------------
@@ -324,7 +372,7 @@ class NostrBridge:
 
         return NostrEvent.create(
             privkey=self._privkey,
-            kind=TFP_CONTENT_KIND,
+            kind=TFP_CONTENT_ANNOUNCE_KIND,
             content=content_str,
             tags=tags,
         )
@@ -429,6 +477,74 @@ class NostrBridge:
             except Exception as exc:
                 logger.warning(
                     "HLT gossip publish failed (relay=%s): %s", self.relay_url, exc
+                )
+        return event.to_dict()
+
+    def publish_search_index_summary(
+        self,
+        domain: str,
+        index_hash: str,
+        chunk_count: int,
+        schema_version: str = "1",
+        created_at: Optional[int] = None,
+    ) -> dict:
+        """
+        Publish a NIP-78 kind-30079 semantic search index summary event.
+
+        Gossips a signed, content-addressed summary of the local semantic index
+        so that peer nodes can detect stale indices and request delta updates.
+
+        The event tags include:
+        - ``["d", "tfp-search-index"]``: parameterized replaceable identifier
+        - ``["domain", <domain>]``: content domain the index covers
+        - ``["index_hash", <hex>]``: SHA3-256 of the index state
+        - ``["chunk_count", <n>]``: number of chunks currently indexed
+        - ``["schema_version", <v>]``: index schema version for compatibility checks
+
+        Args:
+            domain: Domain name the index covers (e.g. ``"general"``, ``"code"``).
+            index_hash: Hex SHA3-256 of the index state (deterministic fingerprint).
+            chunk_count: Total indexed chunks in this domain.
+            schema_version: Index schema version string for compatibility checks.
+            created_at: Optional Unix timestamp (defaults to ``int(time.time())``).
+
+        Returns:
+            The event as a plain dict (for test assertions and logging).
+        """
+        ts = created_at if created_at is not None else int(time.time())
+
+        tags: list = [
+            ["d", "tfp-search-index"],
+            ["domain", domain],
+            ["index_hash", index_hash],
+            ["chunk_count", str(chunk_count)],
+            ["schema_version", schema_version],
+        ]
+
+        content_payload = {
+            "domain": domain,
+            "index_hash": index_hash,
+            "chunk_count": chunk_count,
+            "schema_version": schema_version,
+            "published_at": ts,
+        }
+
+        event = NostrEvent.create(
+            privkey=self._privkey,
+            kind=TFP_SEARCH_INDEX_KIND,
+            content=json.dumps(content_payload, separators=(",", ":")),
+            tags=tags,
+            created_at=ts,
+        )
+        self._history.append(event)
+        if not self.offline:
+            try:
+                self._send_to_relay(event)
+            except Exception as exc:
+                logger.warning(
+                    "Search index gossip publish failed (relay=%s): %s",
+                    self.relay_url,
+                    exc,
                 )
         return event.to_dict()
 

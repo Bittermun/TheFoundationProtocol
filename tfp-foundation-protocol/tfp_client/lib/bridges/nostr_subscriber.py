@@ -34,15 +34,22 @@ import logging
 import threading
 from typing import Any, Callable, Dict, List, Optional
 
-from tfp_client.lib.bridges.nostr_bridge import TFP_CONTENT_KIND
+from tfp_client.lib.bridges.nostr_bridge import (
+    TFP_CONTENT_KIND,
+    TFP_CONTENT_ANNOUNCE_KIND,
+    TFP_SEARCH_INDEX_KIND,
+)
 
 logger = logging.getLogger(__name__)
 
 # NIP-01 subscription identifier used in REQ / CLOSE messages
 _SUB_ID = "tfp-content-discovery"
 
-# Default NIP-01 filter: only TFP content announcements
-_DEFAULT_FILTER: Dict[str, Any] = {"kinds": [TFP_CONTENT_KIND]}
+# Default NIP-01 filter: HLT gossip (30078), search-index summaries (30079),
+# and content-availability announcements (30080).
+_DEFAULT_FILTER: Dict[str, Any] = {
+    "kinds": [TFP_CONTENT_KIND, TFP_SEARCH_INDEX_KIND, TFP_CONTENT_ANNOUNCE_KIND]
+}
 
 
 class NostrSubscriber:
@@ -181,12 +188,14 @@ class NostrSubscriber:
             event_dict = msg[2]
             if not isinstance(event_dict, dict):
                 return
-            if event_dict.get("kind") == TFP_CONTENT_KIND:
-                self._received.append(event_dict)
-                try:
-                    self._on_event(event_dict)
-                except Exception as exc:
-                    logger.warning("NostrSubscriber: on_event callback raised: %s", exc)
+            subscribed_kinds = set(self._filters.get("kinds", []))
+            if subscribed_kinds and event_dict.get("kind") not in subscribed_kinds:
+                return
+            self._received.append(event_dict)
+            try:
+                self._on_event(event_dict)
+            except Exception as exc:
+                logger.warning("NostrSubscriber: on_event callback raised: %s", exc)
 
         elif msg_type == "EOSE":
             logger.debug("NostrSubscriber: EOSE (end of stored events)")

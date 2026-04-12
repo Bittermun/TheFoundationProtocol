@@ -12,6 +12,7 @@ tests/test_credit_ledger.py
 tests/test_credit_replay.py
 tests/test_demo_server.py
 tests/test_device_auth.py
+tests/test_dict_lexicon.py
 tests/test_e2e_flow.py
 tests/test_feature_flags.py
 tests/test_grand_completion.py
@@ -23,15 +24,20 @@ tests/test_integration_real.py
 tests/test_ipfs_bridge.py
 tests/test_lexicon_delta.py
 tests/test_nostr_bridge.py
+tests/test_nostr_search_index.py
 tests/test_nostr_subscriber.py
+tests/test_peer_auth.py
 tests/test_peer_fallback.py
 tests/test_pipeline_integration.py
 tests/test_puf_enclave.py
+tests/test_rag_production.py
 tests/test_range_requests.py
 tests/test_rate_limiting.py
 tests/test_recipe_pipeline.py
 tests/test_restart_safety.py
 tests/test_scheduler_demand_wiring.py
+tests/test_shard_economics.py
+tests/test_shard_size_warning.py
 tests/test_simulation_scenarios.py
 tests/test_startup_contract.py
 tests/test_supply_cap.py
@@ -89,6 +95,7 @@ tfp_client/lib/identity/puf_enclave/__init__.py
 tfp_client/lib/identity/puf_enclave/enclave.py
 tfp_client/lib/lexicon/__init__.py
 tfp_client/lib/lexicon/adapter.py
+tfp_client/lib/lexicon/dict_lexicon_adapter.py
 tfp_client/lib/lexicon/hlt/__init__.py
 tfp_client/lib/lexicon/hlt/delta.py
 tfp_client/lib/lexicon/hlt/sync.py

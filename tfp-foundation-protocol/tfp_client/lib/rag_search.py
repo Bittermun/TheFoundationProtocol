@@ -25,6 +25,7 @@ Usage:
 
 import hashlib
 import logging
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -288,8 +289,13 @@ class RAGGraph:
         """
         Index all matching files in a directory.
 
+        The *directory* argument must resolve to a path that is within the
+        process's current working directory (or a parent directory configured
+        by the caller).  Use ``Path.relative_to()`` to verify containment before
+        calling this function from user-facing endpoints.
+
         Args:
-            directory: Root directory to index
+            directory: Root directory to index (pre-validated by caller)
             patterns: File patterns to include (default: ['*.py', '*.md', '*.rst'])
             exclude_dirs: Directories to exclude (default: ['__pycache__', '.git', 'node_modules'])
 
@@ -308,16 +314,28 @@ class RAGGraph:
                 "venv",
             ]
 
-        root_path = Path(directory)
-        if not root_path.exists():
-            logger.error(f"Directory not found: {directory}")
+        # Resolve to absolute path.  The directory comes from a server-controlled
+        # source (TFP_RAG_DIR env var) — not from HTTP request parameters.
+        root_path = Path(directory).resolve()
+        if not root_path.exists() or not root_path.is_dir():
+            logger.error("Directory not found or not a directory: %s", root_path)
             return 0
 
         total_chunks = 0
         files_indexed = 0
 
         for pattern in patterns:
+            # Reject patterns that could escape root_path via traversal
+            if ".." in pattern or pattern.startswith(("/", "\\")):
+                logger.warning("Skipping unsafe index pattern: %r", pattern)
+                continue
             for file_path in root_path.rglob(pattern):
+                # Verify the file is still within root_path (symlink containment)
+                try:
+                    file_path.resolve().relative_to(root_path)
+                except ValueError:
+                    logger.debug("Skipping path outside root: %s", file_path)
+                    continue
                 # Check exclusions
                 if any(excl in str(file_path) for excl in exclude_dirs):
                     continue
@@ -456,14 +474,25 @@ def create_rag_router(rag: Optional[RAGGraph] = None):
 
     @router.post("/index")
     async def index_directory(
-        directory: str = Query(..., description="Directory to index"),
         patterns: Optional[str] = Query(None, description="Comma-separated patterns"),
     ):
-        """Index a directory (admin-only endpoint)."""
+        """Index TFP_RAG_DIR (admin-only endpoint)."""
+        rag_dir = os.environ.get("TFP_RAG_DIR", "").strip()
+        if not rag_dir:
+            raise HTTPException(
+                status_code=503,
+                detail="TFP_RAG_DIR is not configured",
+            )
+        index_path = Path(rag_dir)
+        if not index_path.is_dir():
+            raise HTTPException(
+                status_code=503,
+                detail=f"TFP_RAG_DIR does not exist: {index_path}",
+            )
         try:
             pattern_list = patterns.split(",") if patterns else None
-            count = rag.index_directory(directory, patterns=pattern_list)
-            return {"indexed_chunks": count, "directory": directory}
+            count = rag.index_directory(str(index_path), patterns=pattern_list)
+            return {"indexed_chunks": count, "directory": str(index_path)}
         except Exception as e:
             logger.error(f"Index error: {e}")
             raise HTTPException(status_code=500, detail=str(e))
