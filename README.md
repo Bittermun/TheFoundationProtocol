@@ -2,7 +2,7 @@
 
 **A decentralized content & compute protocol for global information access — uncensorable, efficient, and built for everyone.**
 
-![Tests](https://img.shields.io/badge/tests-570%20passing-green)
+![Tests](https://img.shields.io/badge/tests-651%20passing-green)
 ![Python Files](https://img.shields.io/badge/python%20files-154-blue)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Security](https://img.shields.io/badge/security-hardened-green)
@@ -48,7 +48,7 @@ Create a **Global Information Commons** that works for pennies: anyone can publi
 ## Current Status (v3.1.x)
 
 - ✅ Production-ready core (25k+ LOC, 154 Python files).
-- ✅ **565 tests passing, 1 warning** — `TFP_DB_PATH=:memory: PYTHONPATH=. python -m pytest tests/ -q`
+- ✅ **650 tests passing, 1 skipped** — `TFP_DB_PATH=:memory: PYTHONPATH=. python -m pytest tests/ -q`
 - ✅ **Real compute tasks** — 3 task types (HASH_PREIMAGE, MATRIX_VERIFY, CONTENT_VERIFY) with cryptographic proof-of-work.
 - ✅ **HABP consensus** — Credits only mint when 3/5 devices agree on identical output hash. **Proofs survive server restart** (rebuilt from SQLite on boot).
 - ✅ **21M credit supply cap** — Hard-coded MAX_SUPPLY enforced at every mint via SupplyCapError.
@@ -79,7 +79,7 @@ Create a **Global Information Commons** that works for pennies: anyone can publi
 ```bash
 cd tfp-foundation-protocol
 pip install -r requirements.txt
-TFP_DB_PATH=:memory: PYTHONPATH=. python -m pytest tests/ -q   # 565 tests, 1 warning
+TFP_DB_PATH=:memory: PYTHONPATH=. python -m pytest tests/ -q   # 650 tests, 1 skipped
 uvicorn tfp_demo.server:app --reload                           # Demo node on :8000
 ```
 
@@ -156,7 +156,7 @@ tfp-foundation-protocol/
 │   ├── SECURITY.md                ← security model, verification checklist, maintenance policy
 │   ├── porting_guide.md
 │   └── archive/                   ← historical guides (v2.x, read-only)
-└── tests/             # 565 pytest tests
+└── tests/             # 650 pytest tests
 ```
 
 ## API Endpoints (Demo Node)
@@ -295,7 +295,7 @@ python tfp_pilots/community_bootstrap.py --community-id "my-region"
 |--------|-------|--------|--------|
 | Python Files | 154 | — | ✅ |
 | Total LOC | ~27,000 | <50k | ✅ |
-| Tests Passing | 565 | >400 | ✅ |
+| Tests Passing | 650 | >400 | ✅ |
 | Test Warnings | 1 | 0 | ⚠️ |
 | PII Logged | 0 | 0 | ✅ |
 | Critical Vulnerabilities | 0 | 0 | ✅ |

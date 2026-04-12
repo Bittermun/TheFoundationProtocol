@@ -6,12 +6,11 @@ import logging
 import os
 import re
 import sqlite3
-import tempfile
 import threading
 import time
 import urllib.request
 from contextlib import asynccontextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterator, List, Optional
 
@@ -1953,7 +1952,6 @@ def _build_recipe(
     # Decode k (number of source blocks) from the first shard header
     import struct
     _orig_len, k, _idx = struct.unpack(">QII", shards[0][:16])
-    source_shards = shards[:k]
 
     chunk_ids: List[str] = []
     for idx, shard_bytes in enumerate(shards):
