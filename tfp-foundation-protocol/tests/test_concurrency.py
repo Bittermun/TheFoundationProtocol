@@ -11,7 +11,6 @@ security job: ``pytest -m concurrency``
 import os
 import sqlite3
 import threading
-from concurrent.futures import ThreadPoolExecutor
 
 os.environ.setdefault("TFP_DB_PATH", ":memory:")
 

@@ -1086,7 +1086,8 @@ class TestTaskExpiryReaper:
         import time
 
         conn = sqlite3.connect(":memory:")
-        ts = TaskStore(conn)
+        db_lock = threading.RLock()
+        ts = TaskStore(conn, db_lock)
         # Manually insert an already-expired task
         spec_dict = {
             "task_id": "expired-001",
@@ -1113,7 +1114,8 @@ class TestTaskExpiryReaper:
         import time
 
         conn = sqlite3.connect(":memory:")
-        ts = TaskStore(conn)
+        db_lock = threading.RLock()
+        ts = TaskStore(conn, db_lock)
         spec_dict = {
             "task_id": "reap-001",
             "task_type": "hash_preimage",
@@ -1217,8 +1219,9 @@ class TestHABPRestartSurvival:
         import time
 
         conn = sqlite3.connect(":memory:")
+        db_lock = threading.RLock()
 
-        ts = TaskStore(conn)
+        ts = TaskStore(conn, db_lock)
         output_hash = "a" * 64
 
         # Create a task
@@ -1241,7 +1244,7 @@ class TestHABPRestartSurvival:
         conn.commit()
 
         # Create a NEW TaskStore (simulates restart) — it rebuilds HABP from DB
-        ts2 = TaskStore(conn)
+        ts2 = TaskStore(conn, db_lock)
         assert ts2._habp.get_proof_count(task_id) == 2
 
         # Third submission reaches consensus
