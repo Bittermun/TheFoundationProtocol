@@ -10,7 +10,7 @@ Thank you for your interest in contributing to the TFP Foundation Protocol! This
 git clone https://github.com/Bittermun/TheFoundationProtocol.git
 cd TheFoundationProtocol/tfp-foundation-protocol
 pip install -r requirements.txt
-TFP_DB_PATH=:memory: PYTHONPATH=. python -m pytest tests/ -q   # 491 tests
+TFP_DB_PATH=:memory: PYTHONPATH=. python -m pytest tests/ -q   # 565 tests
 ```
 
 ---
@@ -23,6 +23,7 @@ TFP_DB_PATH=:memory: PYTHONPATH=. python -m pytest tests/ -q   # 491 tests
 | Feature requests | Open an Issue tagged `enhancement` |
 | Code contributions | Fork → branch → PR (see below) |
 | Documentation | Edit files in `docs/` or `tfp-foundation-protocol/docs/` |
+| Definition of Done | Review [DEFINITION_OF_DONE.md](DEFINITION_OF_DONE.md) — every PR and release is measured against it |
 | Translations | Voice guide scripts are in `tfp_ui/screens/screen_stubs.py` |
 | Plugins | Follow the [Plugin Tutorial](docs/plugin_tutorial_30_min.md) |
 | Hackathon projects | See [Hackathon Kit](docs/hackathon_kit.md) |

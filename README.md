@@ -2,7 +2,7 @@
 
 **A decentralized content & compute protocol for global information access — uncensorable, efficient, and built for everyone.**
 
-![Tests](https://img.shields.io/badge/tests-491%20passing-green)
+![Tests](https://img.shields.io/badge/tests-570%20passing-green)
 ![Python Files](https://img.shields.io/badge/python%20files-154-blue)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Security](https://img.shields.io/badge/security-hardened-green)
@@ -19,6 +19,7 @@
 | **[Contributing](CONTRIBUTING.md)** | Setup, PR workflow, high-impact areas, security disclosure |
 | **[Code of Conduct](CODE_OF_CONDUCT.md)** | Contributor expectations |
 | **[Governance Manifest](GOVERNANCE_MANIFEST.json)** | Maintainer transparency, contribution model, sustainability, accountability |
+| **[Definition of Done](DEFINITION_OF_DONE.md)** | North star, end goals, hard acceptance criteria, release DoD, and release scorecard |
 | **[Governance Charter](Governance.md)** | Stewardship model, decision tiers, founder safeguards, amendment rules |
 | **[Porting Guide](tfp-foundation-protocol/docs/porting_guide.md)** | C/Rust porting to Cortex-M4 / RISC-V32 |
 | **[Plugin Tutorial](docs/plugin_tutorial_30_min.md)** | Build a plugin in 30 minutes |
@@ -47,7 +48,7 @@ Create a **Global Information Commons** that works for pennies: anyone can publi
 ## Current Status (v3.1.1)
 
 - ✅ Production-ready core (25k+ LOC, 154 Python files).
-- ✅ **491 tests passing, 1 warning** — `TFP_DB_PATH=:memory: PYTHONPATH=. python -m pytest tests/ -q`
+- ✅ **565 tests passing, 1 warning** — `TFP_DB_PATH=:memory: PYTHONPATH=. python -m pytest tests/ -q`
 - ✅ **Real compute tasks** — 3 task types (HASH_PREIMAGE, MATRIX_VERIFY, CONTENT_VERIFY) with cryptographic proof-of-work.
 - ✅ **HABP consensus** — Credits only mint when 3/5 devices agree on identical output hash. **Proofs survive server restart** (rebuilt from SQLite on boot).
 - ✅ **21M credit supply cap** — Hard-coded MAX_SUPPLY enforced at every mint via SupplyCapError.
@@ -72,7 +73,7 @@ Create a **Global Information Commons** that works for pennies: anyone can publi
 ```bash
 cd tfp-foundation-protocol
 pip install -r requirements.txt
-TFP_DB_PATH=:memory: PYTHONPATH=. python -m pytest tests/ -q   # 491 tests, 1 warning
+TFP_DB_PATH=:memory: PYTHONPATH=. python -m pytest tests/ -q   # 565 tests, 1 warning
 uvicorn tfp_demo.server:app --reload                           # Demo node on :8000
 ```
 
@@ -149,7 +150,7 @@ tfp-foundation-protocol/
 │   ├── SECURITY.md                ← security model, verification checklist, maintenance policy
 │   ├── porting_guide.md
 │   └── archive/                   ← historical guides (v2.x, read-only)
-└── tests/             # 491 pytest tests
+└── tests/             # 565 pytest tests
 ```
 
 ## API Endpoints (Demo Node)
@@ -322,7 +323,7 @@ python tfp_pilots/community_bootstrap.py --community-id "my-region"
 |--------|-------|--------|--------|
 | Python Files | 154 | — | ✅ |
 | Total LOC | ~27,000 | <50k | ✅ |
-| Tests Passing | 491 | >400 | ✅ |
+| Tests Passing | 565 | >400 | ✅ |
 | Test Warnings | 1 | 0 | ⚠️ |
 | PII Logged | 0 | 0 | ✅ |
 | Critical Vulnerabilities | 0 | 0 | ✅ |
