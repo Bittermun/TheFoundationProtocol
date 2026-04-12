@@ -35,6 +35,7 @@ def _make_store() -> tuple[sqlite3.Connection, TaskStore]:
 
 def _output_hash(tag: str) -> str:
     import hashlib
+
     return hashlib.sha3_256(tag.encode()).hexdigest()
 
 
@@ -192,7 +193,9 @@ def test_three_devices_concurrent_consensus():
             with lock:
                 errors.append(str(exc))
 
-    threads = [threading.Thread(target=submit, args=(f"habp-racer-{i}",)) for i in range(3)]
+    threads = [
+        threading.Thread(target=submit, args=(f"habp-racer-{i}",)) for i in range(3)
+    ]
     for t in threads:
         t.start()
     for t in threads:
@@ -257,4 +260,3 @@ def test_supply_cap_enforced_under_concurrent_mint():
     # At least one mint must succeed and at least one must be blocked
     assert successes, "No mints succeeded — cap test is misconfigured"
     assert cap_errors, "Cap was never hit — possible race condition in enforcement"
-

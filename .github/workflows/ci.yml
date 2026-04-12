@@ -24,18 +24,28 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-          cache: pip
-          cache-dependency-path: tfp-foundation-protocol/requirements.txt
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('tfp-foundation-protocol/pyproject.toml') }}
+          restore-keys: |
+            pip-${{ runner.os }}-${{ matrix.python-version }}-
+            pip-${{ runner.os }}-
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r tfp-foundation-protocol/requirements.txt
-          pip install prometheus_client
+          pip install -e tfp-foundation-protocol[test]
+          pip install prometheus_client ruff
 
       - name: Run protocol tests
         working-directory: tfp-foundation-protocol
         run: PYTHONPATH=. python -m pytest tests/ -q --tb=short
+
+      - name: Ruff lint check
+        working-directory: tfp-foundation-protocol
+        run: ruff check .
 
       - name: Docs freshness — assert test count
         working-directory: tfp-foundation-protocol
