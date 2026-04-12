@@ -33,7 +33,7 @@ This document turns the adoption roadmap into concrete repository assets.
 ## Run locally
 
 ```bash
-cd Scholo
+cd TheFoundationProtocol
 docker compose up --build
 ```
 
