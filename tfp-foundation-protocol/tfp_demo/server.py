@@ -2809,7 +2809,7 @@ def rag_reindex(
     _allowed_base = Path(_rag_base_env).resolve() if _rag_base_env else Path.cwd().resolve()
     try:
         resolved_dir = Path(payload.directory).resolve()
-        resolved_dir.relative_to(_allowed_base)  # Raises ValueError if outside
+        _rel = resolved_dir.relative_to(_allowed_base)  # Raises ValueError if outside
     except ValueError:
         raise HTTPException(
             status_code=422,
@@ -2820,10 +2820,12 @@ def rag_reindex(
         )
     except (OSError, TypeError) as exc:
         raise HTTPException(status_code=422, detail=f"invalid directory: {exc}") from exc
-    if not resolved_dir.is_dir():
+    # Reconstruct from trusted base + validated relative component to break taint chain.
+    safe_dir = _allowed_base / _rel
+    if not safe_dir.is_dir():
         raise HTTPException(
             status_code=422,
-            detail=f"directory does not exist: {resolved_dir}",
+            detail=f"directory does not exist: {safe_dir}",
         )
 
     pattern_list: Optional[List[str]] = (
@@ -2834,13 +2836,13 @@ def rag_reindex(
 
     try:
         indexed = _rag_graph.index_directory(
-            str(resolved_dir), patterns=pattern_list
+            str(safe_dir), patterns=pattern_list
         )
     except Exception as exc:
         log.error("RAG reindex error: %s", exc)
         raise HTTPException(status_code=500, detail=f"reindex failed: {exc}") from exc
 
-    log.info("RAG reindex complete: %d chunks from %s", indexed, resolved_dir)
+    log.info("RAG reindex complete: %d chunks from %s", indexed, safe_dir)
     _metrics.inc("tfp_rag_reindex_total")
 
     # Publish a search-index summary to Nostr so peer nodes can detect drift.
@@ -2848,7 +2850,7 @@ def rag_reindex(
         try:
             stats = _rag_graph.get_stats()
             index_hash = hashlib.sha3_256(
-                f"{resolved_dir}:{stats.get('total_chunks', 0)}".encode()
+                f"{safe_dir}:{stats.get('total_chunks', 0)}".encode()
             ).hexdigest()
             _nostr_bridge.publish_search_index_summary(
                 domain="general",
@@ -2860,7 +2862,7 @@ def rag_reindex(
 
     return {
         "indexed_chunks": indexed,
-        "directory": str(resolved_dir),
+        "directory": str(safe_dir),
         "rag_stats": _rag_graph.get_stats(),
     }
 

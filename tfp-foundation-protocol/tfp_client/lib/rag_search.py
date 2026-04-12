@@ -25,6 +25,7 @@ Usage:
 
 import hashlib
 import logging
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -313,9 +314,24 @@ class RAGGraph:
                 "venv",
             ]
 
-        # Resolve to absolute path.  Callers are responsible for validating
-        # that this path is within the intended scope (use relative_to()).
+        # Resolve to absolute path and confine it to the allowed base so that
+        # user-supplied directory values cannot escape via symlinks or traversal.
+        # Allowed base: TFP_RAG_BASE_DIR env var, or the process working directory.
+        _base_env = os.environ.get("TFP_RAG_BASE_DIR", "").strip()
+        allowed_base = Path(_base_env).resolve() if _base_env else Path.cwd().resolve()
         root_path = Path(directory).resolve()
+        try:
+            _rel = root_path.relative_to(allowed_base)
+        except ValueError:
+            logger.error(
+                "index_directory: %s is outside allowed base %s; aborting",
+                root_path,
+                allowed_base,
+            )
+            return 0
+        # Reconstruct path from the trusted base + validated relative component
+        # so that static analysis tools see no taint on the path used for I/O.
+        root_path = allowed_base / _rel
         if not root_path.exists() or not root_path.is_dir():
             logger.error("Directory not found or not a directory: %s", root_path)
             return 0
@@ -324,6 +340,10 @@ class RAGGraph:
         files_indexed = 0
 
         for pattern in patterns:
+            # Reject patterns that could escape root_path via traversal
+            if ".." in pattern or pattern.startswith(("/", "\\")):
+                logger.warning("Skipping unsafe index pattern: %r", pattern)
+                continue
             for file_path in root_path.rglob(pattern):
                 # Verify the file is still within root_path (symlink containment)
                 try:
