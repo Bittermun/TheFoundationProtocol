@@ -88,22 +88,24 @@ NODE_TEMPLATE = """  tfp-node-{i}:
       - tfp-network
 """
 
+
 def generate_compose(num_nodes=10):
     nodes_str = ""
     volumes_str = ""
     base_port = 8000
-    
+
     for i in range(1, num_nodes + 1):
         port = base_port + i
         nodes_str += NODE_TEMPLATE.format(i=i, port=port)
         volumes_str += f"  tfp_data_{i}:\n"
-    
+
     output = TEMPLATE.format(nodes=nodes_str, node_volumes=volumes_str)
-    
+
     output_path = "docker-compose.testbed.yml"
     with open(output_path, "w") as f:
         f.write(output)
     print(f"Generated {output_path} successfully with {num_nodes} nodes.")
+
 
 if __name__ == "__main__":
     generate_compose(10)

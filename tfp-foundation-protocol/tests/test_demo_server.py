@@ -248,6 +248,7 @@ def test_credits_persist_across_restarts():
     """Credits earned in one lifespan must be spendable in the next."""
     import pathlib
     import tempfile
+    import shutil
 
     orig_env = os.environ.get("TFP_DB_PATH")
     tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
@@ -298,6 +299,7 @@ def test_credits_persist_across_restarts():
         else:
             os.environ["TFP_DB_PATH"] = ":memory:"
         pathlib.Path(db_file).unlink(missing_ok=True)
+        shutil.rmtree(pathlib.Path(db_file).with_suffix(".blobs"), ignore_errors=True)
 
 
 def test_credit_store_class_save_and_load():

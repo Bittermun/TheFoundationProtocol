@@ -2,7 +2,7 @@
 
 **A decentralized content & compute protocol for global information access — uncensorable, efficient, and built for everyone.**
 
-![Tests](https://img.shields.io/badge/tests-570%20passing-green)
+![Tests](https://img.shields.io/badge/tests-651%20passing-green)
 ![Python Files](https://img.shields.io/badge/python%20files-154-blue)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Security](https://img.shields.io/badge/security-hardened-green)
@@ -45,10 +45,10 @@ Create a **Global Information Commons** that works for pennies: anyone can publi
 - **Inclusive UX** — Zero-config installable PWA (Android/iOS), voice-first navigation, offline-first.
 - **Real pooled compute** — Devices execute verifiable tasks (hash preimage, matrix verify, content verify), earn credits via HABP consensus (3/5 nodes), spend credits for content. 21M supply cap.
 
-## Current Status (v3.1.1)
+## Current Status (v3.1.x)
 
 - ✅ Production-ready core (25k+ LOC, 154 Python files).
-- ✅ **565 tests passing, 1 warning** — `TFP_DB_PATH=:memory: PYTHONPATH=. python -m pytest tests/ -q`
+- ✅ **650 tests passing, 1 skipped** — `TFP_DB_PATH=:memory: PYTHONPATH=. python -m pytest tests/ -q`
 - ✅ **Real compute tasks** — 3 task types (HASH_PREIMAGE, MATRIX_VERIFY, CONTENT_VERIFY) with cryptographic proof-of-work.
 - ✅ **HABP consensus** — Credits only mint when 3/5 devices agree on identical output hash. **Proofs survive server restart** (rebuilt from SQLite on boot).
 - ✅ **21M credit supply cap** — Hard-coded MAX_SUPPLY enforced at every mint via SupplyCapError.
@@ -64,16 +64,22 @@ Create a **Global Information Commons** that works for pennies: anyone can publi
 - ✅ **SQLite persistence** — content, device enrollment, credit ledgers, supply ledger survive restarts.
 - ✅ **Device auth** — HMAC-SHA-256 per-request signing (constant-time compare); identity persisted at `~/.tfp/identity.json`.
 - ✅ **Rate limiting** — sliding-window per device on `/api/earn` and `/api/task/{id}/result`.
-- ✅ **Nostr subscriber** — remote peer content discovery via relay.
+- ✅ **Nostr subscriber + bridge** — remote peer content discovery & publishing via relay (offline-safe).
+- ✅ **IPFS bridge** — content pinning with hash↔CID mapping; offline-safe fallback.
+- ✅ **Multipart upload** — `/api/publish` supports both `application/json` and `multipart/form-data` for large binary payloads.
+- ✅ **Streaming download** — `/api/get/{hash}?stream=true` for chunked 64KB responses.
+- ✅ **Content discovery** — `/api/discovery?domain=X` returns Nostr-announced content hashes.
 - ✅ **PWA** — installable on Android/iOS, offline-first service worker.
 - ✅ End-to-end simulation validated (attack scenarios included).
+- 🔧 **10-node testbed (ports 9001–9010)** — containers run, enrollment being stabilized. See `DELEGATION_BRIEF.md`.
+- ❌ 100-node test — deferred pending 10-node stability.
 
 ## Quick Start
 
 ```bash
 cd tfp-foundation-protocol
 pip install -r requirements.txt
-TFP_DB_PATH=:memory: PYTHONPATH=. python -m pytest tests/ -q   # 565 tests, 1 warning
+TFP_DB_PATH=:memory: PYTHONPATH=. python -m pytest tests/ -q   # 650 tests, 1 skipped
 uvicorn tfp_demo.server:app --reload                           # Demo node on :8000
 ```
 
@@ -150,7 +156,7 @@ tfp-foundation-protocol/
 │   ├── SECURITY.md                ← security model, verification checklist, maintenance policy
 │   ├── porting_guide.md
 │   └── archive/                   ← historical guides (v2.x, read-only)
-└── tests/             # 565 pytest tests
+└── tests/             # 650 pytest tests
 ```
 
 ## API Endpoints (Demo Node)
@@ -289,7 +295,7 @@ python tfp_pilots/community_bootstrap.py --community-id "my-region"
 |--------|-------|--------|--------|
 | Python Files | 154 | — | ✅ |
 | Total LOC | ~27,000 | <50k | ✅ |
-| Tests Passing | 565 | >400 | ✅ |
+| Tests Passing | 650 | >400 | ✅ |
 | Test Warnings | 1 | 0 | ⚠️ |
 | PII Logged | 0 | 0 | ✅ |
 | Critical Vulnerabilities | 0 | 0 | ✅ |

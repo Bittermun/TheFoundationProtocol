@@ -41,6 +41,23 @@ class TFPClient:
         self._spends = []
         self._earned_receipts = []
 
+    def spend_for_service(self, credits: int) -> None:
+        """Deduct credits from the ledger balance using the oldest available receipt."""
+        if not self._earned_receipts:
+            raise ValueError(
+                "no earned credits to spend; call submit_compute_task first"
+            )
+        if self.ledger.balance < credits:
+            raise ValueError(f"insufficient balance: {self.ledger.balance} < {credits}")
+
+        receipt = self._earned_receipts[0]
+        self.ledger.spend(credits, receipt)
+        self._spends.append(receipt)
+
+        # If balance hits zero, we can discard the receipt (for simplicity)
+        if self.ledger.balance == 0:
+            self._earned_receipts.pop(0)
+
     def request_content(
         self, root_hash: str, zkp_proof=None, recipe: dict = None
     ) -> Content:
@@ -62,14 +79,8 @@ class TFPClient:
         file_bytes = self.raptorq.decode(shards)
         content = self.lexicon.reconstruct(file_bytes)
 
-        # Spend a previously-earned credit
-        if not self._earned_receipts:
-            raise ValueError(
-                "no earned credits to spend; call submit_compute_task first"
-            )
-        earn_receipt = self._earned_receipts.pop(0)
-        self.ledger.spend(1, earn_receipt)
-        self._spends.append(earn_receipt)
+        # Spend 1 credit for content retrieval
+        self.spend_for_service(1)
         return content
 
     def submit_compute_task(self, task_recipe_hash: str) -> Receipt:
