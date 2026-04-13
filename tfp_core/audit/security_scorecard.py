@@ -75,7 +75,7 @@ class SecurityScorecard:
         # TFP has strong security in many areas
         strong_checks = {
             "Binary-Artifacts": 10,  # We sign binaries with Sigstore
-            "License": 10,  # MIT license
+            "License": 10,  # Apache-2.0 license
             "Maintained": 9,  # Active development
             "Security-Policy": 10,  # Comprehensive security docs
             "Pinned-Dependencies": 8,  # requirements.txt with versions

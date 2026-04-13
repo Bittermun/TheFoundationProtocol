@@ -4,7 +4,7 @@
 
 ![Tests](https://img.shields.io/badge/tests-737%20passing-green)
 ![Python Files](https://img.shields.io/badge/python%20files-154-blue)
-![License](https://img.shields.io/badge/license-MIT-blue)
+![License](https://img.shields.io/badge/license-Apache--2.0-blue)
 ![Security](https://img.shields.io/badge/security-hardened-green)
 
 ---
@@ -283,9 +283,9 @@ python tfp_pilots/community_bootstrap.py --community-id "my-region"
 
 ## 📜 License
 
-**MIT** — see [LICENSE](LICENSE).
+**Apache-2.0** — see [LICENSE](LICENSE).
 
-**Fork Rights Guaranteed**: This protocol is designed to be forked, adapted, and improved by the community. The MIT license ensures perpetual freedom to build upon this work.
+**Fork Rights Guaranteed**: This protocol is designed to be forked, adapted, and improved by the community. The Apache-2.0 license ensures perpetual freedom to build upon this work.
 
 ---
 

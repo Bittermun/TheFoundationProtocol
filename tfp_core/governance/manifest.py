@@ -33,7 +33,7 @@ class GovernanceManifest:
 
         self.contribution_model = {
             "type": "Open Source Community",
-            "license": "MIT",
+            "license": "Apache-2.0",
             "contribution_guidelines": "https://github.com/Bittermun/TheFoundationProtocol/blob/main/CONTRIBUTING.md",
             "code_of_conduct": "https://github.com/Bittermun/TheFoundationProtocol/blob/main/CODE_OF_CONDUCT.md",
             "decision_making": "BDFL (Benevolent Dictator For Life) with community RFC process",
@@ -53,7 +53,7 @@ class GovernanceManifest:
             "security_audit_schedule": "Quarterly independent audits (budget permitting)",
             "vulnerability_disclosure": "security@tfp-protocol.org (90-day disclosure window)",
             "transparency_reports": "Bi-annual public reports on development progress",
-            "succession_plan": "Multi-sig control of critical repos; community fork rights guaranteed by MIT license",
+            "succession_plan": "Multi-sig control of critical repos; community fork rights guaranteed by Apache-2.0 license",
         }
 
         # Technical Stewardship
@@ -119,7 +119,7 @@ class GovernanceManifest:
         """
         criteria = {
             "clear_maintainer": len(self.maintainers) > 0,
-            "open_license": self.contribution_model["license"] == "MIT",
+            "open_license": self.contribution_model["license"] == "Apache-2.0",
             "contribution_path": bool(
                 self.contribution_model["contribution_guidelines"]
             ),
