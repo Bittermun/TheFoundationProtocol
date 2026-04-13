@@ -198,7 +198,11 @@ class TestMockedWebSocket:
         msg = json.loads(first_call_args)
         assert msg[0] == "REQ"
         assert msg[1] == _SUB_ID
-        assert msg[2]["kinds"] == [TFP_CONTENT_KIND, TFP_SEARCH_INDEX_KIND, TFP_CONTENT_ANNOUNCE_KIND]
+        assert msg[2]["kinds"] == [
+            TFP_CONTENT_KIND,
+            TFP_SEARCH_INDEX_KIND,
+            TFP_CONTENT_ANNOUNCE_KIND,
+        ]
 
     def test_event_delivered_via_mocked_ws(self):
         received = []

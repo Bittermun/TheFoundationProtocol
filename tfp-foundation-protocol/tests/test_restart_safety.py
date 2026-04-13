@@ -76,6 +76,7 @@ def _submit_result(client, device_id, puf, task_id, output_hash):
 def db_file():
     """Yield a temporary file-backed SQLite path, restore env on teardown."""
     import shutil
+
     orig = os.environ.get("TFP_DB_PATH")
     tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
     tmp.close()

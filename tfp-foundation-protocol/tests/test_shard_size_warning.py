@@ -54,9 +54,7 @@ def test_shard_size_64_no_warning(monkeypatch, caplog):
         with TestClient(app):
             pass
     # No warning should mention the shard size guard
-    assert not any(
-        "below 64 KB" in r.message for r in caplog.records
-    )
+    assert not any("below 64 KB" in r.message for r in caplog.records)
 
 
 def test_shard_size_256_no_warning(monkeypatch, caplog):

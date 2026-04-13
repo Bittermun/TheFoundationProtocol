@@ -92,6 +92,7 @@ def test_on_nostr_event_kind_30078_updates_hlt():
     # Ensure HLT is initialised by using TestClient context
     with TestClient(server_app) as _:
         from tfp_demo.server import _hlt as hlt_ref
+
         if hlt_ref is None:
             pytest.skip("HLT not initialised")
 

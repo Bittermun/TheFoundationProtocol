@@ -67,7 +67,9 @@ class StoredContent:
     root_hash: str
     title: str
     tags: List[str]
-    data: Optional[bytes] = None  # populated by ContentStore.get(); None for metadata-only
+    data: Optional[bytes] = (
+        None  # populated by ContentStore.get(); None for metadata-only
+    )
     cid: Optional[str] = None  # IPFS CID when available; None until pinned
     blob_path: Optional[str] = None  # BlobStore key; None for seed-only items
     size_bytes: int = 0
@@ -205,7 +207,9 @@ class ContentStore:
         self._conn = conn
         self._db_lock = db_lock
         # Default to in-memory BlobStore so tests work without a filesystem.
-        self._blob_store: BlobStore = blob_store if blob_store is not None else BlobStore(None)
+        self._blob_store: BlobStore = (
+            blob_store if blob_store is not None else BlobStore(None)
+        )
         self._tag_index: Dict[str, set] = {}
         self._init_schema()
         self._rebuild_tag_index()
@@ -679,7 +683,12 @@ class CreditStore:
                 Receipt(chain_hash=bytes.fromhex(h), credits=10)
                 for h in json.loads(unspent_json)
             ]
-            client = TFPClient(ndn=DemoNDNAdapter(_content_store, blob_store=_blob_store, peer_fallback=_peer_fallback), ledger=ledger)
+            client = TFPClient(
+                ndn=DemoNDNAdapter(
+                    _content_store, blob_store=_blob_store, peer_fallback=_peer_fallback
+                ),
+                ledger=ledger,
+            )
             client._earned_receipts = unspent_receipts
             return client
 
@@ -1405,7 +1414,11 @@ class DemoNDNAdapter(NDNAdapter):
                 root_hash = parts[-3]
             except (ValueError, IndexError) as exc:
                 raise ValueError(f"malformed shard interest: {name}") from exc
-            shard_data = self._blob_store.get_shard(root_hash, shard_idx) if self._blob_store else None
+            shard_data = (
+                self._blob_store.get_shard(root_hash, shard_idx)
+                if self._blob_store
+                else None
+            )
             if shard_data is not None:
                 return Data(name=name, content=shard_data)
             raise ValueError(f"shard not found: {name}")
@@ -1469,7 +1482,7 @@ class _PeerFallback:
             try:
                 # Validate URL scheme - only allow http/https
                 parsed = urllib.parse.urlparse(url)
-                if parsed.scheme not in ('http', 'https'):
+                if parsed.scheme not in ("http", "https"):
                     log.warning("Skipping peer with non-http scheme: %s", url)
                     continue
                 req = urllib.request.Request(url)
@@ -1479,7 +1492,9 @@ class _PeerFallback:
                     if resp.status == 200:
                         return resp.read()
             except Exception as exc:
-                log.debug("Peer fallback failed for %s from %s: %s", root_hash, peer_url, exc)
+                log.debug(
+                    "Peer fallback failed for %s from %s: %s", root_hash, peer_url, exc
+                )
         return None
 
 
@@ -1505,7 +1520,9 @@ def _client_for(device_id: str) -> TFPClient:
             # Use DictLexiconAdapter for text/dictionary domains; it expands
             # well-known TFP/protocol abbreviations for richer semantic output.
             try:
-                from tfp_client.lib.lexicon.dict_lexicon_adapter import DictLexiconAdapter
+                from tfp_client.lib.lexicon.dict_lexicon_adapter import (
+                    DictLexiconAdapter,
+                )
 
                 kwargs["lexicon"] = DictLexiconAdapter()
             except Exception as _lex_exc:
@@ -1616,7 +1633,9 @@ def _on_nostr_event(event_dict: dict) -> None:
         # ── Trusted pubkey allowlist (when configured) ────────────────────
         _trusted_raw = os.environ.get("TFP_NOSTR_TRUSTED_PUBKEYS", "").strip()
         if _trusted_raw:
-            trusted_keys = {k.strip().lower() for k in _trusted_raw.split(",") if k.strip()}
+            trusted_keys = {
+                k.strip().lower() for k in _trusted_raw.split(",") if k.strip()
+            }
             event_pubkey = str(event_dict.get("pubkey", "")).lower()
             if event_pubkey not in trusted_keys:
                 log.debug(
@@ -1820,7 +1839,12 @@ async def lifespan(_app: FastAPI):
     # Phase A: per-stage startup observability + readiness gate.
     # Phase B: feature flags read at runtime so tests can use monkeypatch.setenv.
     global _content_store, _device_registry, _earn_log, _credit_store, _task_store
-    global _earn_rate_limiter, _result_rate_limiter, _rag_rate_limiter, _tag_overlay, _nostr_subscriber
+    global \
+        _earn_rate_limiter, \
+        _result_rate_limiter, \
+        _rag_rate_limiter, \
+        _tag_overlay, \
+        _nostr_subscriber
     global _nostr_bridge, _ipfs_bridge, _clients, _metrics, _app_ready, _startup_stage
     global _blob_store, _peer_fallback, _hlt, _peer_secret, _rag_graph, _chunk_store
 
@@ -1989,7 +2013,11 @@ async def lifespan(_app: FastAPI):
                         len(_tag_overlay._storage),
                     )
                 except Exception as exc:
-                    log.warning("Could not restore TagOverlayIndex from %s: %s", _overlay_path, exc)
+                    log.warning(
+                        "Could not restore TagOverlayIndex from %s: %s",
+                        _overlay_path,
+                        exc,
+                    )
                     _tag_overlay = TagOverlayIndex()
         _clients.clear()
         if _content_store.count() == 0:
@@ -2108,7 +2136,10 @@ async def lifespan(_app: FastAPI):
         else:
             # Use tempfile module for secure temporary file handling
             import tempfile
-            _crash_log = os.environ.get("TFP_CRASH_LOG", os.path.join(tempfile.gettempdir(), "tfp_crash.log"))
+
+            _crash_log = os.environ.get(
+                "TFP_CRASH_LOG", os.path.join(tempfile.gettempdir(), "tfp_crash.log")
+            )
         try:
             with open(_crash_log, "a") as crash_file:
                 crash_file.write(f"\n--- {time.ctime()} ---\n{err_msg}\n")
@@ -2305,9 +2336,13 @@ async def publish(
     _enable_chunking = os.environ.get("TFP_ENABLE_CHUNKING", "1").strip() != "0"
     if _enable_chunking and _blob_store is not None and len(body_bytes) > 0:
         try:
-            recipe_json, recipe_dict = _build_recipe(root_hash, body_bytes, tags, _blob_store)
+            recipe_json, recipe_dict = _build_recipe(
+                root_hash, body_bytes, tags, _blob_store
+            )
         except Exception as exc:
-            log.warning("Recipe build failed (content will be served without recipe): %s", exc)
+            log.warning(
+                "Recipe build failed (content will be served without recipe): %s", exc
+            )
 
     # Ensure IPFS CID is included in the Nostr announcement
     if result.get("cid") and _nostr_bridge:
@@ -2364,6 +2399,7 @@ def _build_recipe(
 
     # Decode k (number of source blocks) from the first shard header
     import struct
+
     _orig_len, k, _idx = struct.unpack(">QII", shards[0][:16])
 
     chunk_ids: List[str] = []
@@ -2519,16 +2555,22 @@ def get_content(
         # ── Full streaming response ───────────────────────────────────────
         blob_path = _content_store.get_blob_path(root_hash) if _content_store else None
         if blob_path and _blob_store and _blob_store.exists(blob_path):
+
             def _fs_stream():
                 yield from _blob_store.open_stream(blob_path)
-            return StreamingResponse(_fs_stream(), media_type="application/octet-stream")
+
+            return StreamingResponse(
+                _fs_stream(), media_type="application/octet-stream"
+            )
 
         def stream_generator():
             chunk_size = 64 * 1024
             for i in range(0, len(data_bytes), chunk_size):
                 yield data_bytes[i : i + chunk_size]
 
-        return StreamingResponse(stream_generator(), media_type="application/octet-stream")
+        return StreamingResponse(
+            stream_generator(), media_type="application/octet-stream"
+        )
     else:
         # Use metadata from item (local) or fallback to ipfs bridge metadata
         title = item.title if item else "Remote Content"
@@ -2631,12 +2673,19 @@ def get_shard(root_hash: str, index: int) -> Response:
             if is_new_pin:
                 # Register this shard in the chunk store so rarity is tracked.
                 payload_bytes = shard_data[16:] if len(shard_data) > 16 else shard_data
-                _chunk_store.put(payload_bytes, category="shard", chunk_id_hint=chunk_id)
+                _chunk_store.put(
+                    payload_bytes, category="shard", chunk_id_hint=chunk_id
+                )
                 reward = _chunk_store.calculate_pin_reward(chunk_id)
                 if reward > 0:
                     _metrics.inc("tfp_pin_rewards_total")
         except Exception as _pin_exc:
-            log.debug("Pin reward tracking failed for %s shard %d: %s", root_hash, index, _pin_exc)
+            log.debug(
+                "Pin reward tracking failed for %s shard %d: %s",
+                root_hash,
+                index,
+                _pin_exc,
+            )
 
     return Response(content=shard_data, media_type="application/octet-stream")
 
@@ -2818,7 +2867,9 @@ def semantic_search(
     with ``GET /api/discovery`` to cross-reference peer-announced content.
     """
     message = f"{payload.device_id}:{payload.query}"
-    if not _verify_device_sig(payload.device_id, x_device_sig, message, _device_registry):
+    if not _verify_device_sig(
+        payload.device_id, x_device_sig, message, _device_registry
+    ):
         _metrics.inc("tfp_auth_failures_total")
         raise HTTPException(
             status_code=401,
@@ -2884,7 +2935,9 @@ def rag_reindex(
     Returns 503 when ``TFP_ENABLE_RAG=0`` or dependencies are missing.
     """
     message = f"{payload.device_id}:reindex"
-    if not _verify_device_sig(payload.device_id, x_device_sig, message, _device_registry):
+    if not _verify_device_sig(
+        payload.device_id, x_device_sig, message, _device_registry
+    ):
         _metrics.inc("tfp_auth_failures_total")
         raise HTTPException(
             status_code=401,
@@ -2951,9 +3004,7 @@ def rag_reindex(
     )
 
     try:
-        indexed = _rag_graph.index_directory(
-            str(index_dir), patterns=pattern_list
-        )
+        indexed = _rag_graph.index_directory(str(index_dir), patterns=pattern_list)
     except Exception as exc:
         log.error("RAG reindex error: %s", exc)
         raise HTTPException(status_code=500, detail=f"reindex failed: {exc}") from exc
@@ -2975,9 +3026,7 @@ def rag_reindex(
             try:
                 _file_fp = ":".join(
                     f"{p}:{os.path.getmtime(p):.0f}"
-                    for p in sorted(
-                        str(f) for f in index_dir.rglob("*") if f.is_file()
-                    )
+                    for p in sorted(str(f) for f in index_dir.rglob("*") if f.is_file())
                 )
                 _fp = f"{_fp}:{_file_fp}"
             except Exception:

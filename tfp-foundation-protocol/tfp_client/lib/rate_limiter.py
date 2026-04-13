@@ -23,6 +23,7 @@ from typing import Optional, Tuple
 try:
     from redis import ConnectionPool, Redis
     from redis.exceptions import RedisError
+
     _REDIS_AVAILABLE = True
 except ImportError:  # pragma: no cover
     _REDIS_AVAILABLE = False
@@ -336,6 +337,7 @@ def create_rate_limit_middleware(limiter: DistributedRateLimiter):
 # Simple pluggable backends (memory / Redis) — lighter alternative to
 # DistributedRateLimiter for use in tests and local-only nodes.
 # ---------------------------------------------------------------------------
+
 
 class MemoryRateLimiter:
     """In-memory sliding-window rate limiter (dev / test / single-node use)."""

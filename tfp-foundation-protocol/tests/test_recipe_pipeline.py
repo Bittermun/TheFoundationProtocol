@@ -249,9 +249,7 @@ def test_shard_content_integrity(monkeypatch):
     with TestClient(app) as client:
         puf = os.urandom(32)
         _enroll(client, "integrity-dev", puf)
-        root_hash = _publish(
-            client, "integrity-dev", puf, "IntegrityTitle", "x" * 300
-        )
+        root_hash = _publish(client, "integrity-dev", puf, "IntegrityTitle", "x" * 300)
 
         r = client.get(f"/api/content/{root_hash}/shard/0")
         assert r.status_code == 200

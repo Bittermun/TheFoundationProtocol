@@ -2,3 +2,5 @@
 __pycache__/
 *.pyc
 ```
+tfp-foundation-protocol/tfp.egg-info/
+tfp.egg-info/

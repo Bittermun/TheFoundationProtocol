@@ -46,8 +46,8 @@ logger = logging.getLogger(__name__)
 # TFP-specific Nostr event kind
 # ---------------------------------------------------------------------------
 
-TFP_CONTENT_KIND: int = 30078         # HLT Merkle-root gossip (parameterized replaceable)
-TFP_SEARCH_INDEX_KIND: int = 30079    # semantic search index summary / delta gossip
+TFP_CONTENT_KIND: int = 30078  # HLT Merkle-root gossip (parameterized replaceable)
+TFP_SEARCH_INDEX_KIND: int = 30079  # semantic search index summary / delta gossip
 TFP_CONTENT_ANNOUNCE_KIND: int = 30080  # content-availability announcements
 
 # ---------------------------------------------------------------------------
@@ -193,7 +193,10 @@ def _schnorr_verify(pubkey_hex: str, event_id_hex: str, sig_hex: str) -> bool:
         # e = SHA-256(bytes(rx) || bytes(px) || msg)  — matches _schnorr_sign
         rx_bytes = rx.to_bytes(32, "big")
         px_bytes = px.to_bytes(32, "big")
-        e = int.from_bytes(hashlib.sha256(rx_bytes + px_bytes + msg).digest(), "big") % _N
+        e = (
+            int.from_bytes(hashlib.sha256(rx_bytes + px_bytes + msg).digest(), "big")
+            % _N
+        )
 
         # R = s·G − e·P; verify R.y is even and R.x == rx
         sG = _point_mul(s, _G_POINT)
@@ -471,7 +474,11 @@ class NostrBridge:
             tags.append(["domain", domain_name])
             tags.append(["version", version])
             domain_list.append(
-                {"domain": domain_name, "version": version, "content_hash": content_hash}
+                {
+                    "domain": domain_name,
+                    "version": version,
+                    "content_hash": content_hash,
+                }
             )
 
         content_payload = {
