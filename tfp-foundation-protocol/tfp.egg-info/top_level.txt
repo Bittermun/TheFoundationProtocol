@@ -1,7 +1,0 @@
-demo
-tfp_broadcaster
-tfp_cli
-tfp_client
-tfp_common
-tfp_demo
-tfp_simulator

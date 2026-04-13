@@ -17,7 +17,7 @@ def test_cli_publish(monkeypatch, tmp_path, capsys):
     # Point identity storage at a temp dir so tests don't pollute ~/.tfp
     # Set environment variable to use temp directory for identity
     monkeypatch.setenv("HOME", str(tmp_path))
-    
+
     calls = []
 
     def fake_post(url, json=None, headers=None, timeout=10):  # noqa: A002

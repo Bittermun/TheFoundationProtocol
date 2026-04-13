@@ -92,6 +92,7 @@ def test_on_nostr_event_kind_30078_updates_hlt():
     # Ensure HLT is initialised by using TestClient context
     with TestClient(server_app) as _:
         from tfp_demo.server import _hlt as hlt_ref
+
         if hlt_ref is None:
             pytest.skip("HLT not initialised")
 
@@ -101,9 +102,14 @@ def test_on_nostr_event_kind_30078_updates_hlt():
             kind=30078,
             content=json.dumps(
                 {
-                    "domain": "medical",
-                    "version": "v1.0.0",
-                    "content_hash": domain_hash,
+                    "merkle_root": "abcd1234",
+                    "domains": [
+                        {
+                            "domain": "medical",
+                            "version": "v1.0.0",
+                            "content_hash": domain_hash,
+                        }
+                    ],
                 }
             ),
             tags=[
@@ -126,9 +132,14 @@ def test_on_nostr_event_kind_30078_with_testclient():
         kind=30078,
         content=json.dumps(
             {
-                "domain": "legal",
-                "version": "v1.0.0",
-                "content_hash": domain_hash,
+                "merkle_root": "feed1234",
+                "domains": [
+                    {
+                        "domain": "legal",
+                        "version": "v1.0.0",
+                        "content_hash": domain_hash,
+                    }
+                ],
             }
         ),
         tags=[

@@ -35,7 +35,7 @@ jobs:
         run: pre-commit run --all-files
 
       - name: Run Bandit
-        run: bandit -r tfp_core/ tfp_security/ tfp_transport/ tfp-foundation-protocol/tfp_client/lib/security/ -c bandit.ini --severity-level=medium
+        run: bandit -r tfp_core/ tfp_security/ tfp_transport/ tfp-foundation-protocol/tfp_client/lib/security/ tfp-foundation-protocol/tfp_demo/ -c bandit.ini --severity-level=medium
 
       - name: Safety Check
         run: safety scan --full-report || true

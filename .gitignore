@@ -1,4 +1,7 @@
-```
 __pycache__/
 *.pyc
-```
+*.pyo
+*.pyd
+tfp-foundation-protocol/tfp.egg-info/
+tfp.egg-info/
+*.egg-info/

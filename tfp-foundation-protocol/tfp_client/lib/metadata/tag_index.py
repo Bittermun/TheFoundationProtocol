@@ -418,3 +418,28 @@ class TagOverlayIndex:
             "unique_tags": len(unique_tags),
             "avg_popularity": avg_pop,
         }
+
+    def to_json(self) -> str:
+        """Serialize the overlay index to a JSON string for persistence."""
+        data: dict = {}
+        for domain, epochs in self._storage.items():
+            data[domain] = {}
+            for epoch, entries in epochs.items():
+                data[domain][str(epoch)] = [e.to_dict() for e in entries]
+        return json.dumps(data, separators=(",", ":"))
+
+    @classmethod
+    def from_json(cls, text: str) -> "TagOverlayIndex":
+        """Deserialize a TagOverlayIndex from a JSON string produced by :meth:`to_json`."""
+        obj = cls()
+        try:
+            raw = json.loads(text)
+            for domain, epochs in raw.items():
+                obj._storage[domain] = {}
+                for epoch_str, entries in epochs.items():
+                    obj._storage[domain][int(epoch_str)] = [
+                        TagEntry.from_dict(e) for e in entries
+                    ]
+        except (json.JSONDecodeError, KeyError, ValueError):
+            pass
+        return obj

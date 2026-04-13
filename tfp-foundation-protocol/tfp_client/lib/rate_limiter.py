@@ -20,8 +20,16 @@ import time
 from dataclasses import dataclass
 from typing import Optional, Tuple
 
-from redis import ConnectionPool, Redis
-from redis.exceptions import RedisError
+try:
+    from redis import ConnectionPool, Redis
+    from redis.exceptions import RedisError
+
+    _REDIS_AVAILABLE = True
+except ImportError:  # pragma: no cover
+    _REDIS_AVAILABLE = False
+    ConnectionPool = None  # type: ignore[assignment,misc]
+    Redis = None  # type: ignore[assignment,misc]
+    RedisError = Exception  # type: ignore[assignment,misc]
 
 logger = logging.getLogger(__name__)
 
@@ -102,6 +110,11 @@ class DistributedRateLimiter:
             fail_open: Allow requests if Redis is unavailable (True) or deny (False)
             connection_pool_size: Size of Redis connection pool
         """
+        if not _REDIS_AVAILABLE:
+            raise ImportError(
+                "redis package is required for DistributedRateLimiter. "
+                "Install it with: pip install redis>=5.2.0"
+            )
         self.redis_url = redis_url
         self.default_limits = default_limits
         self.fail_open = fail_open
@@ -324,6 +337,7 @@ def create_rate_limit_middleware(limiter: DistributedRateLimiter):
 # Simple pluggable backends (memory / Redis) — lighter alternative to
 # DistributedRateLimiter for use in tests and local-only nodes.
 # ---------------------------------------------------------------------------
+
 
 class MemoryRateLimiter:
     """In-memory sliding-window rate limiter (dev / test / single-node use)."""

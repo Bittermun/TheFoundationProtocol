@@ -32,6 +32,7 @@ Offline (no relay required):
     event = bridge.publish_content_announcement(hash_hex, metadata)
 """
 
+import collections
 import hashlib
 import json
 import logging
@@ -45,8 +46,8 @@ logger = logging.getLogger(__name__)
 # TFP-specific Nostr event kind
 # ---------------------------------------------------------------------------
 
-TFP_CONTENT_KIND: int = 30078         # HLT Merkle-root gossip (parameterized replaceable)
-TFP_SEARCH_INDEX_KIND: int = 30079    # semantic search index summary / delta gossip
+TFP_CONTENT_KIND: int = 30078  # HLT Merkle-root gossip (parameterized replaceable)
+TFP_SEARCH_INDEX_KIND: int = 30079  # semantic search index summary / delta gossip
 TFP_CONTENT_ANNOUNCE_KIND: int = 30080  # content-availability announcements
 
 # ---------------------------------------------------------------------------
@@ -192,7 +193,10 @@ def _schnorr_verify(pubkey_hex: str, event_id_hex: str, sig_hex: str) -> bool:
         # e = SHA-256(bytes(rx) || bytes(px) || msg)  — matches _schnorr_sign
         rx_bytes = rx.to_bytes(32, "big")
         px_bytes = px.to_bytes(32, "big")
-        e = int.from_bytes(hashlib.sha256(rx_bytes + px_bytes + msg).digest(), "big") % _N
+        e = (
+            int.from_bytes(hashlib.sha256(rx_bytes + px_bytes + msg).digest(), "big")
+            % _N
+        )
 
         # R = s·G − e·P; verify R.y is even and R.x == rx
         sG = _point_mul(s, _G_POINT)
@@ -337,7 +341,9 @@ class NostrBridge:
         self.relay_url = relay_url
         self.offline = offline
         self.pubkey_hex = _derive_pubkey_bytes(privkey).hex()
-        self._history: List[NostrEvent] = []
+        # Bounded history: deque evicts oldest entries when full so that a
+        # long-running bridge process cannot exhaust heap memory.
+        self._history: collections.deque = collections.deque(maxlen=10_000)
 
     # ------------------------------------------------------------------
     # Public API
@@ -436,6 +442,10 @@ class NostrBridge:
         Announces the current state of the local HierarchicalLexiconTree so that
         peer nodes can detect semantic drift and request delta updates.
 
+        Wire format (content JSON):
+        ``{"merkle_root": <hex>, "domains": [{"domain": <name>, "version": <ver>,
+        "content_hash": <hex>}, ...]}``
+
         The event tags include:
         - ``["d", "tfp-hlt"]``: parameterized replaceable identifier
         - ``["domain", <name>]``: one tag per domain in the HLT
@@ -454,15 +464,26 @@ class NostrBridge:
             ["d", "tfp-hlt"],
             ["merkle_root", merkle_root],
         ]
+        domain_list = []
         for domain_name in hlt.domain_names:
-            tags.append(["domain", domain_name])
             version_info = hlt.get_latest_version(domain_name)
-            if version_info.get("version"):
-                tags.append(["version", version_info["version"]])
+            version = version_info.get("version") or "v1.0.0"
+            node_id = hlt.domain_names[domain_name]
+            node = hlt.nodes.get(node_id)
+            content_hash = node.content_hash if node else "a" * 64
+            tags.append(["domain", domain_name])
+            tags.append(["version", version])
+            domain_list.append(
+                {
+                    "domain": domain_name,
+                    "version": version,
+                    "content_hash": content_hash,
+                }
+            )
 
         content_payload = {
             "merkle_root": merkle_root,
-            "domains": list(hlt.domain_names.keys()),
+            "domains": domain_list,
         }
         event = NostrEvent.create(
             privkey=self._privkey,

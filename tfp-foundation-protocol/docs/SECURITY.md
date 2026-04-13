@@ -30,11 +30,12 @@ Signature message format:
 **Evidence:** `CreditLedger.mint()` (`ledger.py:55-70`) checks `network_total_minted + credits > MAX_SUPPLY` and raises `SupplyCapError`. `TaskStore.increment_total_minted()` holds a threading lock during the SQLite update.
 
 ### 1.4 Rate Limiting
-**Claim:** Per-device sliding-window rate limits prevent DoS on earn and result-submission endpoints.
+**Claim:** Per-device sliding-window rate limits prevent DoS on earn, result-submission, and semantic search endpoints.
 **Status:** ✅ Verified
 **Evidence:** `_RateLimiter` (`server.py:836-864`) is a sliding-window deque. Applied to:
 - `/api/earn` — default 10 calls / 60 s (env: `TFP_EARN_RATE_MAX`, `TFP_EARN_RATE_WINDOW`)
 - `POST /api/task/{id}/result` — default 30 calls / 60 s (env: `TFP_RESULT_RATE_MAX`, `TFP_RESULT_RATE_WINDOW`)
+- `POST /api/search/semantic` — default 20 calls / 60 s (not configurable via env in v3.2)
 
 ### 1.5 HABP Consensus — Self-Mint Prevention
 **Claim:** A single device cannot mint credits by submitting 3 fake proofs.
@@ -107,6 +108,23 @@ Run this checklist against every release before publishing security claims.
 - [ ] `output_hash` not exactly 64 chars → HTTP 422
 - [ ] `difficulty` outside [1, 10] → HTTP 422
 - [ ] `title` longer than 120 chars → HTTP 422
+
+### H. Semantic Search Rate Limiting
+- [ ] `POST /api/search/semantic` without valid `X-Device-Sig` → HTTP 401
+- [ ] Exceed 20 semantic search calls per 60 s per device → HTTP 429
+- [ ] `POST /api/search/semantic` with `TFP_ENABLE_RAG=0` → HTTP 503
+
+### I. Reindex Admin Gate
+- [ ] `POST /api/admin/rag/reindex` without valid `X-Device-Sig` → HTTP 401
+- [ ] `POST /api/admin/rag/reindex` with a device not in `TFP_ADMIN_DEVICE_IDS` (when var is set) → HTTP 403
+- [ ] `POST /api/admin/rag/reindex` with `TFP_ENABLE_RAG=0` → HTTP 503
+
+### J. Nostr Gossip Replay Protection
+- [ ] Kind-30078 (HLT gossip) event with `created_at` older than 300 s → silently dropped
+- [ ] Kind-30079 (search-index gossip) event with `created_at` older than 300 s → silently dropped
+- [ ] Kind-30080 (content announce) event with `created_at` older than 300 s → silently dropped
+- [ ] Duplicate event ID (same `id` field) within replay window → processed only once
+- [ ] Nostr event from pubkey not in `TFP_NOSTR_TRUSTED_PUBKEYS` (when var is set) → silently dropped
 
 ---
 

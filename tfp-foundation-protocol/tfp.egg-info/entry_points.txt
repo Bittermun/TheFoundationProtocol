@@ -1,2 +1,0 @@
-[console_scripts]
-tfp = tfp_cli.main:main

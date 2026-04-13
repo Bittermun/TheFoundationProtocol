@@ -208,9 +208,7 @@ def test_kind_30079_malformed_content_ignored():
 
     with TestClient(__import__("tfp_demo.server", fromlist=["app"]).app):
         before = srv._metrics.get("tfp_search_index_gossip_received_total")
-        srv._on_nostr_event(
-            _signed_event(30079, "not valid json {{")
-        )
+        srv._on_nostr_event(_signed_event(30079, "not valid json {{"))
         after = srv._metrics.get("tfp_search_index_gossip_received_total")
     # Malformed JSON → exception caught → no increment
     assert after == before

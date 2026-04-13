@@ -10,7 +10,10 @@ from json import JSONDecodeError
 
 import httpx
 from tfp_client.lib.compute.task_executor import TaskSpec, execute_task
-from tfp_cli.identity import load_or_create_identity as _load_encrypted_identity, IdentityError
+from tfp_cli.identity import (
+    load_or_create_identity as _load_encrypted_identity,
+    IdentityError,
+)
 
 DEFAULT_API = "http://127.0.0.1:8000"
 
@@ -21,7 +24,7 @@ DEFAULT_API = "http://127.0.0.1:8000"
 
 def _get_passphrase() -> str:
     """Get passphrase from environment or prompt."""
-    import getpass
+
     passphrase = os.environ.get("TFP_IDENTITY_PASSPHRASE")
     if passphrase:
         return passphrase
@@ -32,7 +35,7 @@ def _get_passphrase() -> str:
 def _load_or_create_identity(device_id: str) -> dict:
     """Load device identity or create a new one if not found."""
     passphrase = _get_passphrase()
-    
+
     # Try with passphrase first (encrypted identity)
     if passphrase:
         try:
@@ -43,7 +46,7 @@ def _load_or_create_identity(device_id: str) -> dict:
             }
         except IdentityError:
             pass  # Fall through to legacy plaintext method
-    
+
     # Legacy fallback: plaintext identity.json
     path = os.path.join(os.path.expanduser("~"), ".tfp", "identity.json")
     os.makedirs(os.path.dirname(path), exist_ok=True)

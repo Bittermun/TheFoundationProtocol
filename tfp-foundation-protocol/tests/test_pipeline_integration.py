@@ -29,7 +29,11 @@ os.environ.setdefault("TFP_DB_PATH", ":memory:")
 
 from tfp_broadcaster.broadcaster import Broadcaster
 from tfp_client.lib.bridges.ipfs_bridge import IPFSBridge
-from tfp_client.lib.bridges.nostr_bridge import TFP_CONTENT_KIND, TFP_CONTENT_ANNOUNCE_KIND, NostrBridge
+from tfp_client.lib.bridges.nostr_bridge import (
+    TFP_CONTENT_KIND,
+    TFP_CONTENT_ANNOUNCE_KIND,
+    NostrBridge,
+)
 from tfp_client.lib.bridges.nostr_subscriber import NostrSubscriber
 from tfp_demo.server import app
 
@@ -218,6 +222,7 @@ class TestDemoServerPipeline:
 class TestPersistence:
     def test_content_survives_restart(self):
         import shutil
+
         fd, db_file = tempfile.mkstemp(suffix=".db")
         os.close(fd)
         os.unlink(db_file)  # let SQLite create a fresh file
