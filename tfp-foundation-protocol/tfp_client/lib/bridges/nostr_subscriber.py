@@ -1,13 +1,19 @@
 """
 NostrSubscriber - NIP-01 Nostr event subscriber for TFP content discovery.
 
-Listens to a Nostr relay for TFP content announcement events (kind=30078)
-and delivers them to a caller-supplied callback (e.g. to populate the tag index).
+Listens to a Nostr relay for TFP events of the following kinds:
+- **kind 30078** (``TFP_CONTENT_KIND``) — HLT Merkle-root gossip
+- **kind 30079** (``TFP_SEARCH_INDEX_KIND``) — semantic search index summary
+- **kind 30080** (``TFP_CONTENT_ANNOUNCE_KIND``) — content-availability announcements
+
+For each received event the ``on_event`` callback is invoked in the
+subscriber thread.  The raw event dict (NIP-01 format) is also appended to an
+in-memory log accessible via :meth:`get_received`.
 
 This completes the NostrBridge round-trip:
 
     NostrBridge (publisher) ─── relay ──> NostrSubscriber (receiver)
-    "Announce content"                     "Log that content exists"
+    "Announce content/HLT"                "Update tag index / HLT"
 
 The subscriber runs in a background daemon thread and reconnects automatically
 if the relay connection drops.
@@ -29,6 +35,7 @@ Offline mode (no relay required; useful for testing)::
     sub.start()   # thread exits immediately; callback can be triggered via _handle_message
 """
 
+import collections
 import json
 import logging
 import threading
@@ -56,14 +63,19 @@ class NostrSubscriber:
     """
     Background subscriber that listens for TFP content announcements on a Nostr relay.
 
-    For each received kind-30078 event the ``on_event`` callback is invoked in the
+    Subscribes to three TFP event kinds by default:
+    - **30078** (``TFP_CONTENT_KIND``) — HLT Merkle-root gossip
+    - **30079** (``TFP_SEARCH_INDEX_KIND``) — semantic search index summary
+    - **30080** (``TFP_CONTENT_ANNOUNCE_KIND``) — content-availability announcements
+
+    For each received event the ``on_event`` callback is invoked in the
     subscriber thread.  The raw event dict (NIP-01 format) is also appended to an
     in-memory log accessible via :meth:`get_received`.
 
     Args:
         relay_url: WebSocket URL of the Nostr relay.
         on_event: Callback invoked for each valid TFP event dict received.
-        filters: NIP-01 filter dict (default: ``{"kinds": [30078]}``).
+        filters: NIP-01 filter dict (default: ``{"kinds": [30078, 30079, 30080]}``).
         reconnect_delay: Seconds to wait before reconnecting after an error.
         offline: If ``True``, skip all network calls (useful for unit tests).
     """
@@ -86,7 +98,9 @@ class NostrSubscriber:
 
         self._thread: Optional[threading.Thread] = None
         self._stop_event = threading.Event()
-        self._received: List[Dict[str, Any]] = []
+        # Bounded event log: deque evicts oldest entries when full so that a
+        # relay flooding the subscriber cannot exhaust heap memory.
+        self._received: collections.deque = collections.deque(maxlen=10_000)
 
     # ------------------------------------------------------------------
     # Public API

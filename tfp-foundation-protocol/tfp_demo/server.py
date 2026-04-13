@@ -8,6 +8,7 @@ import re
 import sqlite3
 import threading
 import time
+import urllib.parse
 import urllib.request
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -1149,6 +1150,10 @@ class _Metrics:
             "tfp_earn_rate_limited_total": 0,
             "tfp_earn_replay_rejected_total": 0,
             "tfp_auth_failures_total": 0,
+            "tfp_search_index_gossip_received_total": 0,
+            "tfp_semantic_search_total": 0,
+            "tfp_rag_reindex_total": 0,
+            "tfp_rag_drift_detected_total": 0,
         }
 
     def seed_from_db(self, conn: sqlite3.Connection) -> None:
@@ -1363,6 +1368,12 @@ _peer_secret: str = ""  # TFP_PEER_SECRET shared secret for /api/peer auth
 _rag_graph = None  # RAGGraph instance when TFP_ENABLE_RAG=1; Optional[Any]
 _chunk_store = None  # ChunkStore for shard-pin reward tracking; Optional[Any]
 
+# Event-ID deduplication cache: prevents the same Nostr event from being
+# processed more than once within the replay window (e.g., due to relay
+# redelivery).  Bounded to 1000 entries; oldest are evicted automatically.
+_seen_nostr_event_ids: collections.deque = collections.deque(maxlen=1000)
+_seen_nostr_ids_lock: threading.Lock = threading.Lock()
+
 # Readiness gate — set True once lifespan has completed all init steps.
 # Exposed here so tests and the /health endpoint can read it directly.
 _app_ready: bool = False
@@ -1457,7 +1468,7 @@ class _PeerFallback:
             url = f"{peer_url}/api/peer/{root_hash}"
             try:
                 # Validate URL scheme - only allow http/https
-                parsed = __import__('urllib.parse').urllib.parse.urlparse(url)
+                parsed = urllib.parse.urlparse(url)
                 if parsed.scheme not in ('http', 'https'):
                     log.warning("Skipping peer with non-http scheme: %s", url)
                     continue
@@ -1593,11 +1604,33 @@ def _on_nostr_event(event_dict: dict) -> None:
     try:
         kind = event_dict.get("kind", 1)
 
+        # ── Event-ID deduplication (within-window replay guard) ───────────
+        event_id = str(event_dict.get("id", ""))
+        if event_id:
+            with _seen_nostr_ids_lock:
+                if event_id in _seen_nostr_event_ids:
+                    log.debug("Dropping duplicate Nostr event id=%s", event_id[:16])
+                    return
+                _seen_nostr_event_ids.append(event_id)
+
+        # ── Trusted pubkey allowlist (when configured) ────────────────────
+        _trusted_raw = os.environ.get("TFP_NOSTR_TRUSTED_PUBKEYS", "").strip()
+        if _trusted_raw:
+            trusted_keys = {k.strip().lower() for k in _trusted_raw.split(",") if k.strip()}
+            event_pubkey = str(event_dict.get("pubkey", "")).lower()
+            if event_pubkey not in trusted_keys:
+                log.debug(
+                    "Dropping Nostr event from untrusted pubkey %s (kind=%s)",
+                    event_pubkey[:16],
+                    kind,
+                )
+                return
+
         # ── Signature verification (drop forged/tampered events) ──────────
         if not _verify_nostr_event(event_dict):
             log.warning(
                 "Dropped Nostr event with invalid id/sig: id=%s kind=%s",
-                str(event_dict.get("id", ""))[:16],
+                event_id[:16],
                 kind,
             )
             return
@@ -1613,6 +1646,13 @@ def _on_nostr_event(event_dict: dict) -> None:
             return
 
         # ── Kind 30080: content-availability announcement ─────────────────
+        if kind != TFP_CONTENT_ANNOUNCE_KIND:
+            log.debug("Ignoring unknown Nostr event kind %d", kind)
+            return
+
+        if not _check_replay_window(event_dict):
+            return
+
         payload = json.loads(event_dict.get("content", "{}"))
         content_hash_hex = payload.get("hash", "")
         tags = payload.get("tags", [])
@@ -1642,34 +1682,66 @@ def _on_nostr_event(event_dict: dict) -> None:
         log.warning("Failed to process Nostr event: %s", e)
 
 
+# Maximum age (seconds) accepted for gossip events.  Events outside this
+# window are silently dropped to prevent replay-based index/HLT poisoning.
+_NOSTR_REPLAY_WINDOW_S: int = 300  # 5 minutes
+
+
+def _check_replay_window(event_dict: dict) -> bool:
+    """Return True if the event's ``created_at`` is within the replay window."""
+    try:
+        created_at = int(event_dict.get("created_at", 0))
+        age = int(time.time()) - created_at
+        if abs(age) > _NOSTR_REPLAY_WINDOW_S:
+            log.debug(
+                "Dropping Nostr event (kind=%s): age=%ds exceeds replay window=%ds.",
+                event_dict.get("kind"),
+                age,
+                _NOSTR_REPLAY_WINDOW_S,
+            )
+            return False
+        return True
+    except (TypeError, ValueError):
+        return False
+
+
 def _handle_hlt_gossip_event(event_dict: dict) -> None:
     """
     Handle a NIP-78 kind-30078 HLT Merkle-root gossip event.
 
-    If the event announces a domain that is newer than our local HLT state,
-    add it so that semantic drift is prevented across nodes.
+    If the event announces domains that are absent from our local HLT state,
+    add them so that semantic drift is prevented across nodes.
+
+    Wire format: ``{"merkle_root": <hex>, "domains": [{"domain": <name>,
+    "version": <ver>, "content_hash": <hex>}, ...]}``
     """
     if _hlt is None:
         return
     try:
+        if not _check_replay_window(event_dict):
+            return
         payload = json.loads(event_dict.get("content", "{}"))
-        domain = payload.get("domain")
-        version = payload.get("version", "v1.0.0")
-        content_hash = payload.get("content_hash", "a" * 64)
-        # Collect domain tags from event tags array
+        # Collect domain tags from event tags array (for tag-based discovery)
         domain_tags = [
             t[1] for t in event_dict.get("tags", []) if len(t) >= 2 and t[0] == "t"
         ]
-        if domain and not _hlt.has_domain(domain):
-            _hlt.add_domain(domain, version, content_hash, tags=domain_tags)
-            log.info("HLT: added domain %r v%s from Nostr gossip", domain, version)
+        domains = payload.get("domains", [])
+        for entry in domains:
+            if not isinstance(entry, dict):
+                continue
+            domain = entry.get("domain")
+            version = entry.get("version", "v1.0.0")
+            content_hash = entry.get("content_hash", "a" * 64)
+            if domain and not _hlt.has_domain(domain):
+                _hlt.add_domain(domain, version, content_hash, tags=domain_tags)
+                log.info("HLT: added domain %r v%s from Nostr gossip", domain, version)
     except (json.JSONDecodeError, ValueError, KeyError, TypeError) as exc:
         log.warning("Failed to process HLT gossip event: %s", exc)
 
 
-# Maximum age (seconds) accepted for search-index gossip events.  Events older
-# than this are silently dropped to prevent index-poisoning via replay.
-_SEARCH_INDEX_REPLAY_WINDOW_S: int = 300  # 5 minutes
+# _SEARCH_INDEX_REPLAY_WINDOW_S retained for backwards compatibility; the shared
+# _NOSTR_REPLAY_WINDOW_S constant is now used by all three handlers.
+_SEARCH_INDEX_REPLAY_WINDOW_S: int = _NOSTR_REPLAY_WINDOW_S
 
 
 def _handle_search_index_event(event_dict: dict) -> None:
@@ -1677,25 +1749,17 @@ def _handle_search_index_event(event_dict: dict) -> None:
     Handle a NIP-78 kind-30079 semantic search index summary gossip event.
 
     Verifies:
-    1. ``created_at`` is within ``_SEARCH_INDEX_REPLAY_WINDOW_S`` of now
+    1. ``created_at`` is within ``_NOSTR_REPLAY_WINDOW_S`` of now
        (replay-window guard prevents stale/replayed index poisoning).
     2. Required fields (``domain``, ``index_hash``, ``chunk_count``,
        ``schema_version``) are present and well-formed.
 
     On success, logs the peer index summary so the operator can detect
     nodes whose local RAG index has drifted from the network median.
-    Future work: trigger a delta-sync request when our own index_hash differs.
+    Increments ``tfp_rag_drift_detected_total`` when significant drift is found.
     """
     try:
-        created_at = int(event_dict.get("created_at", 0))
-        age = int(time.time()) - created_at
-        if abs(age) > _SEARCH_INDEX_REPLAY_WINDOW_S:
-            log.debug(
-                "Dropping search-index gossip event: age=%ds exceeds replay "
-                "window=%ds (possible replay attack).",
-                age,
-                _SEARCH_INDEX_REPLAY_WINDOW_S,
-            )
+        if not _check_replay_window(event_dict):
             return
 
         payload = json.loads(event_dict.get("content", "{}"))
@@ -1743,6 +1807,7 @@ def _handle_search_index_event(event_dict: dict) -> None:
                         chunk_count,
                         domain,
                     )
+                    _metrics.inc("tfp_rag_drift_detected_total")
             except Exception as exc:
                 log.debug("Could not compare RAG stats: %s", exc)
 
@@ -1910,6 +1975,22 @@ async def lifespan(_app: FastAPI):
         # ── Stage: seed_content ───────────────────────────────────────────
         _startup_stage = "seed_content"
         _tag_overlay = TagOverlayIndex()
+        # Restore persisted tag overlay (Nostr-discovered announcements survive restart).
+        if db_path != ":memory:":
+            _overlay_path = Path(db_path).parent / "tag_overlay.json"
+            if _overlay_path.exists():
+                try:
+                    _tag_overlay = TagOverlayIndex.from_json(
+                        _overlay_path.read_text(encoding="utf-8")
+                    )
+                    log.info(
+                        "TagOverlayIndex restored from %s (%d domains).",
+                        _overlay_path,
+                        len(_tag_overlay._storage),
+                    )
+                except Exception as exc:
+                    log.warning("Could not restore TagOverlayIndex from %s: %s", _overlay_path, exc)
+                    _tag_overlay = TagOverlayIndex()
         _clients.clear()
         if _content_store.count() == 0:
             _seed_sample()
@@ -2043,6 +2124,17 @@ async def lifespan(_app: FastAPI):
                 _stop_maintenance.set()
             if "_nostr_subscriber" in locals() and _nostr_subscriber:
                 _nostr_subscriber.stop()
+            # Persist tag overlay (Nostr-discovered announcements) to disk.
+            _to_db_path = os.environ.get("TFP_DB_PATH", "")
+            if _to_db_path and _to_db_path != ":memory:" and _tag_overlay is not None:
+                try:
+                    _overlay_save_path = Path(_to_db_path).parent / "tag_overlay.json"
+                    _overlay_save_path.write_text(
+                        _tag_overlay.to_json(), encoding="utf-8"
+                    )
+                    log.info("TagOverlayIndex persisted to %s.", _overlay_save_path)
+                except Exception as exc:
+                    log.warning("Could not persist TagOverlayIndex: %s", exc)
             if "_conn" in locals() and _conn:
                 _conn.close()
             # Close Redis connections if distributed limiters were in use.
@@ -2783,7 +2875,8 @@ def rag_reindex(
     """
     Rebuild the local RAG semantic index from a directory.
 
-    Admin-only: requires a valid enrolled device signature.
+    Admin-only: requires a valid enrolled device signature AND the device must
+    be in the ``TFP_ADMIN_DEVICE_IDS`` allowlist (when configured).
     This is a **synchronous, blocking** call — for large codebases run it
     off-peak or via a background worker.  Index writes are idempotent (existing
     chunks are overwritten by content hash).
@@ -2798,6 +2891,22 @@ def rag_reindex(
             detail="invalid or missing device signature — enroll first via /api/enroll",
         )
 
+    # Admin device allowlist: when TFP_ADMIN_DEVICE_IDS is set, only listed
+    # device IDs may trigger reindex.  This prevents self-enrolled devices from
+    # abusing the expensive reindex operation as a DoS vector.
+    _admin_ids_env = os.environ.get("TFP_ADMIN_DEVICE_IDS", "").strip()
+    if _admin_ids_env:
+        _allowed_ids = {d.strip() for d in _admin_ids_env.split(",") if d.strip()}
+        if payload.device_id not in _allowed_ids:
+            _metrics.inc("tfp_auth_failures_total")
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    "device is not in the admin allowlist "
+                    "(set TFP_ADMIN_DEVICE_IDS to include this device_id)"
+                ),
+            )
+
     if _rag_graph is None:
         raise HTTPException(
             status_code=503,
@@ -2807,19 +2916,32 @@ def rag_reindex(
             ),
         )
 
-    # The index root is determined exclusively by TFP_RAG_DIR — never by user input.
-    # This prevents path injection: only the server operator configures what is indexed.
+    # The index source directory: prefer TFP_RAG_SOURCE_DIR (the directory to
+    # index), falling back to TFP_RAG_DIR for backwards compatibility.
+    # TFP_RAG_DIR is the ChromaDB storage path and should NOT normally be walked.
+    _rag_source_env = os.environ.get("TFP_RAG_SOURCE_DIR", "").strip()
     _rag_dir_env = os.environ.get("TFP_RAG_DIR", "").strip()
-    if not _rag_dir_env:
+    if _rag_source_env:
+        index_dir = Path(_rag_source_env)
+    elif _rag_dir_env:
+        log.warning(
+            "TFP_RAG_SOURCE_DIR is not set; using TFP_RAG_DIR as index source. "
+            "Set TFP_RAG_SOURCE_DIR to the directory you want to index and "
+            "TFP_RAG_DIR to the ChromaDB storage path."
+        )
+        index_dir = Path(_rag_dir_env)
+    else:
         raise HTTPException(
             status_code=503,
-            detail="TFP_RAG_DIR is not configured; set it to the directory to index",
+            detail=(
+                "Neither TFP_RAG_SOURCE_DIR nor TFP_RAG_DIR is configured; "
+                "set TFP_RAG_SOURCE_DIR to the directory to index"
+            ),
         )
-    index_dir = Path(_rag_dir_env)
     if not index_dir.is_dir():
         raise HTTPException(
             status_code=503,
-            detail=f"TFP_RAG_DIR does not exist or is not a directory: {index_dir}",
+            detail=f"Index source directory does not exist or is not a directory: {index_dir}",
         )
 
     pattern_list: Optional[List[str]] = (
@@ -2843,9 +2965,24 @@ def rag_reindex(
     if _nostr_bridge is not None:
         try:
             stats = _rag_graph.get_stats()
-            index_hash = hashlib.sha3_256(
-                f"{index_dir}:{stats.get('total_chunks', 0)}".encode()
-            ).hexdigest()
+            # Build a canonical index fingerprint from content-derived fields:
+            # collection name + total_chunks + collection_id (if available).
+            # This makes nodes with the same count but different vectors produce
+            # different hashes, making drift detection meaningful.
+            _coll_id = stats.get("collection_id", stats.get("collection_name", ""))
+            _fp = f"{_coll_id}:{stats.get('total_chunks', 0)}"
+            # Hash sorted indexed file paths + mtimes for additional specificity.
+            try:
+                _file_fp = ":".join(
+                    f"{p}:{os.path.getmtime(p):.0f}"
+                    for p in sorted(
+                        str(f) for f in index_dir.rglob("*") if f.is_file()
+                    )
+                )
+                _fp = f"{_fp}:{_file_fp}"
+            except Exception:
+                pass
+            index_hash = hashlib.sha3_256(_fp.encode()).hexdigest()
             _nostr_bridge.publish_search_index_summary(
                 domain="general",
                 index_hash=index_hash,

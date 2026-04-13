@@ -106,7 +106,7 @@ echo "$HEALTH" | python3 -c "import sys,json; d=json.load(sys.stdin); assert d['
   && pass "/health status field is 'ok'" \
   || fail "/health status field is not 'ok': $HEALTH"
 
-# /metrics must include at least the 12 counters
+# /metrics must include at least the 16 counters (12 core + 4 RAG/gossip)
 METRICS=$(curl -s "$BASE_URL/metrics")
 COUNTER_COUNT=$(echo "$METRICS" | grep -c "^tfp_" || true)
 if [ "$COUNTER_COUNT" -ge 12 ]; then
@@ -125,6 +125,40 @@ assert 'supply_cap' in d, 'missing supply_cap'
 assert d['supply_cap'] == 21000000, f'wrong supply_cap: {d[\"supply_cap\"]}'
 " && pass "/api/status has version + supply_cap=21000000" \
   || fail "/api/status malformed: $STATUS"
+
+# ── RAG + Nostr endpoint structural checks (no RAG infrastructure required) ──
+echo ""
+info "=== RAG and Nostr endpoint checks ==="
+
+# GET /api/discovery must return HTTP 200 with an 'entries' field
+check_status "GET /api/discovery" "$BASE_URL/api/discovery"
+DISCOVERY=$(get_json "$BASE_URL/api/discovery")
+echo "$DISCOVERY" | python3 -c "
+import sys,json
+d=json.load(sys.stdin)
+assert 'entries' in d, f'missing entries field: {list(d.keys())}'
+" && pass "/api/discovery has 'entries' field" \
+  || fail "/api/discovery malformed: $DISCOVERY"
+
+# POST /api/search/semantic without auth must return 401
+SEARCH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/search/semantic" \
+  -H "Content-Type: application/json" \
+  -d '{"device_id":"unauthenticated","query":"test"}')
+if [ "$SEARCH_STATUS" = "401" ]; then
+  pass "POST /api/search/semantic without auth → 401"
+else
+  fail "POST /api/search/semantic without auth → expected 401, got $SEARCH_STATUS"
+fi
+
+# POST /api/admin/rag/reindex without auth must return 401
+REINDEX_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/admin/rag/reindex" \
+  -H "Content-Type: application/json" \
+  -d '{"device_id":"unauthenticated"}')
+if [ "$REINDEX_STATUS" = "401" ]; then
+  pass "POST /api/admin/rag/reindex without auth → 401"
+else
+  fail "POST /api/admin/rag/reindex without auth → expected 401, got $REINDEX_STATUS"
+fi
 
 if [ "$OPS_ONLY" = "1" ]; then
   echo ""

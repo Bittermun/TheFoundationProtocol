@@ -32,6 +32,7 @@ Offline (no relay required):
     event = bridge.publish_content_announcement(hash_hex, metadata)
 """
 
+import collections
 import hashlib
 import json
 import logging
@@ -337,7 +338,9 @@ class NostrBridge:
         self.relay_url = relay_url
         self.offline = offline
         self.pubkey_hex = _derive_pubkey_bytes(privkey).hex()
-        self._history: List[NostrEvent] = []
+        # Bounded history: deque evicts oldest entries when full so that a
+        # long-running bridge process cannot exhaust heap memory.
+        self._history: collections.deque = collections.deque(maxlen=10_000)
 
     # ------------------------------------------------------------------
     # Public API
@@ -436,6 +439,10 @@ class NostrBridge:
         Announces the current state of the local HierarchicalLexiconTree so that
         peer nodes can detect semantic drift and request delta updates.
 
+        Wire format (content JSON):
+        ``{"merkle_root": <hex>, "domains": [{"domain": <name>, "version": <ver>,
+        "content_hash": <hex>}, ...]}``
+
         The event tags include:
         - ``["d", "tfp-hlt"]``: parameterized replaceable identifier
         - ``["domain", <name>]``: one tag per domain in the HLT
@@ -454,15 +461,22 @@ class NostrBridge:
             ["d", "tfp-hlt"],
             ["merkle_root", merkle_root],
         ]
+        domain_list = []
         for domain_name in hlt.domain_names:
-            tags.append(["domain", domain_name])
             version_info = hlt.get_latest_version(domain_name)
-            if version_info.get("version"):
-                tags.append(["version", version_info["version"]])
+            version = version_info.get("version") or "v1.0.0"
+            node_id = hlt.domain_names[domain_name]
+            node = hlt.nodes.get(node_id)
+            content_hash = node.content_hash if node else "a" * 64
+            tags.append(["domain", domain_name])
+            tags.append(["version", version])
+            domain_list.append(
+                {"domain": domain_name, "version": version, "content_hash": content_hash}
+            )
 
         content_payload = {
             "merkle_root": merkle_root,
-            "domains": list(hlt.domain_names.keys()),
+            "domains": domain_list,
         }
         event = NostrEvent.create(
             privkey=self._privkey,
