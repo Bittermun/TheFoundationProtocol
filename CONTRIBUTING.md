@@ -77,4 +77,4 @@ Decisions follow the BDFL model with community RFC input. Major changes go throu
 
 ## License
 
-By contributing you agree that your contribution is released under the [MIT License](LICENSE).
+By contributing you agree that your contribution is released under the [Apache-2.0 License](LICENSE).

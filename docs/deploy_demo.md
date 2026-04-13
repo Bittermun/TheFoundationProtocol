@@ -29,8 +29,13 @@ uvicorn tfp_demo.server:app --reload
 
 | Variable | Default | Description |
 |----------|---------|-------------|
+| `TFP_MODE` | `demo` | Runtime mode. Use `production` for fail-closed startup validation and hardened defaults. |
 | `TFP_DB_PATH` | `pib.db` | SQLite database path. Use `:memory:` for ephemeral (tests). |
 | `NOSTR_RELAY` | _(empty)_ | WebSocket URL of a Nostr relay to publish/subscribe content announcements. |
+| `TFP_PEER_SECRET` | _(empty in demo)_ | Required in production. Shared secret for `/api/peer` and `/admin` via `X-TFP-Peer-Secret`. |
+| `TFP_ADMIN_DEVICE_IDS` | _(empty in demo)_ | Required in production. Comma-separated device allowlist for `/api/admin/rag/reindex`. |
+| `TFP_NOSTR_PUBLISH_ENABLED` | `1` in demo, `0` in production | Enables outbound Nostr gossip publishing. |
+| `TFP_NOSTR_TRUSTED_PUBKEYS` | _(empty)_ | In production, empty means deny inbound Nostr gossip by default. |
 | `TFP_EARN_RATE_MAX` | `10` | Max earn calls per device per window. |
 | `TFP_EARN_RATE_WINDOW` | `60` | Sliding window length in seconds for rate limiting. |
 

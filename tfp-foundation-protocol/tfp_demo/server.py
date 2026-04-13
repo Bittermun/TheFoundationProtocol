@@ -20,6 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingResponse
 from tfp_client.lib.bridges.ipfs_bridge import IPFSBridge
 from pydantic import BaseModel, Field, ValidationError
+from tfp_demo.config_validation import validate_runtime_config
 from tfp_broadcaster.broadcaster import Broadcaster
 from tfp_client.lib.bridges.nostr_subscriber import NostrSubscriber
 from tfp_client.lib.bridges.nostr_bridge import (
@@ -1374,6 +1375,9 @@ _blob_store: Optional[BlobStore] = None
 _peer_fallback = None  # type: Optional[_PeerFallback] — class defined below
 _hlt: Optional[HierarchicalLexiconTree] = None
 _peer_secret: str = ""  # TFP_PEER_SECRET shared secret for /api/peer auth
+_runtime_mode: str = "demo"  # TFP_MODE=demo|production
+_trusted_nostr_pubkeys: frozenset[str] = frozenset()
+_admin_device_ids: frozenset[str] = frozenset()
 _rag_graph = None  # RAGGraph instance when TFP_ENABLE_RAG=1; Optional[Any]
 _chunk_store = None  # ChunkStore for shard-pin reward tracking; Optional[Any]
 
@@ -1630,20 +1634,21 @@ def _on_nostr_event(event_dict: dict) -> None:
                     return
                 _seen_nostr_event_ids.append(event_id)
 
-        # ── Trusted pubkey allowlist (when configured) ────────────────────
-        _trusted_raw = os.environ.get("TFP_NOSTR_TRUSTED_PUBKEYS", "").strip()
-        if _trusted_raw:
-            trusted_keys = {
-                k.strip().lower() for k in _trusted_raw.split(",") if k.strip()
-            }
-            event_pubkey = str(event_dict.get("pubkey", "")).lower()
-            if event_pubkey not in trusted_keys:
-                log.debug(
-                    "Dropping Nostr event from untrusted pubkey %s (kind=%s)",
-                    event_pubkey[:16],
-                    kind,
-                )
-                return
+        # ── Trusted pubkey allowlist ───────────────────────────────────────
+        event_pubkey = str(event_dict.get("pubkey", "")).lower()
+        if _runtime_mode == "production" and not _trusted_nostr_pubkeys:
+            log.debug(
+                "Dropping Nostr event in production mode because "
+                "TFP_NOSTR_TRUSTED_PUBKEYS is not configured."
+            )
+            return
+        if _trusted_nostr_pubkeys and event_pubkey not in _trusted_nostr_pubkeys:
+            log.debug(
+                "Dropping Nostr event from untrusted pubkey %s (kind=%s)",
+                event_pubkey[:16],
+                kind,
+            )
+            return
 
         # ── Signature verification (drop forged/tampered events) ──────────
         if not _verify_nostr_event(event_dict):
@@ -1847,19 +1852,35 @@ async def lifespan(_app: FastAPI):
         _nostr_subscriber
     global _nostr_bridge, _ipfs_bridge, _clients, _metrics, _app_ready, _startup_stage
     global _blob_store, _peer_fallback, _hlt, _peer_secret, _rag_graph, _chunk_store
+    global _runtime_mode, _trusted_nostr_pubkeys, _admin_device_ids
 
     _app_ready = False
     _startup_stage = "starting"
     log.info("TFP Server starting up... (stage=%s)", _startup_stage)
 
-    # Read feature flags at runtime (not module-import time) so that tests
-    # can override them with monkeypatch.setenv before the TestClient starts.
+    # Read runtime mode + config at startup (not import-time) so tests can
+    # override env vars with monkeypatch.setenv before TestClient starts.
+    runtime_cfg = validate_runtime_config(
+        os.environ,
+        default_db_path=str(_DEFAULT_DB_PATH),
+    )
+    _runtime_mode = runtime_cfg.mode
+    _trusted_nostr_pubkeys = runtime_cfg.nostr_trusted_pubkeys
+    _admin_device_ids = runtime_cfg.admin_device_ids
+    if _runtime_mode == "production" and not _trusted_nostr_pubkeys:
+        log.warning(
+            "Production mode started without TFP_NOSTR_TRUSTED_PUBKEYS; "
+            "inbound Nostr gossip is deny-by-default until an allowlist is configured."
+        )
+
+    # Read feature flags at runtime (not module-import time).
     _enable_ipfs = os.environ.get("TFP_ENABLE_IPFS", "1").strip() != "0"
-    _enable_nostr = os.environ.get("TFP_ENABLE_NOSTR", "1").strip() != "0"
+    _enable_nostr = runtime_cfg.enable_nostr
     _enable_maintenance = os.environ.get("TFP_ENABLE_MAINTENANCE", "1").strip() != "0"
     _enable_rag = os.environ.get("TFP_ENABLE_RAG", "0").strip() != "0"
     log.info(
-        "Feature flags: IPFS=%s  Nostr=%s  Maintenance=%s  RAG=%s",
+        "Runtime mode=%s  Feature flags: IPFS=%s  Nostr=%s  Maintenance=%s  RAG=%s",
+        _runtime_mode,
         _enable_ipfs,
         _enable_nostr,
         _enable_maintenance,
@@ -1869,7 +1890,7 @@ async def lifespan(_app: FastAPI):
     try:
         # ── Stage: db_init ────────────────────────────────────────────────
         _startup_stage = "db_init"
-        db_path = os.environ.get("TFP_DB_PATH", str(_DEFAULT_DB_PATH))
+        db_path = runtime_cfg.db_path
         log.info("Connecting to SQLite: %s  (stage=%s)", db_path, _startup_stage)
         _conn = sqlite3.connect(db_path, check_same_thread=False)
         if db_path != ":memory:":
@@ -1894,7 +1915,7 @@ async def lifespan(_app: FastAPI):
             log.info("BlobStore: in-memory (TFP_DB_PATH=:memory:)")
 
         # ── Peer secret: TFP_PEER_SECRET ─────────────────────────────────
-        _peer_secret = os.environ.get("TFP_PEER_SECRET", "").strip()
+        _peer_secret = runtime_cfg.peer_secret
         if _peer_secret:
             log.info("Peer secret configured (X-TFP-Peer-Secret enforcement enabled).")
         else:
@@ -1902,6 +1923,13 @@ async def lifespan(_app: FastAPI):
                 "TFP_PEER_SECRET not set; /api/peer endpoint is unauthenticated. "
                 "Set TFP_PEER_SECRET for production deployments."
             )
+        if _admin_device_ids:
+            log.info(
+                "Admin allowlist configured with %d device(s).", len(_admin_device_ids)
+            )
+        elif _runtime_mode == "production":
+            # Should already be blocked by config_validation; keep explicit log guard.
+            log.warning("Production mode without TFP_ADMIN_DEVICE_IDS is not allowed.")
 
         # ── Peer fallback: read TFP_PEER_NODES env var ────────────────────
         peer_nodes_env = os.environ.get("TFP_PEER_NODES", "")
@@ -2099,9 +2127,7 @@ async def lifespan(_app: FastAPI):
             # TFP_NOSTR_PUBLISH_ENABLED=0/false lets operators run receive-only
             # (air-gapped) nodes: events are still subscribed and ingested but
             # no outbound gossip is sent.
-            publish_enabled = os.environ.get(
-                "TFP_NOSTR_PUBLISH_ENABLED", "1"
-            ).strip().lower() not in ("0", "false", "no")
+            publish_enabled = runtime_cfg.nostr_publish_enabled
 
             _nostr_subscriber = NostrSubscriber(
                 relay_url=relay_url or "wss://relay.damus.io",
@@ -2230,6 +2256,9 @@ async def lifespan(_app: FastAPI):
         _rag_graph = None
         _chunk_store = None
         _peer_secret = ""
+        _runtime_mode = "demo"
+        _trusted_nostr_pubkeys = frozenset()
+        _admin_device_ids = frozenset()
 
 
 app = FastAPI(title="TFP Demo Node", version="0.2.0", lifespan=lifespan)
@@ -2744,6 +2773,15 @@ def peer_get(
     When ``TFP_PEER_SECRET`` is set, callers **must** supply the matching value in the
     ``X-TFP-Peer-Secret`` header.  Mismatched or missing secrets → 401 Unauthorized.
     """
+    if _runtime_mode == "production" and not _peer_secret:
+        _metrics.inc("tfp_auth_failures_total")
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "peer endpoint disabled in production mode until TFP_PEER_SECRET "
+                "is configured"
+            ),
+        )
     if _peer_secret and not _hmac.compare_digest(x_tfp_peer_secret, _peer_secret):
         _metrics.inc("tfp_auth_failures_total")
         raise HTTPException(
@@ -2822,6 +2860,7 @@ def status() -> dict:
             rag_stats = {"error": "unavailable"}
     return {
         "version": "0.3.0",
+        "runtime_mode": _runtime_mode,
         "content_items": _content_store.count(),
         "nostr_events_received": nostr_events,
         "nostr_subscriber_running": _nostr_subscriber.is_running()
@@ -2836,6 +2875,7 @@ def status() -> dict:
         "rag_enabled": _rag_graph is not None,
         "rag_stats": rag_stats,
         "peer_secret_enforced": bool(_peer_secret),
+        "admin_allowlist_enforced": bool(_admin_device_ids),
         "pin_rewards_active": _chunk_store is not None,
     }
 
@@ -2986,18 +3026,24 @@ def rag_reindex(
     # Admin device allowlist: when TFP_ADMIN_DEVICE_IDS is set, only listed
     # device IDs may trigger reindex.  This prevents self-enrolled devices from
     # abusing the expensive reindex operation as a DoS vector.
-    _admin_ids_env = os.environ.get("TFP_ADMIN_DEVICE_IDS", "").strip()
-    if _admin_ids_env:
-        _allowed_ids = {d.strip() for d in _admin_ids_env.split(",") if d.strip()}
-        if payload.device_id not in _allowed_ids:
-            _metrics.inc("tfp_auth_failures_total")
-            raise HTTPException(
-                status_code=403,
-                detail=(
-                    "device is not in the admin allowlist "
-                    "(set TFP_ADMIN_DEVICE_IDS to include this device_id)"
-                ),
-            )
+    if _runtime_mode == "production" and not _admin_device_ids:
+        _metrics.inc("tfp_auth_failures_total")
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "admin reindex is disabled in production mode until "
+                "TFP_ADMIN_DEVICE_IDS is configured"
+            ),
+        )
+    if _admin_device_ids and payload.device_id not in _admin_device_ids:
+        _metrics.inc("tfp_auth_failures_total")
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "device is not in the admin allowlist "
+                "(set TFP_ADMIN_DEVICE_IDS to include this device_id)"
+            ),
+        )
 
     if _rag_graph is None:
         raise HTTPException(
@@ -3402,6 +3448,25 @@ _ADMIN_HTML = """<!DOCTYPE html>
 
 
 @app.get("/admin", response_class=HTMLResponse)
-def admin_dashboard() -> HTMLResponse:
+def admin_dashboard(
+    x_tfp_peer_secret: str = Header(default="", alias="X-TFP-Peer-Secret"),
+) -> HTMLResponse:
     """Live admin dashboard — shows node health, task pool, and credit supply."""
+    if _runtime_mode == "production":
+        if not _peer_secret:
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "admin dashboard disabled in production mode until TFP_PEER_SECRET "
+                    "is configured"
+                ),
+            )
+        if not _hmac.compare_digest(x_tfp_peer_secret, _peer_secret):
+            _metrics.inc("tfp_auth_failures_total")
+            raise HTTPException(
+                status_code=401,
+                detail=(
+                    "invalid or missing X-TFP-Peer-Secret for /admin in production mode"
+                ),
+            )
     return HTMLResponse(content=_ADMIN_HTML)
