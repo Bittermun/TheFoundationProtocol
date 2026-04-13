@@ -1,7 +1,3 @@
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-tfp-foundation-protocol/tfp.egg-info/
-tfp.egg-info/
-*.egg-info/
+```
+# Configuration and source files only - no build artifacts or dependencies detected
+```

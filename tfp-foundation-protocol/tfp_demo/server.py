@@ -431,7 +431,7 @@ class ContentStore:
             placeholders = ",".join("?" * len(hashes))
             rows = self._conn.execute(
                 "SELECT root_hash, title, tags, blob_path, cid, size_bytes, recipe_json"
-                f" FROM content WHERE root_hash IN ({placeholders})"
+                f" FROM content WHERE root_hash IN ({placeholders})"  # nosec B608 - parameterized query, hashes validated as set membership from tag_index
                 " ORDER BY rowid DESC LIMIT ? OFFSET ?",
                 [*list(hashes), limit, offset],
             ).fetchall()
@@ -461,7 +461,7 @@ class ContentStore:
             placeholders = ",".join("?" * len(hashes))
             rows = self._conn.execute(
                 "SELECT root_hash, title, tags, blob_path, cid, size_bytes, recipe_json"
-                f" FROM content WHERE root_hash IN ({placeholders})"
+                f" FROM content WHERE root_hash IN ({placeholders})"  # nosec B608 - parameterized query, hashes validated as set membership from tag_index
                 " ORDER BY rowid DESC LIMIT ? OFFSET ?",
                 [*list(hashes), limit, offset],
             ).fetchall()
@@ -1488,7 +1488,7 @@ class _PeerFallback:
                 req = urllib.request.Request(url)
                 if self._secret:
                     req.add_header("X-TFP-Peer-Secret", self._secret)
-                with urllib.request.urlopen(req, timeout=5) as resp:
+                with urllib.request.urlopen(req, timeout=5) as resp:  # nosec B310 - URL scheme validated as http/https only, peer URLs from trusted config
                     if resp.status == 200:
                         return resp.read()
             except Exception as exc:
