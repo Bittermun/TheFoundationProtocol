@@ -2072,24 +2072,24 @@ async def lifespan(_app: FastAPI):
             # pubkey is used across restarts so that peer nodes can build
             # stable trust records.  When unset, a random ephemeral key is
             # generated (safe for development / single-restart deployments).
-            _nostr_privkey: Optional[bytes] = None
-            _nostr_key_env = os.environ.get("NOSTR_PRIVATE_KEY", "").strip()
-            if _nostr_key_env:
+            nostr_privkey: Optional[bytes] = None
+            nostr_key_env = os.environ.get("NOSTR_PRIVATE_KEY", "").strip()
+            if nostr_key_env:
                 try:
-                    _nostr_privkey = bytes.fromhex(_nostr_key_env)
-                    if len(_nostr_privkey) != 32:
+                    nostr_privkey = bytes.fromhex(nostr_key_env)
+                    if len(nostr_privkey) != 32:
                         raise ValueError(
-                            f"expected 32 bytes (64 hex chars), got {len(_nostr_privkey)}"
+                            f"expected 32 bytes (64 hex chars), got {len(nostr_privkey)}"
                         )
                     log.info(
                         "Nostr: loaded persistent private key from NOSTR_PRIVATE_KEY."
                     )
-                except ValueError as _key_exc:
+                except ValueError as key_exc:
                     log.warning(
                         "NOSTR_PRIVATE_KEY is invalid (%s); using random ephemeral key.",
-                        _key_exc,
+                        key_exc,
                     )
-                    _nostr_privkey = None
+                    nostr_privkey = None
             else:
                 log.debug(
                     "NOSTR_PRIVATE_KEY not set; Nostr identity is ephemeral "
@@ -2099,7 +2099,7 @@ async def lifespan(_app: FastAPI):
             # TFP_NOSTR_PUBLISH_ENABLED=0/false lets operators run receive-only
             # (air-gapped) nodes: events are still subscribed and ingested but
             # no outbound gossip is sent.
-            _publish_enabled = os.environ.get(
+            publish_enabled = os.environ.get(
                 "TFP_NOSTR_PUBLISH_ENABLED", "1"
             ).strip().lower() not in ("0", "false", "no")
 
@@ -2116,17 +2116,17 @@ async def lifespan(_app: FastAPI):
                 },
             )
             _nostr_subscriber.start()
-            _bridge_offline = (not relay_url) or (not _publish_enabled)
+            bridge_offline = (not relay_url) or (not publish_enabled)
             _nostr_bridge = NostrBridge(
-                privkey=_nostr_privkey,
+                privkey=nostr_privkey,
                 relay_url=relay_url or "wss://relay.damus.io",
-                offline=_bridge_offline,
+                offline=bridge_offline,
             )
             log.info(
                 "Nostr initialised (relay=%s, offline=%s, publish=%s).",
                 relay_url or "wss://relay.damus.io",
-                _bridge_offline,
-                _publish_enabled,
+                bridge_offline,
+                publish_enabled,
             )
         else:
             _nostr_subscriber = None

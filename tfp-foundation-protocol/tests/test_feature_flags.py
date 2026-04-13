@@ -144,7 +144,7 @@ def test_nostr_private_key_loaded(monkeypatch):
         assert srv._nostr_bridge.pubkey_hex == expected_pubkey
 
 
-def test_nostr_private_key_invalid_falls_back_to_random(monkeypatch):
+def test_nostr_invalid_key_uses_random(monkeypatch):
     """Invalid NOSTR_PRIVATE_KEY must be ignored and a random key used."""
     monkeypatch.setenv("TFP_ENABLE_NOSTR", "1")
     monkeypatch.setenv("NOSTR_PRIVATE_KEY", "not-valid-hex!!")
@@ -158,7 +158,7 @@ def test_nostr_private_key_invalid_falls_back_to_random(monkeypatch):
         assert len(srv._nostr_bridge.pubkey_hex) == 64
 
 
-def test_nostr_publish_disabled_bridge_is_offline(monkeypatch):
+def test_nostr_publish_disabled_sets_offline(monkeypatch):
     """TFP_NOSTR_PUBLISH_ENABLED=0 must set the bridge to offline mode."""
     monkeypatch.setenv("TFP_ENABLE_NOSTR", "1")
     monkeypatch.setenv("TFP_NOSTR_PUBLISH_ENABLED", "0")
@@ -171,7 +171,7 @@ def test_nostr_publish_disabled_bridge_is_offline(monkeypatch):
         assert srv._nostr_bridge.offline is True
 
 
-def test_nostr_publish_enabled_bridge_not_offline(monkeypatch):
+def test_nostr_publish_enabled_sets_online(monkeypatch):
     """TFP_NOSTR_PUBLISH_ENABLED=1 with a relay must leave bridge in online mode."""
     monkeypatch.setenv("TFP_ENABLE_NOSTR", "1")
     monkeypatch.setenv("TFP_NOSTR_PUBLISH_ENABLED", "1")
