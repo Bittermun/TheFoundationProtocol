@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import FrozenSet, Mapping
+from typing import Mapping
 
 
 _FALSE_VALUES = {"0", "false", "no", "off"}
@@ -12,9 +12,9 @@ class RuntimeConfig:
     db_path: str
     enable_nostr: bool
     nostr_publish_enabled: bool
-    nostr_trusted_pubkeys: FrozenSet[str]
+    nostr_trusted_pubkeys: frozenset[str]
     peer_secret: str
-    admin_device_ids: FrozenSet[str]
+    admin_device_ids: frozenset[str]
 
 
 def _parse_bool(value: str | None, *, default: bool, var_name: str) -> bool:
@@ -30,7 +30,7 @@ def _parse_bool(value: str | None, *, default: bool, var_name: str) -> bool:
     )
 
 
-def _parse_csv_set(value: str | None, *, lowercase: bool) -> FrozenSet[str]:
+def _parse_csv_set(value: str | None, *, lowercase: bool) -> frozenset[str]:
     if value is None:
         return frozenset()
     items = {item.strip() for item in value.split(",") if item.strip()}
