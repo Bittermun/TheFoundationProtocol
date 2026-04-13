@@ -47,6 +47,8 @@ Peer nodes subscribing to these events can detect when their local index diverge
 |----------|-------------|---------|----------|
 | `TFP_ENABLE_NOSTR` | Enable Nostr integration (1/0) | `0` | No |
 | `NOSTR_RELAY` or `NOSTR_RELAY_URL` | WebSocket URL of primary Nostr relay | `wss://relay.damus.io` | No* |
+| `NOSTR_PRIVATE_KEY` | 64-character hex private key for signing events. If not set, a random ephemeral key is generated — safe for dev, but breaks cross-restart pubkey continuity in production. Generate with `openssl rand -hex 32`. | Auto-generated | No |
+| `TFP_NOSTR_PUBLISH_ENABLED` | Set `0` or `false` to run as receive-only: inbound events are still subscribed and ingested but no outbound gossip is published. | `1` | No |
 | `TFP_NOSTR_TRUSTED_PUBKEYS` | Comma-separated hex pubkeys for trusted peers. If set, index updates from unknown keys are ignored for drift calculation. | `*` (Accept All) | No |
 
 \* Required if `TFP_ENABLE_NOSTR=1`
@@ -178,10 +180,14 @@ export TFP_RAG_SOURCE_DIR=/data/knowledge_base
 export TFP_RAG_DIR=/var/lib/tfp/chroma
 export NOSTR_RELAY=wss://nostr.bitcoiner.social
 export TFP_NOSTR_TRUSTED_PUBKEYS=$(cat /etc/tfp/trusted_peers.txt)
+# Persistent identity — same pubkey survives restarts; generate once and store securely
+export NOSTR_PRIVATE_KEY=$(cat /etc/tfp/node_key.hex)
 
 # Start server
 uvicorn tfp_demo.server:app --host 0.0.0.0 --port 8000
 ```
+
+> **Key generation (one-time):** `openssl rand -hex 32 > /etc/tfp/node_key.hex && chmod 600 /etc/tfp/node_key.hex`
 
 ## Further Reading
 
