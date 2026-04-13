@@ -1839,12 +1839,7 @@ async def lifespan(_app: FastAPI):
     # Phase A: per-stage startup observability + readiness gate.
     # Phase B: feature flags read at runtime so tests can use monkeypatch.setenv.
     global _content_store, _device_registry, _earn_log, _credit_store, _task_store
-    global \
-        _earn_rate_limiter, \
-        _result_rate_limiter, \
-        _rag_rate_limiter, \
-        _tag_overlay, \
-        _nostr_subscriber
+    global _earn_rate_limiter, _result_rate_limiter, _rag_rate_limiter, _tag_overlay, _nostr_subscriber
     global _nostr_bridge, _ipfs_bridge, _clients, _metrics, _app_ready, _startup_stage
     global _blob_store, _peer_fallback, _hlt, _peer_secret, _rag_graph, _chunk_store
 
