@@ -138,7 +138,7 @@ Run this checklist against every release before publishing security claims.
 - [ ] Nostr event from pubkey not in `TFP_NOSTR_TRUSTED_PUBKEYS` (when var is set) → silently dropped
 
 ### K. Nostr Integration Security
-- [ ] `NOSTR_PRIVATE_KEY` is never logged or exposed in error messages
+- [ ] Nostr signing key material is never logged or exposed in error messages
 - [ ] BIP-340 Schnorr signature verification passes for valid events (tested in `test_nostr_bridge.py`)
 - [ ] Invalid signatures on received events are rejected without processing content
 - [ ] History bounded to 10,000 events to prevent memory exhaustion attacks

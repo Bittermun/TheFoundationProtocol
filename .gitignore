@@ -1,2 +1,7 @@
-# Documentation and source files only - no build artifacts, dependencies, or temp files detected
-# No .gitignore rules needed for this project based on the file changes provided
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+tfp-foundation-protocol/tfp.egg-info/
+tfp.egg-info/
+*.egg-info/

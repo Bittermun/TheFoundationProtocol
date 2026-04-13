@@ -48,8 +48,6 @@ Peer nodes subscribing to these events can detect when their local index diverge
 | `TFP_ENABLE_NOSTR` | Enable Nostr integration (1/0) | `0` | No |
 | `NOSTR_RELAY` or `NOSTR_RELAY_URL` | WebSocket URL of primary Nostr relay | `wss://relay.damus.io` | No* |
 | `TFP_NOSTR_TRUSTED_PUBKEYS` | Comma-separated hex pubkeys for trusted peers. If set, index updates from unknown keys are ignored for drift calculation. | `*` (Accept All) | No |
-| `TFP_NOSTR_PUBLISH_ENABLED` | Toggle outbound gossip publishing | `true` | No |
-| `NOSTR_PRIVATE_KEY` | 64-character hex private key for signing events | Auto-generated | No |
 
 \* Required if `TFP_ENABLE_NOSTR=1`
 
@@ -95,7 +93,7 @@ Remote peers can compare their local index hash against received Kind-30079 even
 def check_drift(local_hash, remote_event):
     if remote_event['pubkey'] not in TRUSTED_PUBKEYS:
         return "untrusted_source"
-    
+
     remote_hash = remote_event['tags']['index_hash']
     if local_hash != remote_hash:
         return {
@@ -153,8 +151,7 @@ Triggers reindex and automatically publishes Kind-30079 gossip event.
 {
   "indexed_chunks": 1247,
   "directory": "/data/codebase",
-  "nostr_gossip_published": true,
-  "index_hash": "a1b2c3d4..."
+  "rag_stats": {"total_chunks": 1247, "collection_name": "tfp"}
 }
 ```
 
@@ -165,16 +162,11 @@ Triggers reindex and automatically publishes Kind-30079 gossip event.
 
 ## Security Considerations
 
-1. **Private Key Management**: If specifying `NOSTR_PRIVATE_KEY`, ensure it is:
-   - Generated securely (e.g., `openssl rand -hex 32`)
-   - Stored in environment variables or secrets manager
-   - Never committed to version control
+1. **Replay Protection**: Each Kind-30079 event includes a timestamp (`created_at`). Nodes should reject events older than a configurable threshold (default: 24 hours).
 
-2. **Replay Protection**: Each Kind-30079 event includes a timestamp (`created_at`). Nodes should reject events older than a configurable threshold (default: 24 hours).
+2. **Rate Limiting**: The bridge maintains a bounded history (max 10,000 events) to prevent memory exhaustion. Failed publishes are logged but do not block reindex operations.
 
-3. **Rate Limiting**: The bridge maintains a bounded history (max 10,000 events) to prevent memory exhaustion. Failed publishes are logged but do not block reindex operations.
-
-4. **Trust Model**: By default, all pubkeys are accepted. For production deployments, always configure `TFP_NOSTR_TRUSTED_PUBKEYS` with verified peer identities.
+3. **Trust Model**: By default, all pubkeys are accepted. For production deployments, always configure `TFP_NOSTR_TRUSTED_PUBKEYS` with verified peer identities.
 
 ## Example Deployment
 
@@ -186,7 +178,6 @@ export TFP_RAG_SOURCE_DIR=/data/knowledge_base
 export TFP_RAG_DIR=/var/lib/tfp/chroma
 export NOSTR_RELAY=wss://nostr.bitcoiner.social
 export TFP_NOSTR_TRUSTED_PUBKEYS=$(cat /etc/tfp/trusted_peers.txt)
-export NOSTR_PRIVATE_KEY=$(cat /etc/tfp/node_key.hex)
 
 # Start server
 uvicorn tfp_demo.server:app --host 0.0.0.0 --port 8000
