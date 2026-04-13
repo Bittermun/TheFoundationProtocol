@@ -2,7 +2,7 @@
 
 **A decentralized content & compute protocol for global information access — uncensorable, efficient, and built for everyone.**
 
-![Tests](https://img.shields.io/badge/tests-733%20passing-green)
+![Tests](https://img.shields.io/badge/tests-737%20passing-green)
 ![Python Files](https://img.shields.io/badge/python%20files-154-blue)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Security](https://img.shields.io/badge/security-hardened-green)
@@ -48,7 +48,7 @@ Create a **Global Information Commons** that works for pennies: anyone can publi
 ## Current Status (v3.1.x)
 
 - ✅ Production-ready core (25k+ LOC, 154 Python files).
-- ✅ **732 tests passing, 1 skipped** — `TFP_DB_PATH=:memory: PYTHONPATH=. python -m pytest tests/ -q`
+- ✅ **737 tests passing** — `TFP_DB_PATH=:memory: PYTHONPATH=. python -m pytest tests/ -q`
 - ✅ **Real compute tasks** — 3 task types (HASH_PREIMAGE, MATRIX_VERIFY, CONTENT_VERIFY) with cryptographic proof-of-work.
 - ✅ **HABP consensus** — Credits only mint when 3/5 devices agree on identical output hash. **Proofs survive server restart** (rebuilt from SQLite on boot).
 - ✅ **21M credit supply cap** — Hard-coded MAX_SUPPLY enforced at every mint via SupplyCapError.

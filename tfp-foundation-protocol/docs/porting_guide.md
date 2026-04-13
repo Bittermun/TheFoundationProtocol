@@ -1,5 +1,9 @@
 # TFP v2.2 Embedded Porting Guide — Cortex-M4 / RISC-V32
 
+> ⚠️ **DEPRECATED FOR SERVER DEPLOYMENT**
+> This guide targets resource-constrained embedded devices (≤256 KB RAM).
+> For server/cloud deployments with Nostr + RAGgraph integration, see [v3.1-integration-guide.md](v3.0-integration-guide.md).
+
 ## 1. Overview
 
 This guide maps the Python TFP v2.2 modules to C structs and Rust crates targeting:

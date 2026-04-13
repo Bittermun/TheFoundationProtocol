@@ -125,6 +125,64 @@ def test_nostr_disabled_enroll_works(monkeypatch):
         _enroll(client, "flag-nostr-off-dev", puf)
 
 
+def test_nostr_private_key_loaded(monkeypatch):
+    """NOSTR_PRIVATE_KEY env var must be used as the bridge signing key."""
+    import secrets
+
+    from tfp_client.lib.bridges.nostr_bridge import _derive_pubkey_bytes
+
+    privkey = secrets.token_bytes(32)
+    monkeypatch.setenv("TFP_ENABLE_NOSTR", "1")
+    monkeypatch.setenv("NOSTR_PRIVATE_KEY", privkey.hex())
+    monkeypatch.delenv("NOSTR_RELAY", raising=False)
+    monkeypatch.delenv("NOSTR_RELAY_URL", raising=False)
+    import tfp_demo.server as srv
+
+    with TestClient(app):
+        assert srv._nostr_bridge is not None
+        expected_pubkey = _derive_pubkey_bytes(privkey).hex()
+        assert srv._nostr_bridge.pubkey_hex == expected_pubkey
+
+
+def test_nostr_invalid_key_uses_random(monkeypatch):
+    """Invalid NOSTR_PRIVATE_KEY must be ignored and a random key used."""
+    monkeypatch.setenv("TFP_ENABLE_NOSTR", "1")
+    monkeypatch.setenv("NOSTR_PRIVATE_KEY", "not-valid-hex!!")
+    monkeypatch.delenv("NOSTR_RELAY", raising=False)
+    monkeypatch.delenv("NOSTR_RELAY_URL", raising=False)
+    import tfp_demo.server as srv
+
+    with TestClient(app):
+        # Server must start normally with a random key
+        assert srv._nostr_bridge is not None
+        assert len(srv._nostr_bridge.pubkey_hex) == 64
+
+
+def test_nostr_publish_disabled_sets_offline(monkeypatch):
+    """TFP_NOSTR_PUBLISH_ENABLED=0 must set the bridge to offline mode."""
+    monkeypatch.setenv("TFP_ENABLE_NOSTR", "1")
+    monkeypatch.setenv("TFP_NOSTR_PUBLISH_ENABLED", "0")
+    monkeypatch.setenv("NOSTR_RELAY", "wss://relay.damus.io")
+    import tfp_demo.server as srv
+
+    with TestClient(app):
+        assert srv._nostr_bridge is not None
+        # Bridge offline=True means no outbound publishes even with a relay
+        assert srv._nostr_bridge.offline is True
+
+
+def test_nostr_publish_enabled_sets_online(monkeypatch):
+    """TFP_NOSTR_PUBLISH_ENABLED=1 with a relay must leave bridge in online mode."""
+    monkeypatch.setenv("TFP_ENABLE_NOSTR", "1")
+    monkeypatch.setenv("TFP_NOSTR_PUBLISH_ENABLED", "1")
+    monkeypatch.setenv("NOSTR_RELAY", "wss://relay.damus.io")
+    import tfp_demo.server as srv
+
+    with TestClient(app):
+        assert srv._nostr_bridge is not None
+        assert srv._nostr_bridge.offline is False
+
+
 # ---------------------------------------------------------------------------
 # Tests — Maintenance feature flag
 # ---------------------------------------------------------------------------

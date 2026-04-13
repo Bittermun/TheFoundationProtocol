@@ -1839,7 +1839,12 @@ async def lifespan(_app: FastAPI):
     # Phase A: per-stage startup observability + readiness gate.
     # Phase B: feature flags read at runtime so tests can use monkeypatch.setenv.
     global _content_store, _device_registry, _earn_log, _credit_store, _task_store
-    global _earn_rate_limiter, _result_rate_limiter, _rag_rate_limiter, _tag_overlay, _nostr_subscriber
+    global \
+        _earn_rate_limiter, \
+        _result_rate_limiter, \
+        _rag_rate_limiter, \
+        _tag_overlay, \
+        _nostr_subscriber
     global _nostr_bridge, _ipfs_bridge, _clients, _metrics, _app_ready, _startup_stage
     global _blob_store, _peer_fallback, _hlt, _peer_secret, _rag_graph, _chunk_store
 
@@ -2062,6 +2067,42 @@ async def lifespan(_app: FastAPI):
             relay_url = os.environ.get("NOSTR_RELAY") or os.environ.get(
                 "NOSTR_RELAY_URL", ""
             )
+
+            # Optional persistent Nostr identity key.  When set, the same
+            # pubkey is used across restarts so that peer nodes can build
+            # stable trust records.  When unset, a random ephemeral key is
+            # generated (safe for development / single-restart deployments).
+            nostr_privkey: Optional[bytes] = None
+            nostr_key_env = os.environ.get("NOSTR_PRIVATE_KEY", "").strip()
+            if nostr_key_env:
+                try:
+                    nostr_privkey = bytes.fromhex(nostr_key_env)
+                    if len(nostr_privkey) != 32:
+                        raise ValueError(
+                            f"expected 32 bytes (64 hex chars), got {len(nostr_privkey)}"
+                        )
+                    log.info(
+                        "Nostr: loaded persistent private key from NOSTR_PRIVATE_KEY."
+                    )
+                except ValueError as key_exc:
+                    log.warning(
+                        "NOSTR_PRIVATE_KEY is invalid (%s); using random ephemeral key.",
+                        key_exc,
+                    )
+                    nostr_privkey = None
+            else:
+                log.debug(
+                    "NOSTR_PRIVATE_KEY not set; Nostr identity is ephemeral "
+                    "(new pubkey each restart)."
+                )
+
+            # TFP_NOSTR_PUBLISH_ENABLED=0/false lets operators run receive-only
+            # (air-gapped) nodes: events are still subscribed and ingested but
+            # no outbound gossip is sent.
+            publish_enabled = os.environ.get(
+                "TFP_NOSTR_PUBLISH_ENABLED", "1"
+            ).strip().lower() not in ("0", "false", "no")
+
             _nostr_subscriber = NostrSubscriber(
                 relay_url=relay_url or "wss://relay.damus.io",
                 on_event=_on_nostr_event,
@@ -2075,14 +2116,17 @@ async def lifespan(_app: FastAPI):
                 },
             )
             _nostr_subscriber.start()
+            bridge_offline = (not relay_url) or (not publish_enabled)
             _nostr_bridge = NostrBridge(
+                privkey=nostr_privkey,
                 relay_url=relay_url or "wss://relay.damus.io",
-                offline=not relay_url,
+                offline=bridge_offline,
             )
             log.info(
-                "Nostr initialised (relay=%s, offline=%s).",
+                "Nostr initialised (relay=%s, offline=%s, publish=%s).",
                 relay_url or "wss://relay.damus.io",
-                not relay_url,
+                bridge_offline,
+                publish_enabled,
             )
         else:
             _nostr_subscriber = None

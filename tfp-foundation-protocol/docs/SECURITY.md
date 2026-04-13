@@ -1,6 +1,7 @@
 # TFP v3.1 — Security Model & Verification Checklist
 
-> **Second-opinion review performed 2026-04-11.**
+> **Security audit updated 2026-04-13.**
+> Includes Nostr BIP-340 signature verification, RAG gossip trust boundaries, and rate-limiting coverage.
 > All claims below have been verified against live source code in
 > `tfp-foundation-protocol/tfp_demo/server.py` and
 > `tfp-foundation-protocol/tfp_client/lib/credit/ledger.py`.
@@ -51,6 +52,16 @@ Signature message format:
 **Claim:** Stored content is addressable by its SHA3-256 hash; retrieval validates the hash.
 **Status:** ✅ Verified
 **Evidence:** `ContentStore.put()` computes `root_hash = SHA3-256(content_bytes)` as the primary key. Retrieval via `/api/get/{hash}` looks up by that hash.
+
+### 1.8 Nostr Gossip Authentication
+**Claim:** All inbound Kind-30078/30079/30080 events are verified via BIP-340 Schnorr signatures.
+**Status:** ✅ Verified
+**Evidence:** `_schnorr_verify()` in `nostr_bridge.py:163-210` validates event signatures before processing. Events from untrusted pubkeys (when `TFP_NOSTR_TRUSTED_PUBKEYS` is set) are silently dropped.
+
+### 1.9 RAG Index Integrity
+**Claim:** Reindex operations produce deterministic fingerprints; gossip events cannot forge index state.
+**Status:** ✅ Verified
+**Evidence:** `publish_search_index_summary()` computes SHA3-256 over sorted file metadata + chunk counts. Peers detect drift by comparing local fingerprint against received gossip.
 
 ---
 
@@ -125,6 +136,15 @@ Run this checklist against every release before publishing security claims.
 - [ ] Kind-30080 (content announce) event with `created_at` older than 300 s → silently dropped
 - [ ] Duplicate event ID (same `id` field) within replay window → processed only once
 - [ ] Nostr event from pubkey not in `TFP_NOSTR_TRUSTED_PUBKEYS` (when var is set) → silently dropped
+
+### K. Nostr Integration Security
+- [ ] `NOSTR_PRIVATE_KEY` is never logged or exposed in error messages
+- [ ] BIP-340 Schnorr signature verification passes for valid events (tested in `test_nostr_bridge.py`)
+- [ ] Invalid signatures on received events are rejected without processing content
+- [ ] History bounded to 10,000 events to prevent memory exhaustion attacks
+- [ ] Failed relay publishes do not block reindex operations (graceful degradation)
+- [ ] `TFP_NOSTR_TRUSTED_PUBKEYS` correctly filters untrusted drift detection signals
+- [ ] `TFP_NOSTR_PUBLISH_ENABLED=0` suppresses all outbound event publication
 
 ---
 
