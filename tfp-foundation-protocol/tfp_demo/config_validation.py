@@ -30,7 +30,9 @@ def _parse_bool(value: str | None, *, default: bool, var_name: str) -> bool:
     )
 
 
-def _parse_csv_set(value: str, *, lowercase: bool) -> FrozenSet[str]:
+def _parse_csv_set(value: str | None, *, lowercase: bool) -> FrozenSet[str]:
+    if value is None:
+        return frozenset()
     items = {item.strip() for item in value.split(",") if item.strip()}
     if lowercase:
         items = {item.lower() for item in items}

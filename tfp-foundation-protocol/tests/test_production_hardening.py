@@ -1,4 +1,5 @@
 import time
+import secrets
 from unittest.mock import patch
 
 import pytest
@@ -44,7 +45,7 @@ def test_production_drops_nostr_events_without_allowlist(monkeypatch, tmp_path):
     import tfp_demo.server as srv
 
     event = {
-        "id": f"{int(time.time() * 1_000_000):064x}"[-64:],
+        "id": secrets.token_hex(32),
         "kind": TFP_CONTENT_ANNOUNCE_KIND,
         "pubkey": "a" * 64,
         "created_at": int(time.time()),

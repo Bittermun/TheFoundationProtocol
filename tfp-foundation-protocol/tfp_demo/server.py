@@ -1867,6 +1867,11 @@ async def lifespan(_app: FastAPI):
     _runtime_mode = runtime_cfg.mode
     _trusted_nostr_pubkeys = runtime_cfg.nostr_trusted_pubkeys
     _admin_device_ids = runtime_cfg.admin_device_ids
+    if _runtime_mode == "production" and not _trusted_nostr_pubkeys:
+        log.warning(
+            "Production mode started without TFP_NOSTR_TRUSTED_PUBKEYS; "
+            "inbound Nostr gossip is deny-by-default until an allowlist is configured."
+        )
 
     # Read feature flags at runtime (not module-import time).
     _enable_ipfs = os.environ.get("TFP_ENABLE_IPFS", "1").strip() != "0"

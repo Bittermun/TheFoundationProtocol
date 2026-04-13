@@ -2,9 +2,9 @@ from tfp_demo.config_validation import validate_runtime_config
 
 
 def test_validate_runtime_config_defaults_to_demo():
-    cfg = validate_runtime_config({}, default_db_path="pib.db")
+    cfg = validate_runtime_config({}, default_db_path="test-default.db")
     assert cfg.mode == "demo"
-    assert cfg.db_path == "pib.db"
+    assert cfg.db_path == "test-default.db"
     assert cfg.nostr_publish_enabled is True
 
 
