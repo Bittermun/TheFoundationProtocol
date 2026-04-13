@@ -1,4 +1,6 @@
-# RAGgraph + Nostr Integration Guide
+# RAGGraph + Nostr Integration Guide
+
+> **Decentralized semantic search index gossip for TFP v3.1+**
 
 ## Overview
 

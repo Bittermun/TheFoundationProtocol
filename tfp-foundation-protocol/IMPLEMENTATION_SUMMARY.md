@@ -57,10 +57,11 @@ Endpoints protected:
 
 ---
 
-### 2. RAGgraph Semantic Search — `lib/rag_search.py`
+### 2. RAGGraph Semantic Search with Nostr Gossip — `lib/rag_search.py`
 
 CodeBERT embeddings + ChromaDB vector store for semantic search over the TFP
-codebase. Intended to accelerate contributor onboarding.
+codebase. Intended to accelerate contributor onboarding. Integrated with Nostr bridge
+for decentralized index synchronization (Kind-30079 events).
 
 **Install:** `pip install "tfp[rag]"` (requires `chromadb>=0.4.24`, `transformers>=4.39.0`)
 
@@ -73,6 +74,8 @@ results = rag.search("HABP consensus logic", top_k=5)
 for r in results:
     print(f"{r.metadata['file']}:{r.metadata['line_start']} — score: {r.score:.2f}")
 ```
+
+> **See Also:** [Nostr Integration Guide](docs/NOSTR_INTEGRATION.md) for gossip protocol details, drift detection, and trust boundary configuration.
 
 > **Note:** Requires ~500 MB for model + index. Intended as a dev tool, not
 > included in the production demo image.

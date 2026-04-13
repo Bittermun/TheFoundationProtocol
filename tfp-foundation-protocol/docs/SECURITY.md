@@ -1,6 +1,7 @@
 # TFP v3.1 — Security Model & Verification Checklist
 
-> **Second-opinion review performed 2026-04-11.**
+> **Security audit updated 2026-04-13.**
+> Includes Nostr BIP-340 signature verification, RAG gossip trust boundaries, and rate-limiting coverage.
 > All claims below have been verified against live source code in
 > `tfp-foundation-protocol/tfp_demo/server.py` and
 > `tfp-foundation-protocol/tfp_client/lib/credit/ledger.py`.
@@ -51,6 +52,16 @@ Signature message format:
 **Claim:** Stored content is addressable by its SHA3-256 hash; retrieval validates the hash.
 **Status:** ✅ Verified
 **Evidence:** `ContentStore.put()` computes `root_hash = SHA3-256(content_bytes)` as the primary key. Retrieval via `/api/get/{hash}` looks up by that hash.
+
+### 1.8 Nostr Gossip Authentication
+**Claim:** All inbound Kind-30078/30079/30080 events are verified via BIP-340 Schnorr signatures.
+**Status:** ✅ Verified
+**Evidence:** `_schnorr_verify()` in `nostr_bridge.py:163-210` validates event signatures before processing. Events from untrusted pubkeys (when `TFP_NOSTR_TRUSTED_PUBKEYS` is set) are silently dropped.
+
+### 1.9 RAG Index Integrity
+**Claim:** Reindex operations produce deterministic fingerprints; gossip events cannot forge index state.
+**Status:** ✅ Verified
+**Evidence:** `publish_search_index_summary()` computes SHA3-256 over sorted file metadata + chunk counts. Peers detect drift by comparing local fingerprint against received gossip.
 
 ---
 
