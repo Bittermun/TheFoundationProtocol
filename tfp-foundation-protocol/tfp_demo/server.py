@@ -2261,13 +2261,28 @@ async def lifespan(_app: FastAPI):
         _admin_device_ids = frozenset()
 
 
-app = FastAPI(title="TFP Demo Node", version="0.2.0", lifespan=lifespan)
+app = FastAPI(title="TFP Demo Node", version="3.1.1", lifespan=lifespan)
 
-# Add CORS middleware for cross-origin security
+# CORS configuration.
+# Set TFP_CORS_ORIGINS to a comma-separated list of allowed origins for
+# production deployments (e.g. "https://app.example.com,https://admin.example.com").
+# When unset, all origins are allowed (demo / development default).
+# Note: allow_credentials=True requires explicit origins — browsers reject the
+# wildcard + credentials combination, so credentials are disabled with wildcard.
+_cors_origins_env = os.environ.get("TFP_CORS_ORIGINS", "").strip()
+if _cors_origins_env and _cors_origins_env != "*":
+    _cors_origins: list[str] = [
+        o.strip() for o in _cors_origins_env.split(",") if o.strip()
+    ]
+    _cors_credentials = True
+else:
+    _cors_origins = ["*"]
+    _cors_credentials = False  # credentials + wildcard is invalid per CORS spec
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure appropriately for production
-    allow_credentials=True,
+    allow_origins=_cors_origins,
+    allow_credentials=_cors_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )

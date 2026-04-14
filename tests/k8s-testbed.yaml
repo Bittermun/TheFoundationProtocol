@@ -112,7 +112,7 @@ spec:
               value: "/data/pib.db"
             - name: TFP_IPFS_API_URL
               value: "http://tfp-ipfs:5001"
-            - name: REDIS_URL
+            - name: TFP_REDIS_URL
               value: "redis://tfp-redis:6379/0"
           ports:
             - containerPort: 8000

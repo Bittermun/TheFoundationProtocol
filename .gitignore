@@ -1,3 +1,67 @@
-```
-# Configuration and source files only - no build artifacts or dependencies detected
-```
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*$py.class
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+pip-wheel-metadata/
+*.whl
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Testing / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+*.pytest_results.xml
+.tox/
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*.swn
+*~
+.DS_Store
+Thumbs.db
+
+# Node / frontend
+node_modules/
+dist/
+.npm
+tfp_web_app/dist/
+tfp_web_app/.vite/
+
+# Docker
+*.env.local
+.env
+
+# Database / runtime artefacts
+*.db
+*.db-wal
+*.db-shm
+*.blobs/
+pib.db
+/data/
+rag_storage/
+tag_overlay.json
+crash.log
+
+# Build outputs
+*.so
+*.o
+
+# Secrets (belt-and-suspenders guard — never commit private keys)
+*.pem
+*.key
+*.hex
+node_key.hex

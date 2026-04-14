@@ -1,0 +1,49 @@
+{
+  "schema_version": "1.0",
+  "project": {
+    "name": "The Foundation Protocol",
+    "abbreviation": "TFP",
+    "description": "Decentralized content and compute protocol for global information access",
+    "license": "Apache-2.0",
+    "repository": "https://github.com/Bittermun/TheFoundationProtocol"
+  },
+  "maintainers": {
+    "current": [
+      {
+        "role": "Founding Maintainer",
+        "contact": "governance@tfp-protocol.org",
+        "responsibilities": ["architecture decisions", "security disclosures", "release signoff"]
+      }
+    ],
+    "onboarding": "See CONTRIBUTING.md — maintainer path starts with 3 merged PRs and 30-day active contribution"
+  },
+  "contribution_model": {
+    "license": "Apache-2.0",
+    "cla_required": false,
+    "dco_required": true,
+    "dco_note": "All commits must be signed off with git commit -s (Developer Certificate of Origin)",
+    "first_contribution": "Look for issues labelled 'good first issue' on GitHub"
+  },
+  "decision_process": {
+    "day_to_day": "Pull request review + maintainer approval",
+    "major_changes": "RFC issue (label: rfc) open for 14 days before merge",
+    "security_fixes": "Disclosed privately first — see SECURITY.md for responsible disclosure policy",
+    "governance_amendments": "Requires RFC + 2-week comment period + maintainer ratification"
+  },
+  "sustainability": {
+    "funding_model": "Community-supported, open to grants and sponsorships",
+    "sponsorship_contact": "governance@tfp-protocol.org",
+    "commercial_use": "Permitted under Apache-2.0 — attribution required"
+  },
+  "accountability": {
+    "public_roadmap": "DEFINITION_OF_DONE.md",
+    "security_model": "tfp-foundation-protocol/docs/SECURITY.md",
+    "succession_plan": "Multi-sig control of critical repos; community fork rights guaranteed by Apache-2.0 license",
+    "fork_policy": "Forking is explicitly encouraged — see LICENSE for terms"
+  },
+  "transparency": {
+    "releases": "Tagged on GitHub with signed commits",
+    "changelogs": "Release notes published with each GitHub release",
+    "security_disclosures": "Published in SECURITY.md after patch is available"
+  }
+}

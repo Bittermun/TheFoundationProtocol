@@ -73,7 +73,7 @@ NODE_TEMPLATE = """  tfp-node-{i}:
     environment:
       - TFP_DB_PATH=/data/pib.db
       - TFP_IPFS_API_URL=http://tfp-ipfs:5001
-      - REDIS_URL=redis://tfp-redis:6379/0
+      - TFP_REDIS_URL=redis://tfp-redis:6379/0
       - NOSTR_RELAY_URL=ws://tfp-relay:8080
     deploy:
       resources:
