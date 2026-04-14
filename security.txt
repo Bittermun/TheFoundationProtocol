@@ -4,3 +4,5 @@ Acknowledgments: https://github.com/Bittermun/TheFoundationProtocol/blob/main/SE
 Preferred-Languages: en
 Canonical: https://github.com/Bittermun/TheFoundationProtocol/security.txt
 Policy: https://github.com/Bittermun/TheFoundationProtocol/blob/main/tfp-foundation-protocol/docs/SECURITY.md
+# Note: security@tfp-protocol.org is monitored and forwards to project maintainer
+# Response time: 48 hours for initial acknowledgment
