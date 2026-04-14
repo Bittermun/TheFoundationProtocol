@@ -1,7 +1,7 @@
 # TFP Foundation Protocol - Demo Node
 # Multi-stage build for production deployment
 
-FROM python:3.11-slim as builder
+FROM python:3.12-slim as builder
 
 WORKDIR /app
 
@@ -16,7 +16,7 @@ COPY tfp-foundation-protocol/requirements.txt .
 RUN pip install --no-cache-dir --user -r requirements.txt
 
 # Production stage
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 WORKDIR /app
 
@@ -37,17 +37,17 @@ COPY tfp-foundation-protocol/tfp_simulator/ ./tfp_simulator/
 # Environment variables
 ENV PYTHONPATH=/app
 ENV TFP_DB_PATH=/data/tfp.db
-ENV PORT=8080
+ENV PORT=8000
 
 # Create data directory
 RUN mkdir -p /data
 
 # Expose port
-EXPOSE 8080
+EXPOSE 8000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')" || exit 1
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
 
 # Run the server
-CMD ["sh", "-c", "mkdir -p /data && python -m uvicorn tfp_demo.server:app --host 0.0.0.0 --port 8080"]
+CMD ["sh", "-c", "mkdir -p /data && python -m uvicorn tfp_demo.server:app --host 0.0.0.0 --port 8000"]

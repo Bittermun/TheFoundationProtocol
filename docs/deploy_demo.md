@@ -166,18 +166,30 @@ tfp --api http://localhost:8000 leaderboard
 
 ### Fly.io
 
-Most reliable path — Docker-based with persistent volume:
+Two deployment options are available:
+
+**Demo deployment (recommended for testing):**
 
 ```bash
-cd tfp-foundation-protocol
-fly launch --name tfp-node --dockerfile Dockerfile.demo
-cd ..
-fly volumes create tfp_data --size 1 --region <your-region>
-fly secrets set NOSTR_RELAY=wss://relay.damus.io
-cd tfp-foundation-protocol && fly deploy
+# Use the root fly.toml configuration
+fly launch --name tfp-demo --config fly.toml
+fly volumes create tfp_data --size 1 --region iad
+fly deploy --config fly.toml
 ```
 
-> **Status:** Configuration ready. Community testing in progress.
+**Production deployment:**
+
+```bash
+# Use the production configuration with security hardening
+fly launch --name tfp-production --config fly.production.toml
+fly volumes create tfp_data --size 1 --region iad
+fly secrets set TFP_PEER_SECRET=<your-secret>
+fly secrets set TFP_ADMIN_DEVICE_IDS=<device-id-1,device-id-2>
+fly secrets set NOSTR_PRIVATE_KEY=<your-private-key>  # optional
+fly deploy --config fly.production.toml
+```
+
+> **Status:** Configuration fixed. Port standardized to 8000, auto-stop disabled, Python 3.12.
 
 ---
 
