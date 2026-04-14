@@ -1,0 +1,40 @@
+name: Good First Issue
+description: Create a task suitable for new contributors (maintainers only)
+labels: ["good first issue", "help wanted"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This template is for maintainers to create beginner-friendly tasks.
+
+  - type: textarea
+    id: task
+    attributes:
+      label: Task Description
+      description: What needs to be done?
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Background information for understanding the task
+
+  - type: textarea
+    id: hints
+    attributes:
+      label: Getting Started Hints
+      description: Where in the codebase to look
+      placeholder: |
+        - Look in `tfp_demo/server.py` around line 123
+        - The relevant test is in `tests/test_xyz.py`
+
+  - type: checkboxes
+    id: prerequisites
+    attributes:
+      label: Prerequisites
+      options:
+        - label: Python 3.11+ installed
+        - label: Can run `pytest` locally
+        - label: Docker available (if needed)

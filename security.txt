@@ -1,0 +1,6 @@
+Contact: security@tfp-protocol.org
+Expires: 2027-04-13T00:00:00.000Z
+Acknowledgments: https://github.com/Bittermun/TheFoundationProtocol/blob/main/SECURITY.md
+Preferred-Languages: en
+Canonical: https://github.com/Bittermun/TheFoundationProtocol/security.txt
+Policy: https://github.com/Bittermun/TheFoundationProtocol/blob/main/tfp-foundation-protocol/docs/SECURITY.md

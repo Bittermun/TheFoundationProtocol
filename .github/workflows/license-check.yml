@@ -1,0 +1,56 @@
+name: License Header Check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  license-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check license headers
+        run: |
+          #!/bin/bash
+          set -e
+          
+          MISSING=0
+          CHECKED=0
+          
+          # Check Python files for Apache-2.0 license header
+          while IFS= read -r -d '' file; do
+            # Skip __init__.py files that are often empty
+            if [[ "$(basename "$file")" == "__init__.py" ]]; then
+              continue
+            fi
+            
+            CHECKED=$((CHECKED + 1))
+            
+            # Check for license header
+            if ! head -10 "$file" | grep -qE "(SPDX-License-Identifier|Apache License|Apache-2.0)"; then
+              echo "❌ Missing license header: $file"
+              MISSING=$((MISSING + 1))
+            fi
+          done < <(find . -name "*.py" -type f ! -path "./.git/*" ! -path "./__pycache__/*" ! -path "./.venv/*" -print0)
+          
+          echo ""
+          echo "Checked $CHECKED Python files"
+          echo "Missing headers: $MISSING"
+          
+          if [ $MISSING -gt 0 ]; then
+            echo ""
+            echo "To fix, add this header to the top of each file:"
+            echo '# SPDX-License-Identifier: Apache-2.0'
+            echo '# Copyright (c) 2026 The Foundation Protocol Contributors'
+            echo ""
+            exit 1
+          fi
+          
+          echo "✅ All files have license headers"
