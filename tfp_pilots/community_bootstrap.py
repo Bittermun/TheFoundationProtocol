@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 The Foundation Protocol Contributors
+
 """
 TFP Community Pilot Kit - Ghost Node System
 Solves the "empty room problem" by simulating network density for new users.

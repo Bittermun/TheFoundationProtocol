@@ -1,0 +1,45 @@
+name: Feature Request
+description: Suggest an enhancement or new feature
+labels: ["enhancement", "rfc"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Have an idea? We'd love to hear it! For major changes, consider opening a Discussion first.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: What problem does this solve?
+      placeholder: I need to be able to...
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: How should this work?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: What else did you consider?
+
+  - type: dropdown
+    id: impact
+    attributes:
+      label: Impact
+      description: Who benefits from this?
+      options:
+        - Node operators
+        - Plugin developers
+        - End users
+        - Contributors
+        - Multiple groups
+    validations:
+      required: true

@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 The Foundation Protocol Contributors
+
 """
 TFP Testbed Metrics Collector
 Collects real-world performance data from deployed testbed nodes.

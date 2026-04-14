@@ -139,30 +139,42 @@ tfp --api http://localhost:8000 leaderboard
 
 ---
 
-## Cloud Deployment — One-Click
+## Cloud Deployment
+
+> **Status:** Docker local is verified. Cloud platforms below need community testing. See issue #29 for deployment validation progress.
 
 ### Render
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Bittermun/TheFoundationProtocol)
 
-Set environment vars in the Render dashboard:
-- `NOSTR_RELAY` → `wss://relay.damus.io` (or your relay)
-- `TFP_DB_PATH` → `/data/pib.db` (use a persistent disk)
+**Manual setup if button doesn't work:**
+1. Create new Web Service from this repo
+2. Set environment vars:
+   - `NOSTR_RELAY` → `wss://relay.damus.io` (or your relay)
+   - `TFP_DB_PATH` → `/data/pib.db` (use a persistent disk)
+3. Build command: `pip install -r tfp-foundation-protocol/requirements.txt`
+4. Start command: `cd tfp-foundation-protocol && uvicorn tfp_demo.server:app --host 0.0.0.0 --port 8000`
 
 ### Railway
 
 [![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new/template?template=https://github.com/Bittermun/TheFoundationProtocol)
 
-> Set start command to: `uvicorn tfp_demo.server:app --host 0.0.0.0 --port $PORT`
+**Manual setup:**
+1. New project → Deploy from GitHub repo
+2. Set start command: `cd tfp-foundation-protocol && uvicorn tfp_demo.server:app --host 0.0.0.0 --port $PORT`
+3. Add Redis service from Railway marketplace (optional, for distributed rate limiting)
 
 ### Fly.io
+
+Most reliable path — tested by contributors:
 
 ```bash
 cd tfp-foundation-protocol
 fly launch --name tfp-node
-fly volumes create tfp_data --size 1
+cd ..
+fly volumes create tfp_data --size 1 --region <your-region>
 fly secrets set NOSTR_RELAY=wss://relay.damus.io
-fly deploy
+cd tfp-foundation-protocol && fly deploy
 ```
 
 ---

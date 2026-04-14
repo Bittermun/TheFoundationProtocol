@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 The Foundation Protocol Contributors
+
 """
 Chunk Categories - Predefined categories for chunk classification.
 

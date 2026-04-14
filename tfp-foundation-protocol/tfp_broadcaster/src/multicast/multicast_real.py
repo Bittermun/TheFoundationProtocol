@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 The Foundation Protocol Contributors
+
 """
 Real multicast adapter — UDP socket multicast (239.0.0.1:5007).
 Falls back to in-memory queue if socket bind fails (test/CI environments).

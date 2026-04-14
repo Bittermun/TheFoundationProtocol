@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 The Foundation Protocol Contributors
+
 """
 Real ZKP adapter — implements non-interactive Schnorr proof (Fiat-Shamir transform).
 No external ZKP library needed — pure hashlib + secrets.

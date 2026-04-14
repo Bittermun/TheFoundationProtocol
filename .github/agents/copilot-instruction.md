@@ -5,7 +5,7 @@
 - Write tests before code (TDD)
 - For bugs: write a failing test first, then fix (Prove-It pattern)
 - Test hierarchy: unit > integration > e2e (use the lowest level that captures the behavior)
-- Run `npm test` after every change
+- Run `TFP_DB_PATH=:memory: PYTHONPATH=. python -m pytest tests/ -q` after every change
 
 ## Code Quality
 - Review across five axes: correctness, readability, architecture, security, performance
