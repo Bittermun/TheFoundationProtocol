@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 The Foundation Protocol Contributors
+
 from typing import Tuple
 
 REQUIRED_FIELDS = {"task_type", "params_hash", "difficulty"}

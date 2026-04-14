@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 The Foundation Protocol Contributors
+
 """
 TFP v2.2 Attack Injection Simulator
 Standalone Python implementation — no ns-3 required.

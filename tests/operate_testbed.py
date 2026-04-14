@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 The Foundation Protocol Contributors
+
 """
 Operational test for a 10-node TFP testbed.
 Verifies messaging, audio clips, and video clips operation.
