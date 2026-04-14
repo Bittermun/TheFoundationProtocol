@@ -48,8 +48,8 @@ Create a **Global Information Commons** that works for pennies: anyone can publi
 
 ## Current Status (v3.1.x)
 
-- ✅ Production-ready core (25k+ LOC, 154 Python files).
-- ✅ **749 tests passing** — `TFP_DB_PATH=:memory: PYTHONPATH=. python -m pytest tests/ -q`
+- ✅ Production-ready core (42k+ LOC, 189 Python files, 142 with Apache-2.0 headers).
+- ✅ **749+ tests passing** — Protocol tests + root-level integration tests. `TFP_DB_PATH=:memory: PYTHONPATH=. python -m pytest tests/ -q`
 - ✅ **Real compute tasks** — 3 task types (HASH_PREIMAGE, MATRIX_VERIFY, CONTENT_VERIFY) with cryptographic proof-of-work.
 - ✅ **HABP consensus** — Credits only mint when 3/5 devices agree on identical output hash. **Proofs survive server restart** (rebuilt from SQLite on boot).
 - ✅ **21M credit supply cap** — Hard-coded MAX_SUPPLY enforced at every mint via SupplyCapError.
@@ -71,9 +71,23 @@ Create a **Global Information Commons** that works for pennies: anyone can publi
 - ✅ **Streaming download** — `/api/get/{hash}?stream=true` for chunked 64KB responses.
 - ✅ **Content discovery** — `/api/discovery?domain=X` returns Nostr-announced content hashes.
 - ✅ **PWA** — installable on Android/iOS, offline-first service worker.
-- ✅ End-to-end simulation validated (attack scenarios included).
-- 🔧 **10-node testbed (ports 9001–9010)** — containers run, enrollment being stabilized. See `ARCHITECTURE.md` for technical details.
-- ❌ 100-node test — deferred pending 10-node stability.
+- ✅ **10-node testbed** — Docker Compose with 10 nodes (ports 9001–9010). Run: `docker compose -f docker-compose.testbed.yml up`
+- ✅ **CI/CD** — 9 workflows: tests, security, license, release, OpenSSF Scorecard.
+- 🔧 **Cloud deployment** — Docker local verified. Render/Railway/Fly.io need community testing (see `docs/deploy_demo.md`).
+- ❌ 100-node test — deferred pending demand.
+
+---
+
+## Roadmap: v3.2
+
+| Milestone | Target | Deliverable | Good First Issue |
+|-----------|--------|-------------|------------------|
+| **v3.2.0-alpha** | 4 weeks | Pooled compute tasks execute (matrix multiply, hash preimage, content verify) | Add `--version` flag to CLI |
+| **v3.2.0-beta** | 6 weeks | NGO radio app MVP (audio player, offline sync, playlist curation) | Improve service worker cache strategy |
+| **v3.2.0** | 8 weeks | Media archive support (large file optimization, RaptorQ tuning for video) | Test large file (100MB+) upload/download |
+| **v3.2.1** | 10 weeks | Integration hardening (IPFS bridge stability, Nostr relay fallback) | Add retry logic to Nostr bridge |
+
+See [GitHub Milestones](https://github.com/Bittermun/TheFoundationProtocol/milestones) for detailed issues.
 
 ## Quick Start
 
