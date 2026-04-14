@@ -166,16 +166,18 @@ tfp --api http://localhost:8000 leaderboard
 
 ### Fly.io
 
-Most reliable path — tested by contributors:
+Most reliable path — Docker-based with persistent volume:
 
 ```bash
 cd tfp-foundation-protocol
-fly launch --name tfp-node
+fly launch --name tfp-node --dockerfile Dockerfile.demo
 cd ..
 fly volumes create tfp_data --size 1 --region <your-region>
 fly secrets set NOSTR_RELAY=wss://relay.damus.io
 cd tfp-foundation-protocol && fly deploy
 ```
+
+> **Status:** Configuration ready. Community testing in progress.
 
 ---
 

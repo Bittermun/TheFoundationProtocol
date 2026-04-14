@@ -4,7 +4,7 @@ Creator note: I'm a highschooler. I think bandwidth on decentralized networks co
 **A decentralized content & compute protocol for global information access — uncensorable, efficient, and built for everyone.**
 
 ![Tests](https://img.shields.io/badge/tests-749%20passing-green)
-![Python Files](https://img.shields.io/badge/python%20files-154-blue)
+![Python Files](https://img.shields.io/badge/python%20files-189-blue)
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue)
 ![Security](https://img.shields.io/badge/security-hardened-green)
 
@@ -305,12 +305,12 @@ python tfp_pilots/community_bootstrap.py --community-id "my-region"
 
 ---
 
-## 📊 Repository Health Metrics(un-updated)
+## 📊 Repository Health Metrics
 
 | Metric | Value | Target | Status |
 |--------|-------|--------|--------|
-| Python Files | 154 | — | ✅ |
-| Total LOC | ~27,000 | <50k | ✅ |
+| Python Files | 189 | — | ✅ |
+| Total LOC | ~42,000 | <50k | ✅ |
 | Tests Passing | 749 | >400 | ✅ |
 | Test Warnings | 1 | 0 | ⚠️ |
 | PII Logged | 0 | 0 | ✅ |

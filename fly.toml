@@ -1,0 +1,38 @@
+# fly.toml - TFP Demo Node Configuration
+# Copy this to tfp-foundation-protocol/fly.toml before deploying
+
+app = 'tfp-demo'
+primary_region = 'iad'
+
+[build]
+  dockerfile = 'Dockerfile.demo'
+
+[env]
+  TFP_MODE = 'demo'
+  TFP_DB_PATH = '/data/pib.db'
+  TFP_IPFS_API_URL = ''
+  TFP_REDIS_URL = ''
+  NOSTR_RELAY_URL = 'wss://relay.damus.io'
+
+[mounts]
+  source = 'tfp_data'
+  destination = '/data'
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    interval = '30s'
+    timeout = '5s'
+    grace_period = '10s'
+    method = 'GET'
+    path = '/health'
+
+[[vm]]
+  cpu_kind = 'shared'
+  cpus = 1
+  memory_mb = 512
