@@ -13,7 +13,7 @@
 ### 1.1 Device Authentication
 **Claim:** Every mutating endpoint requires a valid HMAC-SHA-256 signature.
 **Status:** ✅ Verified
-**Evidence:** `_verify_device_sig()` in `server.py:229-240` uses `hmac.compare_digest()` for constant-time comparison, eliminating timing oracles. Unenrolled devices receive `401 Unauthorized`.
+**Evidence:** `_verify_device_sig()` in `server.py` uses `hmac.compare_digest()` for constant-time comparison, eliminating timing oracles. Unenrolled devices receive `401 Unauthorized`.
 
 Signature message format:
 - `/api/publish` — `HMAC(puf_entropy, "device_id:title")`
@@ -23,17 +23,17 @@ Signature message format:
 ### 1.2 Credit Replay Protection
 **Claim:** Each `(device_id, task_id)` pair can only earn credits once.
 **Status:** ✅ Verified
-**Evidence:** `EarnLog` class (`server.py:247-283`) uses a SQLite table with `PRIMARY KEY (device_id, task_id)`. A second insert raises `IntegrityError` → HTTP 409.
+**Evidence:** `EarnLog` class in `server.py` uses a SQLite table with `PRIMARY KEY (device_id, task_id)`. A second insert raises `IntegrityError` → HTTP 409.
 
 ### 1.3 Supply Cap Enforcement
 **Claim:** Total credits minted never exceed 21,000,000.
 **Status:** ✅ Verified
-**Evidence:** `CreditLedger.mint()` (`ledger.py:55-70`) checks `network_total_minted + credits > MAX_SUPPLY` and raises `SupplyCapError`. `TaskStore.increment_total_minted()` holds a threading lock during the SQLite update.
+**Evidence:** `CreditLedger.mint()` in `ledger.py` checks `network_total_minted + credits > MAX_SUPPLY` and raises `SupplyCapError`. `TaskStore.increment_total_minted()` holds a threading lock during the SQLite update.
 
 ### 1.4 Rate Limiting
 **Claim:** Per-device sliding-window rate limits prevent DoS on earn, result-submission, and semantic search endpoints.
 **Status:** ✅ Verified
-**Evidence:** `_RateLimiter` (`server.py:836-864`) is a sliding-window deque. Applied to:
+**Evidence:** `_RateLimiter` in `server.py` is a sliding-window deque. Applied to:
 - `/api/earn` — default 10 calls / 60 s (env: `TFP_EARN_RATE_MAX`, `TFP_EARN_RATE_WINDOW`)
 - `POST /api/task/{id}/result` — default 30 calls / 60 s (env: `TFP_RESULT_RATE_MAX`, `TFP_RESULT_RATE_WINDOW`)
 - `POST /api/search/semantic` — default 20 calls / 60 s (not configurable via env in v3.2)
@@ -46,7 +46,7 @@ Signature message format:
 ### 1.6 Request Validation
 **Claim:** Inputs are validated before processing.
 **Status:** ✅ Verified
-**Evidence:** Pydantic models (`server.py:871-898`) enforce field bounds on all POST bodies (e.g. `puf_entropy_hex` is exactly 64 hex chars, `output_hash` is exactly 64 hex chars, `difficulty` is 1–10).
+**Evidence:** Pydantic models in `server.py` enforce field bounds on all POST bodies (e.g. `puf_entropy_hex` is exactly 64 hex chars, `output_hash` is exactly 64 hex chars, `difficulty` is 1–10).
 
 ### 1.7 Content Integrity
 **Claim:** Stored content is addressable by its SHA3-256 hash; retrieval validates the hash.
@@ -56,7 +56,7 @@ Signature message format:
 ### 1.8 Nostr Gossip Authentication
 **Claim:** All inbound Kind-30078/30079/30080 events are verified via BIP-340 Schnorr signatures.
 **Status:** ✅ Verified
-**Evidence:** `_schnorr_verify()` in `nostr_bridge.py:163-210` validates event signatures before processing. Events from untrusted pubkeys (when `TFP_NOSTR_TRUSTED_PUBKEYS` is set) are silently dropped.
+**Evidence:** `_schnorr_verify()` in `nostr_bridge.py` validates event signatures before processing. Events from untrusted pubkeys (when `TFP_NOSTR_TRUSTED_PUBKEYS` is set) are silently dropped.
 
 ### 1.9 RAG Index Integrity
 **Claim:** Reindex operations produce deterministic fingerprints; gossip events cannot forge index state.
@@ -157,6 +157,7 @@ Every pull request that changes a version number, API endpoint, test suite, or s
 2. Root `README.md` — version badge, test-count badge, "Current Status" section
 3. `tfp-foundation-protocol/docs/v3.0-integration-guide.md` — "What Changed" table, Section 16 test count
 4. This file (`SECURITY.md`) — if any security property is added, changed, or a known limitation is resolved
+5. `docs/deploy_demo.md` — if any new environment variable affecting security is added (e.g. `TFP_CORS_ORIGINS`)
 
 ### Stale-claim rule
 Any claim of the form "X tests passing" or "security hardened" must be:

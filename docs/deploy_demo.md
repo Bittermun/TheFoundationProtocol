@@ -36,8 +36,10 @@ uvicorn tfp_demo.server:app --reload
 | `TFP_ADMIN_DEVICE_IDS` | _(empty in demo)_ | Required in production. Comma-separated device allowlist for `/api/admin/rag/reindex`. |
 | `TFP_NOSTR_PUBLISH_ENABLED` | `1` in demo, `0` in production | Enables outbound Nostr gossip publishing. |
 | `TFP_NOSTR_TRUSTED_PUBKEYS` | _(empty)_ | In production, empty means deny inbound Nostr gossip by default. |
+| `TFP_CORS_ORIGINS` | _(empty — allows all)_ | Comma-separated allowed CORS origins (e.g. `https://app.example.com`). When unset, all origins are allowed with credentials disabled. Set explicitly in production. |
 | `TFP_EARN_RATE_MAX` | `10` | Max earn calls per device per window. |
 | `TFP_EARN_RATE_WINDOW` | `60` | Sliding window length in seconds for rate limiting. |
+| `TFP_REDIS_URL` | _(empty)_ | Redis connection URL (e.g. `redis://localhost:6379`). When set, rate limiters use distributed Redis sliding-window counters shared across workers. |
 
 ---
 
@@ -70,16 +72,19 @@ NOSTR_RELAY=wss://relay.damus.io docker compose up --build
 ### Step 3 — Publish content and watch it propagate
 
 ```bash
+# Generate a fresh 32-byte PUF entropy value (do this once per device)
+PUF_HEX=$(python3 -c "import os; print(os.urandom(32).hex())")
+
 # Enroll a device
 curl -s -X POST http://localhost:8000/api/enroll \
   -H "Content-Type: application/json" \
-  -d '{"device_id": "my-node-1", "puf_entropy_hex": "deadbeef"}'
+  -d "{\"device_id\": \"my-node-1\", \"puf_entropy_hex\": \"${PUF_HEX}\"}"
 
 # Publish a content item (the node broadcasts a NIP-01 event to the relay)
 curl -s -X POST http://localhost:8000/api/publish \
   -H "Content-Type: application/json" \
-  -H "X-Device-Sig: $(python3 -c "import hmac,hashlib; print(hmac.new(bytes.fromhex('deadbeef'), b'my-node-1:Hello World', hashlib.sha256).hexdigest())")" \
-  -d '{"device_id": "my-node-1", "title": "Hello World", "content": "VGhpcyBpcyBhIHRlc3Q="}'
+  -H "X-Device-Sig: $(python3 -c "import hmac,hashlib,os; puf=bytes.fromhex('${PUF_HEX}'); print(hmac.new(puf, b'my-node-1:Hello World', hashlib.sha256).hexdigest())")" \
+  -d '{"device_id": "my-node-1", "title": "Hello World", "text": "This is a test"}'
 ```
 
 Check Nostr event history:
@@ -196,8 +201,12 @@ For production monitoring, point Prometheus at `/metrics` and use the provided G
 
 ## Security Checklist Before Public Deployment
 
-- [ ] Change `puf_entropy_hex` values — do not use the demo `deadbeef` value in production
+- [ ] Generate a fresh `puf_entropy_hex` with `python3 -c "import os; print(os.urandom(32).hex())"` — never reuse a value across deployments
 - [ ] Set `TFP_DB_PATH` to a persistent volume (not `:memory:`)
+- [ ] Set `TFP_MODE=production` to enable fail-closed startup validation
+- [ ] Set `TFP_PEER_SECRET` to a strong random secret (required in production mode)
+- [ ] Set `TFP_ADMIN_DEVICE_IDS` to the comma-separated list of authorised admin device IDs (required in production mode)
+- [ ] Set `TFP_CORS_ORIGINS` to your application's origin(s) instead of the default wildcard
 - [ ] Enable HTTPS (Nginx/Caddy reverse proxy or Cloudflare tunnel)
 - [ ] Set `TFP_EARN_RATE_MAX` and `TFP_EARN_RATE_WINDOW` to appropriate limits
 - [ ] Review `bandit.ini` and run `bandit -r tfp_core/ tfp_security/` on any custom code

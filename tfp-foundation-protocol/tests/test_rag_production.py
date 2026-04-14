@@ -10,8 +10,10 @@ Verifies:
 - POST /api/search/semantic returns 429 when rate limit is exceeded.
 - POST /api/admin/rag/reindex returns 503 when RAG is not initialised.
 - POST /api/admin/rag/reindex returns 401 for missing/wrong device signature.
+- POST /api/admin/rag/reindex returns 403 for device not in TFP_ADMIN_DEVICE_IDS.
 - With a mocked RAGGraph, POST /api/search/semantic returns results.
 - With a mocked RAGGraph, POST /api/admin/rag/reindex returns indexed count.
+- Device in TFP_ADMIN_DEVICE_IDS allowlist receives 200 on valid reindex.
 """
 
 import hashlib
@@ -330,5 +332,70 @@ def test_rag_reindex_increments_metric(monkeypatch, tmp_path):
             assert r.status_code == 200
             after = srv._metrics.get("tfp_rag_reindex_total")
             assert after == before + 1
+        finally:
+            srv._rag_graph = original
+
+
+# ---------------------------------------------------------------------------
+# Admin allowlist — 403 for non-admin device
+# ---------------------------------------------------------------------------
+
+
+def test_rag_reindex_403_for_device_not_in_allowlist(monkeypatch, tmp_path):
+    """Device not in TFP_ADMIN_DEVICE_IDS must receive 403 Forbidden.
+
+    The allowlist is enforced regardless of TFP_MODE: if TFP_ADMIN_DEVICE_IDS is
+    set, only the listed device IDs may call the reindex endpoint.
+    """
+    import tfp_demo.server as srv
+
+    monkeypatch.setenv("TFP_ADMIN_DEVICE_IDS", "allowed-admin-device")
+    monkeypatch.setenv("TFP_RAG_DIR", str(tmp_path))
+
+    with TestClient(app) as client:
+        puf = os.urandom(32)
+        non_admin_did = "non-admin-device"
+        _enroll(client, non_admin_did, puf)
+        msg = f"{non_admin_did}:reindex"
+        sig = _sig(puf, msg)
+
+        original = srv._rag_graph
+        srv._rag_graph = _make_mock_rag()
+        try:
+            r = client.post(
+                "/api/admin/rag/reindex",
+                json={"device_id": non_admin_did},
+                headers={"X-Device-Sig": sig},
+            )
+            assert r.status_code == 403
+            assert "allowlist" in r.json()["detail"].lower()
+        finally:
+            srv._rag_graph = original
+
+
+def test_rag_reindex_200_for_device_in_allowlist(monkeypatch, tmp_path):
+    """Device listed in TFP_ADMIN_DEVICE_IDS must receive 200 OK on valid reindex."""
+    import tfp_demo.server as srv
+
+    admin_did = "listed-admin-device"
+    monkeypatch.setenv("TFP_ADMIN_DEVICE_IDS", admin_did)
+    monkeypatch.setenv("TFP_RAG_DIR", str(tmp_path))
+
+    with TestClient(app) as client:
+        puf = os.urandom(32)
+        _enroll(client, admin_did, puf)
+        msg = f"{admin_did}:reindex"
+        sig = _sig(puf, msg)
+
+        original = srv._rag_graph
+        srv._rag_graph = _make_mock_rag()
+        try:
+            r = client.post(
+                "/api/admin/rag/reindex",
+                json={"device_id": admin_did},
+                headers={"X-Device-Sig": sig},
+            )
+            assert r.status_code == 200
+            assert r.json()["indexed_chunks"] == 42
         finally:
             srv._rag_graph = original

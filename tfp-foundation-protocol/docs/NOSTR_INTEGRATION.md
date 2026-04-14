@@ -45,11 +45,11 @@ Peer nodes subscribing to these events can detect when their local index diverge
 
 | Variable | Description | Default | Required |
 |----------|-------------|---------|----------|
-| `TFP_ENABLE_NOSTR` | Enable Nostr integration (1/0) | `0` | No |
+| `TFP_ENABLE_NOSTR` | Enable Nostr integration (1/0) | `1` | No |
 | `NOSTR_RELAY` or `NOSTR_RELAY_URL` | WebSocket URL of primary Nostr relay | `wss://relay.damus.io` | No* |
 | `NOSTR_PRIVATE_KEY` | 64-character hex private key for signing events. If not set, a random ephemeral key is generated — safe for dev, but breaks cross-restart pubkey continuity in production. Generate with `openssl rand -hex 32`. | Auto-generated | No |
-| `TFP_NOSTR_PUBLISH_ENABLED` | Set `0` or `false` to run as receive-only: inbound events are still subscribed and ingested but no outbound gossip is published. | `1` | No |
-| `TFP_NOSTR_TRUSTED_PUBKEYS` | Comma-separated hex pubkeys for trusted peers. If set, index updates from unknown keys are ignored for drift calculation. | `*` (Accept All) | No |
+| `TFP_NOSTR_PUBLISH_ENABLED` | Set `0` or `false` to run as receive-only: inbound events are still subscribed and ingested but no outbound gossip is published. In `production` mode this defaults to `0` (offline). | `1` (demo), `0` (production) | No |
+| `TFP_NOSTR_TRUSTED_PUBKEYS` | Comma-separated hex pubkeys for trusted peers. If set, index updates from unknown keys are ignored for drift calculation. | _(empty — deny all in production, allow all in demo)_ | No |
 
 \* Required if `TFP_ENABLE_NOSTR=1`
 
@@ -164,7 +164,7 @@ Triggers reindex and automatically publishes Kind-30079 gossip event.
 
 ## Security Considerations
 
-1. **Replay Protection**: Each Kind-30079 event includes a timestamp (`created_at`). Nodes should reject events older than a configurable threshold (default: 24 hours).
+1. **Replay Protection**: Each Kind-30079 event includes a timestamp (`created_at`). Nodes should reject events older than a configurable threshold (default: 300 seconds — 5 minutes).
 
 2. **Rate Limiting**: The bridge maintains a bounded history (max 10,000 events) to prevent memory exhaustion. Failed publishes are logged but do not block reindex operations.
 
