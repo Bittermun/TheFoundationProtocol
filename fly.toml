@@ -7,6 +7,18 @@ app = 'tfp'
 primary_region = 'iad'
 
 [build]
+  dockerfile = 'Dockerfile'
+
+[env]
+  TFP_MODE = 'demo'
+  TFP_DB_PATH = '/data/tfp.db'
+  TFP_IPFS_API_URL = ''
+  TFP_REDIS_URL = ''
+  NOSTR_RELAY_URL = 'wss://relay.damus.io'
+
+[mounts]
+  source = 'tfp_data'
+  destination = '/data'
 
 [http_service]
   internal_port = 8080
