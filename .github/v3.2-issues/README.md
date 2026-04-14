@@ -1,20 +1,22 @@
 # v3.2 Issue Tracker
 
-Technical issues for The Foundation Protocol v3.2 development.
+**Status:** Exploratory design documents. Not committed roadmap.
 
-## Roadmap Overview
+These specs describe possible directions for v3.2. Seeking feedback and contributors.
 
-| Phase | Issue | Goal | Complexity | Priority |
-|-------|-------|------|------------|----------|
-| **v3.2.0-alpha** | #01 | Distributed matrix multiply (pooled compute) | High | P0 |
-| **v3.2.0-beta** | #02 | NGO radio app MVP (offline audio) | Medium | P1 |
-| **v3.2.0** | #03 | Large file & media archives (100MB-10GB) | High | P1 |
-| **v3.2.1** | #04 | Nostr bridge stability (retry/fallback) | Medium | P2 |
+## Roadmap Overview (Tentative)
+
+| Phase | Issue | Goal | Complexity | Status |
+|-------|-------|------|------------|--------|
+| **v3.2.0-alpha** | #01 | Distributed matrix multiply | High | Design phase |
+| **v3.2.0-beta** | #02 | Offline audio player | Medium | Exploratory |
+| **v3.2.0** | #03 | Large file support | High | Design phase |
+| **v3.2.1** | #04 | Nostr relay resilience | Medium | Design phase |
 
 ## Quick Links
 
 - [01-distributed-matrix-multiply.md](01-distributed-matrix-multiply.md) — Core pooled compute functionality
-- [02-ngo-radio-app-mvp.md](02-ngo-radio-app-mvp.md) — Audio distribution for NGOs
+- [02-offline-audio-player.md](02-ngo-radio-app-mvp.md) — Offline audio PWA
 - [03-large-file-media-archives.md](03-large-file-media-archives.md) — Movies, music, datasets
 - [04-nostr-retry-fallback.md](04-nostr-retry-fallback.md) — Relay resilience
 
