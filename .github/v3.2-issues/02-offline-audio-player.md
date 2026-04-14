@@ -1,12 +1,16 @@
-# [v3.2.0-beta] NGO Radio App MVP — Offline-First Audio Distribution
+# [v3.2.0-beta] Offline Audio Player — PWA with Sync
 
 ## Goal
-Build installable PWA that plays audio content (podcasts, educational material, music) distributed via TFP, with full offline capability for low-connectivity regions.
+Build installable PWA that plays audio content (podcasts, music, recordings) distributed via TFP, with full offline capability. Exploratory feature for low-connectivity scenarios.
 
-## Target Users
-- NGOs distributing educational content in disconnected areas
-- Community radio stations archiving broadcasts
-- Emergency information dissemination (offline-first critical)
+## Status
+Exploratory design. Seeking feedback on use cases.
+
+## Potential Use Cases (unvalidated)
+- Educational content in disconnected areas
+- Community radio archiving
+- Personal podcast sync across devices
+- Emergency info when connectivity is limited
 
 ## Technical Scope
 

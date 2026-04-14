@@ -1,8 +1,10 @@
 {
-  "testbed_id": "pilot_region_001",
-  "region": "East Africa (Kenya)",
+  "_comment": "SIMULATION DATA - Generated for testing analytics pipeline. Not a real deployment.",
+  "testbed_id": "simulation_001",
+  "region": "Simulated (Kenya-like parameters)",
   "deployment_date": "2026-04-10T20:15:13.698060Z",
   "duration_days": 30,
+  "simulation": true,
   "metrics_summary": {
     "testbed_id": "pilot_region_001",
     "time_window_hours": 720,

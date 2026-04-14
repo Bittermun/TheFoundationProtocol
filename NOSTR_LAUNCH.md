@@ -1,43 +1,43 @@
-# Nostr Launch Campaign — TFP v3.1
+# Nostr Launch — TFP v3.1
 
-## Your Story (Use This)
+## Simple Authentic Post
 
-**Bio/About:**
+Copy and paste this to Primal/Damus when ready:
+
 ```
-High schooler building TFP — decentralized content protocol.
-42k LOC, 749+ tests, works offline.
-Goal: anyone can publish content without a data center.
-Open source. Apache-2.0.
+Built a decentralized content protocol. High school, one week of focused coding.
+
+TFP (The Foundation Protocol) — publish and share content without a central server.
+
+- 42k LOC, 749+ tests
+- Nostr for discovery, IPFS for persistence
+- Offline-first PWA
+- docker compose up → works in 5 minutes
+
+Code: github.com/Bittermun/TheFoundationProtocol
+
+What should I build next?
+
+#nostr #opensource #p2p
 ```
+
+## Optional Follow-ups
+
+Only if people engage:
+
+**Technical thread** (if asked how it works):
+- Content-addressed (not server-addressed)
+- Nostr events for peer discovery
+- HABP consensus for distributed compute
+- SQLite + RaptorQ for efficiency
+
+**Demo link** (after deploying):
+- Try it: https://tfp-demo.fly.dev
+- Or run locally: docker compose up
 
 ---
 
-## Post 1: The Reveal (Day 1 — TODAY)
-
-**Template:**
-```
-Built a decentralized content protocol in high school.
-
-TFP (The Foundation Protocol) lets anyone publish, discover, and share content — no central server.
-
-- 42k LOC, 189 Python files
-- 749+ tests passing
-- Nostr + IPFS + NDN routing
-- Offline-first PWA
-- 5-minute demo: docker compose up
-
-Open source. Apache-2.0. Just shipped v3.1.
-
-Who wants to run a node?
-
-🧵 technical details below
-
-#bitcoin #nostr #decentralization #opensource
-```
-
-**Image/GIF:** Screen recording of `docker compose up` → browser opens → PWA loads
-
-**When to post:** Now (evening gets more engagement)
+*Keep it simple. One post is enough.*
 
 ---
 
