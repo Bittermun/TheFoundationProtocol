@@ -40,8 +40,8 @@ Create a **Global Information Commons** that works for pennies: anyone can publi
 ## What Makes TFP Different
 
 - **Uncensorable & discoverable** — Hash-based NDN routing + tag-overlay index (no central server or registry). Nostr relay bridge for cross-network peer discovery.
-- **Bandwidth & compute efficient** — RaptorQ erasure coding + hierarchical lexicon tree delivers 95–99% bandwidth savings.
-- **Secure by design** — PUF/TEE identity (Sybil-resistant), HMAC-per-request device auth, ZKPs, post-quantum crypto agility, WASM sandboxing, behavioral heuristics (99.2% malware detection).
+- **Bandwidth & compute efficient** — RaptorQ erasure coding + hierarchical lexicon tree designed for efficient content distribution in low-bandwidth environments.
+- **Secure by design** — PUF/TEE identity (Sybil-resistant), HMAC-per-request device auth, ZKPs, post-quantum crypto agility, WASM sandboxing, behavioral heuristics for anomaly detection.
 - **Privacy-first** — Metadata shielding, zero PII logging, device-bound identity.
 - **Regulatory smart** — Non-transferable access tokens, jurisdiction-aware crypto, spectrum compliance (ATSC 3.0, 5G MBSFN).
 - **Inclusive UX** — Zero-config installable PWA (Android/iOS), voice-first navigation, offline-first.
@@ -84,7 +84,7 @@ Create a **Global Information Commons** that works for pennies: anyone can publi
 | Milestone | Target | Deliverable | Good First Issue |
 |-----------|--------|-------------|------------------|
 | **v3.2.0-alpha** | 4 weeks | Pooled compute tasks execute (matrix multiply, hash preimage, content verify) | Add `--version` flag to CLI |
-| **v3.2.0-beta** | 6 weeks | NGO radio app MVP (audio player, offline sync, playlist curation) | Improve service worker cache strategy |
+| **v3.2.0-beta** | 6 weeks | Offline audio player MVP (audio player, offline sync, playlist curation) | Improve service worker cache strategy |
 | **v3.2.0** | 8 weeks | Media archive support (large file optimization, RaptorQ tuning for video) | Test large file (100MB+) upload/download |
 | **v3.2.1** | 10 weeks | Integration hardening (IPFS bridge stability, Nostr relay fallback) | Add retry logic to Nostr bridge |
 
