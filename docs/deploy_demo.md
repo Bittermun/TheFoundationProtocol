@@ -201,7 +201,7 @@ Once running, list your node in these directories to bootstrap the network:
 |----------|-----|
 | **Nostr** | Post with tags `#tfp #scholo` on any relay |
 | **GitHub Awesome list** | See `docs/awesome_tfp_seed.md` — submit a PR to add your deployment |
-| **nostr.band** | Search `#tfp` — your relay posts will appear automatically |
+| **nostr.band** | Search `#tfp` — your relay posts appear automatically |
 | **Reddit** | r/nostr, r/decentralization, r/selfhosted |
 | **Hackernews** | Post project URL + demo video |
 | **Discord/Telegram** | Nostr, IPFS, and decentralized-web communities |
