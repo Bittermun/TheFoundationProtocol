@@ -27,7 +27,8 @@ Creator note: I'm a highschooler. I think bandwidth on decentralized networks co
 | **[Plugin Tutorial](docs/plugin_tutorial_30_min.md)** | Build a plugin in 30 minutes |
 | **[Hackathon Kit](docs/hackathon_kit.md)** | Event materials, starter templates |
 | **[Partnerships Pack](docs/partnerships_outreach_pack.md)** | Community & NGO deployment guide |
-| **[Integrations Playbook](docs/integrations_playbook.md)** | IPFS, Nostr, Kiwix/Wikipedia bridge roadmap |
+| **[Integrations Playbook](docs/integrations_playbook.md)** | IPFS, Nostr, and Kiwix/Wikipedia bridge implementation details |
+| **[Roadmap](ROADMAP.md)** | v3.2 planned milestones and open implementation priorities |
 | **[Extension Modules](tfp-foundation-protocol/IMPLEMENTATION_SUMMARY.md)** | Optional Redis rate limiter, RAGgraph semantic search, OpenTelemetry tracing |
 | **[Archive](docs/archive/)** | Historical planning docs and legacy integration guides (v2.x) — read-only |
 
@@ -79,16 +80,9 @@ Create a **Global Information Commons** that works for pennies: anyone can publi
 
 ---
 
-## Roadmap: v3.2
+## v3.2 Planning
 
-| Milestone | Target | Deliverable | Good First Issue |
-|-----------|--------|-------------|------------------|
-| **v3.2.0-alpha** | 4 weeks | Pooled compute tasks execute (matrix multiply, hash preimage, content verify) | Add `--version` flag to CLI |
-| **v3.2.0-beta** | 6 weeks | Offline audio player MVP (audio player, offline sync, playlist curation) | Improve service worker cache strategy |
-| **v3.2.0** | 8 weeks | Media archive support (large file optimization, RaptorQ tuning for video) | Test large file (100MB+) upload/download |
-| **v3.2.1** | 10 weeks | Integration hardening (IPFS bridge stability, Nostr relay fallback) | Add retry logic to Nostr bridge |
-
-See [GitHub Milestones](https://github.com/Bittermun/TheFoundationProtocol/milestones) for detailed issues.
+See [ROADMAP.md](ROADMAP.md) for planned v3.2 milestones and [GitHub Milestones](https://github.com/Bittermun/TheFoundationProtocol/milestones) for issue-level tracking.
 
 ## Quick Start
 
