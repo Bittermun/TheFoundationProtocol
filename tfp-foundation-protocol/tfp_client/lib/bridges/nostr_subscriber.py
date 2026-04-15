@@ -56,9 +56,14 @@ logger = logging.getLogger(__name__)
 _SUB_ID = "tfp-content-discovery"
 
 # Default NIP-01 filter: HLT gossip (30078), search-index summaries (30079),
-# and content-availability announcements (30080).
+# content-availability announcements (30080), and supply gossip (30081).
 _DEFAULT_FILTER: Dict[str, Any] = {
-    "kinds": [TFP_CONTENT_KIND, TFP_SEARCH_INDEX_KIND, TFP_CONTENT_ANNOUNCE_KIND]
+    "kinds": [
+        TFP_CONTENT_KIND,
+        TFP_SEARCH_INDEX_KIND,
+        TFP_CONTENT_ANNOUNCE_KIND,
+        30081,  # TFP_SUPPLY_GOSSIP_KIND
+    ]
 }
 
 
@@ -208,6 +213,18 @@ class NostrSubscriber:
             subscribed_kinds = set(self._filters.get("kinds", []))
             if subscribed_kinds and event_dict.get("kind") not in subscribed_kinds:
                 return
+
+            # Reject events with timestamp drift beyond ±5 minutes
+            import time
+            created_at = event_dict.get("created_at")
+            if isinstance(created_at, (int, float)):
+                if abs(created_at - time.time()) > 300:
+                    logger.debug(
+                        "NostrSubscriber: dropped event with timestamp drift: %s",
+                        created_at,
+                    )
+                    return
+
             self._received.append(event_dict)
             try:
                 self._on_event(event_dict)

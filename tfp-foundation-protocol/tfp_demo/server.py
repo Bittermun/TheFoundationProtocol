@@ -10,7 +10,10 @@ import os
 import re
 import sqlite3
 import threading
+
 import time
+
+from tfp_demo.database import Database, get_database_from_env, DatabaseError
 import urllib.parse
 import urllib.request
 from contextlib import asynccontextmanager
@@ -56,6 +59,9 @@ from tfp_client.lib.reconstruction.template_assembler import (
 )
 
 _DEFAULT_DB_PATH = Path(__file__).resolve().parent.parent / "pib.db"
+
+# Database instance (initialized in lifespan)
+_db: Optional[Database] = None
 
 # Configure logging explicitly for security monitoring
 logging.basicConfig(
@@ -622,13 +628,26 @@ class EarnLog:
 
     def _init_schema(self) -> None:
         with self._db_lock:
+            # Enable foreign key enforcement for referential integrity
+            self._conn.execute("PRAGMA foreign_keys = ON")
+            # Check if devices table exists before adding FK constraint
+            # (for test compatibility where EarnLog may be created without DeviceRegistry)
+            devices_exists = self._conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='devices'"
+            ).fetchone()
+            fk_clause = (
+                ", FOREIGN KEY (device_id) REFERENCES devices(device_id) ON DELETE CASCADE"
+                if devices_exists
+                else ""
+            )
             self._conn.execute(
-                """
+                f"""
                 CREATE TABLE IF NOT EXISTS earn_log (
                     device_id TEXT NOT NULL,
-                    task_id   TEXT NOT NULL,
+                    task_id TEXT NOT NULL,
                     earned_at REAL NOT NULL,
                     PRIMARY KEY (device_id, task_id)
+                    {fk_clause}
                 )
                 """
             )
@@ -644,8 +663,13 @@ class EarnLog:
                 )
                 self._conn.commit()
                 return True
-            except sqlite3.IntegrityError:
-                return False
+            except (sqlite3.IntegrityError, Exception) as exc:
+                # PostgreSQL raises psycopg2.errors.UniqueViolation, SQLite raises IntegrityError
+                # Check if it's a constraint violation (duplicate key)
+                if "UNIQUE constraint" in str(exc) or "duplicate key" in str(exc).lower():
+                    return False
+                # Re-raise if it's not a constraint violation
+                raise
 
 
 # ---------------------------------------------------------------------------
@@ -668,13 +692,26 @@ class CreditStore:
 
     def _init_schema(self) -> None:
         with self._db_lock:
+            # Enable foreign key enforcement for referential integrity
+            self._conn.execute("PRAGMA foreign_keys = ON")
+            # Check if devices table exists before adding FK constraint
+            # (for test compatibility where CreditStore may be created without DeviceRegistry)
+            devices_exists = self._conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='devices'"
+            ).fetchone()
+            fk_clause = (
+                ", FOREIGN KEY (device_id) REFERENCES devices(device_id) ON DELETE CASCADE"
+                if devices_exists
+                else ""
+            )
             self._conn.execute(
-                """
+                f"""
                 CREATE TABLE IF NOT EXISTS credit_ledger (
                     device_id             TEXT PRIMARY KEY,
                     balance               INTEGER NOT NULL DEFAULT 0,
                     chain_json            TEXT    NOT NULL DEFAULT '[]',
                     unspent_receipts_json TEXT    NOT NULL DEFAULT '[]'
+                    {fk_clause}
                 )
                 """
             )
@@ -759,8 +796,20 @@ class TaskStore:
 
     def _init_schema(self) -> None:
         with self._db_lock:
+            # Enable foreign key enforcement for referential integrity
+            self._conn.execute("PRAGMA foreign_keys = ON")
+            # Check if devices table exists before adding FK constraint
+            # (for test compatibility where TaskStore may be created without DeviceRegistry)
+            devices_exists = self._conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='devices'"
+            ).fetchone()
+            devices_fk = (
+                ", FOREIGN KEY (device_id) REFERENCES devices(device_id) ON DELETE CASCADE"
+                if devices_exists
+                else ""
+            )
             self._conn.executescript(
-                """
+                f"""
             CREATE TABLE IF NOT EXISTS tasks (
                 task_id      TEXT PRIMARY KEY,
                 task_type    TEXT NOT NULL,
@@ -779,7 +828,9 @@ class TaskStore:
                 exec_time_s  REAL NOT NULL,
                 has_tee      INT  NOT NULL DEFAULT 0,
                 submitted_at REAL NOT NULL,
-                UNIQUE(task_id, device_id)
+                UNIQUE(task_id, device_id),
+                FOREIGN KEY (task_id) REFERENCES tasks(task_id) ON DELETE CASCADE
+                {devices_fk}
             );
             CREATE TABLE IF NOT EXISTS supply_ledger (
                 id             INTEGER PRIMARY KEY CHECK (id = 1),
@@ -793,17 +844,44 @@ class TaskStore:
         self._rebuild_habp_from_db()
 
     def _rebuild_habp_from_db(self) -> None:
-        """Replay persisted proofs into HABPVerifier so consensus survives restarts."""
+        """Replay persisted proofs into HABPVerifier so consensus survives restarts.
+
+        Verifies that output_hash in DB matches the task spec's expected output hash
+        before rebuilding to prevent DB corruption from poisoning HABP state.
+        """
         rows = self._conn.execute(
             """
-            SELECT r.task_id, r.device_id, r.output_hash, r.exec_time_s, r.has_tee
+            SELECT r.task_id, r.device_id, r.output_hash, r.exec_time_s, r.has_tee, t.spec_json
             FROM task_results r
             JOIN tasks t ON t.task_id = r.task_id
             WHERE t.status IN ('verifying', 'open')
             ORDER BY r.submitted_at
             """
         ).fetchall()
-        for task_id, device_id, output_hash, exec_time_s, has_tee in rows:
+        for task_id, device_id, output_hash, exec_time_s, has_tee, spec_json in rows:
+            try:
+                import json
+                spec = json.loads(spec_json)
+                expected_hash = spec.get("expected_output_hash")
+                if expected_hash and output_hash != expected_hash:
+                    log.warning(
+                        "Skipping HABP rebuild for task=%s device=%s: output_hash mismatch "
+                        "(DB=%s, expected=%s) - DB may be corrupted",
+                        task_id[:16],
+                        device_id[:16],
+                        output_hash[:16],
+                        expected_hash[:16],
+                    )
+                    continue
+            except (json.JSONDecodeError, KeyError) as exc:
+                log.warning(
+                    "Skipping HABP rebuild for task=%s device=%s: failed to parse spec: %s",
+                    task_id[:16],
+                    device_id[:16],
+                    exc,
+                )
+                continue
+
             proof = generate_execution_proof(
                 device_id=device_id,
                 task_id=task_id,
@@ -832,23 +910,49 @@ class TaskStore:
             return row[0] if row else 0
 
     def increment_total_minted(self, amount: int) -> int:
-        """Atomically increment and return new total. Raises if cap exceeded."""
+        """Atomically increment and return new total. Raises if cap exceeded.
+
+        Uses atomic SQL UPDATE with condition check to prevent race condition
+        where concurrent threads both pass the cap check before update.
+
+        In multi-node deployments, also checks against gossiped total from other
+        nodes with a buffer to prevent supply cap bypass across the network.
+        """
+        from tfp_client.lib.credit.ledger import SupplyCapError
+
         with self._db_lock:
             with self._lock:
-                current = self.get_total_minted()
-                if current + amount > MAX_SUPPLY:
-                    from tfp_client.lib.credit.ledger import SupplyCapError
+                # Get gossiped total from other nodes (if available)
+                # Use a buffer to account for network propagation delays
+                gossiped_total = 0
+                with _gossiped_supply_lock:
+                    gossiped_total = _gossiped_supply_total
 
-                    raise SupplyCapError(
-                        f"Global supply cap reached: {current}/{MAX_SUPPLY}"
-                    )
-                new_total = current + amount
-                self._conn.execute(
-                    "UPDATE supply_ledger SET total_minted = ? WHERE id = 1",
-                    (new_total,),
+                # Effective cap is min of local cap and gossiped total + buffer
+                # Buffer of 1000 allows for concurrent mints across nodes
+                # When no gossip received (single-node), use full MAX_SUPPLY
+                if gossiped_total > 0:
+                    buffer = 1000
+                    effective_cap = min(MAX_SUPPLY, gossiped_total + buffer)
+                else:
+                    effective_cap = MAX_SUPPLY
+
+                # Atomic UPDATE: only succeeds if new total won't exceed effective cap
+                cursor = self._conn.execute(
+                    "UPDATE supply_ledger "
+                    "SET total_minted = total_minted + ? "
+                    "WHERE id = 1 AND total_minted + ? <= ?",
+                    (amount, amount, effective_cap),
                 )
+                if cursor.rowcount == 0:
+                    # Update failed: cap would be exceeded
+                    current = self.get_total_minted()
+                    raise SupplyCapError(
+                        f"Global supply cap reached: {current}/{MAX_SUPPLY} "
+                        f"(effective cap: {effective_cap})"
+                    )
                 self._conn.commit()
-                return new_total
+                return self.get_total_minted()
 
     # -- Task lifecycle --------------------------------------------------------
 
@@ -856,7 +960,7 @@ class TaskStore:
         """Generate and persist a new compute task."""
         task_id = hashlib.sha3_256(
             seed + task_type.encode() + str(time.time()).encode()
-        ).hexdigest()[:16]
+        ).hexdigest()
         if task_type == "content_verify":
             spec = generate_content_verify_task(
                 task_id=task_id, difficulty=difficulty, content=seed
@@ -1439,6 +1543,8 @@ _trusted_nostr_pubkeys: frozenset[str] = frozenset()
 _admin_device_ids: frozenset[str] = frozenset()
 _rag_graph = None  # RAGGraph instance when TFP_ENABLE_RAG=1; Optional[Any]
 _chunk_store = None  # ChunkStore for shard-pin reward tracking; Optional[Any]
+_gossiped_supply_total: int = 0  # Maximum total minted seen from other nodes via Nostr gossip
+_gossiped_supply_lock: threading.Lock = threading.Lock()
 
 # Event-ID deduplication cache: prevents the same Nostr event from being
 # processed more than once within the replay window (e.g., due to relay
@@ -1728,6 +1834,11 @@ def _on_nostr_event(event_dict: dict) -> None:
             _handle_search_index_event(event_dict)
             return
 
+        # ── Kind 30081: supply ledger gossip for multi-node coordination ────
+        if kind == 30081:
+            _handle_supply_gossip_event(event_dict)
+            return
+
         # ── Kind 30080: content-availability announcement ─────────────────
         if kind != TFP_CONTENT_ANNOUNCE_KIND:
             log.debug("Ignoring unknown Nostr event kind %d", kind)
@@ -1786,6 +1897,30 @@ def _check_replay_window(event_dict: dict) -> bool:
         return True
     except (TypeError, ValueError):
         return False
+
+
+def _handle_supply_gossip_event(event_dict: dict) -> None:
+    """
+    Handle a kind-30081 supply ledger gossip event.
+
+    Updates the local gossiped supply total with the maximum value seen
+    from other nodes to prevent supply cap bypass across the network.
+    """
+    try:
+        payload = json.loads(event_dict.get("content", "{}"))
+        total_minted = payload.get("total_minted")
+        if isinstance(total_minted, int) and total_minted >= 0:
+            with _gossiped_supply_lock:
+                if total_minted > _gossiped_supply_total:
+                    log.info(
+                        "Updated gossiped supply total: %d -> %d (from pubkey=%s)",
+                        _gossiped_supply_total,
+                        total_minted,
+                        event_dict.get("pubkey", "")[:16],
+                    )
+                    _gossiped_supply_total = total_minted
+    except (json.JSONDecodeError, ValueError, TypeError) as exc:
+        log.warning("Failed to parse supply gossip event: %s", exc)
 
 
 def _handle_hlt_gossip_event(event_dict: dict) -> None:
@@ -1913,6 +2048,7 @@ async def lifespan(_app: FastAPI):
     global _nostr_bridge, _ipfs_bridge, _clients, _metrics, _app_ready, _startup_stage
     global _blob_store, _peer_fallback, _hlt, _peer_secret, _rag_graph, _chunk_store
     global _runtime_mode, _trusted_nostr_pubkeys, _admin_device_ids
+    global _gossiped_supply_total
 
     _app_ready = False
     _startup_stage = "starting"
@@ -1951,10 +2087,27 @@ async def lifespan(_app: FastAPI):
         # ── Stage: db_init ────────────────────────────────────────────────
         _startup_stage = "db_init"
         db_path = runtime_cfg.db_path
-        log.info("Connecting to SQLite: %s  (stage=%s)", db_path, _startup_stage)
-        _conn = sqlite3.connect(db_path, check_same_thread=False)
-        if db_path != ":memory:":
-            _conn.execute("PRAGMA journal_mode=WAL")
+
+        # Initialize Database abstraction (SQLite or PostgreSQL)
+        global _db
+        _db = get_database_from_env()
+        log.info(
+            "Database initialized: %s (multi-worker: %s)",
+            _db.db_type,
+            _db.supports_multiple_workers,
+        )
+
+        # Warn if PostgreSQL is used - stores are SQLite-specific
+        if _db.is_postgresql:
+            log.warning(
+                "⚠️ PostgreSQL connection established, but store classes use SQLite-specific SQL. "
+                "Full PostgreSQL support requires store refactoring (sqlite_master, PRAGMA, INSERT OR REPLACE, rowid). "
+                "Use SQLite for production deployments. "
+                "See SECURITY.md L4 for details."
+            )
+
+        # For backward compatibility with stores (RLock for thread safety)
+        _conn = _db.get_underlying_connection()
         _db_lock = threading.RLock()
 
         # ── BlobStore: filesystem for file-backed DB, in-memory for :memory: ──
@@ -2029,6 +2182,12 @@ async def lifespan(_app: FastAPI):
                     max_calls=20,
                     window_seconds=60,
                     endpoint_type="rag_search",
+                )
+                _enroll_rate_limiter = _RedisRateLimiterAdapter(
+                    redis_url=_redis_url,
+                    max_calls=_ENROLL_RATE_MAX,
+                    window_seconds=_ENROLL_RATE_WINDOW,
+                    endpoint_type="enroll",
                 )
                 log.info("Rate limiters: Redis-backed (%s)", _redis_url)
             except Exception as exc:
@@ -2129,6 +2288,13 @@ async def lifespan(_app: FastAPI):
                     if _task_store is not None:
                         _task_store.reap_expired_tasks()
                         _preseed_tasks()
+
+                    # Publish supply gossip for multi-node coordination
+                    if _nostr_bridge and _task_store:
+                        from tfp_client.lib.credit.ledger import MAX_SUPPLY
+
+                        current_total = _task_store.get_total_minted()
+                        _nostr_bridge.publish_supply_gossip(current_total, MAX_SUPPLY)
                 except Exception as exc:
                     log.warning("maintenance loop error: %s", exc)
 
@@ -2297,8 +2463,8 @@ async def lifespan(_app: FastAPI):
                     log.info("TagOverlayIndex persisted to %s.", _overlay_save_path)
                 except Exception as exc:
                     log.warning("Could not persist TagOverlayIndex: %s", exc)
-            if "_conn" in locals() and _conn:
-                _conn.close()
+            if "_db" in locals() and _db:
+                _db.close()
             # Close Redis connections if distributed limiters were in use.
             for _lim in (
                 _earn_rate_limiter,
@@ -2433,6 +2599,7 @@ def enroll(payload: EnrollRequest, request: Request) -> dict:
     # Rate-limit enrollment by client IP to prevent mass device registration.
     client_ip = request.client.host if request.client else "unknown"
     if not _enroll_rate_limiter.is_allowed(client_ip):
+        _metrics.inc("tfp_enroll_rate_limited_total")
         raise HTTPException(
             status_code=429,
             detail=(
@@ -2647,8 +2814,8 @@ def earn(
             status_code=429,
             detail=f"rate limit exceeded — max {_EARN_RATE_MAX} earn calls per {_EARN_RATE_WINDOW}s per device",
         )
-    # Deduplication — reject replayed task IDs
-    if not _earn_log.record(payload.device_id, payload.task_id):
+    # Deduplication — reject replayed task IDs (normalized format: task:{task_id})
+    if not _earn_log.record(payload.device_id, f"task:{payload.task_id}"):
         _metrics.inc("tfp_earn_replay_rejected_total")
         raise HTTPException(
             status_code=409,
@@ -3368,8 +3535,9 @@ def submit_task_result(
         _metrics.inc("tfp_tasks_completed_total")
         credits = verification["credits_earned"]
         # Auto-apply credits to the device's ledger if consensus is reached
+        # (normalized format: task:{task_id} to prevent double-mint with /api/earn)
         if credits > 0 and not _earn_log.record(
-            payload.device_id, f"task:{task_id}:result"
+            payload.device_id, f"task:{task_id}"
         ):
             # Already applied (idempotent guard)
             pass
@@ -3385,13 +3553,31 @@ def submit_task_result(
                 _credit_store.save(payload.device_id, client)
                 _metrics.inc("tfp_credits_minted_total", credits)
             except Exception as exc:
-                log.warning(
-                    "Auto-mint failed for device=%s task=%s credits=%d: %s",
-                    payload.device_id,
-                    task_id,
-                    credits,
-                    exc,
-                )
+                # Re-raise non-supply-cap errors to avoid silent failures
+                from tfp_client.lib.credit.ledger import SupplyCapError
+
+                if isinstance(exc, SupplyCapError):
+                    # Supply cap reached - return 503 to client
+                    log.error(
+                        "Supply cap reached during auto-mint for device=%s task=%s credits=%d",
+                        payload.device_id,
+                        task_id,
+                        credits,
+                    )
+                    raise HTTPException(
+                        status_code=503,
+                        detail=f"Supply cap reached: cannot mint {credits} credits",
+                    ) from exc
+                else:
+                    # Re-raise other exceptions for visibility
+                    log.error(
+                        "Auto-mint failed for device=%s task=%s credits=%d: %s",
+                        payload.device_id,
+                        task_id,
+                        credits,
+                        exc,
+                    )
+                    raise
 
         # Replenish task pool
         try:

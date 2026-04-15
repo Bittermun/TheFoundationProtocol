@@ -33,7 +33,7 @@ def _make_event(content_hash: str = "a" * 64) -> Dict[str, Any]:
     return {
         "id": "e" * 64,
         "pubkey": "p" * 64,
-        "created_at": 1_700_000_000,
+        "created_at": int(time.time()),  # Use current time to pass timestamp drift check
         "kind": TFP_CONTENT_KIND,
         "tags": [["t", "tfp"]],
         "content": json.dumps({"hash": content_hash, "title": "Test"}),
@@ -205,6 +205,7 @@ class TestMockedWebSocket:
             TFP_CONTENT_KIND,
             TFP_SEARCH_INDEX_KIND,
             TFP_CONTENT_ANNOUNCE_KIND,
+            30081,  # TFP_SUPPLY_GOSSIP_KIND
         ]
 
     def test_event_delivered_via_mocked_ws(self):

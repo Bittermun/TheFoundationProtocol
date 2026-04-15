@@ -52,6 +52,7 @@ logger = logging.getLogger(__name__)
 TFP_CONTENT_KIND: int = 30078  # HLT Merkle-root gossip (parameterized replaceable)
 TFP_SEARCH_INDEX_KIND: int = 30079  # semantic search index summary / delta gossip
 TFP_CONTENT_ANNOUNCE_KIND: int = 30080  # content-availability announcements
+TFP_SUPPLY_GOSSIP_KIND: int = 30081  # supply ledger gossip for multi-node coordination
 
 # ---------------------------------------------------------------------------
 # Secp256k1 field / order constants (simplified Schnorr, no external lib)
@@ -567,6 +568,55 @@ class NostrBridge:
             except Exception as exc:
                 logger.warning(
                     "Search index gossip publish failed (relay=%s): %s",
+                    self.relay_url,
+                    exc,
+                )
+        return event.to_dict()
+
+    def publish_supply_gossip(
+        self, total_minted: int, supply_cap: int
+    ) -> dict:
+        """
+        Publish a supply ledger gossip event for multi-node coordination.
+
+        This allows nodes to learn about each other's minted totals and
+        enforce the global supply cap across the network.
+
+        Args:
+            total_minted: Current total minted on this node
+            supply_cap: The global supply cap (21M)
+
+        Returns:
+            The published event dict (NIP-01 format).
+        """
+        ts = int(time.time())
+
+        tags: list = [
+            ["d", "tfp-supply"],
+            ["total_minted", str(total_minted)],
+            ["supply_cap", str(supply_cap)],
+        ]
+
+        content_payload = {
+            "total_minted": total_minted,
+            "supply_cap": supply_cap,
+            "published_at": ts,
+        }
+
+        event = NostrEvent.create(
+            privkey=self._privkey,
+            kind=TFP_SUPPLY_GOSSIP_KIND,
+            content=json.dumps(content_payload, separators=(",", ":")),
+            tags=tags,
+            created_at=ts,
+        )
+        self._history.append(event)
+        if not self.offline:
+            try:
+                self._send_to_relay(event)
+            except Exception as exc:
+                logger.warning(
+                    "Supply gossip publish failed (relay=%s): %s",
                     self.relay_url,
                     exc,
                 )
