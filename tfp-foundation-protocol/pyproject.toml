@@ -63,3 +63,14 @@ timeout = 30
 markers = [
     "concurrency: tests that exercise thread-safety and concurrent access patterns",
 ]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+strict_optional = true
+disable_error_code = ["union-attr"]
+# Note: union-attr errors on module-level Optional globals (_content_store, _task_store, etc.)
+# are temporarily disabled. Helper functions (_require_content_store(), etc.) are available
+# for incremental migration to type-safe access patterns. See CONTRIBUTING.md for details.

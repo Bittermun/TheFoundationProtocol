@@ -1375,7 +1375,7 @@ _clients: Dict[str, TFPClient] = {}
 _metrics: _Metrics = _Metrics()
 _demo_dir = Path(__file__).resolve().parent.parent / "demo"
 _blob_store: Optional[BlobStore] = None
-_peer_fallback = None  # type: Optional[_PeerFallback] — class defined below
+_peer_fallback: Optional["_PeerFallback"] = None  # class defined below
 _hlt: Optional[HierarchicalLexiconTree] = None
 _peer_secret: str = ""  # TFP_PEER_SECRET shared secret for /api/peer auth
 _runtime_mode: str = "demo"  # TFP_MODE=demo|production
@@ -1394,6 +1394,42 @@ _seen_nostr_ids_lock: threading.Lock = threading.Lock()
 # Exposed here so tests and the /health endpoint can read it directly.
 _app_ready: bool = False
 _startup_stage: str = "not_started"
+
+
+# Helper functions for type-narrowed access to Optional globals
+def _require_content_store() -> ContentStore:
+    """Return content_store, raising 503 if not initialized."""
+    if _content_store is None:
+        raise HTTPException(status_code=503, detail="Content store not initialized")
+    return _content_store
+
+
+def _require_device_registry() -> DeviceRegistry:
+    """Return device_registry, raising 503 if not initialized."""
+    if _device_registry is None:
+        raise HTTPException(status_code=503, detail="Device registry not initialized")
+    return _device_registry
+
+
+def _require_earn_log() -> EarnLog:
+    """Return earn_log, raising 503 if not initialized."""
+    if _earn_log is None:
+        raise HTTPException(status_code=503, detail="Earn log not initialized")
+    return _earn_log
+
+
+def _require_credit_store() -> CreditStore:
+    """Return credit_store, raising 503 if not initialized."""
+    if _credit_store is None:
+        raise HTTPException(status_code=503, detail="Credit store not initialized")
+    return _credit_store
+
+
+def _require_task_store() -> TaskStore:
+    """Return task_store, raising 503 if not initialized."""
+    if _task_store is None:
+        raise HTTPException(status_code=503, detail="Task store not initialized")
+    return _task_store
 
 
 class DemoNDNAdapter(NDNAdapter):
