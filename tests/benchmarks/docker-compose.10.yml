@@ -1,0 +1,352 @@
+version: '3.8'
+
+services:
+  # IPFS (Kubo) for content pinning and retrieval
+  tfp-ipfs:
+    image: ipfs/kubo:latest
+    container_name: tfp-ipfs
+    ports:
+      - "5001:5001"
+      - "8080:8080"
+      - "4001:4001"
+    volumes:
+      - ipfs_data:/data/ipfs
+      - ipfs_export:/export
+    healthcheck:
+      test: ["CMD", "ipfs", "id"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '1.0'
+    networks:
+      - tfp-network
+
+  # Redis for distributed rate limiting
+  redis:
+    image: redis:7-alpine
+    container_name: tfp-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+    networks:
+      - tfp-network
+
+  # TFP Node 1
+  tfp-node-1:
+    build: ../../tfp-foundation-protocol
+    container_name: tfp-node-1
+    ports:
+      - "8001:8000"
+    restart: unless-stopped
+    volumes:
+      - tfp_data_1:/data
+    environment:
+      - TFP_DB_PATH=/data/pib.db
+      - TFP_IPFS_API_URL=http://tfp-ipfs:5001
+      - TFP_REAL_ADAPTERS=1
+      - NOSTR_RELAY=${NOSTR_RELAY:-}
+      - TFP_EARN_RATE_MAX=${TFP_EARN_RATE_MAX:-10}
+      - TFP_EARN_RATE_WINDOW=${TFP_EARN_RATE_WINDOW:-60}
+      - PYTHONPATH=/app
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      - tfp-ipfs
+      - redis
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+    networks:
+      - tfp-network
+
+  # TFP Node 2
+  tfp-node-2:
+    build: ../../tfp-foundation-protocol
+    container_name: tfp-node-2
+    ports:
+      - "8002:8000"
+    restart: unless-stopped
+    volumes:
+      - tfp_data_2:/data
+    environment:
+      - TFP_DB_PATH=/data/pib.db
+      - TFP_IPFS_API_URL=http://tfp-ipfs:5001
+      - TFP_REAL_ADAPTERS=1
+      - NOSTR_RELAY=${NOSTR_RELAY:-}
+      - TFP_EARN_RATE_MAX=${TFP_EARN_RATE_MAX:-10}
+      - TFP_EARN_RATE_WINDOW=${TFP_EARN_RATE_WINDOW:-60}
+      - PYTHONPATH=/app
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      - tfp-ipfs
+      - redis
+    networks:
+      - tfp-network
+
+  # TFP Node 3
+  tfp-node-3:
+    build: ../../tfp-foundation-protocol
+    container_name: tfp-node-3
+    ports:
+      - "8003:8000"
+    restart: unless-stopped
+    volumes:
+      - tfp_data_3:/data
+    environment:
+      - TFP_DB_PATH=/data/pib.db
+      - TFP_IPFS_API_URL=http://tfp-ipfs:5001
+      - TFP_REAL_ADAPTERS=1
+      - NOSTR_RELAY=${NOSTR_RELAY:-}
+      - TFP_EARN_RATE_MAX=${TFP_EARN_RATE_MAX:-10}
+      - TFP_EARN_RATE_WINDOW=${TFP_EARN_RATE_WINDOW:-60}
+      - PYTHONPATH=/app
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      - tfp-ipfs
+      - redis
+    networks:
+      - tfp-network
+
+  # TFP Node 4
+  tfp-node-4:
+    build: ../../tfp-foundation-protocol
+    container_name: tfp-node-4
+    ports:
+      - "8004:8000"
+    restart: unless-stopped
+    volumes:
+      - tfp_data_4:/data
+    environment:
+      - TFP_DB_PATH=/data/pib.db
+      - TFP_IPFS_API_URL=http://tfp-ipfs:5001
+      - TFP_REAL_ADAPTERS=1
+      - NOSTR_RELAY=${NOSTR_RELAY:-}
+      - TFP_EARN_RATE_MAX=${TFP_EARN_RATE_MAX:-10}
+      - TFP_EARN_RATE_WINDOW=${TFP_EARN_RATE_WINDOW:-60}
+      - PYTHONPATH=/app
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      - tfp-ipfs
+      - redis
+    networks:
+      - tfp-network
+
+  # TFP Node 5
+  tfp-node-5:
+    build: ../../tfp-foundation-protocol
+    container_name: tfp-node-5
+    ports:
+      - "8005:8000"
+    restart: unless-stopped
+    volumes:
+      - tfp_data_5:/data
+    environment:
+      - TFP_DB_PATH=/data/pib.db
+      - TFP_IPFS_API_URL=http://tfp-ipfs:5001
+      - TFP_REAL_ADAPTERS=1
+      - NOSTR_RELAY=${NOSTR_RELAY:-}
+      - TFP_EARN_RATE_MAX=${TFP_EARN_RATE_MAX:-10}
+      - TFP_EARN_RATE_WINDOW=${TFP_EARN_RATE_WINDOW:-60}
+      - PYTHONPATH=/app
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      - tfp-ipfs
+      - redis
+    networks:
+      - tfp-network
+
+  # TFP Node 6
+  tfp-node-6:
+    build: ../../tfp-foundation-protocol
+    container_name: tfp-node-6
+    ports:
+      - "8006:8000"
+    restart: unless-stopped
+    volumes:
+      - tfp_data_6:/data
+    environment:
+      - TFP_DB_PATH=/data/pib.db
+      - TFP_IPFS_API_URL=http://tfp-ipfs:5001
+      - TFP_REAL_ADAPTERS=1
+      - NOSTR_RELAY=${NOSTR_RELAY:-}
+      - TFP_EARN_RATE_MAX=${TFP_EARN_RATE_MAX:-10}
+      - TFP_EARN_RATE_WINDOW=${TFP_EARN_RATE_WINDOW:-60}
+      - PYTHONPATH=/app
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      - tfp-ipfs
+      - redis
+    networks:
+      - tfp-network
+
+  # TFP Node 7
+  tfp-node-7:
+    build: ../../tfp-foundation-protocol
+    container_name: tfp-node-7
+    ports:
+      - "8007:8000"
+    restart: unless-stopped
+    volumes:
+      - tfp_data_7:/data
+    environment:
+      - TFP_DB_PATH=/data/pib.db
+      - TFP_IPFS_API_URL=http://tfp-ipfs:5001
+      - TFP_REAL_ADAPTERS=1
+      - NOSTR_RELAY=${NOSTR_RELAY:-}
+      - TFP_EARN_RATE_MAX=${TFP_EARN_RATE_MAX:-10}
+      - TFP_EARN_RATE_WINDOW=${TFP_EARN_RATE_WINDOW:-60}
+      - PYTHONPATH=/app
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      - tfp-ipfs
+      - redis
+    networks:
+      - tfp-network
+
+  # TFP Node 8
+  tfp-node-8:
+    build: ../../tfp-foundation-protocol
+    container_name: tfp-node-8
+    ports:
+      - "8008:8000"
+    restart: unless-stopped
+    volumes:
+      - tfp_data_8:/data
+    environment:
+      - TFP_DB_PATH=/data/pib.db
+      - TFP_IPFS_API_URL=http://tfp-ipfs:5001
+      - TFP_REAL_ADAPTERS=1
+      - NOSTR_RELAY=${NOSTR_RELAY:-}
+      - TFP_EARN_RATE_MAX=${TFP_EARN_RATE_MAX:-10}
+      - TFP_EARN_RATE_WINDOW=${TFP_EARN_RATE_WINDOW:-60}
+      - PYTHONPATH=/app
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      - tfp-ipfs
+      - redis
+    networks:
+      - tfp-network
+
+  # TFP Node 9
+  tfp-node-9:
+    build: ../../tfp-foundation-protocol
+    container_name: tfp-node-9
+    ports:
+      - "8009:8000"
+    restart: unless-stopped
+    volumes:
+      - tfp_data_9:/data
+    environment:
+      - TFP_DB_PATH=/data/pib.db
+      - TFP_IPFS_API_URL=http://tfp-ipfs:5001
+      - TFP_REAL_ADAPTERS=1
+      - NOSTR_RELAY=${NOSTR_RELAY:-}
+      - TFP_EARN_RATE_MAX=${TFP_EARN_RATE_MAX:-10}
+      - TFP_EARN_RATE_WINDOW=${TFP_EARN_RATE_WINDOW:-60}
+      - PYTHONPATH=/app
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      - tfp-ipfs
+      - redis
+    networks:
+      - tfp-network
+
+  # TFP Node 10
+  tfp-node-10:
+    build: ../../tfp-foundation-protocol
+    container_name: tfp-node-10
+    ports:
+      - "8010:8000"
+    restart: unless-stopped
+    volumes:
+      - tfp_data_10:/data
+    environment:
+      - TFP_DB_PATH=/data/pib.db
+      - TFP_IPFS_API_URL=http://tfp-ipfs:5001
+      - TFP_REAL_ADAPTERS=1
+      - NOSTR_RELAY=${NOSTR_RELAY:-}
+      - TFP_EARN_RATE_MAX=${TFP_EARN_RATE_MAX:-10}
+      - TFP_EARN_RATE_WINDOW=${TFP_EARN_RATE_WINDOW:-60}
+      - PYTHONPATH=/app
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      - tfp-ipfs
+      - redis
+    networks:
+      - tfp-network
+
+networks:
+  tfp-network:
+    driver: bridge
+
+volumes:
+  ipfs_data:
+  ipfs_export:
+  redis_data:
+  tfp_data_1:
+  tfp_data_2:
+  tfp_data_3:
+  tfp_data_4:
+  tfp_data_5:
+  tfp_data_6:
+  tfp_data_7:
+  tfp_data_8:
+  tfp_data_9:
+  tfp_data_10:
