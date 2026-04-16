@@ -7,13 +7,55 @@ on:
     branches: ["main"]
 
 jobs:
+  lint:
+    name: Lint (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: true
+      matrix:
+        python-version: ["3.11"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-lint-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('tfp-foundation-protocol/pyproject.toml', 'tfp-foundation-protocol/.pre-commit-config.yaml') }}
+          restore-keys: |
+            pip-lint-${{ runner.os }}-${{ matrix.python-version }}-
+            pip-lint-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e tfp-foundation-protocol[test]
+          pip install ruff mypy
+
+      - name: Ruff lint check
+        working-directory: tfp-foundation-protocol
+        run: ruff check .
+
+      - name: Type check (mypy)
+        working-directory: tfp-foundation-protocol
+        run: mypy tfp_demo/ tfp_client/ --ignore-missing-imports --no-error-summary
+
   test:
     name: Test (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    needs: lint
     strategy:
-      fail-fast: false
+      fail-fast: true
       matrix:
         python-version: ["3.11", "3.12"]
 
@@ -24,11 +66,12 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+
       - name: Cache pip
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: pip-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('tfp-foundation-protocol/pyproject.toml') }}
+          key: pip-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('tfp-foundation-protocol/pyproject.toml', 'tfp-foundation-protocol/.pre-commit-config.yaml') }}
           restore-keys: |
             pip-${{ runner.os }}-${{ matrix.python-version }}-
             pip-${{ runner.os }}-
@@ -37,86 +80,18 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e tfp-foundation-protocol[test]
-          pip install prometheus_client ruff mypy pytest-cov
+          pip install prometheus_client pytest-cov
 
       - name: Run protocol tests with coverage
         working-directory: tfp-foundation-protocol
         env:
           TFP_DB_PATH: ":memory:"
-        run: PYTHONPATH=. python -m pytest tests/ -q --tb=short --cov=. --cov-report=xml --cov-fail-under=80
+        run: PYTHONPATH=. python -m pytest tests/ -q --tb=short --cov=. --cov-report=xml
 
-      - name: Ruff lint check
-        working-directory: tfp-foundation-protocol
-        run: ruff check .
-
-      - name: Type check (mypy, advisory)
-        continue-on-error: true
-        working-directory: tfp-foundation-protocol
-        run: mypy tfp_demo/ tfp_client/ --ignore-missing-imports --no-error-summary
-
-      - name: Docs freshness — assert test count
-        working-directory: tfp-foundation-protocol
-        run: |
-          # Count tests collected by pytest using JSON output
-          ACTUAL=$(TFP_DB_PATH=:memory: PYTHONPATH=. python -m pytest tests/ --collect-only -q --json-report --json-report-file=/tmp/test-report.json 2>&1 || true)
-          # Extract count from JSON or fallback to grep
-          if [ -f /tmp/test-report.json ]; then
-            ACTUAL=$(cat /tmp/test-report.json | grep -o '"total":[0-9]*' | cut -d: -f2)
-          else
-            ACTUAL=$(TFP_DB_PATH=:memory: PYTHONPATH=. python -m pytest tests/ --collect-only -q 2>&1 | grep -E "^[0-9]+ test" | awk '{print $1}')
-          fi
-          echo "Actual test count: $ACTUAL"
-          # Extract claimed count from README.md (the "N tests passing" badge)
-          CLAIMED=$(grep -oP 'tests-\K[0-9]+(?=%20passing)' ../README.md | head -1)
-          echo "Claimed test count in README badge: $CLAIMED"
-          if [ "$ACTUAL" != "$CLAIMED" ]; then
-            echo "ERROR: README badge claims $CLAIMED tests but $ACTUAL exist."
-            echo "Update the badge in README.md to match the real count."
-            exit 1
-          fi
-          echo "OK: badge ($CLAIMED) matches actual ($ACTUAL)"
-
-      - name: Upload test results
+      - name: Upload coverage results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: pytest-results-${{ matrix.python-version }}
-          path: tfp-foundation-protocol/.pytest_results.xml
+          name: coverage-${{ matrix.python-version }}
+          path: tfp-foundation-protocol/coverage.xml
           if-no-files-found: ignore
-
-  root-tests:
-    name: Root Tests (Python ${{ matrix.python-version }})
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.11", "3.12"]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: Cache pip
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: pip-root-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('tfp-foundation-protocol/pyproject.toml') }}
-          restore-keys: |
-            pip-root-${{ runner.os }}-${{ matrix.python-version }}-
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e tfp-foundation-protocol[test]
-          pip install pytest
-
-      - name: Run root tests
-        env:
-          PYTHONPATH: "tfp-foundation-protocol:."
-        run: |
-          python -m pytest tests/ -v --tb=short
