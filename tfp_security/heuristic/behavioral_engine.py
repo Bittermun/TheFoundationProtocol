@@ -527,7 +527,7 @@ class BehavioralEngine:
         elif velocity > burst_thresh:
             score += 0.4
         elif velocity > self.NORMAL_VELOCITY:
-            score += 0.1
+            score += 0.15
 
         # Burst factor score
         if burst > 3.0:  # High variance

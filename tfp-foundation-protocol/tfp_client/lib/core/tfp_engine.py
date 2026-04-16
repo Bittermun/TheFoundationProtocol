@@ -12,7 +12,7 @@ from ..compute.task_executor import (
 from ..credit.ledger import CreditLedger, Receipt, SupplyCapError
 from ..fountain.adapter import RaptorQAdapter
 from ..identity.puf_enclave.enclave import PUFEnclave
-from ..lexicon.adapter import Content, LexiconAdapter
+from ..lexicon.adapter import Content
 from ..lexicon.adapter_real import RealLexiconAdapter
 from ..ndn.adapter import NDNAdapter
 from ..zkp.adapter import ZKPAdapter

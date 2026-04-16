@@ -133,11 +133,13 @@ class RealNDNAdapter:
                 shard_idx += 1
             if shards:
                 combined = b"".join(shards)
-                log.debug(f"Retrieved {len(shards)} shards from blob_store for {root_hash}")
+                log.debug(
+                    f"Retrieved {len(shards)} shards from blob_store for {root_hash}"
+                )
                 return Data(name=interest.name, content=combined)
             elif shard_idx >= max_shards:
                 log.warning(f"Shard iteration exceeded limit for {root_hash}")
-        
+
         # Fall back to mock content
         content = self._fallback_content or (
             b"fallback_shard_" + interest.name.encode()

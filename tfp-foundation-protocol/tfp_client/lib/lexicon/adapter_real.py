@@ -8,27 +8,20 @@ Uses HierarchicalLexiconTree for domain-aware reconstruction and
 semantic search capabilities.
 """
 
-import dataclasses
 import hashlib
 import logging
 from typing import Optional
 
-from ..lexicon.hlt.tree import HierarchicalLexiconTree, LexiconNode
+from .adapter import Content
+from ..lexicon.hlt.tree import HierarchicalLexiconTree
 
 log = logging.getLogger(__name__)
-
-
-@dataclasses.dataclass
-class Content:
-    root_hash: str
-    data: bytes
-    metadata: dict
 
 
 class RealLexiconAdapter:
     """
     Real Lexicon adapter with HierarchicalLexiconTree integration.
-    
+
     Provides semantic reconstruction by:
     1. Selecting appropriate domain lexicon based on content tags
     2. Applying adapter deltas for precision reconstruction
@@ -38,7 +31,7 @@ class RealLexiconAdapter:
     def __init__(self, hlt: Optional[HierarchicalLexiconTree] = None):
         """
         Initialize Lexicon adapter.
-        
+
         Args:
             hlt: HierarchicalLexiconTree instance. If None, creates a new one.
         """
@@ -50,24 +43,24 @@ class RealLexiconAdapter:
     ) -> Content:
         """
         Reconstruct content with semantic awareness.
-        
+
         For the current implementation, this performs basic reconstruction
         with metadata enrichment. Future versions would apply actual
         semantic transformations based on the HLT.
-        
+
         Args:
             file_bytes: Raw file bytes from RaptorQ decode
             tags: Content tags for domain selection
             model: Optional AI model for advanced reconstruction
-            
+
         Returns:
             Content object with semantic metadata
         """
         root_hash = hashlib.sha3_256(file_bytes).hexdigest()
-        
+
         # Select domain based on tags
         domain = self._select_domain(tags or [])
-        
+
         # Build semantic metadata
         domain_info = self.hlt.get_latest_version(domain) or {}
         metadata = {
@@ -76,12 +69,12 @@ class RealLexiconAdapter:
             "domain_version": domain_info.get("version"),
             "semantic_hash": self._compute_semantic_hash(file_bytes, domain),
         }
-        
+
         # In a full implementation, we would:
         # 1. Apply domain-specific lexicon transformations
         # 2. Use adapter deltas for precision reconstruction
         # 3. Validate reconstruction against HLT constraints
-        
+
         # For now, return the bytes with enriched metadata
         return Content(
             root_hash=root_hash,
@@ -92,10 +85,10 @@ class RealLexiconAdapter:
     def _select_domain(self, tags: list) -> str:
         """
         Select appropriate domain from HLT based on tags.
-        
+
         Args:
             tags: Content tags
-            
+
         Returns:
             Domain name string
         """
@@ -111,7 +104,7 @@ class RealLexiconAdapter:
             "code": "technical",
             "technical": "technical",
         }
-        
+
         for tag in tags:
             # Handle non-string tags gracefully
             if not isinstance(tag, str):
@@ -119,18 +112,18 @@ class RealLexiconAdapter:
             tag_lower = tag.lower()
             if tag_lower in tag_domain_map:
                 return tag_domain_map[tag_lower]
-        
+
         # Default to technical domain
         return "technical"
 
     def _compute_semantic_hash(self, data: bytes, domain: str) -> str:
         """
         Compute domain-aware semantic hash.
-        
+
         Args:
             data: Content data
             domain: Selected domain
-            
+
         Returns:
             Semantic hash string
         """
@@ -144,12 +137,12 @@ class RealLexiconAdapter:
     ) -> list:
         """
         Perform semantic search using HLT.
-        
+
         Args:
             query: Search query
             domain: Optional domain filter
             limit: Maximum results
-            
+
         Returns:
             List of matching content hashes with scores
         """
@@ -158,7 +151,7 @@ class RealLexiconAdapter:
         # 1. Embed query using domain-specific lexicon
         # 2. Search HLT for similar content
         # 3. Return ranked results with similarity scores
-        
+
         log.warning("Semantic search not fully implemented yet")
         return []
 
@@ -167,13 +160,13 @@ class RealLexiconAdapter:
     ) -> str:
         """
         Add a domain lexicon to the HLT.
-        
+
         Args:
             name: Domain name
             version: Version string
             content_hash: Hash of lexicon content
             tags: Optional tags
-            
+
         Returns:
             Node ID of created domain
         """
@@ -188,13 +181,13 @@ class RealLexiconAdapter:
     ) -> str:
         """
         Add an adapter delta to a domain.
-        
+
         Args:
             domain_id: Parent domain node ID
             version: Adapter version
             delta_content: Binary delta data
             precision_anchor: Anchor point for precise application
-            
+
         Returns:
             Node ID of created adapter
         """

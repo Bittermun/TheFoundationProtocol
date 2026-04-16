@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "tfp"
 version = "3.1.1"
 description = "The Foundation Protocol - decentralized content and compute protocol for global information access"
-readme = "../README.md"
+readme = "IMPLEMENTATION_SUMMARY.md"
 requires-python = ">=3.11"
 license = {text = "Apache-2.0"}
 authors = [
@@ -25,13 +25,6 @@ classifiers = [
     "Topic :: System :: Distributed Computing",
 ]
 
-[project.urls]
-Homepage = "https://github.com/Bittermun/TheFoundationProtocol"
-Repository = "https://github.com/Bittermun/TheFoundationProtocol"
-Documentation = "https://github.com/Bittermun/TheFoundationProtocol/blob/main/README.md"
-"Bug Tracker" = "https://github.com/Bittermun/TheFoundationProtocol/issues"
-Changelog = "https://github.com/Bittermun/TheFoundationProtocol/blob/main/CHANGELOG.md"
-
 dependencies = [
     "fastapi>=0.115.0",
     "uvicorn>=0.30.0",
@@ -39,6 +32,13 @@ dependencies = [
     "websockets>=12.0",
     "prometheus_client>=0.20.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/Bittermun/TheFoundationProtocol"
+Repository = "https://github.com/Bittermun/TheFoundationProtocol"
+Documentation = "https://github.com/Bittermun/TheFoundationProtocol/blob/main/README.md"
+"Bug Tracker" = "https://github.com/Bittermun/TheFoundationProtocol/issues"
+Changelog = "https://github.com/Bittermun/TheFoundationProtocol/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 test = [
