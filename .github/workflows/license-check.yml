@@ -20,41 +20,45 @@ jobs:
         run: |
           #!/bin/bash
           set -e
-          
+
           MISSING=0
           CHECKED=0
-          
+
           # Check Python files for Apache-2.0 license header
           while IFS= read -r -d '' file; do
             # Skip __init__.py files that are often empty
             if [[ "$(basename "$file")" == "__init__.py" ]]; then
               continue
             fi
-            
+
             CHECKED=$((CHECKED + 1))
-            
+
             # Check for license header
             if ! head -10 "$file" | grep -qE "(SPDX-License-Identifier|Apache License|Apache-2.0)"; then
               echo "❌ Missing license header: $file"
               MISSING=$((MISSING + 1))
             fi
           done < <(find . -name "*.py" -type f ! -path "./.git/*" ! -path "./__pycache__/*" ! -path "./.venv/*" -print0)
-          
+
           echo ""
           echo "Checked $CHECKED Python files"
           echo "Missing headers: $MISSING"
-          
+
           echo ""
           echo "To fix, add this header to the top of each file:"
           echo '# SPDX-License-Identifier: Apache-2.0'
           echo '# Copyright (c) 2026 The Foundation Protocol Contributors'
           echo ""
-          
-          # Transition period: warn but don't block until all existing files are fixed
+
+          # License headers are required - block if missing
           if [ $MISSING -gt 0 ]; then
-            echo "⚠️ WARNING: $MISSING files missing headers (non-blocking during transition)"
+            echo "❌ ERROR: $MISSING files missing license headers"
             echo "📊 Progress: $((CHECKED - MISSING))/$CHECKED files compliant"
-            exit 0
+            echo ""
+            echo "To fix, add this header to each file:"
+            echo '# SPDX-License-Identifier: Apache-2.0'
+            echo '# Copyright (c) 2026 The Foundation Protocol Contributors'
+            exit 1
           fi
-          
+
           echo "✅ All files have license headers"

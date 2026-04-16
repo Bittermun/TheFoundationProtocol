@@ -3,18 +3,20 @@
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-app = 'tfp-demo'
+app = 'tfp-demo-falling-dawn-4348'
 primary_region = 'iad'
 
 [build]
   dockerfile = 'Dockerfile'
 
 [env]
-  TFP_MODE = 'demo'
-  TFP_DB_PATH = '/data/tfp.db'
   NOSTR_RELAY_URL = 'wss://relay.damus.io'
+  TFP_DB_PATH = '/data/tfp.db'
+  TFP_IPFS_API_URL = ''
+  TFP_MODE = 'demo'
+  TFP_REDIS_URL = ''
 
-[mounts]
+[[mounts]]
   source = 'tfp_data'
   destination = '/data'
 

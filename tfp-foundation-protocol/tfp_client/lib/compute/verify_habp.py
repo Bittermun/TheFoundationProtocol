@@ -157,7 +157,7 @@ class HABPVerifier:
                 confidence=1.0,
                 matching_devices=[proof.device_id],
                 conflicting_devices=[],
-                credit_weight=1.5,  # TEE gets bonus
+                credit_weight=1.0,  # No TEE bonus - eliminates forgery vector
                 method="tee",
             )
 

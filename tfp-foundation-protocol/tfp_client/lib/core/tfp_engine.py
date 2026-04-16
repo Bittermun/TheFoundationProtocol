@@ -12,7 +12,8 @@ from ..compute.task_executor import (
 from ..credit.ledger import CreditLedger, Receipt, SupplyCapError
 from ..fountain.adapter import RaptorQAdapter
 from ..identity.puf_enclave.enclave import PUFEnclave
-from ..lexicon.adapter import Content, LexiconAdapter
+from ..lexicon.adapter import Content
+from ..lexicon.adapter_real import RealLexiconAdapter
 from ..ndn.adapter import NDNAdapter
 from ..zkp.adapter import ZKPAdapter
 
@@ -33,10 +34,11 @@ class TFPClient:
         puf=None,
         puf_expected_seed: bytes = None,
     ):
+        # Use provided adapters or defaults
         self.ndn = ndn or NDNAdapter()
-        self.raptorq = raptorq or RaptorQAdapter()
-        self.zkp = zkp or ZKPAdapter()
-        self.lexicon = lexicon or LexiconAdapter()
+        self.raptorq = raptorq or RaptorQAdapter()  # Keep mock for now, can be upgraded
+        self.zkp = zkp or ZKPAdapter()  # Keep mock for now
+        self.lexicon = lexicon or RealLexiconAdapter()  # Use real by default
         self.ledger = ledger or CreditLedger()
         self.preprocessor = preprocessor
         self.puf = puf

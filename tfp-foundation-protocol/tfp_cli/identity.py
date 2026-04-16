@@ -8,9 +8,11 @@ Secure identity storage with encryption, backup, and recovery.
 Replaces plaintext ~/.tfp/identity.json with encrypted storage.
 """
 
+import datetime
 import json
 import hashlib
 import secrets
+import time as _time
 from pathlib import Path
 from typing import Optional, Dict, Any
 
@@ -231,7 +233,7 @@ def load_or_create_identity(
     identities[device_id] = {
         "puf_entropy_hex": puf_entropy.hex(),
         "mnemonic_hash": hashlib.sha256(mnemonic.encode()).hexdigest()[:8],
-        "created_at": __import__("time").time(),
+        "created_at": _time.time(),
     }
 
     # Encrypt and save
@@ -250,7 +252,7 @@ def _create_backup(identity_path: Path, passphrase: str) -> None:
     backup_dir = _get_backup_dir()
     backup_dir.mkdir(parents=True, exist_ok=True)
 
-    timestamp = __import__("datetime").datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     backup_path = backup_dir / f"identity_{timestamp}.enc"
 
     try:
@@ -295,7 +297,7 @@ def recover_identity(
         device_id: {
             "puf_entropy_hex": puf_entropy.hex(),
             "recovered_from_mnemonic": True,
-            "recovered_at": __import__("time").time(),
+            "recovered_at": _time.time(),
         }
     }
 
@@ -334,7 +336,7 @@ def export_identity(passphrase: str, output_path: Optional[str] = None) -> str:
     if output_path is None:
         backup_dir = _get_backup_dir()
         backup_dir.mkdir(parents=True, exist_ok=True)
-        timestamp = __import__("datetime").datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         output_path = str(backup_dir / f"export_{timestamp}.enc")
 
     Path(output_path).write_bytes(encrypted_data)

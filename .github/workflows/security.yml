@@ -39,7 +39,8 @@ jobs:
         run: bandit -r tfp_core/ tfp_security/ tfp_transport/ tfp-foundation-protocol/tfp_client/lib/security/ tfp-foundation-protocol/tfp_demo/ -c bandit.ini --severity-level=medium
 
       - name: Safety Check
-        run: safety scan --full-report || true
+        continue-on-error: true
+        run: safety check --full-report
 
       - name: Semgrep
         run: semgrep --config=semgrep.yml --error --severity=ERROR

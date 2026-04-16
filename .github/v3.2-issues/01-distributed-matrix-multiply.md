@@ -27,7 +27,7 @@ class MatrixShardTask:
 ```
 
 ### Phase 2: Shard Distribution (Complexity: High)
-**Files:** 
+**Files:**
 - `tfp_demo/server.py` — modify `/api/task` to generate shard sub-tasks
 - `tfp_client/lib/core/tfp_engine.py` — handle shard aggregation
 
@@ -47,13 +47,13 @@ class WorkerPool:
     def __init__(self, device_id: str, api_endpoint: str):
         self.device_id = device_id
         self.api = api_endpoint
-        
+
     def join_pool(self, capabilities: DeviceCapabilities):
         """Register device with its compute capacity."""
-        
+
     def poll_shard_tasks(self) -> Optional[MatrixShardTask]:
         """Poll for available shards matching device capability."""
-        
+
     def submit_shard_result(self, shard_id: str, result: Matrix) -> Receipt:
         """Submit computed shard, receive partial credit receipt."""
 ```

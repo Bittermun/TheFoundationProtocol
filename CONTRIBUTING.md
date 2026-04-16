@@ -52,6 +52,17 @@ TFP_DB_PATH=:memory: PYTHONPATH=. python -m pytest tests/ -q   # 749+ tests (pro
 - Without the API key, the workflow falls back to basic `safety check` (non-blocking)
 - All security jobs have a 10-minute timeout to prevent hung CI runs
 
+### CI Triage Checklist (fast path)
+Use this order to resolve CI failures quickly and keep future PRs easy to debug:
+1. `pip install -e tfp-foundation-protocol[test]` (catches packaging/pyproject issues first)
+2. `cd tfp-foundation-protocol && pre-commit run --all-files` (matches Security workflow gate)
+3. `cd tfp-foundation-protocol && TFP_DB_PATH=:memory: PYTHONPATH=. python -m pytest tests/ -q`
+4. `TFP_DB_PATH=:memory: PYTHONPATH=tfp-foundation-protocol:. python -m pytest tests/ -v --tb=short`
+5. `ruff check tfp-foundation-protocol/`
+6. `cd tfp-foundation-protocol && mypy tfp_demo/ tfp_client/ --ignore-missing-imports --no-error-summary`
+
+When CI fails, fix the first failing stage in this order before moving to later steps.
+
 ---
 
 ## Contribution Areas (High Impact)

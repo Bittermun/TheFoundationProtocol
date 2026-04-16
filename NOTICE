@@ -1,0 +1,15 @@
+The Foundation Protocol (TFP)
+Copyright (c) 2026 The Foundation Protocol Contributors
+
+This product includes software developed by the following:
+
+- FastAPI (MIT License) - https://fastapi.tiangolo.com/
+- Python NDN (Apache-2.0 License) - https://github.com/named-data/python-ndn
+- WebSockets (MIT License) - https://github.com/aaugustin/websockets
+- Prometheus Client (BSD 3-Clause) - https://github.com/prometheus/client_python
+- Pydantic (MIT License) - https://github.com/pydantic/pydantic
+
+See individual package licenses in the repository for full details.
+
+This software is licensed under the Apache License, Version 2.0.
+See LICENSE file for full text.

@@ -10,7 +10,10 @@ import os
 import re
 import sqlite3
 import threading
+
 import time
+
+from tfp_demo.database import Database, get_database_from_env
 import urllib.parse
 import urllib.request
 from contextlib import asynccontextmanager
@@ -57,6 +60,9 @@ from tfp_client.lib.reconstruction.template_assembler import (
 
 _DEFAULT_DB_PATH = Path(__file__).resolve().parent.parent / "pib.db"
 
+# Database instance (initialized in lifespan)
+_db: Optional[Database] = None
+
 # Configure logging explicitly for security monitoring
 logging.basicConfig(
     level=logging.INFO,
@@ -85,6 +91,23 @@ class StoredContent:
 # ---------------------------------------------------------------------------
 
 
+_SAFE_HASH_RE = re.compile(r"^[a-zA-Z0-9_-]{1,256}$")
+
+
+def _validate_hash_component(value: str) -> str:
+    """Reject path-traversal payloads in hash-derived filesystem keys.
+
+    Allows alphanumeric characters, hyphens, and underscores.  Blocks
+    slashes, dots, spaces, and other characters that could be used for
+    directory traversal or filesystem abuse.
+    """
+    if not _SAFE_HASH_RE.match(value):
+        raise ValueError(
+            f"invalid hash component (must be 1-256 alphanumeric/hyphen/underscore chars): {value!r}"
+        )
+    return value
+
+
 class BlobStore:
     """
     Manages raw content blobs separately from the SQLite metadata tables.
@@ -106,6 +129,7 @@ class BlobStore:
 
     def put(self, root_hash: str, data: bytes) -> str:
         """Write blob data; return the opaque key for later retrieval."""
+        _validate_hash_component(root_hash)
         if self._dir is not None:
             path = self._dir / root_hash
             path.write_bytes(data)
@@ -116,26 +140,36 @@ class BlobStore:
     def get(self, key: str) -> Optional[bytes]:
         """Read blob by key; return None if not found."""
         if self._dir is not None:
-            p = Path(key)
+            p = Path(key).resolve()
+            if not str(p).startswith(str(self._dir.resolve())):
+                log.warning("BlobStore.get: path traversal blocked: %s", key)
+                return None
             return p.read_bytes() if p.exists() else None
         return self._mem.get(key)
 
     def exists(self, key: str) -> bool:
         if self._dir is not None:
-            return Path(key).exists()
+            p = Path(key).resolve()
+            if not str(p).startswith(str(self._dir.resolve())):
+                return False
+            return p.exists()
         return key in self._mem
 
     def get_size(self, key: str) -> int:
         """Return byte size of the stored blob; 0 if not found."""
         if self._dir is not None:
-            p = Path(key)
+            p = Path(key).resolve()
+            if not str(p).startswith(str(self._dir.resolve())):
+                return 0
             return p.stat().st_size if p.exists() else 0
         return len(self._mem.get(key, b""))
 
     def open_stream(self, key: str, chunk_size: int = 65536) -> Iterator[bytes]:
         """Yield blob bytes in *chunk_size* chunks (O(1) memory in filesystem mode)."""
         if self._dir is not None:
-            p = Path(key)
+            p = Path(key).resolve()
+            if not str(p).startswith(str(self._dir.resolve())):
+                return
             if p.exists():
                 with open(p, "rb") as f:
                     while True:
@@ -150,6 +184,7 @@ class BlobStore:
 
     def put_shard(self, root_hash: str, shard_idx: int, data: bytes) -> str:
         """Write a shard; return its opaque key."""
+        _validate_hash_component(root_hash)
         shard_name = f"shard_{shard_idx:04d}"
         if self._dir is not None:
             shard_dir = self._dir / f"{root_hash}.shards"
@@ -163,6 +198,7 @@ class BlobStore:
 
     def get_shard(self, root_hash: str, shard_idx: int) -> Optional[bytes]:
         """Read shard by root_hash and index; return None if not found."""
+        _validate_hash_component(root_hash)
         shard_name = f"shard_{shard_idx:04d}"
         if self._dir is not None:
             path = self._dir / f"{root_hash}.shards" / shard_name
@@ -172,6 +208,7 @@ class BlobStore:
 
     def shard_count(self, root_hash: str) -> int:
         """Return the number of shards stored for *root_hash*."""
+        _validate_hash_component(root_hash)
         if self._dir is not None:
             shard_dir = self._dir / f"{root_hash}.shards"
             if not shard_dir.exists():
@@ -591,13 +628,26 @@ class EarnLog:
 
     def _init_schema(self) -> None:
         with self._db_lock:
+            # Enable foreign key enforcement for referential integrity
+            self._conn.execute("PRAGMA foreign_keys = ON")
+            # Check if devices table exists before adding FK constraint
+            # (for test compatibility where EarnLog may be created without DeviceRegistry)
+            devices_exists = self._conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='devices'"
+            ).fetchone()
+            fk_clause = (
+                ", FOREIGN KEY (device_id) REFERENCES devices(device_id) ON DELETE CASCADE"
+                if devices_exists
+                else ""
+            )
             self._conn.execute(
-                """
+                f"""
                 CREATE TABLE IF NOT EXISTS earn_log (
                     device_id TEXT NOT NULL,
-                    task_id   TEXT NOT NULL,
+                    task_id TEXT NOT NULL,
                     earned_at REAL NOT NULL,
                     PRIMARY KEY (device_id, task_id)
+                    {fk_clause}
                 )
                 """
             )
@@ -613,8 +663,15 @@ class EarnLog:
                 )
                 self._conn.commit()
                 return True
-            except sqlite3.IntegrityError:
-                return False
+            except sqlite3.IntegrityError as exc:
+                # Check if it's a UNIQUE constraint violation (duplicate key)
+                if (
+                    "UNIQUE constraint" in str(exc)
+                    or "duplicate key" in str(exc).lower()
+                ):
+                    return False
+                # Re-raise other IntegrityErrors (e.g., FK violations)
+                raise
 
 
 # ---------------------------------------------------------------------------
@@ -637,13 +694,26 @@ class CreditStore:
 
     def _init_schema(self) -> None:
         with self._db_lock:
+            # Enable foreign key enforcement for referential integrity
+            self._conn.execute("PRAGMA foreign_keys = ON")
+            # Check if devices table exists before adding FK constraint
+            # (for test compatibility where CreditStore may be created without DeviceRegistry)
+            devices_exists = self._conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='devices'"
+            ).fetchone()
+            fk_clause = (
+                ", FOREIGN KEY (device_id) REFERENCES devices(device_id) ON DELETE CASCADE"
+                if devices_exists
+                else ""
+            )
             self._conn.execute(
-                """
+                f"""
                 CREATE TABLE IF NOT EXISTS credit_ledger (
                     device_id             TEXT PRIMARY KEY,
                     balance               INTEGER NOT NULL DEFAULT 0,
                     chain_json            TEXT    NOT NULL DEFAULT '[]',
                     unspent_receipts_json TEXT    NOT NULL DEFAULT '[]'
+                    {fk_clause}
                 )
                 """
             )
@@ -728,8 +798,20 @@ class TaskStore:
 
     def _init_schema(self) -> None:
         with self._db_lock:
+            # Enable foreign key enforcement for referential integrity
+            self._conn.execute("PRAGMA foreign_keys = ON")
+            # Check if devices table exists before adding FK constraint
+            # (for test compatibility where TaskStore may be created without DeviceRegistry)
+            devices_exists = self._conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='devices'"
+            ).fetchone()
+            devices_fk = (
+                ", FOREIGN KEY (device_id) REFERENCES devices(device_id) ON DELETE CASCADE"
+                if devices_exists
+                else ""
+            )
             self._conn.executescript(
-                """
+                f"""
             CREATE TABLE IF NOT EXISTS tasks (
                 task_id      TEXT PRIMARY KEY,
                 task_type    TEXT NOT NULL,
@@ -748,7 +830,9 @@ class TaskStore:
                 exec_time_s  REAL NOT NULL,
                 has_tee      INT  NOT NULL DEFAULT 0,
                 submitted_at REAL NOT NULL,
-                UNIQUE(task_id, device_id)
+                UNIQUE(task_id, device_id),
+                FOREIGN KEY (task_id) REFERENCES tasks(task_id) ON DELETE CASCADE
+                {devices_fk}
             );
             CREATE TABLE IF NOT EXISTS supply_ledger (
                 id             INTEGER PRIMARY KEY CHECK (id = 1),
@@ -762,17 +846,45 @@ class TaskStore:
         self._rebuild_habp_from_db()
 
     def _rebuild_habp_from_db(self) -> None:
-        """Replay persisted proofs into HABPVerifier so consensus survives restarts."""
+        """Replay persisted proofs into HABPVerifier so consensus survives restarts.
+
+        Verifies that output_hash in DB matches the task spec's expected output hash
+        before rebuilding to prevent DB corruption from poisoning HABP state.
+        """
         rows = self._conn.execute(
             """
-            SELECT r.task_id, r.device_id, r.output_hash, r.exec_time_s, r.has_tee
+            SELECT r.task_id, r.device_id, r.output_hash, r.exec_time_s, r.has_tee, t.spec_json
             FROM task_results r
             JOIN tasks t ON t.task_id = r.task_id
             WHERE t.status IN ('verifying', 'open')
             ORDER BY r.submitted_at
             """
         ).fetchall()
-        for task_id, device_id, output_hash, exec_time_s, has_tee in rows:
+        for task_id, device_id, output_hash, exec_time_s, has_tee, spec_json in rows:
+            try:
+                import json
+
+                spec = json.loads(spec_json)
+                expected_hash = spec.get("expected_output_hash")
+                if expected_hash and output_hash != expected_hash:
+                    log.warning(
+                        "Skipping HABP rebuild for task=%s device=%s: output_hash mismatch "
+                        "(DB=%s, expected=%s) - DB may be corrupted",
+                        task_id[:16],
+                        device_id[:16],
+                        output_hash[:16],
+                        expected_hash[:16],
+                    )
+                    continue
+            except (json.JSONDecodeError, KeyError) as exc:
+                log.warning(
+                    "Skipping HABP rebuild for task=%s device=%s: failed to parse spec: %s",
+                    task_id[:16],
+                    device_id[:16],
+                    exc,
+                )
+                continue
+
             proof = generate_execution_proof(
                 device_id=device_id,
                 task_id=task_id,
@@ -801,23 +913,49 @@ class TaskStore:
             return row[0] if row else 0
 
     def increment_total_minted(self, amount: int) -> int:
-        """Atomically increment and return new total. Raises if cap exceeded."""
+        """Atomically increment and return new total. Raises if cap exceeded.
+
+        Uses atomic SQL UPDATE with condition check to prevent race condition
+        where concurrent threads both pass the cap check before update.
+
+        In multi-node deployments, also checks against gossiped total from other
+        nodes with a buffer to prevent supply cap bypass across the network.
+        """
+        from tfp_client.lib.credit.ledger import SupplyCapError
+
         with self._db_lock:
             with self._lock:
-                current = self.get_total_minted()
-                if current + amount > MAX_SUPPLY:
-                    from tfp_client.lib.credit.ledger import SupplyCapError
+                # Get gossiped total from other nodes (if available)
+                # Use a buffer to account for network propagation delays
+                gossiped_total = 0
+                with _gossiped_supply_lock:
+                    gossiped_total = _gossiped_supply_total
 
-                    raise SupplyCapError(
-                        f"Global supply cap reached: {current}/{MAX_SUPPLY}"
-                    )
-                new_total = current + amount
-                self._conn.execute(
-                    "UPDATE supply_ledger SET total_minted = ? WHERE id = 1",
-                    (new_total,),
+                # Effective cap is min of local cap and gossiped total + buffer
+                # Buffer allows for concurrent mints across nodes (configurable)
+                # When no gossip received (single-node), use full MAX_SUPPLY
+                if gossiped_total > 0:
+                    buffer = int(os.environ.get("TFP_SUPPLY_GOSSIP_BUFFER", "1000"))
+                    effective_cap = min(MAX_SUPPLY, gossiped_total + buffer)
+                else:
+                    effective_cap = MAX_SUPPLY
+
+                # Atomic UPDATE: only succeeds if new total won't exceed effective cap
+                cursor = self._conn.execute(
+                    "UPDATE supply_ledger "
+                    "SET total_minted = total_minted + ? "
+                    "WHERE id = 1 AND total_minted + ? <= ?",
+                    (amount, amount, effective_cap),
                 )
+                if cursor.rowcount == 0:
+                    # Update failed: cap would be exceeded
+                    current = self.get_total_minted()
+                    raise SupplyCapError(
+                        f"Global supply cap reached: {current}/{MAX_SUPPLY} "
+                        f"(effective cap: {effective_cap})"
+                    )
                 self._conn.commit()
-                return new_total
+                return self.get_total_minted()
 
     # -- Task lifecycle --------------------------------------------------------
 
@@ -825,7 +963,7 @@ class TaskStore:
         """Generate and persist a new compute task."""
         task_id = hashlib.sha3_256(
             seed + task_type.encode() + str(time.time()).encode()
-        ).hexdigest()[:16]
+        ).hexdigest()
         if task_type == "content_verify":
             spec = generate_content_verify_task(
                 task_id=task_id, difficulty=difficulty, content=seed
@@ -1235,6 +1373,9 @@ _RESULT_RATE_MAX = int(os.environ.get("TFP_RESULT_RATE_MAX", "30"))
 _RESULT_RATE_WINDOW = int(os.environ.get("TFP_RESULT_RATE_WINDOW", "60"))
 
 
+_MAX_RATE_LIMITER_KEYS = 100_000
+
+
 class _RateLimiter:
     """
     In-memory sliding-window rate limiter.
@@ -1242,6 +1383,10 @@ class _RateLimiter:
     Allows at most ``max_calls`` calls per ``window_seconds`` per key.
     Thread-safe by virtue of the GIL on CPython; each bucket is a deque of
     float timestamps that is pruned on every check.
+
+    Bounded to ``_MAX_RATE_LIMITER_KEYS`` tracked keys to prevent memory
+    exhaustion from an attacker sending requests with millions of unique keys.
+    When the limit is reached, the oldest-accessed buckets are evicted.
     """
 
     def __init__(
@@ -1249,12 +1394,23 @@ class _RateLimiter:
     ) -> None:
         self._max = max_calls
         self._window = window_seconds
-        self._buckets: Dict[str, collections.deque] = {}
+        self._buckets: collections.OrderedDict[str, collections.deque] = (
+            collections.OrderedDict()
+        )
 
     def is_allowed(self, key: str) -> bool:
         """Return True and record the call, or False if the rate limit is exceeded."""
         now = time.monotonic()
-        bucket = self._buckets.setdefault(key, collections.deque())
+        bucket = self._buckets.get(key)
+        if bucket is None:
+            # Evict oldest buckets when at capacity
+            while len(self._buckets) >= _MAX_RATE_LIMITER_KEYS:
+                self._buckets.popitem(last=False)
+            bucket = collections.deque()
+            self._buckets[key] = bucket
+        else:
+            # Move to end (most recently accessed)
+            self._buckets.move_to_end(key)
         cutoff = now - self._window
         while bucket and bucket[0] < cutoff:
             bucket.popleft()
@@ -1366,6 +1522,13 @@ _task_store: Optional[TaskStore] = None
 _earn_rate_limiter: _RateLimiter = _RateLimiter()
 _result_rate_limiter: _RateLimiter = _RateLimiter()
 _rag_rate_limiter: _RateLimiter = _RateLimiter(max_calls=20, window_seconds=60)
+# Enrollment rate limiter: prevent abuse of the open /api/enroll endpoint.
+# Default: 20 enrollments per 60 s per source IP.
+_ENROLL_RATE_MAX = int(os.environ.get("TFP_ENROLL_RATE_MAX", "20"))
+_ENROLL_RATE_WINDOW = int(os.environ.get("TFP_ENROLL_RATE_WINDOW", "60"))
+_enroll_rate_limiter: _RateLimiter = _RateLimiter(
+    max_calls=_ENROLL_RATE_MAX, window_seconds=_ENROLL_RATE_WINDOW
+)
 _tag_overlay: Optional[TagOverlayIndex] = None
 _nostr_subscriber: Optional[NostrSubscriber] = None
 _nostr_bridge: Optional[NostrBridge] = None
@@ -1383,6 +1546,10 @@ _trusted_nostr_pubkeys: frozenset[str] = frozenset()
 _admin_device_ids: frozenset[str] = frozenset()
 _rag_graph = None  # RAGGraph instance when TFP_ENABLE_RAG=1; Optional[Any]
 _chunk_store = None  # ChunkStore for shard-pin reward tracking; Optional[Any]
+_gossiped_supply_total: int = (
+    0  # Maximum total minted seen from other nodes via Nostr gossip
+)
+_gossiped_supply_lock: threading.Lock = threading.Lock()
 
 # Event-ID deduplication cache: prevents the same Nostr event from being
 # processed more than once within the replay window (e.g., due to relay
@@ -1546,7 +1713,7 @@ def _make_ndn_adapter() -> NDNAdapter:
     if os.environ.get("TFP_REAL_ADAPTERS", "").strip() == "1":
         from tfp_client.lib.ndn.ndn_real import RealNDNAdapter
 
-        return RealNDNAdapter()
+        return RealNDNAdapter(blob_store=_blob_store)
     return DemoNDNAdapter(_content_store, _ipfs_bridge, _blob_store, _peer_fallback)
 
 
@@ -1708,6 +1875,11 @@ def _on_nostr_event(event_dict: dict) -> None:
             _handle_search_index_event(event_dict)
             return
 
+        # ── Kind 30081: supply ledger gossip for multi-node coordination ────
+        if kind == 30081:
+            _handle_supply_gossip_event(event_dict)
+            return
+
         # ── Kind 30080: content-availability announcement ─────────────────
         if kind != TFP_CONTENT_ANNOUNCE_KIND:
             log.debug("Ignoring unknown Nostr event kind %d", kind)
@@ -1766,6 +1938,44 @@ def _check_replay_window(event_dict: dict) -> bool:
         return True
     except (TypeError, ValueError):
         return False
+
+
+def _handle_supply_gossip_event(event_dict: dict) -> None:
+    """
+    Handle a kind-30081 supply ledger gossip event.
+
+    Updates the local gossiped supply total with the maximum value seen
+    from other nodes to prevent supply cap bypass across the network.
+    """
+    global _gossiped_supply_total
+    try:
+        payload = json.loads(event_dict.get("content", "{}"))
+        total_minted = payload.get("total_minted")
+        # Validate: must be int within valid range [0, MAX_SUPPLY]
+        if isinstance(total_minted, int) and 0 <= total_minted <= MAX_SUPPLY:
+            # Additional validation: reject implausibly high values
+            # Must be within reasonable buffer of our local total
+            local_total = _task_store.get_total_minted() if _task_store else 0
+            max_plausible = local_total + 10000  # Allow for network concurrency
+            if total_minted > max_plausible:
+                log.warning(
+                    "Rejecting suspicious supply gossip: %d > local %d + buffer (from pubkey=%s)",
+                    total_minted,
+                    local_total,
+                    event_dict.get("pubkey", "")[:16],
+                )
+                return
+            with _gossiped_supply_lock:
+                if total_minted > _gossiped_supply_total:
+                    log.info(
+                        "Updated gossiped supply total: %d -> %d (from pubkey=%s)",
+                        _gossiped_supply_total,
+                        total_minted,
+                        event_dict.get("pubkey", "")[:16],
+                    )
+                    _gossiped_supply_total = total_minted
+    except (json.JSONDecodeError, ValueError, TypeError) as exc:
+        log.warning("Failed to parse supply gossip event: %s", exc)
 
 
 def _handle_hlt_gossip_event(event_dict: dict) -> None:
@@ -1887,11 +2097,13 @@ async def lifespan(_app: FastAPI):
         _earn_rate_limiter, \
         _result_rate_limiter, \
         _rag_rate_limiter, \
+        _enroll_rate_limiter, \
         _tag_overlay, \
         _nostr_subscriber
     global _nostr_bridge, _ipfs_bridge, _clients, _metrics, _app_ready, _startup_stage
     global _blob_store, _peer_fallback, _hlt, _peer_secret, _rag_graph, _chunk_store
     global _runtime_mode, _trusted_nostr_pubkeys, _admin_device_ids
+    global _gossiped_supply_total
 
     _app_ready = False
     _startup_stage = "starting"
@@ -1930,10 +2142,27 @@ async def lifespan(_app: FastAPI):
         # ── Stage: db_init ────────────────────────────────────────────────
         _startup_stage = "db_init"
         db_path = runtime_cfg.db_path
-        log.info("Connecting to SQLite: %s  (stage=%s)", db_path, _startup_stage)
-        _conn = sqlite3.connect(db_path, check_same_thread=False)
-        if db_path != ":memory:":
-            _conn.execute("PRAGMA journal_mode=WAL")
+
+        # Initialize Database abstraction (SQLite or PostgreSQL)
+        global _db
+        _db = get_database_from_env()
+        log.info(
+            "Database initialized: %s (multi-worker: %s)",
+            _db.db_type,
+            _db.supports_multiple_workers,
+        )
+
+        # Warn if PostgreSQL is used - stores are SQLite-specific
+        if _db.is_postgresql:
+            log.warning(
+                "⚠️ PostgreSQL connection established, but store classes use SQLite-specific SQL. "
+                "Full PostgreSQL support requires store refactoring (sqlite_master, PRAGMA, INSERT OR REPLACE, rowid). "
+                "Use SQLite for production deployments. "
+                "See SECURITY.md L4 for details."
+            )
+
+        # For backward compatibility with stores (RLock for thread safety)
+        _conn = _db.get_underlying_connection()
         _db_lock = threading.RLock()
 
         # ── BlobStore: filesystem for file-backed DB, in-memory for :memory: ──
@@ -2009,6 +2238,12 @@ async def lifespan(_app: FastAPI):
                     window_seconds=60,
                     endpoint_type="rag_search",
                 )
+                _enroll_rate_limiter = _RedisRateLimiterAdapter(
+                    redis_url=_redis_url,
+                    max_calls=_ENROLL_RATE_MAX,
+                    window_seconds=_ENROLL_RATE_WINDOW,
+                    endpoint_type="enroll",
+                )
                 log.info("Rate limiters: Redis-backed (%s)", _redis_url)
             except Exception as exc:
                 log.warning(
@@ -2025,6 +2260,9 @@ async def lifespan(_app: FastAPI):
                     max_calls=_RESULT_RATE_MAX, window_seconds=_RESULT_RATE_WINDOW
                 )
                 _rag_rate_limiter = _RateLimiter(max_calls=20, window_seconds=60)
+                _enroll_rate_limiter = _RateLimiter(
+                    max_calls=_ENROLL_RATE_MAX, window_seconds=_ENROLL_RATE_WINDOW
+                )
         else:
             _earn_rate_limiter = _RateLimiter(
                 max_calls=_EARN_RATE_MAX, window_seconds=_EARN_RATE_WINDOW
@@ -2033,6 +2271,9 @@ async def lifespan(_app: FastAPI):
                 max_calls=_RESULT_RATE_MAX, window_seconds=_RESULT_RATE_WINDOW
             )
             _rag_rate_limiter = _RateLimiter(max_calls=20, window_seconds=60)
+            _enroll_rate_limiter = _RateLimiter(
+                max_calls=_ENROLL_RATE_MAX, window_seconds=_ENROLL_RATE_WINDOW
+            )
             log.info(
                 "Rate limiters: in-memory (set TFP_REDIS_URL for distributed "
                 "limiting required before enabling --workers > 1)."
@@ -2102,6 +2343,13 @@ async def lifespan(_app: FastAPI):
                     if _task_store is not None:
                         _task_store.reap_expired_tasks()
                         _preseed_tasks()
+
+                    # Publish supply gossip for multi-node coordination
+                    if _nostr_bridge and _task_store:
+                        from tfp_client.lib.credit.ledger import MAX_SUPPLY
+
+                        current_total = _task_store.get_total_minted()
+                        _nostr_bridge.publish_supply_gossip(current_total, MAX_SUPPLY)
                 except Exception as exc:
                     log.warning("maintenance loop error: %s", exc)
 
@@ -2177,6 +2425,7 @@ async def lifespan(_app: FastAPI):
                         TFP_CONTENT_KIND,
                         TFP_SEARCH_INDEX_KIND,
                         TFP_CONTENT_ANNOUNCE_KIND,
+                        30081,  # supply ledger gossip for multi-node coordination
                     ]
                 },
             )
@@ -2270,10 +2519,15 @@ async def lifespan(_app: FastAPI):
                     log.info("TagOverlayIndex persisted to %s.", _overlay_save_path)
                 except Exception as exc:
                     log.warning("Could not persist TagOverlayIndex: %s", exc)
-            if "_conn" in locals() and _conn:
-                _conn.close()
+            if "_db" in locals() and _db:
+                _db.close()
             # Close Redis connections if distributed limiters were in use.
-            for _lim in (_earn_rate_limiter, _result_rate_limiter, _rag_rate_limiter):
+            for _lim in (
+                _earn_rate_limiter,
+                _result_rate_limiter,
+                _rag_rate_limiter,
+                _enroll_rate_limiter,
+            ):
                 if hasattr(_lim, "close"):
                     try:
                         _lim.close()
@@ -2397,7 +2651,18 @@ def search_content(
 
 
 @app.post("/api/enroll")
-def enroll(payload: EnrollRequest) -> dict:
+def enroll(payload: EnrollRequest, request: Request) -> dict:
+    # Rate-limit enrollment by client IP to prevent mass device registration.
+    client_ip = request.client.host if request.client else "unknown"
+    if not _enroll_rate_limiter.is_allowed(client_ip):
+        _metrics.inc("tfp_enroll_rate_limited_total")
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                f"enrollment rate limit exceeded — max {_ENROLL_RATE_MAX} "
+                f"enrollments per {_ENROLL_RATE_WINDOW}s per IP"
+            ),
+        )
     try:
         puf_entropy = bytes.fromhex(payload.puf_entropy_hex)
     except ValueError as exc:
@@ -2605,8 +2870,8 @@ def earn(
             status_code=429,
             detail=f"rate limit exceeded — max {_EARN_RATE_MAX} earn calls per {_EARN_RATE_WINDOW}s per device",
         )
-    # Deduplication — reject replayed task IDs
-    if not _earn_log.record(payload.device_id, payload.task_id):
+    # Deduplication — reject replayed task IDs (normalized format: task:{task_id})
+    if not _earn_log.record(payload.device_id, f"task:{payload.task_id}"):
         _metrics.inc("tfp_earn_replay_rejected_total")
         raise HTTPException(
             status_code=409,
@@ -2902,36 +3167,63 @@ def delegate_proof(
 
 
 @app.get("/api/status")
-def status() -> dict:
-    """Node status: local content count, tag index stats, and Nostr subscriber state."""
+def status(
+    x_tfp_peer_secret: str = Header(default="", alias="X-TFP-Peer-Secret"),
+) -> dict:
+    """Node status: local content count, tag index stats, and Nostr subscriber state.
+
+    In production mode the full response (including internal metrics and
+    infrastructure details) is only returned when the caller supplies a
+    valid ``X-TFP-Peer-Secret`` header.  Unauthenticated callers receive a
+    minimal public subset.
+    """
+    # In production, redact internal details unless peer-secret is provided.
+    _is_authed = _runtime_mode != "production" or (
+        _peer_secret and _hmac.compare_digest(x_tfp_peer_secret, _peer_secret)
+    )
+
     nostr_events = len(_nostr_subscriber.get_received()) if _nostr_subscriber else 0
     task_stats = _task_store.stats() if _task_store else {}
-    rag_stats: Optional[dict] = None
-    if _rag_graph is not None:
-        try:
-            rag_stats = _rag_graph.get_stats()
-        except Exception:
-            rag_stats = {"error": "unavailable"}
-    return {
+
+    # Public subset — always safe to expose.
+    result: dict = {
         "version": "0.3.0",
-        "runtime_mode": _runtime_mode,
         "content_items": _content_store.count(),
-        "nostr_events_received": nostr_events,
-        "nostr_subscriber_running": _nostr_subscriber.is_running()
-        if _nostr_subscriber
-        else False,
-        "nostr_relay": _nostr_subscriber.relay_url if _nostr_subscriber else None,
-        "tasks": task_stats,
         "supply_cap": MAX_SUPPLY,
-        "metrics": _metrics.snapshot(),
-        "hlt_domains": len(_hlt.domain_names) if _hlt is not None else 0,
-        "peer_nodes": len(_peer_fallback._peers) if _peer_fallback is not None else 0,
-        "rag_enabled": _rag_graph is not None,
-        "rag_stats": rag_stats,
-        "peer_secret_enforced": bool(_peer_secret),
-        "admin_allowlist_enforced": bool(_admin_device_ids),
-        "pin_rewards_active": _chunk_store is not None,
     }
+
+    if _is_authed:
+        rag_stats: Optional[dict] = None
+        if _rag_graph is not None:
+            try:
+                rag_stats = _rag_graph.get_stats()
+            except Exception:
+                rag_stats = {"error": "unavailable"}
+        result.update(
+            {
+                "runtime_mode": _runtime_mode,
+                "nostr_events_received": nostr_events,
+                "nostr_subscriber_running": (
+                    _nostr_subscriber.is_running() if _nostr_subscriber else False
+                ),
+                "nostr_relay": (
+                    _nostr_subscriber.relay_url if _nostr_subscriber else None
+                ),
+                "tasks": task_stats,
+                "metrics": _metrics.snapshot(),
+                "hlt_domains": len(_hlt.domain_names) if _hlt is not None else 0,
+                "peer_nodes": (
+                    len(_peer_fallback._peers) if _peer_fallback is not None else 0
+                ),
+                "rag_enabled": _rag_graph is not None,
+                "rag_stats": rag_stats,
+                "peer_secret_enforced": bool(_peer_secret),
+                "admin_allowlist_enforced": bool(_admin_device_ids),
+                "pin_rewards_active": _chunk_store is not None,
+            }
+        )
+
+    return result
 
 
 @app.get("/api/discovery")
@@ -3299,9 +3591,8 @@ def submit_task_result(
         _metrics.inc("tfp_tasks_completed_total")
         credits = verification["credits_earned"]
         # Auto-apply credits to the device's ledger if consensus is reached
-        if credits > 0 and not _earn_log.record(
-            payload.device_id, f"task:{task_id}:result"
-        ):
+        # (normalized format: task:{task_id} to prevent double-mint with /api/earn)
+        if credits > 0 and not _earn_log.record(payload.device_id, f"task:{task_id}"):
             # Already applied (idempotent guard)
             pass
         elif credits > 0:
@@ -3316,13 +3607,31 @@ def submit_task_result(
                 _credit_store.save(payload.device_id, client)
                 _metrics.inc("tfp_credits_minted_total", credits)
             except Exception as exc:
-                log.warning(
-                    "Auto-mint failed for device=%s task=%s credits=%d: %s",
-                    payload.device_id,
-                    task_id,
-                    credits,
-                    exc,
-                )
+                # Re-raise non-supply-cap errors to avoid silent failures
+                from tfp_client.lib.credit.ledger import SupplyCapError
+
+                if isinstance(exc, SupplyCapError):
+                    # Supply cap reached - return 503 to client
+                    log.error(
+                        "Supply cap reached during auto-mint for device=%s task=%s credits=%d",
+                        payload.device_id,
+                        task_id,
+                        credits,
+                    )
+                    raise HTTPException(
+                        status_code=503,
+                        detail=f"Supply cap reached: cannot mint {credits} credits",
+                    ) from exc
+                else:
+                    # Re-raise other exceptions for visibility
+                    log.error(
+                        "Auto-mint failed for device=%s task=%s credits=%d: %s",
+                        payload.device_id,
+                        task_id,
+                        credits,
+                        exc,
+                    )
+                    raise
 
         # Replenish task pool
         try:
@@ -3339,14 +3648,29 @@ def submit_task_result(
 
 
 @app.get("/api/devices")
-def device_leaderboard_endpoint(limit: int = Query(default=50, ge=1, le=200)) -> dict:
+def device_leaderboard_endpoint(
+    limit: int = Query(default=50, ge=1, le=200),
+    x_tfp_peer_secret: str = Header(default="", alias="X-TFP-Peer-Secret"),
+) -> dict:
     """
     Return all enrolled devices sorted by credits earned (descending).
 
     Useful for leaderboards, network health checks, and federation tooling.
     ``total_enrolled`` reflects the true count of all devices, regardless of
     the ``limit`` parameter.
+
+    In production mode, requires ``X-TFP-Peer-Secret`` header to prevent
+    enumeration of device IDs and credit balances.
     """
+    if _runtime_mode == "production":
+        if not _peer_secret or not _hmac.compare_digest(
+            x_tfp_peer_secret, _peer_secret
+        ):
+            _metrics.inc("tfp_auth_failures_total")
+            raise HTTPException(
+                status_code=401,
+                detail="X-TFP-Peer-Secret required for /api/devices in production mode",
+            )
     devices = _task_store.device_leaderboard(limit=limit)
     return {
         "devices": devices,
@@ -3380,8 +3704,24 @@ def get_device(device_id: str) -> dict:
 
 
 @app.get("/metrics")
-def metrics() -> Response:
-    """Prometheus-compatible text metrics endpoint."""
+def metrics(
+    x_tfp_peer_secret: str = Header(default="", alias="X-TFP-Peer-Secret"),
+) -> Response:
+    """Prometheus-compatible text metrics endpoint.
+
+    In production mode, requires ``X-TFP-Peer-Secret`` header so that
+    internal counters (auth failures, credit totals, etc.) are not
+    exposed to unauthenticated callers.
+    """
+    if _runtime_mode == "production":
+        if not _peer_secret or not _hmac.compare_digest(
+            x_tfp_peer_secret, _peer_secret
+        ):
+            _metrics.inc("tfp_auth_failures_total")
+            raise HTTPException(
+                status_code=401,
+                detail="X-TFP-Peer-Secret required for /metrics in production mode",
+            )
     return Response(
         content=_metrics.to_prometheus_text(),
         media_type="text/plain; version=0.0.4; charset=utf-8",
