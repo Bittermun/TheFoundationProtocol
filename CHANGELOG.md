@@ -44,7 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Input validation with Pydantic models
 - Nostr event signature verification (BIP-340)
 
-## [3.1.0] - 2026-03-XX
+## [3.1.0] - 2026-03-15
 
 ### Added
 - Initial public codebase preparation

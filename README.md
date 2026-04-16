@@ -26,7 +26,6 @@ Creator note: I'm a highschooler. I think bandwidth on decentralized networks co
 | **[Porting Guide](tfp-foundation-protocol/docs/porting_guide.md)** | C/Rust porting to Cortex-M4 / RISC-V32 |
 | **[Plugin Tutorial](docs/plugin_tutorial_30_min.md)** | Build a plugin in 30 minutes |
 | **[Hackathon Kit](docs/hackathon_kit.md)** | Event materials, starter templates |
-| **[Partnerships Pack](docs/partnerships_outreach_pack.md)** | Community & NGO deployment guide |
 | **[Integrations Playbook](docs/integrations_playbook.md)** | IPFS, Nostr, and Kiwix/Wikipedia bridge implementation details |
 | **[Roadmap](ROADMAP.md)** | v3.2 planned milestones and open implementation priorities |
 | **[Extension Modules](tfp-foundation-protocol/IMPLEMENTATION_SUMMARY.md)** | Optional Redis rate limiter, RAGgraph semantic search, OpenTelemetry tracing |
@@ -249,7 +248,7 @@ See the historical hardening notes in [`docs/archive/v2.2-hardening.md`](tfp-fou
 
 | Audience | Use Case | Getting Started |
 |----------|----------|-----------------|
-| **Rural communities & NGOs** | Offline, low-cost delivery of education, health, and emergency information | See [`docs/partnerships_outreach_pack.md`](docs/partnerships_outreach_pack.md) |
+| **Rural communities & NGOs** | Offline, low-cost delivery of education, health, and emergency information | See [`docs/deploy_demo.md`](docs/deploy_demo.md) for deployment guide |
 | **Developers** | Building censorship-resistant apps, plugins, browser extensions | See [`docs/hackathon_kit.md`](docs/hackathon_kit.md) + [`docs/plugin_tutorial_30_min.md`](docs/plugin_tutorial_30_min.md) |
 | **Organizations** | Compliant, low-cost compute/content distribution | See [`docs/archive/TFP_FINAL_STATUS.md`](docs/archive/TFP_FINAL_STATUS.md) (regulatory positioning) |
 | **Researchers** | Studying decentralized protocols, mesh networks, P2P economics | See [`docs/integrations_playbook.md`](docs/integrations_playbook.md) |
@@ -285,7 +284,7 @@ python tfp_pilots/community_bootstrap.py --community-id "my-region"
 |------|----------------|------------|
 | **Core Contributor** | Fix bugs, add features, review PRs | Pick a `good first issue` on GitHub |
 | **Plugin Developer** | Build audio galleries, offline packs, browser tools | [`docs/plugin_tutorial_30_min.md`](docs/plugin_tutorial_30_min.md) |
-| **Community Organizer** | Deploy pilots, onboard NGOs, host hackathons | [`docs/partnerships_outreach_pack.md`](docs/partnerships_outreach_pack.md) |
+| **Community Organizer** | Deploy pilots, onboard NGOs, host hackathons | Contact: governance@tfp-protocol.org |
 | **Researcher** | Study protocol economics, mesh behavior, security | [`docs/archive/TFP_VISION_AND_CURRENT_STATE.md`](docs/archive/TFP_VISION_AND_CURRENT_STATE.md) |
 | **Donor/Partner** | Fund audits, sponsor pilots, provide infrastructure | Contact: governance@tfp-protocol.org |
 

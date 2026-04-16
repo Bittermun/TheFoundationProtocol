@@ -51,7 +51,7 @@ jobs:
 
       - name: Type check (mypy)
         working-directory: tfp-foundation-protocol
-        run: mypy tfp_demo/ tfp_client/ --ignore-missing-imports --no-error-summary || true
+        run: mypy tfp_demo/ tfp_client/ --ignore-missing-imports --no-error-summary
 
       - name: Docs freshness — assert test count
         working-directory: tfp-foundation-protocol
@@ -118,4 +118,4 @@ jobs:
         env:
           PYTHONPATH: "tfp-foundation-protocol:."
         run: |
-          python -m pytest tests/ -v --tb=short || echo "Some root tests may have dependency issues - reviewing"
+          python -m pytest tests/ -v --tb=short
