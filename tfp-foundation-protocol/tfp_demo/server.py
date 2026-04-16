@@ -1677,7 +1677,7 @@ def _make_ndn_adapter() -> NDNAdapter:
     if os.environ.get("TFP_REAL_ADAPTERS", "").strip() == "1":
         from tfp_client.lib.ndn.ndn_real import RealNDNAdapter
 
-        return RealNDNAdapter()
+        return RealNDNAdapter(blob_store=_blob_store)
     return DemoNDNAdapter(_content_store, _ipfs_bridge, _blob_store, _peer_fallback)
 
 

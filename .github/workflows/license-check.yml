@@ -50,11 +50,15 @@ jobs:
           echo '# Copyright (c) 2026 The Foundation Protocol Contributors'
           echo ""
 
-          # Transition period: warn but don't block until all existing files are fixed
+          # License headers are required - block if missing
           if [ $MISSING -gt 0 ]; then
-            echo "⚠️ WARNING: $MISSING files missing headers (non-blocking during transition)"
+            echo "❌ ERROR: $MISSING files missing license headers"
             echo "📊 Progress: $((CHECKED - MISSING))/$CHECKED files compliant"
-            exit 0
+            echo ""
+            echo "To fix, add this header to each file:"
+            echo '# SPDX-License-Identifier: Apache-2.0'
+            echo '# Copyright (c) 2026 The Foundation Protocol Contributors'
+            exit 1
           fi
 
           echo "✅ All files have license headers"

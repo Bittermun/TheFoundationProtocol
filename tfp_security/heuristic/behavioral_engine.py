@@ -527,7 +527,9 @@ class BehavioralEngine:
         elif velocity > burst_thresh:
             score += 0.4
         elif velocity > self.NORMAL_VELOCITY:
-            score += 0.1
+            # Keep normal-over-baseline traffic above the minimal 0.1 floor so
+            # sustained request bursts are distinguishable from benign baseline.
+            score += 0.15
 
         # Burst factor score
         if burst > 3.0:  # High variance

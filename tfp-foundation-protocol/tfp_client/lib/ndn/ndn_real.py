@@ -36,11 +36,13 @@ _RETRIES = int(os.getenv("TFP_NDN_RETRIES", "2"))
 class RealNDNAdapter:
     """
     Async NDN adapter — wraps python-ndn.
-    Falls back to mock if NFD socket unavailable.
+    Falls back to local blob store for single-node scenarios.
+    Falls back to mock if blob_store unavailable.
     """
 
-    def __init__(self, fallback_content: Optional[bytes] = None):
+    def __init__(self, fallback_content: Optional[bytes] = None, blob_store=None):
         self._fallback_content = fallback_content
+        self._blob_store = blob_store
 
     def create_interest(self, root_hash: str) -> Interest:
         return Interest(name=f"/tfp/content/{root_hash}")
@@ -117,6 +119,28 @@ class RealNDNAdapter:
         return self._fallback(interest)
 
     def _fallback(self, interest: Interest) -> Data:
+        # Try blob_store first for single-node scenarios
+        if self._blob_store is not None:
+            root_hash = interest.name.replace("/tfp/content/", "")
+            shards = []
+            shard_idx = 0
+            max_shards = 10000  # Safety limit to prevent infinite loop
+            while shard_idx < max_shards:
+                shard_data = self._blob_store.get_shard(root_hash, shard_idx)
+                if shard_data is None:
+                    break
+                shards.append(shard_data)
+                shard_idx += 1
+            if shards:
+                combined = b"".join(shards)
+                log.debug(
+                    f"Retrieved {len(shards)} shards from blob_store for {root_hash}"
+                )
+                return Data(name=interest.name, content=combined)
+            elif shard_idx >= max_shards:
+                log.warning(f"Shard iteration exceeded limit for {root_hash}")
+
+        # Fall back to mock content
         content = self._fallback_content or (
             b"fallback_shard_" + interest.name.encode()
         )
