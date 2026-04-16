@@ -17,6 +17,7 @@ TFP v3.1 Foundation Protocol node server.
 | Credits | `CreditLedger` | SHA3-256 hash-chain, 21M supply cap |
 | Rate limiting | `_RateLimiter` / `_RedisRateLimiterAdapter` | Sliding-window per-device; Redis for multi-worker deployments (`TFP_REDIS_URL`) |
 | Semantic search | `RAGGraph` (optional) | ChromaDB + CodeBERT; gated by `TFP_ENABLE_RAG=1` |
+| Template system | `TemplateAssembler` + `ChunkStore` (framework) | Chunk caching, HLT validation, AI fill-in — internal framework for content assembly |
 
 ## Key Design Decisions
 
@@ -46,6 +47,10 @@ Devices earn credits by submitting verified compute task results (`POST /api/tas
 Credits are spent to retrieve content (`POST /api/get`). The `HABPVerifier` requires 3 matching
 proofs from different devices before credits are minted. Anti-replay is enforced via `EarnLog`
 with a `UNIQUE(device_id, task_id)` SQLite constraint.
+
+### Template System (Internal Framework)
+
+TFP includes an internal template assembly framework (`TemplateAssembler`, `ChunkStore`, `HierarchicalLexiconTree`) designed for efficient content building from reusable chunks. This is currently an internal component requiring manual configuration (recipe creation, chunk store setup, HLT configuration). See `docs/TEMPLATE_ARCHITECTURE.md` for technical details.
 
 ## Testbed
 
