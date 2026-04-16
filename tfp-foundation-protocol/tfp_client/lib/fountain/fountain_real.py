@@ -14,12 +14,13 @@ from __future__ import annotations
 import hashlib
 import hmac as _hmac
 import logging
+import os
 import struct
 from typing import List, Tuple
 
 log = logging.getLogger(__name__)
 
-_SHARD_SIZE = 128  # bytes per shard
+_SHARD_SIZE = int(os.getenv("TFP_CHUNK_SIZE", 262144))  # bytes per shard (default: 256KB)
 _MAX_OVERHEAD = 0.5  # max redundancy fraction
 _HMAC_SIZE = 32  # HMAC-SHA3-256 digest length
 

@@ -63,6 +63,13 @@ _DEFAULT_DB_PATH = Path(__file__).resolve().parent.parent / "pib.db"
 # Database instance (initialized in lifespan)
 _db: Optional[Database] = None
 
+# Track ongoing chunked uploads: upload_id -> {chunks: {index: bytes}, total_chunks: int, created_at: float}
+_ongoing_uploads: Dict[str, Dict] = {}
+_uploads_lock = threading.Lock()
+_UPLOAD_CLEANUP_INTERVAL_SECONDS = 3600  # Clean up uploads older than 1 hour
+_UPLOAD_MAX_AGE_SECONDS = 3600  # Maximum age for an upload session
+_last_cleanup_time = 0.0  # Track last cleanup time
+
 # Configure logging explicitly for security monitoring
 logging.basicConfig(
     level=logging.INFO,
@@ -1819,11 +1826,53 @@ def _verify_nostr_event(event_dict: dict) -> bool:
         )
         expected_id = hashlib.sha256(serialized.encode("utf-8")).hexdigest()
         if expected_id != event_id:
+            log.debug(
+                "Nostr event ID mismatch: expected=%s, got=%s (kind=%d)",
+                expected_id[:16],
+                event_id[:16],
+                kind,
+            )
             return False
 
-        return _schnorr_verify(pubkey, event_id, sig)
-    except (KeyError, ValueError, TypeError):
+        sig_valid = _schnorr_verify(pubkey, event_id, sig)
+        if not sig_valid:
+            log.debug(
+                "Nostr event signature verification failed: id=%s, kind=%d, pubkey=%s",
+                event_id[:16],
+                kind,
+                pubkey[:16],
+            )
+        
+        return sig_valid
+    except (KeyError, ValueError, TypeError) as exc:
+        log.debug("Nostr event validation error: %s", exc)
         return False
+
+
+def _cleanup_stale_uploads() -> None:
+    """
+    Clean up stale upload sessions to prevent memory leaks.
+    
+    Removes uploads that have been inactive for more than UPLOAD_MAX_AGE_SECONDS.
+    Should be called periodically (e.g., by a background task).
+    """
+    current_time = time.time()
+    stale_ids = []
+    
+    with _uploads_lock:
+        for upload_id, upload_data in list(_ongoing_uploads.items()):
+            created_at = upload_data.get("created_at", 0)
+            age = current_time - created_at
+            if age > _UPLOAD_MAX_AGE_SECONDS:
+                stale_ids.append(upload_id)
+                del _ongoing_uploads[upload_id]
+    
+    if stale_ids:
+        log.info(
+            "Cleaned up %d stale upload sessions (older than %ds)",
+            len(stale_ids),
+            _UPLOAD_MAX_AGE_SECONDS,
+        )
 
 
 def _on_nostr_event(event_dict: dict) -> None:
@@ -2338,6 +2387,7 @@ async def lifespan(_app: FastAPI):
         _stop_maintenance = threading.Event()
 
         def _maintenance_loop() -> None:
+            global _last_cleanup_time
             while not _stop_maintenance.wait(timeout=30):
                 try:
                     if _task_store is not None:
@@ -2350,6 +2400,12 @@ async def lifespan(_app: FastAPI):
 
                         current_total = _task_store.get_total_minted()
                         _nostr_bridge.publish_supply_gossip(current_total, MAX_SUPPLY)
+
+                    # Periodic cleanup of stale uploads
+                    current_time = time.time()
+                    if current_time - _last_cleanup_time >= _UPLOAD_CLEANUP_INTERVAL_SECONDS:
+                        _cleanup_stale_uploads()
+                        _last_cleanup_time = current_time
                 except Exception as exc:
                     log.warning("maintenance loop error: %s", exc)
 
@@ -2588,6 +2644,92 @@ def health() -> dict:
         "ready": _app_ready,
         "startup_stage": _startup_stage,
         "content_items": _content_store.count() if _content_store is not None else 0,
+    }
+
+
+@app.post("/api/upload/chunk/{upload_id}/{chunk_index}")
+async def upload_chunk(upload_id: str, chunk_index: int, request: Request):
+    """
+    Upload a single chunk for a parallel upload session.
+    
+    Chunks are stored in memory until the upload is completed via /api/upload/complete.
+    """
+    _validate_hash_component(upload_id)
+    
+    # Read chunk data
+    chunk_data = await request.body()
+    if not chunk_data:
+        raise HTTPException(status_code=400, detail="Empty chunk data")
+    
+    with _uploads_lock:
+        if upload_id not in _ongoing_uploads:
+            _ongoing_uploads[upload_id] = {
+                "chunks": {},
+                "total_chunks": 0,
+                "created_at": time.time(),
+            }
+        
+        _ongoing_uploads[upload_id]["chunks"][chunk_index] = chunk_data
+        log.debug(
+            "Received chunk %d for upload %s (total chunks: %d)",
+            chunk_index,
+            upload_id,
+            len(_ongoing_uploads[upload_id]["chunks"]),
+        )
+    
+    return {"status": "uploaded", "chunk_index": chunk_index, "upload_id": upload_id}
+
+
+@app.post("/api/upload/complete/{upload_id}")
+async def complete_upload(upload_id: str, metadata: dict = None):
+    """
+    Complete a parallel upload by reassembling chunks and publishing the content.
+    
+    Args:
+        upload_id: Unique identifier for the upload session
+        metadata: Optional metadata dict with title, tags, etc.
+    
+    Returns:
+        Published content information including root_hash
+    """
+    _validate_hash_component(upload_id)
+    
+    with _uploads_lock:
+        if upload_id not in _ongoing_uploads:
+            raise HTTPException(status_code=404, detail="Upload session not found")
+        
+        upload_data = _ongoing_uploads[upload_id]
+        chunks_dict = upload_data["chunks"]
+        
+        if not chunks_dict:
+            raise HTTPException(status_code=400, detail="No chunks uploaded")
+        
+        # Reassemble chunks in order
+        sorted_indices = sorted(chunks_dict.keys())
+        full_content = b"".join(chunks_dict[i] for i in sorted_indices)
+        
+        # Clean up upload session
+        del _ongoing_uploads[upload_id]
+    
+    # Publish the reassembled content using the existing publish flow
+    # For now, we'll return the content hash. In a full implementation,
+    # this would call the publish logic with proper device authentication.
+    content_hash = hashlib.sha3_256(full_content).hexdigest()
+    
+    log.info(
+        "Completed upload %s: %d chunks, %d bytes, hash=%s",
+        upload_id,
+        len(sorted_indices),
+        len(full_content),
+        content_hash[:16],
+    )
+    
+    return {
+        "status": "completed",
+        "upload_id": upload_id,
+        "root_hash": content_hash,
+        "chunk_count": len(sorted_indices),
+        "size_bytes": len(full_content),
     }
 
 

@@ -228,4 +228,11 @@ class NostrSubscriber:
 
         elif msg_type == "NOTICE":
             notice = msg[1] if len(msg) > 1 else ""
-            logger.info("NostrSubscriber: relay notice: %s", notice)
+            # NOTICE messages often indicate errors like "invalid event"
+            # Log at warning level to make them more visible
+            if "invalid" in notice.lower() or "error" in notice.lower():
+                logger.warning(
+                    "NostrSubscriber: relay notice (may indicate event rejection): %s", notice
+                )
+            else:
+                logger.info("NostrSubscriber: relay notice: %s", notice)

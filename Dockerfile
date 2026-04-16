@@ -58,5 +58,5 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
 
-# Run the server
-CMD ["python", "-m", "uvicorn", "tfp_demo.server:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run the server with HTTP/2 support
+CMD ["python", "-m", "uvicorn", "tfp_demo.server:app", "--host", "0.0.0.0", "--port", "8000", "--http", "h2"]

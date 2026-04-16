@@ -630,6 +630,7 @@ class NostrBridge:
 
         Uses a synchronous websockets send if the library is available;
         falls back to a logging-only stub when not installed.
+        Now captures relay NOTICE messages to debug "invalid event" errors.
 
         Returns:
             True if sent successfully, False otherwise.
@@ -640,6 +641,27 @@ class NostrBridge:
 
             with _ws_sync.connect(self.relay_url, open_timeout=5) as ws:
                 ws.send(msg)
+                
+                # Wait briefly for relay response (NOTICE messages)
+                # This helps debug "invalid event" errors from the relay
+                try:
+                    response = ws.recv(timeout=1.0)
+                    if response:
+                        try:
+                            parsed = json.loads(response)
+                            if parsed and len(parsed) > 0 and parsed[0] == "NOTICE":
+                                notice = parsed[1] if len(parsed) > 1 else ""
+                                logger.warning(
+                                    "Nostr relay returned NOTICE for event id=%s: %s",
+                                    event.id[:16],
+                                    notice,
+                                )
+                        except json.JSONDecodeError:
+                            pass
+                except TimeoutError:
+                    # No response is normal - relay may not send ACK
+                    pass
+                
                 return True
         except ImportError:
             # websockets not installed — log and return False (graceful degradation)
@@ -648,4 +670,10 @@ class NostrBridge:
             )
             return False
         except Exception as exc:
-            raise ConnectionError(str(exc)) from exc
+            logger.warning(
+                "Nostr relay send failed (relay=%s, event_id=%s): %s",
+                self.relay_url,
+                event.id[:16],
+                exc,
+            )
+            return False

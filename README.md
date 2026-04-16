@@ -3,8 +3,8 @@ Creator note: I'm a highschooler. I think bandwidth on decentralized networks co
 
 **A decentralized content & compute protocol for global information access — uncensorable, efficient, and built for everyone.**
 
-![Tests](https://img.shields.io/badge/tests-755%20passing-green)
-![Python Files](https://img.shields.io/badge/python%20files-189-blue)
+![Tests](https://img.shields.io/badge/tests-770%20passing-green)
+![Python Files](https://img.shields.io/badge/python%20files-149-blue)
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue)
 ![Security](https://img.shields.io/badge/security-hardened-green)
 

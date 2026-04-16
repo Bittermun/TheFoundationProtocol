@@ -87,7 +87,13 @@ class IPFSPinResult:
 
 class IPFSBridge:
     """
-    Lightweight TFP → IPFS bridge using the kubo HTTP API.
+    Lightweight HTTP client bridge to IPFS.
+
+    Provides pinning, retrieval, and bidirectional hash-to-CID mapping.
+    Uses a persistent HTTP client with connection pooling and HTTP/2 support.
+
+    WARNING: This class is NOT thread-safe. Use from a single thread or provide
+    external synchronization if using from multiple threads.
 
     Args:
         api_url: Base URL of the kubo HTTP API (default: http://127.0.0.1:5001).
@@ -106,6 +112,20 @@ class IPFSBridge:
         self.api_url = api_url.rstrip("/")
         self.timeout_seconds = timeout_seconds
         self.offline = offline
+
+        # Persistent HTTP client with connection pooling and HTTP/2
+        if _HTTP_AVAILABLE and not offline:
+            self._client = _httpx.Client(
+                limits=_httpx.Limits(
+                    max_connections=100,  # Max total connections
+                    max_keepalive_connections=20,  # Max connections to keep alive
+                ),
+                timeout=_httpx.Timeout(timeout_seconds),
+                http2=True,  # Enable HTTP/2
+                verify=True,  # Verify SSL certificates
+            )
+        else:
+            self._client = None
 
         # Bidirectional mapping: TFP hash ↔ IPFS CID
         self._hash_to_cid: Dict[str, str] = {}
@@ -259,6 +279,21 @@ class IPFSBridge:
     def export_mappings(self) -> Dict[str, str]:
         """Return a copy of the hash→CID mapping table."""
         return dict(self._hash_to_cid)
+
+    def close(self) -> None:
+        """Close the HTTP client and release connections."""
+        if self._client is not None:
+            self._client.close()
+            self._client = None
+
+    def __enter__(self):
+        """Context manager entry."""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit - close client."""
+        self.close()
+        return False
 
     # ------------------------------------------------------------------
     # Internal HTTP helper (injectable for testing)
