@@ -3,7 +3,7 @@ Creator note: I'm a highschooler. I think bandwidth on decentralized networks co
 
 **A decentralized content & compute protocol for global information access — uncensorable, efficient, and built for everyone.**
 
-![Tests](https://img.shields.io/badge/tests-749%20passing-green)
+![Tests](https://img.shields.io/badge/tests-755%20passing-green)
 ![Python Files](https://img.shields.io/badge/python%20files-189-blue)
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue)
 ![Security](https://img.shields.io/badge/security-hardened-green)
@@ -51,7 +51,7 @@ Create a **Global Information Commons** that works for pennies: anyone can publi
 ## Current Status (v3.1.x)
 
 - ✅ Production-ready core (42k+ LOC, 189 Python files, 142 with Apache-2.0 headers).
-- ✅ **749+ tests passing** — Protocol tests + root-level integration tests. `TFP_DB_PATH=:memory: PYTHONPATH=. python -m pytest tests/ -q`
+- ✅ **755+ tests passing** — Protocol tests + root-level integration tests. `TFP_DB_PATH=:memory: PYTHONPATH=. python -m pytest tests/ -q`
 - ✅ **Real compute tasks** — 3 task types (HASH_PREIMAGE, MATRIX_VERIFY, CONTENT_VERIFY) with cryptographic proof-of-work.
 - ✅ **HABP consensus** — Credits only mint when 3/5 devices agree on identical output hash. **Proofs survive server restart** (rebuilt from SQLite on boot).
 - ✅ **21M credit supply cap** — Hard-coded MAX_SUPPLY enforced at every mint via SupplyCapError.
@@ -89,7 +89,7 @@ See [ROADMAP.md](ROADMAP.md) for planned v3.2 milestones and [GitHub Milestones]
 ```bash
 cd tfp-foundation-protocol
 pip install -r requirements.txt
-TFP_DB_PATH=:memory: PYTHONPATH=. python -m pytest tests/ -q   # 749 tests
+TFP_DB_PATH=:memory: PYTHONPATH=. python -m pytest tests/ -q   # 755 tests
 uvicorn tfp_demo.server:app --reload                           # Demo node on :8000
 ```
 
@@ -166,7 +166,7 @@ tfp-foundation-protocol/
 │   ├── SECURITY.md                ← security model, verification checklist, maintenance policy
 │   ├── porting_guide.md
 │   └── archive/                   ← historical guides (v2.x, read-only)
-└── tests/             # 749 pytest tests
+└── tests/             # 755 pytest tests
 ```
 
 ## API Endpoints (Demo Node)
@@ -305,7 +305,7 @@ python tfp_pilots/community_bootstrap.py --community-id "my-region"
 |--------|-------|--------|--------|
 | Python Files | 189 | — | ✅ |
 | Total LOC | ~42,000 | <50k | ✅ |
-| Tests Passing | 749 | >400 | ✅ |
+| Tests Passing | 755 | >400 | ✅ |
 | Test Warnings | 1 | 0 | ⚠️ |
 | PII Logged | 0 | 0 | ✅ |
 | Critical Vulnerabilities | 0 | 0 | ✅ |

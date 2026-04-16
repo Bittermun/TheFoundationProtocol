@@ -19,16 +19,16 @@ Replace in-memory blob handling with disk-backed streaming:
 ```python
 class StreamingChunkStore:
     """Stores large files as 64KB chunks on disk, not in memory or SQLite."""
-    
+
     def __init__(self, base_path: Path):
         self.base = base_path / "chunks"
-        
+
     def write_chunk(self, content_hash: str, chunk_idx: int, data: bytes):
         """Write single chunk to disk."""
         path = self.base / content_hash[:2] / content_hash / f"{chunk_idx:08d}"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(data)
-        
+
     def read_stream(self, content_hash: str, start_chunk: int = 0) -> Iterator[bytes]:
         """Yield chunks for streaming without loading full file."""
         chunk_idx = start_chunk
@@ -38,7 +38,7 @@ class StreamingChunkStore:
                 break
             yield path.read_bytes()
             chunk_idx += 1
-            
+
     def verify_chunk(self, content_hash: str, chunk_idx: int, expected_hash: str) -> bool:
         """Verify single chunk integrity without loading whole file."""
 ```
@@ -62,7 +62,7 @@ class RaptorQProfile:
     symbol_size: int          # 1024 for small, 65536 for large
     symbols_per_block: int    # 64 for small, 1024 for large
     max_parallel: int         # 1 for small, 8 for large
-    
+
     @classmethod
     def for_size(cls, bytes: int) -> "RaptorQProfile":
         if bytes < 10_000_000:      # < 10MB
@@ -101,13 +101,13 @@ async def publish_large_content(request: Request):
     """Handle multi-GB uploads without OOM."""
     content_hash = None
     chunk_store = StreamingChunkStore()
-    
+
     async for chunk in request.stream():
         # Parse multipart boundaries
         if is_file_chunk(chunk):
             chunk_idx = calculate_chunk_index(chunk.offset)
             chunk_store.write_chunk(content_hash, chunk_idx, chunk.data)
-            
+
         # Update progress for UI
         if chunk_idx % 100 == 0:
             broadcast_progress(content_hash, chunk_idx, total_chunks)

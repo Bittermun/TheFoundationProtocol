@@ -63,7 +63,7 @@ fi
 if ! fly status &> /dev/null; then
     echo "🆕 First-time launch..."
     fly launch --name tfp-demo --region iad --yes
-    
+
     # Create volume for persistence
     echo "💾 Creating persistent volume..."
     fly volumes create tfp_data --size 1 --region iad --yes || true

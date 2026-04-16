@@ -33,6 +33,10 @@ dev = [
 distributed = [
     "redis>=5.2.0",
 ]
+# PostgreSQL for multi-worker deployments (SQLite is single-worker only)
+postgresql = [
+    "psycopg2-binary>=2.9.0",
+]
 rag = [
     "chromadb>=0.4.24",
     "transformers>=4.39.0",
@@ -47,7 +51,7 @@ security = [
     "cryptography>=41.0.0",
 ]
 all = [
-    "tfp[distributed,rag,tracing,security]",
+    "tfp[distributed,postgresql,rag,tracing,security]",
 ]
 
 [tool.setuptools.packages.find]

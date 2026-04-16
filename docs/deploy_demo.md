@@ -40,6 +40,7 @@ uvicorn tfp_demo.server:app --reload
 | `TFP_EARN_RATE_MAX` | `10` | Max earn calls per device per window. |
 | `TFP_EARN_RATE_WINDOW` | `60` | Sliding window length in seconds for rate limiting. |
 | `TFP_REDIS_URL` | _(empty)_ | Redis connection URL (e.g. `redis://localhost:6379`). When set, rate limiters use distributed Redis sliding-window counters shared across workers. |
+| `TFP_DATABASE_URL` | _(empty — uses SQLite)_ | Database connection URL. **⚠️ Partial PostgreSQL support** — connection layer works, but store classes use SQLite-specific SQL. Use SQLite for production. Full PostgreSQL support requires store refactoring. |
 
 ---
 

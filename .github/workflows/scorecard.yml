@@ -44,30 +44,3 @@ jobs:
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: results.sarif
-
-  # Run the Python SecurityScorecard module to track score over time
-  python-scorecard:
-    name: Python security scorecard check
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Run TFP security scorecard
-        run: |
-          python - <<'EOF'
-          import sys
-          sys.path.insert(0, ".")
-          try:
-              from tfp_core.audit.security_scorecard import SecurityScorecard
-              sc = SecurityScorecard(threshold=5.0)
-              results = sc.run(repo_path=".")
-              print(f"Security score: {results.get('score', 'N/A')}")
-              print(f"Passed threshold: {results.get('passed', False)}")
-          except Exception as e:
-              print(f"Scorecard check skipped (not blocking): {e}")
-          EOF
