@@ -573,9 +573,7 @@ class NostrBridge:
                 )
         return event.to_dict()
 
-    def publish_supply_gossip(
-        self, total_minted: int, supply_cap: int
-    ) -> dict:
+    def publish_supply_gossip(self, total_minted: int, supply_cap: int) -> dict:
         """
         Publish a supply ledger gossip event for multi-node coordination.
 

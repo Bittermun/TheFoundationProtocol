@@ -1,8 +1,8 @@
 # TFP Open Source Readiness Plan
 
-> **Version:** 1.0 (April 2026)  
-> **Scope:** Production-grade open source release  
-> **Timeline:** 4-phase rollout over 6-8 weeks  
+> **Version:** 1.0 (April 2026)
+> **Scope:** Production-grade open source release
+> **Timeline:** 4-phase rollout over 6-8 weeks
 
 ---
 
@@ -44,7 +44,7 @@ This plan defines the complete path from current state (v3.1, functional but wit
 Standards:
   - OWASP_ASVS_L1: true  # Application Security Verification Standard
   - SLSA_L1: true         # Supply chain integrity
-  
+
 Required_Gates:
   - bandit: zero medium/high severity
   - safety: zero known CVEs in dependencies
@@ -329,7 +329,7 @@ Python_Source:
   Type_Hints: Required on public functions
   Docstrings: Required on public classes/functions
   Bandit_Clean: Required (no medium/high)
-  
+
 Documentation:
   Markdown: All docs
   TOCs: Required if > 2 screens
@@ -382,5 +382,5 @@ CreditLedger
 
 **End of Plan**
 
-*Last updated: April 15, 2026*  
+*Last updated: April 15, 2026*
 *Next review: Upon Phase 1 completion*

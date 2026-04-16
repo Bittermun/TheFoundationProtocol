@@ -10,13 +10,13 @@ Enables horizontal scaling with multiple uvicorn workers:
 
 Usage:
     from tfp_demo.database import Database
-    
+
     # SQLite (default, single-worker)
     db = Database.from_url("sqlite:///path/to/db.sqlite")
-    
+
     # PostgreSQL (multi-worker)
     db = Database.from_url("postgresql://user:pass@host/db")
-    
+
     with db.transaction() as conn:
         conn.execute("INSERT ...", params)
 """
@@ -111,7 +111,9 @@ class Database:
             return cls._create_postgresql(url)
         elif url.startswith("postgres://"):
             # Handle postgres:// shorthand
-            return cls._create_postgresql(url.replace("postgres://", "postgresql://", 1))
+            return cls._create_postgresql(
+                url.replace("postgres://", "postgresql://", 1)
+            )
         else:
             # Default to SQLite for backward compatibility
             return cls._create_sqlite(f"sqlite:///{url}")
@@ -209,9 +211,7 @@ class Database:
             finally:
                 cursor.close()
 
-    def execute(
-        self, sql: str, parameters: Optional[Tuple[Any, ...]] = None
-    ) -> Any:
+    def execute(self, sql: str, parameters: Optional[Tuple[Any, ...]] = None) -> Any:
         """Execute SQL statement."""
         with self.transaction() as conn:
             if self._db_type == "sqlite":

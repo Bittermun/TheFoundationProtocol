@@ -1229,7 +1229,9 @@ class TestHABPRestartSurvival:
         # Create a task
         spec = ts.create_task("hash_preimage", 1, b"restart-seed")
         task_id = spec.task_id
-        output_hash = spec.expected_output_hash  # Use correct expected output hash from spec
+        output_hash = (
+            spec.expected_output_hash
+        )  # Use correct expected output hash from spec
 
         # Simulate 2 proof submissions persisted to DB
         for i in range(2):

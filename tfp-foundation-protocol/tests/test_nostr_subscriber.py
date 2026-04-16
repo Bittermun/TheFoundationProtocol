@@ -33,7 +33,9 @@ def _make_event(content_hash: str = "a" * 64) -> Dict[str, Any]:
     return {
         "id": "e" * 64,
         "pubkey": "p" * 64,
-        "created_at": int(time.time()),  # Use current time to pass timestamp drift check
+        "created_at": int(
+            time.time()
+        ),  # Use current time to pass timestamp drift check
         "kind": TFP_CONTENT_KIND,
         "tags": [["t", "tfp"]],
         "content": json.dumps({"hash": content_hash, "title": "Test"}),

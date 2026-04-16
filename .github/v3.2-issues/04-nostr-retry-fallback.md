@@ -19,7 +19,7 @@ Change from single to list:
 # Old
 NOSTR_RELAY = "wss://relay.damus.io"
 
-# New  
+# New
 NOSTR_RELAYS = [
     "wss://relay.damus.io",
     "wss://nos.lol",
@@ -38,7 +38,7 @@ class NostrConnectionManager:
         self.relays = relays
         self.connections: Dict[str, WebSocket] = {}
         self.backoff = ExponentialBackoff(max_delay=300)
-        
+
     async def publish(self, event: NostrEvent) -> List[str]:
         """Publish to all connected relays. Return list of successful relay URLs."""
         successes = []
@@ -51,12 +51,12 @@ class NostrConnectionManager:
                 delay = self.backoff.next_delay(relay)
                 logger.warning(f"Relay {relay} failed, retry in {delay}s")
                 asyncio.create_task(self._retry_later(relay, event, delay))
-                
+
         if not successes:
             raise NoRelaysAvailable("All Nostr relays unreachable")
-            
+
         return successes
-        
+
     async def _retry_later(self, relay: str, event: NostrEvent, delay: float):
         await asyncio.sleep(delay)
         await self._publish_to_relay(relay, event)
