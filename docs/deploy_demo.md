@@ -31,7 +31,7 @@ uvicorn tfp_demo.server:app --reload
 |----------|---------|-------------|
 | `TFP_MODE` | `demo` | Runtime mode. Use `production` for fail-closed startup validation and hardened defaults. |
 | `TFP_DB_PATH` | `pib.db` | SQLite database path. Use `:memory:` for ephemeral (tests). |
-| `NOSTR_RELAY` | _(empty)_ | WebSocket URL of a Nostr relay to publish/subscribe content announcements. |
+| `NOSTR_RELAY` | _(empty)_ | WebSocket URL of a Nostr relay to publish/subscribe content announcements. `NOSTR_RELAY_URL` is also accepted (used by the Fly.io configs). |
 | `TFP_PEER_SECRET` | _(empty in demo)_ | Required in production. Shared secret for `/api/peer` and `/admin` via `X-TFP-Peer-Secret`. |
 | `TFP_ADMIN_DEVICE_IDS` | _(empty in demo)_ | Required in production. Comma-separated device allowlist for `/api/admin/rag/reindex`. |
 | `TFP_NOSTR_PUBLISH_ENABLED` | `1` in demo, `0` in production | Enables outbound Nostr gossip publishing. |
@@ -151,7 +151,7 @@ tfp --api http://localhost:8000 leaderboard
 1. Create new Web Service from this repo
 2. Set environment vars:
    - `NOSTR_RELAY` → `wss://relay.damus.io` (or your relay)
-   - `TFP_DB_PATH` → `/data/pib.db` (use a persistent disk)
+   - `TFP_DB_PATH` → `/data/tfp.db` (use a persistent disk)
 3. Build command: `pip install -r tfp-foundation-protocol/requirements.txt`
 4. Start command: `cd tfp-foundation-protocol && uvicorn tfp_demo.server:app --host 0.0.0.0 --port 8000`
 
@@ -172,7 +172,7 @@ Two deployment options are available:
 
 ```bash
 # Use the root fly.toml configuration
-fly launch --name tfp-demo --config fly.toml
+fly launch --no-deploy --name tfp-demo --config fly.toml
 fly volumes create tfp_data --size 1 --region iad
 fly deploy --config fly.toml
 ```
@@ -181,7 +181,7 @@ fly deploy --config fly.toml
 
 ```bash
 # Use the production configuration with security hardening
-fly launch --name tfp-production --config fly.production.toml
+fly launch --no-deploy --name tfp-production --config fly.production.toml
 fly volumes create tfp_data --size 1 --region iad
 fly secrets set TFP_PEER_SECRET=<your-secret>
 fly secrets set TFP_ADMIN_DEVICE_IDS=<device-id-1,device-id-2>
@@ -189,7 +189,7 @@ fly secrets set NOSTR_PRIVATE_KEY=<your-private-key>  # optional
 fly deploy --config fly.production.toml
 ```
 
-> **Status:** Configuration fixed. Port standardized to 8000, auto-stop disabled, Python 3.12.
+> **Status:** Verified. Uses multi-stage Python 3.12 Dockerfile, port 8000, persistent volume at `/data`, auto-stop disabled.
 
 ---
 
