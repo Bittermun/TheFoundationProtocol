@@ -663,12 +663,11 @@ class EarnLog:
                 )
                 self._conn.commit()
                 return True
-            except (sqlite3.IntegrityError, Exception) as exc:
-                # PostgreSQL raises psycopg2.errors.UniqueViolation, SQLite raises IntegrityError
-                # Check if it's a constraint violation (duplicate key)
+            except sqlite3.IntegrityError as exc:
+                # Check if it's a UNIQUE constraint violation (duplicate key)
                 if "UNIQUE constraint" in str(exc) or "duplicate key" in str(exc).lower():
                     return False
-                # Re-raise if it's not a constraint violation
+                # Re-raise other IntegrityErrors (e.g., FK violations)
                 raise
 
 
@@ -929,10 +928,10 @@ class TaskStore:
                     gossiped_total = _gossiped_supply_total
 
                 # Effective cap is min of local cap and gossiped total + buffer
-                # Buffer of 1000 allows for concurrent mints across nodes
+                # Buffer allows for concurrent mints across nodes (configurable)
                 # When no gossip received (single-node), use full MAX_SUPPLY
                 if gossiped_total > 0:
-                    buffer = 1000
+                    buffer = int(os.environ.get("TFP_SUPPLY_GOSSIP_BUFFER", "1000"))
                     effective_cap = min(MAX_SUPPLY, gossiped_total + buffer)
                 else:
                     effective_cap = MAX_SUPPLY
@@ -1535,7 +1534,7 @@ _clients: Dict[str, TFPClient] = {}
 _metrics: _Metrics = _Metrics()
 _demo_dir = Path(__file__).resolve().parent.parent / "demo"
 _blob_store: Optional[BlobStore] = None
-_peer_fallback = None  # type: Optional[_PeerFallback] — class defined below
+_peer_fallback = None  # type: Optional[_PeerFallback]  # class defined below
 _hlt: Optional[HierarchicalLexiconTree] = None
 _peer_secret: str = ""  # TFP_PEER_SECRET shared secret for /api/peer auth
 _runtime_mode: str = "demo"  # TFP_MODE=demo|production
@@ -1909,7 +1908,20 @@ def _handle_supply_gossip_event(event_dict: dict) -> None:
     try:
         payload = json.loads(event_dict.get("content", "{}"))
         total_minted = payload.get("total_minted")
-        if isinstance(total_minted, int) and total_minted >= 0:
+        # Validate: must be int within valid range [0, MAX_SUPPLY]
+        if isinstance(total_minted, int) and 0 <= total_minted <= MAX_SUPPLY:
+            # Additional validation: reject implausibly high values
+            # Must be within reasonable buffer of our local total
+            local_total = _task_store.get_total_minted() if _task_store else 0
+            max_plausible = local_total + 10000  # Allow for network concurrency
+            if total_minted > max_plausible:
+                log.warning(
+                    "Rejecting suspicious supply gossip: %d > local %d + buffer (from pubkey=%s)",
+                    total_minted,
+                    local_total,
+                    event_dict.get("pubkey", "")[:16],
+                )
+                return
             with _gossiped_supply_lock:
                 if total_minted > _gossiped_supply_total:
                     log.info(

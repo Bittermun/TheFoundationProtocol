@@ -214,17 +214,9 @@ class NostrSubscriber:
             if subscribed_kinds and event_dict.get("kind") not in subscribed_kinds:
                 return
 
-            # Reject events with timestamp drift beyond ±5 minutes
-            import time
-            created_at = event_dict.get("created_at")
-            if isinstance(created_at, (int, float)):
-                if abs(created_at - time.time()) > 300:
-                    logger.debug(
-                        "NostrSubscriber: dropped event with timestamp drift: %s",
-                        created_at,
-                    )
-                    return
-
+            # Note: Timestamp/replay validation is handled by the server's
+            # _check_replay_window when events are processed. We deliver all
+            # syntactically valid events to allow the server to make the decision.
             self._received.append(event_dict)
             try:
                 self._on_event(event_dict)
