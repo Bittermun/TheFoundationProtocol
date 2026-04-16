@@ -13,7 +13,7 @@ import threading
 
 import time
 
-from tfp_demo.database import Database, get_database_from_env, DatabaseError
+from tfp_demo.database import Database, get_database_from_env
 import urllib.parse
 import urllib.request
 from contextlib import asynccontextmanager
@@ -665,7 +665,10 @@ class EarnLog:
                 return True
             except sqlite3.IntegrityError as exc:
                 # Check if it's a UNIQUE constraint violation (duplicate key)
-                if "UNIQUE constraint" in str(exc) or "duplicate key" in str(exc).lower():
+                if (
+                    "UNIQUE constraint" in str(exc)
+                    or "duplicate key" in str(exc).lower()
+                ):
                     return False
                 # Re-raise other IntegrityErrors (e.g., FK violations)
                 raise
@@ -860,6 +863,7 @@ class TaskStore:
         for task_id, device_id, output_hash, exec_time_s, has_tee, spec_json in rows:
             try:
                 import json
+
                 spec = json.loads(spec_json)
                 expected_hash = spec.get("expected_output_hash")
                 if expected_hash and output_hash != expected_hash:
@@ -1542,7 +1546,9 @@ _trusted_nostr_pubkeys: frozenset[str] = frozenset()
 _admin_device_ids: frozenset[str] = frozenset()
 _rag_graph = None  # RAGGraph instance when TFP_ENABLE_RAG=1; Optional[Any]
 _chunk_store = None  # ChunkStore for shard-pin reward tracking; Optional[Any]
-_gossiped_supply_total: int = 0  # Maximum total minted seen from other nodes via Nostr gossip
+_gossiped_supply_total: int = (
+    0  # Maximum total minted seen from other nodes via Nostr gossip
+)
 _gossiped_supply_lock: threading.Lock = threading.Lock()
 
 # Event-ID deduplication cache: prevents the same Nostr event from being
@@ -1905,6 +1911,7 @@ def _handle_supply_gossip_event(event_dict: dict) -> None:
     Updates the local gossiped supply total with the maximum value seen
     from other nodes to prevent supply cap bypass across the network.
     """
+    global _gossiped_supply_total
     try:
         payload = json.loads(event_dict.get("content", "{}"))
         total_minted = payload.get("total_minted")
@@ -3548,9 +3555,7 @@ def submit_task_result(
         credits = verification["credits_earned"]
         # Auto-apply credits to the device's ledger if consensus is reached
         # (normalized format: task:{task_id} to prevent double-mint with /api/earn)
-        if credits > 0 and not _earn_log.record(
-            payload.device_id, f"task:{task_id}"
-        ):
+        if credits > 0 and not _earn_log.record(payload.device_id, f"task:{task_id}"):
             # Already applied (idempotent guard)
             pass
         elif credits > 0:
