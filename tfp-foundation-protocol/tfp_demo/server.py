@@ -2389,6 +2389,7 @@ async def lifespan(_app: FastAPI):
                         TFP_CONTENT_KIND,
                         TFP_SEARCH_INDEX_KIND,
                         TFP_CONTENT_ANNOUNCE_KIND,
+                        30081,  # supply ledger gossip for multi-node coordination
                     ]
                 },
             )

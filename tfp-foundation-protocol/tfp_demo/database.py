@@ -152,7 +152,7 @@ class Database:
 
         conn = psycopg2.connect(url)
         conn.autocommit = False
-        return cls(conn, "postgresql", dsn=url)
+        return cls(conn, "postgresql")
 
     @property
     def db_type(self) -> str:
