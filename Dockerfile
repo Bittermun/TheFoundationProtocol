@@ -38,6 +38,7 @@ COPY tfp-foundation-protocol/tfp_broadcaster/ ./tfp_broadcaster/
 COPY tfp-foundation-protocol/tfp_cli/ ./tfp_cli/
 COPY tfp-foundation-protocol/tfp_common/ ./tfp_common/
 COPY tfp-foundation-protocol/tfp_simulator/ ./tfp_simulator/
+COPY tfp-foundation-protocol/demo/ ./demo/
 
 # Environment variables
 ENV PYTHONPATH=/app

@@ -1,0 +1,15 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'tfp-nodes'
+    static_configs:
+      - targets: 
+          - 'tfp-demo-1:8000'
+          - 'tfp-demo-2:8000'
+          - 'tfp-demo-3:8000'
+          - 'tfp-demo-4:8000'
+          - 'tfp-demo-5:8000'
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance

@@ -102,7 +102,7 @@ services:
 
   tfp-demo-1:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-1
     ports:
@@ -130,7 +130,7 @@ services:
       - tfp-network
   tfp-demo-2:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-2
     ports:
@@ -158,7 +158,7 @@ services:
       - tfp-network
   tfp-demo-3:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-3
     ports:
@@ -186,7 +186,7 @@ services:
       - tfp-network
   tfp-demo-4:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-4
     ports:
@@ -214,7 +214,7 @@ services:
       - tfp-network
   tfp-demo-5:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-5
     ports:
@@ -242,7 +242,7 @@ services:
       - tfp-network
   tfp-demo-6:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-6
     ports:
@@ -270,7 +270,7 @@ services:
       - tfp-network
   tfp-demo-7:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-7
     ports:
@@ -298,7 +298,7 @@ services:
       - tfp-network
   tfp-demo-8:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-8
     ports:
@@ -326,7 +326,7 @@ services:
       - tfp-network
   tfp-demo-9:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-9
     ports:
@@ -354,7 +354,7 @@ services:
       - tfp-network
   tfp-demo-10:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-10
     ports:
@@ -382,7 +382,7 @@ services:
       - tfp-network
   tfp-demo-11:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-11
     ports:
@@ -410,7 +410,7 @@ services:
       - tfp-network
   tfp-demo-12:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-12
     ports:
@@ -438,7 +438,7 @@ services:
       - tfp-network
   tfp-demo-13:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-13
     ports:
@@ -466,7 +466,7 @@ services:
       - tfp-network
   tfp-demo-14:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-14
     ports:
@@ -494,7 +494,7 @@ services:
       - tfp-network
   tfp-demo-15:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-15
     ports:
@@ -522,7 +522,7 @@ services:
       - tfp-network
   tfp-demo-16:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-16
     ports:
@@ -550,7 +550,7 @@ services:
       - tfp-network
   tfp-demo-17:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-17
     ports:
@@ -578,7 +578,7 @@ services:
       - tfp-network
   tfp-demo-18:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-18
     ports:
@@ -606,7 +606,7 @@ services:
       - tfp-network
   tfp-demo-19:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-19
     ports:
@@ -634,7 +634,7 @@ services:
       - tfp-network
   tfp-demo-20:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-20
     ports:
@@ -662,7 +662,7 @@ services:
       - tfp-network
   tfp-demo-21:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-21
     ports:
@@ -690,7 +690,7 @@ services:
       - tfp-network
   tfp-demo-22:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-22
     ports:
@@ -718,7 +718,7 @@ services:
       - tfp-network
   tfp-demo-23:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-23
     ports:
@@ -746,7 +746,7 @@ services:
       - tfp-network
   tfp-demo-24:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-24
     ports:
@@ -774,7 +774,7 @@ services:
       - tfp-network
   tfp-demo-25:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-25
     ports:
@@ -802,7 +802,7 @@ services:
       - tfp-network
   tfp-demo-26:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-26
     ports:
@@ -830,7 +830,7 @@ services:
       - tfp-network
   tfp-demo-27:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-27
     ports:
@@ -858,7 +858,7 @@ services:
       - tfp-network
   tfp-demo-28:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-28
     ports:
@@ -886,7 +886,7 @@ services:
       - tfp-network
   tfp-demo-29:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-29
     ports:
@@ -914,7 +914,7 @@ services:
       - tfp-network
   tfp-demo-30:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-30
     ports:
@@ -942,7 +942,7 @@ services:
       - tfp-network
   tfp-demo-31:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-31
     ports:
@@ -970,7 +970,7 @@ services:
       - tfp-network
   tfp-demo-32:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-32
     ports:
@@ -998,7 +998,7 @@ services:
       - tfp-network
   tfp-demo-33:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-33
     ports:
@@ -1026,7 +1026,7 @@ services:
       - tfp-network
   tfp-demo-34:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-34
     ports:
@@ -1054,7 +1054,7 @@ services:
       - tfp-network
   tfp-demo-35:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-35
     ports:
@@ -1082,7 +1082,7 @@ services:
       - tfp-network
   tfp-demo-36:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-36
     ports:
@@ -1110,7 +1110,7 @@ services:
       - tfp-network
   tfp-demo-37:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-37
     ports:
@@ -1138,7 +1138,7 @@ services:
       - tfp-network
   tfp-demo-38:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-38
     ports:
@@ -1166,7 +1166,7 @@ services:
       - tfp-network
   tfp-demo-39:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-39
     ports:
@@ -1194,7 +1194,7 @@ services:
       - tfp-network
   tfp-demo-40:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-40
     ports:
@@ -1222,7 +1222,7 @@ services:
       - tfp-network
   tfp-demo-41:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-41
     ports:
@@ -1250,7 +1250,7 @@ services:
       - tfp-network
   tfp-demo-42:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-42
     ports:
@@ -1278,7 +1278,7 @@ services:
       - tfp-network
   tfp-demo-43:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-43
     ports:
@@ -1306,7 +1306,7 @@ services:
       - tfp-network
   tfp-demo-44:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-44
     ports:
@@ -1334,7 +1334,7 @@ services:
       - tfp-network
   tfp-demo-45:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-45
     ports:
@@ -1362,7 +1362,7 @@ services:
       - tfp-network
   tfp-demo-46:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-46
     ports:
@@ -1390,7 +1390,7 @@ services:
       - tfp-network
   tfp-demo-47:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-47
     ports:
@@ -1418,7 +1418,7 @@ services:
       - tfp-network
   tfp-demo-48:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-48
     ports:
@@ -1446,7 +1446,7 @@ services:
       - tfp-network
   tfp-demo-49:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-49
     ports:
@@ -1474,7 +1474,7 @@ services:
       - tfp-network
   tfp-demo-50:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-50
     ports:
@@ -1502,7 +1502,7 @@ services:
       - tfp-network
   tfp-demo-51:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-51
     ports:
@@ -1530,7 +1530,7 @@ services:
       - tfp-network
   tfp-demo-52:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-52
     ports:
@@ -1558,7 +1558,7 @@ services:
       - tfp-network
   tfp-demo-53:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-53
     ports:
@@ -1586,7 +1586,7 @@ services:
       - tfp-network
   tfp-demo-54:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-54
     ports:
@@ -1614,7 +1614,7 @@ services:
       - tfp-network
   tfp-demo-55:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-55
     ports:
@@ -1642,7 +1642,7 @@ services:
       - tfp-network
   tfp-demo-56:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-56
     ports:
@@ -1670,7 +1670,7 @@ services:
       - tfp-network
   tfp-demo-57:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-57
     ports:
@@ -1698,7 +1698,7 @@ services:
       - tfp-network
   tfp-demo-58:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-58
     ports:
@@ -1726,7 +1726,7 @@ services:
       - tfp-network
   tfp-demo-59:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-59
     ports:
@@ -1754,7 +1754,7 @@ services:
       - tfp-network
   tfp-demo-60:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-60
     ports:
@@ -1782,7 +1782,7 @@ services:
       - tfp-network
   tfp-demo-61:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-61
     ports:
@@ -1810,7 +1810,7 @@ services:
       - tfp-network
   tfp-demo-62:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-62
     ports:
@@ -1838,7 +1838,7 @@ services:
       - tfp-network
   tfp-demo-63:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-63
     ports:
@@ -1866,7 +1866,7 @@ services:
       - tfp-network
   tfp-demo-64:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-64
     ports:
@@ -1894,7 +1894,7 @@ services:
       - tfp-network
   tfp-demo-65:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-65
     ports:
@@ -1922,7 +1922,7 @@ services:
       - tfp-network
   tfp-demo-66:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-66
     ports:
@@ -1950,7 +1950,7 @@ services:
       - tfp-network
   tfp-demo-67:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-67
     ports:
@@ -1978,7 +1978,7 @@ services:
       - tfp-network
   tfp-demo-68:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-68
     ports:
@@ -2006,7 +2006,7 @@ services:
       - tfp-network
   tfp-demo-69:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-69
     ports:
@@ -2034,7 +2034,7 @@ services:
       - tfp-network
   tfp-demo-70:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-70
     ports:
@@ -2062,7 +2062,7 @@ services:
       - tfp-network
   tfp-demo-71:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-71
     ports:
@@ -2090,7 +2090,7 @@ services:
       - tfp-network
   tfp-demo-72:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-72
     ports:
@@ -2118,7 +2118,7 @@ services:
       - tfp-network
   tfp-demo-73:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-73
     ports:
@@ -2146,7 +2146,7 @@ services:
       - tfp-network
   tfp-demo-74:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-74
     ports:
@@ -2174,7 +2174,7 @@ services:
       - tfp-network
   tfp-demo-75:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-75
     ports:
@@ -2202,7 +2202,7 @@ services:
       - tfp-network
   tfp-demo-76:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-76
     ports:
@@ -2230,7 +2230,7 @@ services:
       - tfp-network
   tfp-demo-77:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-77
     ports:
@@ -2258,7 +2258,7 @@ services:
       - tfp-network
   tfp-demo-78:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-78
     ports:
@@ -2286,7 +2286,7 @@ services:
       - tfp-network
   tfp-demo-79:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-79
     ports:
@@ -2314,7 +2314,7 @@ services:
       - tfp-network
   tfp-demo-80:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-80
     ports:
@@ -2342,7 +2342,7 @@ services:
       - tfp-network
   tfp-demo-81:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-81
     ports:
@@ -2370,7 +2370,7 @@ services:
       - tfp-network
   tfp-demo-82:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-82
     ports:
@@ -2398,7 +2398,7 @@ services:
       - tfp-network
   tfp-demo-83:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-83
     ports:
@@ -2426,7 +2426,7 @@ services:
       - tfp-network
   tfp-demo-84:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-84
     ports:
@@ -2454,7 +2454,7 @@ services:
       - tfp-network
   tfp-demo-85:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-85
     ports:
@@ -2482,7 +2482,7 @@ services:
       - tfp-network
   tfp-demo-86:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-86
     ports:
@@ -2510,7 +2510,7 @@ services:
       - tfp-network
   tfp-demo-87:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-87
     ports:
@@ -2538,7 +2538,7 @@ services:
       - tfp-network
   tfp-demo-88:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-88
     ports:
@@ -2566,7 +2566,7 @@ services:
       - tfp-network
   tfp-demo-89:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-89
     ports:
@@ -2594,7 +2594,7 @@ services:
       - tfp-network
   tfp-demo-90:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-90
     ports:
@@ -2622,7 +2622,7 @@ services:
       - tfp-network
   tfp-demo-91:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-91
     ports:
@@ -2650,7 +2650,7 @@ services:
       - tfp-network
   tfp-demo-92:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-92
     ports:
@@ -2678,7 +2678,7 @@ services:
       - tfp-network
   tfp-demo-93:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-93
     ports:
@@ -2706,7 +2706,7 @@ services:
       - tfp-network
   tfp-demo-94:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-94
     ports:
@@ -2734,7 +2734,7 @@ services:
       - tfp-network
   tfp-demo-95:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-95
     ports:
@@ -2762,7 +2762,7 @@ services:
       - tfp-network
   tfp-demo-96:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-96
     ports:
@@ -2790,7 +2790,7 @@ services:
       - tfp-network
   tfp-demo-97:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-97
     ports:
@@ -2818,7 +2818,7 @@ services:
       - tfp-network
   tfp-demo-98:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-98
     ports:
@@ -2846,7 +2846,7 @@ services:
       - tfp-network
   tfp-demo-99:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-99
     ports:
@@ -2874,7 +2874,7 @@ services:
       - tfp-network
   tfp-demo-100:
     build:
-      context: .
+      context: ../../tfp-foundation-protocol
       dockerfile: Dockerfile.demo
     container_name: tfp-demo-node-100
     ports:

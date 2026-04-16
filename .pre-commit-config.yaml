@@ -31,3 +31,12 @@ repos:
         language: system
         types: [python]
         pass_filenames: false
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy type check
+        entry: mypy
+        args: ["--ignore-missing-imports", "--no-error-summary"]
+        language: system
+        types: [python]
+        exclude: ^(tfp_ui/|tfp_testbed/|tfp_simulator/)

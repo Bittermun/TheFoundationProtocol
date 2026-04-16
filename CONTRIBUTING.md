@@ -42,8 +42,15 @@ TFP_DB_PATH=:memory: PYTHONPATH=. python -m pytest tests/ -q   # 749+ tests (pro
 - Python 3.11+ compatible
 - `ruff check` and `ruff format` enforced by pre-commit hooks
 - `bandit` for security scanning — `medium` severity and above must be addressed
+- `mypy` for type checking — enforced by pre-commit hooks
 - Type hints on all public functions
 - Docstrings on all public classes and methods
+
+### CI/CD Configuration
+- The security workflow uses `safety check` for dependency vulnerability scanning
+- For enhanced security reporting with `safety scan --full-report`, add a `SAFETY_API_KEY` secret to the repository
+- Without the API key, the workflow falls back to basic `safety check` (non-blocking)
+- All security jobs have a 10-minute timeout to prevent hung CI runs
 
 ### CI Triage Checklist (fast path)
 Use this order to resolve CI failures quickly and keep future PRs easy to debug:
