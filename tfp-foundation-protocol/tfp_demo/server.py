@@ -85,6 +85,23 @@ class StoredContent:
 # ---------------------------------------------------------------------------
 
 
+_SAFE_HASH_RE = re.compile(r"^[a-zA-Z0-9_-]{1,256}$")
+
+
+def _validate_hash_component(value: str) -> str:
+    """Reject path-traversal payloads in hash-derived filesystem keys.
+
+    Allows alphanumeric characters, hyphens, and underscores.  Blocks
+    slashes, dots, spaces, and other characters that could be used for
+    directory traversal or filesystem abuse.
+    """
+    if not _SAFE_HASH_RE.match(value):
+        raise ValueError(
+            f"invalid hash component (must be 1-256 alphanumeric/hyphen/underscore chars): {value!r}"
+        )
+    return value
+
+
 class BlobStore:
     """
     Manages raw content blobs separately from the SQLite metadata tables.
@@ -106,6 +123,7 @@ class BlobStore:
 
     def put(self, root_hash: str, data: bytes) -> str:
         """Write blob data; return the opaque key for later retrieval."""
+        _validate_hash_component(root_hash)
         if self._dir is not None:
             path = self._dir / root_hash
             path.write_bytes(data)
@@ -116,26 +134,36 @@ class BlobStore:
     def get(self, key: str) -> Optional[bytes]:
         """Read blob by key; return None if not found."""
         if self._dir is not None:
-            p = Path(key)
+            p = Path(key).resolve()
+            if not str(p).startswith(str(self._dir.resolve())):
+                log.warning("BlobStore.get: path traversal blocked: %s", key)
+                return None
             return p.read_bytes() if p.exists() else None
         return self._mem.get(key)
 
     def exists(self, key: str) -> bool:
         if self._dir is not None:
-            return Path(key).exists()
+            p = Path(key).resolve()
+            if not str(p).startswith(str(self._dir.resolve())):
+                return False
+            return p.exists()
         return key in self._mem
 
     def get_size(self, key: str) -> int:
         """Return byte size of the stored blob; 0 if not found."""
         if self._dir is not None:
-            p = Path(key)
+            p = Path(key).resolve()
+            if not str(p).startswith(str(self._dir.resolve())):
+                return 0
             return p.stat().st_size if p.exists() else 0
         return len(self._mem.get(key, b""))
 
     def open_stream(self, key: str, chunk_size: int = 65536) -> Iterator[bytes]:
         """Yield blob bytes in *chunk_size* chunks (O(1) memory in filesystem mode)."""
         if self._dir is not None:
-            p = Path(key)
+            p = Path(key).resolve()
+            if not str(p).startswith(str(self._dir.resolve())):
+                return
             if p.exists():
                 with open(p, "rb") as f:
                     while True:
@@ -150,6 +178,7 @@ class BlobStore:
 
     def put_shard(self, root_hash: str, shard_idx: int, data: bytes) -> str:
         """Write a shard; return its opaque key."""
+        _validate_hash_component(root_hash)
         shard_name = f"shard_{shard_idx:04d}"
         if self._dir is not None:
             shard_dir = self._dir / f"{root_hash}.shards"
@@ -163,6 +192,7 @@ class BlobStore:
 
     def get_shard(self, root_hash: str, shard_idx: int) -> Optional[bytes]:
         """Read shard by root_hash and index; return None if not found."""
+        _validate_hash_component(root_hash)
         shard_name = f"shard_{shard_idx:04d}"
         if self._dir is not None:
             path = self._dir / f"{root_hash}.shards" / shard_name
@@ -172,6 +202,7 @@ class BlobStore:
 
     def shard_count(self, root_hash: str) -> int:
         """Return the number of shards stored for *root_hash*."""
+        _validate_hash_component(root_hash)
         if self._dir is not None:
             shard_dir = self._dir / f"{root_hash}.shards"
             if not shard_dir.exists():
@@ -1235,6 +1266,9 @@ _RESULT_RATE_MAX = int(os.environ.get("TFP_RESULT_RATE_MAX", "30"))
 _RESULT_RATE_WINDOW = int(os.environ.get("TFP_RESULT_RATE_WINDOW", "60"))
 
 
+_MAX_RATE_LIMITER_KEYS = 100_000
+
+
 class _RateLimiter:
     """
     In-memory sliding-window rate limiter.
@@ -1242,6 +1276,10 @@ class _RateLimiter:
     Allows at most ``max_calls`` calls per ``window_seconds`` per key.
     Thread-safe by virtue of the GIL on CPython; each bucket is a deque of
     float timestamps that is pruned on every check.
+
+    Bounded to ``_MAX_RATE_LIMITER_KEYS`` tracked keys to prevent memory
+    exhaustion from an attacker sending requests with millions of unique keys.
+    When the limit is reached, the oldest-accessed buckets are evicted.
     """
 
     def __init__(
@@ -1249,12 +1287,23 @@ class _RateLimiter:
     ) -> None:
         self._max = max_calls
         self._window = window_seconds
-        self._buckets: Dict[str, collections.deque] = {}
+        self._buckets: collections.OrderedDict[str, collections.deque] = (
+            collections.OrderedDict()
+        )
 
     def is_allowed(self, key: str) -> bool:
         """Return True and record the call, or False if the rate limit is exceeded."""
         now = time.monotonic()
-        bucket = self._buckets.setdefault(key, collections.deque())
+        bucket = self._buckets.get(key)
+        if bucket is None:
+            # Evict oldest buckets when at capacity
+            while len(self._buckets) >= _MAX_RATE_LIMITER_KEYS:
+                self._buckets.popitem(last=False)
+            bucket = collections.deque()
+            self._buckets[key] = bucket
+        else:
+            # Move to end (most recently accessed)
+            self._buckets.move_to_end(key)
         cutoff = now - self._window
         while bucket and bucket[0] < cutoff:
             bucket.popleft()
@@ -1366,6 +1415,13 @@ _task_store: Optional[TaskStore] = None
 _earn_rate_limiter: _RateLimiter = _RateLimiter()
 _result_rate_limiter: _RateLimiter = _RateLimiter()
 _rag_rate_limiter: _RateLimiter = _RateLimiter(max_calls=20, window_seconds=60)
+# Enrollment rate limiter: prevent abuse of the open /api/enroll endpoint.
+# Default: 20 enrollments per 60 s per source IP.
+_ENROLL_RATE_MAX = int(os.environ.get("TFP_ENROLL_RATE_MAX", "20"))
+_ENROLL_RATE_WINDOW = int(os.environ.get("TFP_ENROLL_RATE_WINDOW", "60"))
+_enroll_rate_limiter: _RateLimiter = _RateLimiter(
+    max_calls=_ENROLL_RATE_MAX, window_seconds=_ENROLL_RATE_WINDOW
+)
 _tag_overlay: Optional[TagOverlayIndex] = None
 _nostr_subscriber: Optional[NostrSubscriber] = None
 _nostr_bridge: Optional[NostrBridge] = None
@@ -1851,6 +1907,7 @@ async def lifespan(_app: FastAPI):
         _earn_rate_limiter, \
         _result_rate_limiter, \
         _rag_rate_limiter, \
+        _enroll_rate_limiter, \
         _tag_overlay, \
         _nostr_subscriber
     global _nostr_bridge, _ipfs_bridge, _clients, _metrics, _app_ready, _startup_stage
@@ -1989,6 +2046,9 @@ async def lifespan(_app: FastAPI):
                     max_calls=_RESULT_RATE_MAX, window_seconds=_RESULT_RATE_WINDOW
                 )
                 _rag_rate_limiter = _RateLimiter(max_calls=20, window_seconds=60)
+                _enroll_rate_limiter = _RateLimiter(
+                    max_calls=_ENROLL_RATE_MAX, window_seconds=_ENROLL_RATE_WINDOW
+                )
         else:
             _earn_rate_limiter = _RateLimiter(
                 max_calls=_EARN_RATE_MAX, window_seconds=_EARN_RATE_WINDOW
@@ -1997,6 +2057,9 @@ async def lifespan(_app: FastAPI):
                 max_calls=_RESULT_RATE_MAX, window_seconds=_RESULT_RATE_WINDOW
             )
             _rag_rate_limiter = _RateLimiter(max_calls=20, window_seconds=60)
+            _enroll_rate_limiter = _RateLimiter(
+                max_calls=_ENROLL_RATE_MAX, window_seconds=_ENROLL_RATE_WINDOW
+            )
             log.info(
                 "Rate limiters: in-memory (set TFP_REDIS_URL for distributed "
                 "limiting required before enabling --workers > 1)."
@@ -2237,7 +2300,12 @@ async def lifespan(_app: FastAPI):
             if "_conn" in locals() and _conn:
                 _conn.close()
             # Close Redis connections if distributed limiters were in use.
-            for _lim in (_earn_rate_limiter, _result_rate_limiter, _rag_rate_limiter):
+            for _lim in (
+                _earn_rate_limiter,
+                _result_rate_limiter,
+                _rag_rate_limiter,
+                _enroll_rate_limiter,
+            ):
                 if hasattr(_lim, "close"):
                     try:
                         _lim.close()
@@ -2361,7 +2429,17 @@ def search_content(
 
 
 @app.post("/api/enroll")
-def enroll(payload: EnrollRequest) -> dict:
+def enroll(payload: EnrollRequest, request: Request) -> dict:
+    # Rate-limit enrollment by client IP to prevent mass device registration.
+    client_ip = request.client.host if request.client else "unknown"
+    if not _enroll_rate_limiter.is_allowed(client_ip):
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                f"enrollment rate limit exceeded — max {_ENROLL_RATE_MAX} "
+                f"enrollments per {_ENROLL_RATE_WINDOW}s per IP"
+            ),
+        )
     try:
         puf_entropy = bytes.fromhex(payload.puf_entropy_hex)
     except ValueError as exc:
@@ -2866,36 +2944,63 @@ def delegate_proof(
 
 
 @app.get("/api/status")
-def status() -> dict:
-    """Node status: local content count, tag index stats, and Nostr subscriber state."""
+def status(
+    x_tfp_peer_secret: str = Header(default="", alias="X-TFP-Peer-Secret"),
+) -> dict:
+    """Node status: local content count, tag index stats, and Nostr subscriber state.
+
+    In production mode the full response (including internal metrics and
+    infrastructure details) is only returned when the caller supplies a
+    valid ``X-TFP-Peer-Secret`` header.  Unauthenticated callers receive a
+    minimal public subset.
+    """
+    # In production, redact internal details unless peer-secret is provided.
+    _is_authed = _runtime_mode != "production" or (
+        _peer_secret and _hmac.compare_digest(x_tfp_peer_secret, _peer_secret)
+    )
+
     nostr_events = len(_nostr_subscriber.get_received()) if _nostr_subscriber else 0
     task_stats = _task_store.stats() if _task_store else {}
-    rag_stats: Optional[dict] = None
-    if _rag_graph is not None:
-        try:
-            rag_stats = _rag_graph.get_stats()
-        except Exception:
-            rag_stats = {"error": "unavailable"}
-    return {
+
+    # Public subset — always safe to expose.
+    result: dict = {
         "version": "0.3.0",
-        "runtime_mode": _runtime_mode,
         "content_items": _content_store.count(),
-        "nostr_events_received": nostr_events,
-        "nostr_subscriber_running": _nostr_subscriber.is_running()
-        if _nostr_subscriber
-        else False,
-        "nostr_relay": _nostr_subscriber.relay_url if _nostr_subscriber else None,
-        "tasks": task_stats,
         "supply_cap": MAX_SUPPLY,
-        "metrics": _metrics.snapshot(),
-        "hlt_domains": len(_hlt.domain_names) if _hlt is not None else 0,
-        "peer_nodes": len(_peer_fallback._peers) if _peer_fallback is not None else 0,
-        "rag_enabled": _rag_graph is not None,
-        "rag_stats": rag_stats,
-        "peer_secret_enforced": bool(_peer_secret),
-        "admin_allowlist_enforced": bool(_admin_device_ids),
-        "pin_rewards_active": _chunk_store is not None,
     }
+
+    if _is_authed:
+        rag_stats: Optional[dict] = None
+        if _rag_graph is not None:
+            try:
+                rag_stats = _rag_graph.get_stats()
+            except Exception:
+                rag_stats = {"error": "unavailable"}
+        result.update(
+            {
+                "runtime_mode": _runtime_mode,
+                "nostr_events_received": nostr_events,
+                "nostr_subscriber_running": (
+                    _nostr_subscriber.is_running() if _nostr_subscriber else False
+                ),
+                "nostr_relay": (
+                    _nostr_subscriber.relay_url if _nostr_subscriber else None
+                ),
+                "tasks": task_stats,
+                "metrics": _metrics.snapshot(),
+                "hlt_domains": len(_hlt.domain_names) if _hlt is not None else 0,
+                "peer_nodes": (
+                    len(_peer_fallback._peers) if _peer_fallback is not None else 0
+                ),
+                "rag_enabled": _rag_graph is not None,
+                "rag_stats": rag_stats,
+                "peer_secret_enforced": bool(_peer_secret),
+                "admin_allowlist_enforced": bool(_admin_device_ids),
+                "pin_rewards_active": _chunk_store is not None,
+            }
+        )
+
+    return result
 
 
 @app.get("/api/discovery")
@@ -3303,14 +3408,29 @@ def submit_task_result(
 
 
 @app.get("/api/devices")
-def device_leaderboard_endpoint(limit: int = Query(default=50, ge=1, le=200)) -> dict:
+def device_leaderboard_endpoint(
+    limit: int = Query(default=50, ge=1, le=200),
+    x_tfp_peer_secret: str = Header(default="", alias="X-TFP-Peer-Secret"),
+) -> dict:
     """
     Return all enrolled devices sorted by credits earned (descending).
 
     Useful for leaderboards, network health checks, and federation tooling.
     ``total_enrolled`` reflects the true count of all devices, regardless of
     the ``limit`` parameter.
+
+    In production mode, requires ``X-TFP-Peer-Secret`` header to prevent
+    enumeration of device IDs and credit balances.
     """
+    if _runtime_mode == "production":
+        if not _peer_secret or not _hmac.compare_digest(
+            x_tfp_peer_secret, _peer_secret
+        ):
+            _metrics.inc("tfp_auth_failures_total")
+            raise HTTPException(
+                status_code=401,
+                detail="X-TFP-Peer-Secret required for /api/devices in production mode",
+            )
     devices = _task_store.device_leaderboard(limit=limit)
     return {
         "devices": devices,
@@ -3344,8 +3464,24 @@ def get_device(device_id: str) -> dict:
 
 
 @app.get("/metrics")
-def metrics() -> Response:
-    """Prometheus-compatible text metrics endpoint."""
+def metrics(
+    x_tfp_peer_secret: str = Header(default="", alias="X-TFP-Peer-Secret"),
+) -> Response:
+    """Prometheus-compatible text metrics endpoint.
+
+    In production mode, requires ``X-TFP-Peer-Secret`` header so that
+    internal counters (auth failures, credit totals, etc.) are not
+    exposed to unauthenticated callers.
+    """
+    if _runtime_mode == "production":
+        if not _peer_secret or not _hmac.compare_digest(
+            x_tfp_peer_secret, _peer_secret
+        ):
+            _metrics.inc("tfp_auth_failures_total")
+            raise HTTPException(
+                status_code=401,
+                detail="X-TFP-Peer-Secret required for /metrics in production mode",
+            )
     return Response(
         content=_metrics.to_prometheus_text(),
         media_type="text/plain; version=0.0.4; charset=utf-8",
