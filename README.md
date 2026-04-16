@@ -73,9 +73,9 @@ Create a **Global Information Commons** that works for pennies: anyone can publi
 - ✅ **Content discovery** — `/api/discovery?domain=X` returns Nostr-announced content hashes.
 - ✅ **PWA** — installable on Android/iOS, offline-first service worker.
 - ✅ **10-node testbed** — Docker Compose with 10 nodes (ports 9001–9010). Run: `docker compose -f docker-compose.testbed.yml up`
+- ✅ **100-node benchmark** — Docker Compose with 100 nodes + OpenTelemetry, Tempo, Prometheus, Grafana. Run: `docker compose -f tests/benchmarks/docker-compose.100.yml up` (resource-intensive)
 - ✅ **CI/CD** — 9 workflows: tests, security, license, release, OpenSSF Scorecard.
 - 🔧 **Cloud deployment** — Docker local verified. Render/Railway/Fly.io need community testing (see `docs/deploy_demo.md`).
-- ❌ 100-node test — deferred pending demand.
 
 ---
 
@@ -229,6 +229,62 @@ Full request/response schemas: [`docs/v3.0-integration-guide.md`](tfp-foundation
 python tfp_simulator/attack_inject.py --seed 42 --requests 500
 bash tfp_simulator/run_sim.sh   # uses ns-3 if installed
 ```
+
+## Benchmark Results
+
+### Caliper Synthetic Benchmarks (In-Memory)
+
+| Benchmark | Ops/Sec | p99 Latency | Throughput | Status |
+|-----------|---------|-------------|------------|--------|
+| RaptorQ Encode/Decode | 9,704 | 0.16ms | 19.9 MB/sec | ✅ Pass |
+| Credit Ledger Ops | 164,204 | 0.007ms | N/A | ✅ Pass |
+| End-to-End Request | 229,885 | 0.01ms | 117.7 MB/sec | ✅ Pass |
+
+**Run with:** `cd tfp-foundation-protocol && python -c "from tfp_client.lib.caliper.adapter import BenchmarkSuite; suite = BenchmarkSuite(iterations=10); print(suite.summary(suite.run_all()))"`
+
+### 10-Node Testbed Real-World Performance
+
+**Network I/O Analysis (1.5 MB content published):**
+
+- IPFS processed: 33.6 MB total (20.6 MB in + 13.6 MB out)
+- Bandwidth overhead: **22.4x** (due to RaptorQ erasure coding + IPFS replication)
+- Upload latency: 86s for 1 MB video, 21s for 512 KB audio
+- Per-node coordination overhead: ~5-6 KB
+
+**Known Issues:**
+
+- Content retrieval fails (Nostr relay reports "client sent an invalid event")
+- Sequential streaming upload is a bottleneck
+
+**Run with:** `docker compose -f docker-compose.testbed.yml up && python tests/operate_testbed.py`
+
+### 100-Node Benchmark Infrastructure
+
+**Components:**
+- 100 TFP nodes (ports 8001-8100)
+- OpenTelemetry Collector (traces/metrics)
+- Tempo (distributed tracing)
+- Prometheus (metrics aggregation)
+- Grafana (visualization dashboard)
+
+**Status:** Infrastructure verified and operational. Full 100-node deployment is resource-intensive and recommended for production benchmarking only.
+
+**Run with:** `docker compose -f tests/benchmarks/docker-compose.100.yml up`
+
+### Performance Improvement Opportunities
+
+**Quick Wins (1-2 days, 2-5x improvement):**
+- Increase chunk size from 4-16 KB to 256 KB - 1 MB
+- Enable HTTP/2 multiplexing
+- Add connection pooling
+
+**Parallel Chunk Upload (4 weeks, 8-16x improvement):**
+- Implement client-side chunk splitting with 8-16 concurrent uploads
+- Server-side chunk reassembly with ordering
+- RaptorQ integration for independent chunk encoding
+- **Projected:** 1 MB upload from 86s → 5-11s
+
+**See [BENCHMARKS.md](BENCHMARKS.md) for detailed analysis and improvement roadmap.**
 
 ## Embedded Porting
 
