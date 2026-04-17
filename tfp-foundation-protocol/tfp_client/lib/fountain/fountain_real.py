@@ -22,7 +22,9 @@ from typing import List, Tuple
 
 log = logging.getLogger(__name__)
 
-_SHARD_SIZE = int(os.getenv("TFP_CHUNK_SIZE", 262144))  # bytes per shard (default: 256KB)
+_SHARD_SIZE = int(
+    os.getenv("TFP_CHUNK_SIZE", 262144)
+)  # bytes per shard (default: 256KB)
 _MAX_OVERHEAD = 0.5  # max redundancy fraction
 _HMAC_SIZE = 32  # HMAC-SHA3-256 digest length
 
@@ -79,10 +81,10 @@ def _shard_hmac(key: bytes, payload: bytes) -> bytes:
 def _generate_repair_shard(args: Tuple[int, int, List[bytes], int]) -> bytes:
     """
     Generate a single repair shard for parallel encoding.
-    
+
     Args:
         args: Tuple of (repair_index, k, source_shards, shard_size)
-    
+
     Returns:
         Repair shard bytes
     """
@@ -138,7 +140,7 @@ class RealRaptorQAdapter:
             padded[i * self.shard_size : (i + 1) * self.shard_size] for i in range(k)
         ]
         n_repair = max(1, int(k * redundancy) + 1)
-        
+
         # Use parallel encoding for large files (>= 1MB)
         if len(data) >= _PARALLEL_THRESHOLD and n_repair > 4:
             repair = self._encode_repair_parallel(n_repair, k, source)
@@ -156,7 +158,7 @@ class RealRaptorQAdapter:
                 if all(b == 0 for b in combo):
                     combo = bytearray(source[r % k])
                 repair.append(bytes(combo))
-        
+
         # Systematic: source shards first, then repair
         all_shards = source + repair
         # Prepend metadata: original length (8 bytes), k (4 bytes), shard index (4 bytes)
@@ -169,24 +171,26 @@ class RealRaptorQAdapter:
                 frame = frame + _shard_hmac(hmac_key, frame)
             result.append(frame)
         return result
-    
-    def _encode_repair_parallel(self, n_repair: int, k: int, source: List[bytes]) -> List[bytes]:
+
+    def _encode_repair_parallel(
+        self, n_repair: int, k: int, source: List[bytes]
+    ) -> List[bytes]:
         """Generate repair shards using ProcessPoolExecutor for parallel encoding."""
         global _encode_executor
-        
+
         # Thread-safe executor initialization
         with _encode_executor_lock:
             if _encode_executor is None:
                 _encode_executor = ProcessPoolExecutor(max_workers=os.cpu_count())
-        
+
         # Prepare arguments for parallel processing
         shard_size = self.shard_size
         args = [(r, k, source, shard_size) for r in range(n_repair)]
-        
+
         # Generate repair shards in parallel with specific exception handling
         import pickle
         import concurrent.futures
-        
+
         try:
             repair = list(_encode_executor.map(_generate_repair_shard, args))
         except pickle.PickleError as e:
@@ -200,15 +204,21 @@ class RealRaptorQAdapter:
                 _encode_executor = None
             repair = self._encode_repair_sequential(n_repair, k, source, shard_size)
         except OSError as e:
-            log.error(f"System error in parallel encoding: {e}, falling back to sequential")
+            log.error(
+                f"System error in parallel encoding: {e}, falling back to sequential"
+            )
             repair = self._encode_repair_sequential(n_repair, k, source, shard_size)
         except Exception as e:
-            log.warning(f"Unexpected parallel encoding error: {e}, falling back to sequential")
+            log.warning(
+                f"Unexpected parallel encoding error: {e}, falling back to sequential"
+            )
             repair = self._encode_repair_sequential(n_repair, k, source, shard_size)
-        
+
         return repair
-    
-    def _encode_repair_sequential(self, n_repair: int, k: int, source: List[bytes], shard_size: int) -> List[bytes]:
+
+    def _encode_repair_sequential(
+        self, n_repair: int, k: int, source: List[bytes], shard_size: int
+    ) -> List[bytes]:
         """Sequential fallback for repair shard generation."""
         repair = []
         for r in range(n_repair):

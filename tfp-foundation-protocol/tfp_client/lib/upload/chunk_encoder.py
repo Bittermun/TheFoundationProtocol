@@ -43,7 +43,9 @@ class ChunkEncoder:
         self._redundancy = redundancy
         self._adapter = RealRaptorQAdapter(shard_size=chunk_size)
 
-    def encode_for_upload(self, data: bytes, redundancy: Optional[float] = None) -> List[bytes]:
+    def encode_for_upload(
+        self, data: bytes, redundancy: Optional[float] = None
+    ) -> List[bytes]:
         """
         Encode data into erasure-coded chunks for upload.
 
@@ -69,9 +71,7 @@ class ChunkEncoder:
 
         return encoded_shards
 
-    def decode_from_chunks(
-        self, chunks: List[bytes], k: Optional[int] = None
-    ) -> bytes:
+    def decode_from_chunks(self, chunks: List[bytes], k: Optional[int] = None) -> bytes:
         """
         Decode data from received erasure-coded chunks.
 
@@ -95,7 +95,9 @@ class ChunkEncoder:
 
         return decoded_data
 
-    def estimate_chunk_count(self, data_size: int, redundancy: Optional[float] = None) -> int:
+    def estimate_chunk_count(
+        self, data_size: int, redundancy: Optional[float] = None
+    ) -> int:
         """
         Estimate the number of chunks that will be generated for a given data size.
 
@@ -111,7 +113,9 @@ class ChunkEncoder:
         n_repair = max(1, int(k * actual_redundancy) + 1)
         return k + n_repair
 
-    def get_min_chunks_to_recover(self, chunk_count: int, redundancy: Optional[float] = None) -> int:
+    def get_min_chunks_to_recover(
+        self, chunk_count: int, redundancy: Optional[float] = None
+    ) -> int:
         """
         Calculate minimum number of chunks needed to recover the original data.
 

@@ -17,6 +17,7 @@ import httpx
 from tfp_client.lib.upload.chunk_uploader import ChunkUploader
 from tfp_client.lib.upload.chunk_encoder import ChunkEncoder
 from tfp_client.lib.upload.retry_handler import RetryHandler
+from tfp_client.lib.cache.content_cache import ContentCache
 
 
 class TestChunkUploader:
@@ -206,7 +207,9 @@ if __name__ == "__main__":
             for i in range(items_per_thread):
                 cache.put(f"hash-{thread_id}-{i}", f"data-{thread_id}-{i}".encode())
 
-        threads = [threading.Thread(target=put_items, args=(i,)) for i in range(num_threads)]
+        threads = [
+            threading.Thread(target=put_items, args=(i,)) for i in range(num_threads)
+        ]
         for t in threads:
             t.start()
         for t in threads:
@@ -247,7 +250,7 @@ if __name__ == "__main__":
         import threading
 
         cache = ContentCache(maxsize=5)
-        
+
         # Fill cache to capacity
         for i in range(5):
             cache.put(f"hash-{i}", f"data-{i}".encode())

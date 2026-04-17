@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 
 class BatchRequest(BaseModel):
     """A single request in a batch operation."""
+
     id: str = Field(..., description="Unique request identifier")
     method: str = Field(..., description="HTTP method (GET, POST, etc.)")
     path: str = Field(..., description="API endpoint path")
@@ -31,6 +32,7 @@ class BatchRequest(BaseModel):
 
 class BatchResponse(BaseModel):
     """Response for a single request in a batch."""
+
     id: str = Field(..., description="Request identifier (matches BatchRequest.id)")
     status_code: int = Field(..., description="HTTP status code")
     body: Optional[Dict[str, Any]] = Field(default=None, description="Response body")
@@ -81,11 +83,7 @@ class BatchPublisher:
         except ImportError:
             logger.error("httpx is not installed; cannot process batch requests")
             return [
-                BatchResponse(
-                    id=req.id,
-                    status_code=500,
-                    error="httpx not installed"
-                )
+                BatchResponse(id=req.id, status_code=500, error="httpx not installed")
                 for req in requests
             ]
 
@@ -114,7 +112,7 @@ class BatchPublisher:
                             return BatchResponse(
                                 id=req.id,
                                 status_code=400,
-                                error=f"Unsupported method: {req.method}"
+                                error=f"Unsupported method: {req.method}",
                             )
 
                         try:

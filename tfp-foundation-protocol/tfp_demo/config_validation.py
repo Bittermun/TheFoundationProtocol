@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 The Foundation Protocol Contributors
 
-import os
 from dataclasses import dataclass
 from typing import Mapping
 from urllib.parse import urlparse
@@ -60,7 +59,9 @@ def _parse_positive_int(value: str | None, *, default: int, var_name: str) -> in
             raise ValueError(f"{var_name} must be positive (got {parsed})")
         return parsed
     except ValueError as exc:
-        raise ValueError(f"{var_name} must be a positive integer (got {value!r})") from exc
+        raise ValueError(
+            f"{var_name} must be a positive integer (got {value!r})"
+        ) from exc
 
 
 def _validate_url(value: str, *, var_name: str) -> None:
@@ -70,7 +71,9 @@ def _validate_url(value: str, *, var_name: str) -> None:
         if not all([parsed.scheme, parsed.netloc]):
             raise ValueError(f"{var_name} must be a valid URL (got {value!r})")
         if parsed.scheme not in {"http", "https", "redis", "rediss"}:
-            raise ValueError(f"{var_name} must use http/https/redis/rediss scheme (got {parsed.scheme})")
+            raise ValueError(
+                f"{var_name} must use http/https/redis/rediss scheme (got {parsed.scheme})"
+            )
     except Exception as exc:
         raise ValueError(f"{var_name} must be a valid URL (got {value!r})") from exc
 
@@ -88,7 +91,7 @@ def _validate_csv_urls(value: str | None, *, var_name: str) -> None:
     """Validate comma-separated list of URLs."""
     if value is None or not value.strip():
         return
-    
+
     urls = [u.strip() for u in value.split(",") if u.strip()]
     for url in urls:
         _validate_url(url, var_name=var_name)
@@ -131,27 +134,27 @@ def validate_runtime_config(
         default=False,
         var_name="TFP_REAL_ADAPTERS",
     )
-    
+
     enable_rag = _parse_bool(
         environ.get("TFP_ENABLE_RAG"),
         default=False,
         var_name="TFP_ENABLE_RAG",
     )
-    
+
     peer_nodes_str = environ.get("TFP_PEER_NODES", "")
     _validate_csv_urls(peer_nodes_str, var_name="TFP_PEER_NODES")
     peer_nodes = _parse_csv_set(peer_nodes_str, lowercase=False)
-    
+
     redis_url = environ.get("TFP_REDIS_URL")
     if redis_url:
         _validate_url(redis_url, var_name="TFP_REDIS_URL")
-    
+
     shard_size_kb = _parse_positive_int(
         environ.get("TFP_SHARD_SIZE_KB"),
         default=64,
         var_name="TFP_SHARD_SIZE_KB",
     )
-    
+
     supply_gossip_buffer = _parse_positive_int(
         environ.get("TFP_SUPPLY_GOSSIP_BUFFER"),
         default=1000,

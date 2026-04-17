@@ -69,16 +69,18 @@ python benchmark_download_retrieval.py --file-sizes 102400 1048576 --concurrency
 
 **Expected Results:**
 
-Based on implementation characteristics:
+Download benchmark is implemented but not yet measured. Run the benchmark to obtain actual performance data:
 
-| Metric | Expected Performance |
-|--------|---------------------|
-| 100KB streaming | ~10-50 MB/s |
-| 1MB streaming | ~20-100 MB/s |
-| 10MB streaming | ~30-150 MB/s |
-| Range request latency | < 50ms overhead |
-| Concurrent (8x) | 5-7x aggregate throughput |
-| Credits per download | 1 credit |
+```bash
+docker compose -f docker-compose.testbed.yml up
+python benchmark_download_retrieval.py --iterations 3 --output download_results.json
+```
+
+Expected behavior based on implementation:
+- Streaming downloads use HTTP/2 connection pooling
+- Range requests support video seeking
+- Concurrent downloads aggregate throughput
+- 1 credit spent per successful download
 
 **Implementation Details:**
 

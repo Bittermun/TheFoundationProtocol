@@ -309,7 +309,10 @@ def test_completed_task_returns_409_on_further_submission():
 
 def test_habp_cleanup_after_task_completion():
     """HABP verifier should clean up proofs after task completion to prevent memory leaks."""
-    from tfp_client.lib.compute.verify_habp import HABPVerifier, generate_execution_proof
+    from tfp_client.lib.compute.verify_habp import (
+        HABPVerifier,
+        generate_execution_proof,
+    )
 
     verifier = HABPVerifier(consensus_threshold=3, redundancy_factor=5)
 
@@ -339,7 +342,10 @@ def test_habp_cleanup_after_task_completion():
 
 def test_habp_cleanup_stale_tasks():
     """HABP verifier should clean up multiple stale tasks efficiently."""
-    from tfp_client.lib.compute.verify_habp import HABPVerifier, generate_execution_proof
+    from tfp_client.lib.compute.verify_habp import (
+        HABPVerifier,
+        generate_execution_proof,
+    )
 
     verifier = HABPVerifier(consensus_threshold=3, redundancy_factor=5)
 

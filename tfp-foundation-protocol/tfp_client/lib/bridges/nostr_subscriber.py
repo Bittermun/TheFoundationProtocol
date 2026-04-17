@@ -43,7 +43,6 @@ import json
 import logging
 import random
 import threading
-import time
 from typing import Any, Callable, Dict, List, Optional
 
 from tfp_client.lib.bridges.nostr_bridge import (
@@ -261,7 +260,8 @@ class NostrSubscriber:
             # Log at warning level to make them more visible
             if "invalid" in notice.lower() or "error" in notice.lower():
                 logger.warning(
-                    "NostrSubscriber: relay notice (may indicate event rejection): %s", notice
+                    "NostrSubscriber: relay notice (may indicate event rejection): %s",
+                    notice,
                 )
             else:
                 logger.info("NostrSubscriber: relay notice: %s", notice)

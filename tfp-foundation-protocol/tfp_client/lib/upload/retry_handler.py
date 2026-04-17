@@ -93,7 +93,7 @@ class RetryHandler:
 
                 # Calculate delay with exponential backoff
                 delay = min(
-                    self._base_delay * (self._backoff_factor ** attempt),
+                    self._base_delay * (self._backoff_factor**attempt),
                     self._max_delay,
                 )
 

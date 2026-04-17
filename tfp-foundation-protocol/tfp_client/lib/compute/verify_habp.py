@@ -56,7 +56,9 @@ class HABPVerifier:
         self._proofs: Dict[str, List[ExecutionProof]] = defaultdict(list)
         self._verified_tasks: Dict[str, ConsensusResult] = {}
         self._trusted_tees: Set[str] = set()  # Known good TEE identifiers
-        self._task_timestamps: Dict[str, float] = {}  # Track when tasks were added for cleanup
+        self._task_timestamps: Dict[
+            str, float
+        ] = {}  # Track when tasks were added for cleanup
         self._lock = threading.Lock()  # Lock to prevent race conditions during cleanup
 
     def submit_proof(self, proof: ExecutionProof) -> bool:
@@ -209,10 +211,10 @@ class HABPVerifier:
     def cleanup_stale_tasks(self, completed_task_ids: List[str]) -> int:
         """
         Clean up in-memory state for completed/failed tasks to prevent memory leaks.
-        
+
         Args:
             completed_task_ids: List of task IDs that have been completed or failed
-            
+
         Returns:
             Number of tasks cleaned up
         """

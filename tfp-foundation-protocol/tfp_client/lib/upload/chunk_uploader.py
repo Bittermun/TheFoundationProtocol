@@ -14,7 +14,7 @@ Usage:
 
 import asyncio
 import logging
-from typing import List, Optional
+from typing import List
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +38,7 @@ class ChunkUploader:
         self._max_concurrent = max_concurrent
         self._chunk_size = chunk_size
         self._timeout = timeout
+        self._progress_lock = asyncio.Lock()
 
     def split_into_chunks(self, data: bytes) -> List[bytes]:
         """
@@ -55,9 +56,7 @@ class ChunkUploader:
             chunks.append(chunk)
         return chunks
 
-    async def upload_chunks(
-        self, chunks: List[bytes], upload_url: str
-    ) -> List[str]:
+    async def upload_chunks(self, chunks: List[bytes], upload_url: str) -> List[str]:
         """
         Upload chunks concurrently to the server.
 
@@ -103,12 +102,18 @@ class ChunkUploader:
                         result = response.json()
                         chunk_id = result.get("chunk_id", f"chunk-{index}")
                         logger.debug(
-                            "Uploaded chunk %d/%d (id=%s)", index + 1, len(chunks), chunk_id
+                            "Uploaded chunk %d/%d (id=%s)",
+                            index + 1,
+                            len(chunks),
+                            chunk_id,
                         )
                         return chunk_id
                     except Exception as exc:
                         logger.error(
-                            "Failed to upload chunk %d/%d: %s", index + 1, len(chunks), exc
+                            "Failed to upload chunk %d/%d: %s",
+                            index + 1,
+                            len(chunks),
+                            exc,
                         )
                         raise
 
