@@ -131,7 +131,7 @@ def test_publish_text_empty_returns_422():
 
 
 def test_publish_text_too_long_returns_422():
-    """Text body longer than 20 000 characters must return 422."""
+    """text longer than 10MB must return 422."""
     import hashlib
     import hmac as _hmac
 
@@ -142,7 +142,7 @@ def test_publish_text_too_long_returns_422():
             "/api/publish",
             json={
                 "title": "t",
-                "text": "x" * 20_001,
+                "text": "x" * 10_485_761,  # Exceeds 10MB max_length
                 "tags": [],
                 "device_id": "dev",
             },

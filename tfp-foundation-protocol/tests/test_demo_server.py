@@ -6,6 +6,7 @@ import hmac as _hmac
 import os
 import sqlite3
 import threading
+import time
 
 os.environ["TFP_DB_PATH"] = ":memory:"
 
@@ -301,8 +302,14 @@ def test_credits_persist_across_restarts():
             os.environ["TFP_DB_PATH"] = orig_env
         else:
             os.environ["TFP_DB_PATH"] = ":memory:"
-        pathlib.Path(db_file).unlink(missing_ok=True)
-        shutil.rmtree(pathlib.Path(db_file).with_suffix(".blobs"), ignore_errors=True)
+        # Retry deletion for Windows file locking
+        for _ in range(5):
+            try:
+                pathlib.Path(db_file).unlink(missing_ok=True)
+                shutil.rmtree(pathlib.Path(db_file).with_suffix(".blobs"), ignore_errors=True)
+                break
+            except PermissionError:
+                time.sleep(0.1)
 
 
 def test_credit_store_class_save_and_load():
