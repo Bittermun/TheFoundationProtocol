@@ -50,7 +50,7 @@ Create a **Global Information Commons** that works for pennies: anyone can publi
 ## Current Status (v3.1.x)
 
 - ✅ Production-ready core (42k+ LOC, 189 Python files, 142 with Apache-2.0 headers).
-- ✅ **755+ tests passing** — Protocol tests + root-level integration tests. `TFP_DB_PATH=:memory: PYTHONPATH=. python -m pytest tests/ -q`
+- ✅ **780+ tests passing** — Protocol tests + root-level integration tests. `TFP_DB_PATH=:memory: PYTHONPATH=. python -m pytest tests/ -q`
 - ✅ **Real compute tasks** — 3 task types (HASH_PREIMAGE, MATRIX_VERIFY, CONTENT_VERIFY) with cryptographic proof-of-work.
 - ✅ **HABP consensus** — Credits only mint when 3/5 devices agree on identical output hash. **Proofs survive server restart** (rebuilt from SQLite on boot).
 - ✅ **21M credit supply cap** — Hard-coded MAX_SUPPLY enforced at every mint via SupplyCapError.
@@ -65,8 +65,13 @@ Create a **Global Information Commons** that works for pennies: anyone can publi
 - ✅ **SQLite WAL mode** — concurrent reads during writes; "database is locked" errors eliminated.
 - ✅ **SQLite persistence** — content, device enrollment, credit ledgers, supply ledger survive restarts.
 - ✅ **Device auth** — HMAC-SHA-256 per-request signing (constant-time compare); identity persisted at `~/.tfp/identity.json`.
-- ✅ **Rate limiting** — sliding-window per device on `/api/earn` and `/api/task/{id}/result`.
+- ✅ **Rate limiting** — sliding-window per device on `/api/earn` and `/api/task/{id}/result`. Per-device (1000 chunks/min) and per-upload (100 chunks/sec) rate limiting on chunk uploads.
 - ✅ **Nostr subscriber + bridge** — remote peer content discovery & publishing via relay (offline-safe).
+- ✅ **Parallel chunk upload** — `/api/upload/chunk` and `/api/upload/complete` with 8-16 concurrent uploads, RaptorQ encoding, and retry logic.
+- ✅ **Upload idle timeout** — 5-minute cleanup of abandoned uploads to prevent memory leaks.
+- ✅ **Chunk checksum validation** — Optional SHA-256 validation via X-Chunk-Hash header to detect corruption.
+- ✅ **Retry queue** — Failed background uploads queued with exponential backoff and Prometheus metrics.
+- ✅ **Parallel RaptorQ encoding** — ProcessPoolExecutor for files >= 5MB with thread-safe initialization and graceful shutdown.
 - ✅ **IPFS bridge** — content pinning with hash↔CID mapping; offline-safe fallback.
 - ✅ **Multipart upload** — `/api/publish` supports both `application/json` and `multipart/form-data` for large binary payloads.
 - ✅ **Streaming download** — `/api/get/{hash}?stream=true` for chunked 64KB responses.
@@ -126,6 +131,24 @@ Measures publish/retrieve latency and throughput. Results (in-memory, single-nod
 - **Publish**: ~0.1 ops/sec (~7s per operation)
 - **Retrieve**: ~0.5 ops/sec (~2s per operation)
 - **Note**: Production with disk persistence will be 2-5x slower
+
+### Parallel Chunk Upload Benchmark
+
+```bash
+cd TheFoundationProtocol
+python benchmark_parallel_chunk_upload.py
+```
+
+Measures parallel chunk upload performance with comprehensive metrics. See [BENCHMARKS.md](BENCHMARKS.md) for details.
+
+### Download/Retrieval Benchmark
+
+```bash
+cd TheFoundationProtocol
+python benchmark_download_retrieval.py
+```
+
+Measures download/retrieval performance for video/audio content with streaming, HTTP Range requests, and concurrent downloads. See [BENCHMARKS.md](BENCHMARKS.md) for details.
 
 ### RaptorQ Encoding Benchmark
 
@@ -335,18 +358,18 @@ bash tfp_simulator/run_sim.sh   # uses ns-3 if installed
 
 ### Performance Improvement Opportunities
 
-**Quick Wins (1-2 days, 2-5x improvement):**
-- Increase chunk size from 4-16 KB to 256 KB - 1 MB
-- Enable HTTP/2 multiplexing
-- Add connection pooling
+**Status:** Many improvements have been implemented but accurate performance measurements are not yet available.
 
-**Parallel Chunk Upload (4 weeks, 8-16x improvement):**
-- Implement client-side chunk splitting with 8-16 concurrent uploads
-- Server-side chunk reassembly with ordering
-- RaptorQ integration for independent chunk encoding
-- **Projected:** 1 MB upload from 86s → 5-11s
+**Implemented (Performance Impact Unknown):**
+- Parallel chunk upload (ChunkUploader with 8-16 concurrent uploads)
+- Larger chunk sizes (256KB default vs 4KB old)
+- HTTP/2 multiplexing and connection pooling
+- RaptorQ erasure coding (ChunkEncoder with configurable redundancy)
+- Exponential backoff retry logic (RetryHandler)
 
-**See [BENCHMARKS.md](BENCHMARKS.md) for detailed analysis and improvement roadmap.**
+**Note:** Previous benchmark attempts were invalid. Accurate performance measurement requires a real benchmark comparing old /api/publish streaming upload vs new chunk upload system with full TFP workflow (enrollment, credits, IPFS, Nostr relay).
+
+**See [BENCHMARKS.md](BENCHMARKS.md) for detailed analysis and implementation status.**
 
 ## Embedded Porting
 
