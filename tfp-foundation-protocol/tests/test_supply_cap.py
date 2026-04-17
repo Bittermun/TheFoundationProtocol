@@ -82,7 +82,7 @@ def test_task_store_increment_total_minted_enforces_cap():
     """TaskStore.increment_total_minted must raise SupplyCapError at the cap."""
     conn = sqlite3.connect(":memory:")
     db_lock = threading.RLock()
-    store = TaskStore(conn, db_lock)
+    store = TaskStore(conn, db_lock, clock_skew_tolerance=30)
 
     # Manually push the supply ledger near the cap
     conn.execute(
@@ -99,7 +99,7 @@ def test_task_store_get_total_minted_reflects_increments():
     """get_total_minted returns the running total after each increment."""
     conn = sqlite3.connect(":memory:")
     db_lock = threading.RLock()
-    store = TaskStore(conn, db_lock)
+    store = TaskStore(conn, db_lock, clock_skew_tolerance=30)
 
     assert store.get_total_minted() == 0
     store.increment_total_minted(10)
@@ -112,7 +112,7 @@ def test_task_store_stats_supply_fields():
     """stats() must expose total_minted, supply_cap, and supply_remaining."""
     conn = sqlite3.connect(":memory:")
     db_lock = threading.RLock()
-    store = TaskStore(conn, db_lock)
+    store = TaskStore(conn, db_lock, clock_skew_tolerance=30)
     store.increment_total_minted(100)
 
     stats = store.stats()

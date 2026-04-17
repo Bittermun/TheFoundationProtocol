@@ -113,7 +113,7 @@ class IPFSBridge:
         self.timeout_seconds = timeout_seconds
         self.offline = offline
 
-        # Persistent HTTP client with connection pooling and HTTP/2
+        # Persistent HTTP client with connection pooling
         if _HTTP_AVAILABLE and not offline:
             self._client = _httpx.Client(
                 limits=_httpx.Limits(
@@ -121,7 +121,7 @@ class IPFSBridge:
                     max_keepalive_connections=20,  # Max connections to keep alive
                 ),
                 timeout=_httpx.Timeout(timeout_seconds),
-                http2=True,  # Enable HTTP/2
+                http2=False,  # HTTP/2 disabled (h2 package not installed)
                 verify=True,  # Verify SSL certificates
             )
         else:

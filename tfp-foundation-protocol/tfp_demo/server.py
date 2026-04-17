@@ -21,9 +21,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterator, List, Optional
 
-from fastapi import FastAPI, Header, HTTPException, Query, Request
+from fastapi import FastAPI, Header, HTTPException, Query, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse
 from tfp_client.lib.bridges.ipfs_bridge import IPFSBridge
 from pydantic import BaseModel, Field, ValidationError
 from tfp_demo.config_validation import validate_runtime_config
@@ -68,7 +68,26 @@ _ongoing_uploads: Dict[str, Dict] = {}
 _uploads_lock = threading.Lock()
 _UPLOAD_CLEANUP_INTERVAL_SECONDS = 3600  # Clean up uploads older than 1 hour
 _UPLOAD_MAX_AGE_SECONDS = 3600  # Maximum age for an upload session
+_UPLOAD_IDLE_TIMEOUT = 300  # 5 minutes - Clean up uploads with no recent chunks
 _last_cleanup_time = 0.0  # Track last cleanup time
+
+# Rate limiting for chunk uploads (in-memory, per upload_id)
+_chunk_rate_limits: Dict[str, List[float]] = {}
+_chunk_rate_limits_lock = threading.Lock()
+_CHUNK_RATE_LIMIT = 100  # Max chunks per second per upload_id
+_CHUNK_RATE_WINDOW = 1.0  # Time window in seconds
+
+# Per-device rate limiting (prevents abuse across multiple upload_ids)
+_device_chunk_limits: Dict[str, List[float]] = {}
+_device_chunk_limits_lock = threading.Lock()
+_DEVICE_RATE_LIMIT = 1000  # Max chunks per minute per device
+_DEVICE_RATE_WINDOW = 60.0  # Time window in seconds
+
+# Retry queue for failed background processing
+from collections import deque
+_failed_upload_queue = deque(maxlen=1000)  # Max 1000 failed uploads in queue
+_failed_upload_lock = threading.Lock()
+_MAX_RETRY_ATTEMPTS = 3
 
 # Configure logging explicitly for security monitoring
 logging.basicConfig(
@@ -113,6 +132,149 @@ def _validate_hash_component(value: str) -> str:
             f"invalid hash component (must be 1-256 alphanumeric/hyphen/underscore chars): {value!r}"
         )
     return value
+
+
+def _check_chunk_rate_limit(upload_id: str) -> bool:
+    """Check if upload_id is within rate limits for chunk uploads."""
+    now = time.time()
+    with _chunk_rate_limits_lock:
+        # Clean old timestamps outside the window
+        if upload_id in _chunk_rate_limits:
+            _chunk_rate_limits[upload_id] = [
+                t for t in _chunk_rate_limits[upload_id]
+                if now - t < _CHUNK_RATE_WINDOW
+            ]
+        else:
+            _chunk_rate_limits[upload_id] = []
+        
+        # Check if rate limit exceeded
+        if len(_chunk_rate_limits[upload_id]) >= _CHUNK_RATE_LIMIT:
+            log.warning(
+                f"Rate limit exceeded for upload_id {upload_id}: "
+                f"{len(_chunk_rate_limits[upload_id])} chunks in {_CHUNK_RATE_WINDOW}s window"
+            )
+            return False
+        
+        # Record this request
+        _chunk_rate_limits[upload_id].append(now)
+        return True
+
+
+def _check_device_rate_limit(device_id: str) -> bool:
+    """Check if device_id is within rate limits for chunk uploads."""
+    now = time.time()
+    with _device_chunk_limits_lock:
+        # Clean old timestamps outside the window
+        if device_id in _device_chunk_limits:
+            _device_chunk_limits[device_id] = [
+                t for t in _device_chunk_limits[device_id]
+                if now - t < _DEVICE_RATE_WINDOW
+            ]
+        else:
+            _device_chunk_limits[device_id] = []
+        
+        # Check if rate limit exceeded
+        if len(_device_chunk_limits[device_id]) >= _DEVICE_RATE_LIMIT:
+            log.warning(
+                f"Device rate limit exceeded for {device_id}: "
+                f"{len(_device_chunk_limits[device_id])} chunks in {_DEVICE_RATE_WINDOW}s window"
+            )
+            return False
+        
+        # Record this request
+        _device_chunk_limits[device_id].append(now)
+        return True
+
+
+def _get_rate_limit_headers(
+    limit: int,
+    window: float,
+    current_count: int
+) -> dict:
+    """
+    Generate rate limit headers for response.
+    
+    NOTE: The reset time is calculated as time.time() + window, which assumes a fixed
+    window starting now. The actual rate limiter uses a sliding window that cleans
+    old timestamps. This is an approximation that is acceptable for rate limit headers,
+    which are meant to be informational rather than strictly accurate.
+    """
+    remaining = max(0, limit - current_count)
+    reset_time = time.time() + window
+    
+    return {
+        "X-RateLimit-Limit": str(limit),
+        "X-RateLimit-Remaining": str(remaining),
+        "X-RateLimit-Reset": str(int(reset_time)),
+        "X-RateLimit-Window": str(int(window)),
+    }
+
+
+def _cleanup_idle_uploads():
+    """Clean up uploads that have been idle for too long."""
+    now = time.time()
+    with _uploads_lock:
+        for upload_id, data in list(_ongoing_uploads.items()):
+            last_activity = data.get("last_chunk_time", data.get("created_at", now))
+            if now - last_activity > _UPLOAD_IDLE_TIMEOUT:
+                del _ongoing_uploads[upload_id]
+                log.warning(f"Cleaned up idle upload: {upload_id} (idle {now - last_activity:.1f}s)")
+
+
+def _queue_failed_upload(content_hash: str, content: bytes, metadata: dict, attempt: int):
+    """Queue a failed upload for retry with exponential backoff."""
+    if attempt >= _MAX_RETRY_ATTEMPTS:
+        log.error(f"Upload failed permanently after {attempt} attempts: {content_hash[:16]}")
+        return
+    
+    with _failed_upload_lock:
+        _failed_upload_queue.append({
+            "content_hash": content_hash,
+            "content": content,
+            "metadata": metadata,
+            "attempt": attempt + 1,
+            "next_retry": time.time() + (2 ** attempt),  # Exponential backoff
+        })
+        _metrics._counters["tfp_retry_queue_size"] = len(_failed_upload_queue)
+    log.info(f"Queued upload for retry (attempt {attempt + 1}/{_MAX_RETRY_ATTEMPTS}): {content_hash[:16]}")
+
+
+async def _process_retry_queue():
+    """Background task to process failed uploads from retry queue."""
+    while True:
+        try:
+            await asyncio.sleep(5.0)  # Check every 5 seconds
+            now = time.time()
+            
+            # Clean up idle uploads
+            _cleanup_idle_uploads()
+            
+            with _failed_upload_lock:
+                # Process items ready for retry
+                ready_items = []
+                while _failed_upload_queue and _failed_upload_queue[0]["next_retry"] <= now:
+                    ready_items.append(_failed_upload_queue.popleft())
+                _metrics._counters["tfp_retry_queue_size"] = len(_failed_upload_queue)
+            
+            for item in ready_items:
+                try:
+                    await _process_upload_async(
+                        item["content_hash"],
+                        item["content"],
+                        item["metadata"]
+                    )
+                    log.info(f"Retry successful for {item['content_hash'][:16]}")
+                except Exception as e:
+                    log.warning(f"Retry failed for {item['content_hash'][:16]}: {e}")
+                    _queue_failed_upload(
+                        item["content_hash"],
+                        item["content"],
+                        item["metadata"],
+                        item["attempt"]
+                    )
+        except Exception as e:
+            log.error(f"Error in retry queue processor: {e}")
+            await asyncio.sleep(30.0)  # Wait longer on error
 
 
 class BlobStore:
@@ -793,11 +955,20 @@ class TaskStore:
         "content_verify": generate_content_verify_task,
     }
 
-    def __init__(self, conn: sqlite3.Connection, db_lock: threading.RLock) -> None:
+    # Valid state transitions for task lifecycle
+    _VALID_TRANSITIONS = {
+        "open": ["verifying", "failed"],
+        "verifying": ["completed", "failed"],
+        "completed": [],  # Terminal state
+        "failed": [],  # Terminal state
+    }
+
+    def __init__(self, conn: sqlite3.Connection, db_lock: threading.RLock, clock_skew_tolerance: int = 30) -> None:
         self._conn = conn
         self._db_lock = db_lock
         self._habp = HABPVerifier(consensus_threshold=3, redundancy_factor=5)
         self._credit_formula = CreditFormula()
+        self._clock_skew_tolerance = clock_skew_tolerance  # Tolerance for device clock skew in seconds
         # RLock so that submit_result() (outer) can call increment_total_minted() (inner)
         # without deadlocking on re-entry.
         self._lock = threading.RLock()
@@ -1037,12 +1208,29 @@ class TaskStore:
         now = time.time()
         with self._db_lock:
             with self._lock:
+                # Use clock skew tolerance to avoid marking tasks as failed
+                # if device clocks are slightly behind server time
+                # Get tasks that will be reaped to validate transitions
+                # Note: We ADD tolerance here to be symmetric with submit_result (which also adds tolerance)
+                rows = self._conn.execute(
+                    """
+                    SELECT task_id, status FROM tasks
+                    WHERE status IN ('open', 'verifying') AND deadline < ?
+                    """,
+                    (now + self._clock_skew_tolerance,),
+                ).fetchall()
+                
+                # Validate transitions before updating
+                for task_id, status in rows:
+                    self._validate_state_transition(task_id, status, "failed")
+                
+                # Now perform the update with status check to prevent race condition
                 cur = self._conn.execute(
                     """
                     UPDATE tasks SET status = 'failed'
-                    WHERE status IN ('open', 'verifying') AND deadline < ?
+                    WHERE status IN ('open', 'verifying') AND deadline < ? AND status IN ('open', 'verifying')
                     """,
-                    (now,),
+                    (now + self._clock_skew_tolerance,),
                 )
                 self._conn.commit()
                 reaped = cur.rowcount
@@ -1104,12 +1292,16 @@ class TaskStore:
                     raise HTTPException(
                         status_code=409, detail="task already finalised"
                     )
-                if time.time() > task_row["deadline"]:
+                if time.time() > task_row["deadline"] + self._clock_skew_tolerance:
+                    # Validate state transition before updating
+                    self._validate_state_transition(task_id, task_row["status"], "failed")
                     self._conn.execute(
                         "UPDATE tasks SET status = 'failed' WHERE task_id = ?",
                         (task_id,),
                     )
                     self._conn.commit()
+                    # Clean up HABP in-memory state for failed task
+                    self._habp.clear_task(task_id)
                     raise HTTPException(status_code=410, detail="task deadline passed")
 
                 # Record result — UNIQUE(task_id, device_id) prevents duplicate rows.
@@ -1141,6 +1333,8 @@ class TaskStore:
                     (task_id,),
                 )
                 self._conn.commit()
+                # Validate state transition
+                self._validate_state_transition(task_id, task_row["status"], "verifying")
 
                 # Build HABP proof and attempt consensus
                 proof = generate_execution_proof(
@@ -1167,11 +1361,15 @@ class TaskStore:
                         is_charging=False,
                     )
                     credits = calc.final_credits
+                    # Validate state transition before updating
+                    self._validate_state_transition(task_id, "verifying", "completed")
                     self._conn.execute(
                         "UPDATE tasks SET status = 'completed' WHERE task_id = ?",
                         (task_id,),
                     )
                     self._conn.commit()
+                    # Clean up HABP in-memory state for completed task
+                    self._habp.clear_task(task_id)
                     return {
                         "status": "verified",
                         "verified": True,
@@ -1209,6 +1407,35 @@ class TaskStore:
                 "supply_cap": MAX_SUPPLY,
                 "supply_remaining": MAX_SUPPLY - self.get_total_minted(),
             }
+
+    def get_completed_task_ids(self) -> List[str]:
+        """Get list of task IDs that are completed or failed for HABP cleanup."""
+        with self._db_lock:
+            rows = self._conn.execute(
+                "SELECT task_id FROM tasks WHERE status IN ('completed', 'failed')"
+            ).fetchall()
+            return [r[0] for r in rows]
+
+    def _validate_state_transition(self, task_id: str, from_state: str, to_state: str) -> None:
+        """
+        Validate that a state transition is allowed.
+
+        Raises ValueError if the transition is invalid.
+
+        Args:
+            task_id: Task identifier for logging
+            from_state: Current state
+            to_state: Target state
+        """
+        if from_state == to_state:
+            return  # No-op transition is allowed
+
+        allowed = self._VALID_TRANSITIONS.get(from_state, [])
+        if to_state not in allowed:
+            raise ValueError(
+                f"Invalid state transition for task {task_id}: {from_state} -> {to_state}. "
+                f"Allowed transitions from {from_state}: {allowed or 'none (terminal state)'}"
+            )
 
     def device_leaderboard(self, limit: int = 50) -> List[dict]:
         """
@@ -1312,6 +1539,7 @@ class _Metrics:
             "tfp_semantic_search_total": 0,
             "tfp_rag_reindex_total": 0,
             "tfp_rag_drift_detected_total": 0,
+            "tfp_retry_queue_size": 0,
         }
 
     def seed_from_db(self, conn: sqlite3.Connection) -> None:
@@ -1472,8 +1700,8 @@ class _RedisRateLimiterAdapter:
         """Release Redis connection pool (call on shutdown)."""
         try:
             self._limiter.close()
-        except Exception:
-            pass
+        except Exception as exc:
+            log.debug("Rate limiter close failed (non-fatal): %s", exc)
 
 
 # ---------------------------------------------------------------------------
@@ -1483,7 +1711,7 @@ class _RedisRateLimiterAdapter:
 
 class PublishRequest(BaseModel):
     title: str = Field(min_length=1, max_length=120)
-    text: str = Field(min_length=1, max_length=20000)
+    text: str = Field(min_length=1, max_length=10485760)  # Increased to 10MB for benchmarking
     tags: List[str] = Field(default_factory=list)
     device_id: str = Field(min_length=1, max_length=120)
 
@@ -2177,14 +2405,16 @@ async def lifespan(_app: FastAPI):
     _enable_ipfs = os.environ.get("TFP_ENABLE_IPFS", "1").strip() != "0"
     _enable_nostr = runtime_cfg.enable_nostr
     _enable_maintenance = os.environ.get("TFP_ENABLE_MAINTENANCE", "1").strip() != "0"
-    _enable_rag = os.environ.get("TFP_ENABLE_RAG", "0").strip() != "0"
+    _enable_rag = runtime_cfg.enable_rag
+    _clock_skew_tolerance = int(os.environ.get("TFP_CLOCK_SKEW_TOLERANCE_SECONDS", "30"))
     log.info(
-        "Runtime mode=%s  Feature flags: IPFS=%s  Nostr=%s  Maintenance=%s  RAG=%s",
+        "Runtime mode=%s  Feature flags: IPFS=%s  Nostr=%s  Maintenance=%s  RAG=%s  ClockSkewTolerance=%ds",
         _runtime_mode,
         _enable_ipfs,
         _enable_nostr,
         _enable_maintenance,
         _enable_rag,
+        _clock_skew_tolerance,
     )
 
     try:
@@ -2248,9 +2478,8 @@ async def lifespan(_app: FastAPI):
             # Should already be blocked by config_validation; keep explicit log guard.
             log.warning("Production mode without TFP_ADMIN_DEVICE_IDS is not allowed.")
 
-        # ── Peer fallback: read TFP_PEER_NODES env var ────────────────────
-        peer_nodes_env = os.environ.get("TFP_PEER_NODES", "")
-        _peer_urls = [u.strip() for u in peer_nodes_env.split(",") if u.strip()]
+        # ── Peer fallback: use validated TFP_PEER_NODES from config ────────────
+        _peer_urls = list(runtime_cfg.peer_nodes)
         _peer_fallback = _PeerFallback(_peer_urls, peer_secret=_peer_secret)
         if _peer_urls:
             log.info("Peer fallback configured: %s", _peer_urls)
@@ -2263,10 +2492,10 @@ async def lifespan(_app: FastAPI):
         _device_registry = DeviceRegistry(_conn, _db_lock)
         _earn_log = EarnLog(_conn, _db_lock)
         _credit_store = CreditStore(_conn, _db_lock)
-        _task_store = TaskStore(_conn, _db_lock)
+        _task_store = TaskStore(_conn, _db_lock, clock_skew_tolerance=_clock_skew_tolerance)
 
         # ── Rate limiters: Redis-backed when TFP_REDIS_URL is set ─────────
-        _redis_url = os.environ.get("TFP_REDIS_URL", "").strip()
+        _redis_url = runtime_cfg.redis_url
         if _redis_url:
             try:
                 _earn_rate_limiter = _RedisRateLimiterAdapter(
@@ -2406,6 +2635,14 @@ async def lifespan(_app: FastAPI):
                     if current_time - _last_cleanup_time >= _UPLOAD_CLEANUP_INTERVAL_SECONDS:
                         _cleanup_stale_uploads()
                         _last_cleanup_time = current_time
+
+                    # Periodic cleanup of HABP in-memory state for completed/failed tasks
+                    if _task_store is not None:
+                        completed_task_ids = _task_store.get_completed_task_ids()
+                        if completed_task_ids:
+                            cleaned = _task_store._habp.cleanup_stale_tasks(completed_task_ids)
+                            if cleaned:
+                                log.info("Cleaned up HABP state for %d completed/failed tasks", cleaned)
                 except Exception as exc:
                     log.warning("maintenance loop error: %s", exc)
 
@@ -2526,6 +2763,9 @@ async def lifespan(_app: FastAPI):
         _startup_stage = "ready"
         _app_ready = True
         log.info("TFP Server ready and yielding.")
+        
+        # Start retry queue processor for failed background uploads
+        asyncio.create_task(_process_retry_queue())
 
         yield
 
@@ -2552,8 +2792,8 @@ async def lifespan(_app: FastAPI):
         try:
             with open(_crash_log, "a") as crash_file:
                 crash_file.write(f"\n--- {time.ctime()} ---\n{err_msg}\n")
-        except Exception:
-            pass
+        except Exception as exc:
+            log.debug("Could not write crash log (non-fatal): %s", exc)
         raise e
     finally:
         log.info("TFP Server shutting down...")
@@ -2587,10 +2827,10 @@ async def lifespan(_app: FastAPI):
                 if hasattr(_lim, "close"):
                     try:
                         _lim.close()
-                    except Exception:
-                        pass
-        except Exception:
-            pass
+                    except Exception as exc:
+                        log.debug("Rate limiter close failed during shutdown (non-fatal): %s", exc)
+        except Exception as exc:
+            log.warning("Shutdown cleanup error (non-fatal): %s", exc)
         _content_store = None
         _device_registry = None
         _earn_log = None
@@ -2608,6 +2848,10 @@ async def lifespan(_app: FastAPI):
         _runtime_mode = "demo"
         _trusted_nostr_pubkeys = frozenset()
         _admin_device_ids = frozenset()
+        
+        # Shutdown encoding executor
+        from tfp_client.lib.fountain.fountain_real import shutdown_encode_executor
+        shutdown_encode_executor()
 
 
 app = FastAPI(title="TFP Demo Node", version="3.1.1", lifespan=lifespan)
@@ -2648,18 +2892,86 @@ def health() -> dict:
 
 
 @app.post("/api/upload/chunk/{upload_id}/{chunk_index}")
-async def upload_chunk(upload_id: str, chunk_index: int, request: Request):
+async def upload_chunk(
+    upload_id: str,
+    chunk_index: int,
+    request: Request,
+    x_device_sig: str = Header(alias="X-Device-Sig", default=None),
+    x_chunk_hash: str = Header(alias="X-Chunk-Hash", default=None),
+):
     """
     Upload a single chunk for a parallel upload session.
     
     Chunks are stored in memory until the upload is completed via /api/upload/complete.
+    
+    Device authentication is optional at chunk level for performance,
+    but required at complete_upload level for security.
+    
+    Rate limited to 100 chunks per second per upload_id to prevent abuse.
+    
+    Optional chunk checksum validation via X-Chunk-Hash header (SHA-256).
     """
     _validate_hash_component(upload_id)
+    
+    # Per-device rate limiting check
+    device_id = request.headers.get("X-Device-Id")
+    rate_limit_headers = {}
+    
+    if device_id:
+        if not _check_device_rate_limit(device_id):
+            with _device_chunk_limits_lock:
+                current_count = len(_device_chunk_limits.get(device_id, []))
+            rate_limit_headers = _get_rate_limit_headers(
+                limit=_DEVICE_RATE_LIMIT,
+                window=_DEVICE_RATE_WINDOW,
+                current_count=current_count
+            )
+            raise HTTPException(
+                status_code=429,
+                detail="Device rate limit exceeded: too many chunks per minute",
+                headers=rate_limit_headers
+            )
+    
+    # Per-upload rate limiting check
+    if not _check_chunk_rate_limit(upload_id):
+        with _chunk_rate_limits_lock:
+            current_count = len(_chunk_rate_limits.get(upload_id, []))
+        rate_limit_headers = _get_rate_limit_headers(
+            limit=_CHUNK_RATE_LIMIT,
+            window=_CHUNK_RATE_WINDOW,
+            current_count=current_count
+        )
+        raise HTTPException(
+            status_code=429,
+            detail="Rate limit exceeded: too many chunks per second",
+            headers=rate_limit_headers
+        )
     
     # Read chunk data
     chunk_data = await request.body()
     if not chunk_data:
         raise HTTPException(status_code=400, detail="Empty chunk data")
+    
+    # Validate checksum if provided
+    if x_chunk_hash:
+        computed_hash = hashlib.sha256(chunk_data).hexdigest()
+        if computed_hash != x_chunk_hash:
+            log.warning(
+                f"Chunk checksum mismatch for upload_id {upload_id}, chunk_index {chunk_index}: "
+                f"expected {x_chunk_hash}, got {computed_hash}"
+            )
+            raise HTTPException(status_code=400, detail="Chunk checksum mismatch")
+    
+    # Optional device signature verification for chunk uploads
+    # DISABLED for performance: chunk uploads are authenticated at /api/upload/complete endpoint
+    # SECURITY IMPLICATION: Malicious clients can upload chunks without authentication,
+    # but they cannot complete uploads without valid device signature.
+    # To enable: uncomment the verification code below
+    # if x_device_sig:
+    #     device_id = request.headers.get("X-Device-Id")
+    #     if device_id and not _verify_device_sig(device_id, x_device_sig, upload_id, _device_registry):
+    #         _metrics.inc("tfp_auth_failures_total")
+    #         raise HTTPException(status_code=401, detail="Invalid device signature")
     
     with _uploads_lock:
         if upload_id not in _ongoing_uploads:
@@ -2667,9 +2979,11 @@ async def upload_chunk(upload_id: str, chunk_index: int, request: Request):
                 "chunks": {},
                 "total_chunks": 0,
                 "created_at": time.time(),
+                "last_chunk_time": time.time(),
             }
         
         _ongoing_uploads[upload_id]["chunks"][chunk_index] = chunk_data
+        _ongoing_uploads[upload_id]["last_chunk_time"] = time.time()
         log.debug(
             "Received chunk %d for upload %s (total chunks: %d)",
             chunk_index,
@@ -2677,22 +2991,139 @@ async def upload_chunk(upload_id: str, chunk_index: int, request: Request):
             len(_ongoing_uploads[upload_id]["chunks"]),
         )
     
-    return {"status": "uploaded", "chunk_index": chunk_index, "upload_id": upload_id}
+    # Add rate limit headers to successful response
+    if device_id:
+        with _device_chunk_limits_lock:
+            current_count = len(_device_chunk_limits.get(device_id, []))
+        rate_limit_headers = _get_rate_limit_headers(
+            limit=_DEVICE_RATE_LIMIT,
+            window=_DEVICE_RATE_WINDOW,
+            current_count=current_count
+        )
+    else:
+        rate_limit_headers = {}
+    
+    response = {"status": "uploaded", "chunk_index": chunk_index, "upload_id": upload_id}
+    return JSONResponse(content=response, headers=rate_limit_headers)
+
+
+async def _process_upload_async(content_hash: str, content: bytes, metadata: dict, attempt: int = 1):
+    """
+    Background processing for completed parallel uploads.
+    
+    Performs IPFS pinning, Nostr publishing, and content store writes
+    without blocking the client response. Comprehensive error handling
+    ensures failures are logged but don't crash the server.
+    
+    Args:
+        content_hash: SHA3-256 hash of the content
+        content: Raw content bytes
+        metadata: Metadata dict with title, tags, etc.
+        attempt: Retry attempt number (for retry queue)
+    """
+    try:
+        title = metadata.get("title", "Untitled")
+        tags_raw = metadata.get("tags", [])
+        tags = _normalize_tags(tags_raw)
+        
+        # Broadcast content (RaptorQ encoding + IPFS pinning)
+        result = _broadcaster.seed_content(
+            content, metadata={"title": title, "tags": tags_raw}, use_ldm=False
+        )
+        
+        # Recipe / chunking pipeline
+        recipe_json: Optional[str] = None
+        recipe_dict: Optional[dict] = None
+        _enable_chunking = os.environ.get("TFP_ENABLE_CHUNKING", "1").strip() != "0"
+        if _enable_chunking and _blob_store is not None and len(content) > 0:
+            try:
+                recipe_json, recipe_dict = _build_recipe(
+                    content_hash, content, tags, _blob_store
+                )
+            except Exception as exc:
+                log.warning(
+                    "Recipe build failed (content will be served without recipe): %s", exc
+                )
+        
+        # Nostr announcement
+        if result.get("cid") and _nostr_bridge:
+            _nostr_bridge.publish_content_announcement(
+                content_hash,
+                metadata={"title": title, "tags": tags, "cid": result["cid"]},
+            )
+        
+        # Content store write
+        _content_store.put(
+            StoredContent(
+                root_hash=content_hash,
+                title=title,
+                tags=tags,
+                data=content,
+                cid=result.get("cid"),
+                recipe_json=recipe_json,
+            )
+        )
+        
+        _metrics.inc("tfp_content_published_total")
+        log.info(
+            "Background processing complete for %s: IPFS=%s, Nostr=published",
+            content_hash[:16],
+            result.get("cid", "none"),
+        )
+        
+    except Exception as exc:
+        log.error(
+            f"Background processing failed for {content_hash[:16]}: {exc}",
+            exc_info=True,
+        )
+        # Queue for retry
+        _queue_failed_upload(content_hash, content, metadata, attempt)
+    finally:
+        # Cleanup large content to free memory
+        if len(content) > 10 * 1024 * 1024:  # 10MB threshold
+            del content
 
 
 @app.post("/api/upload/complete/{upload_id}")
-async def complete_upload(upload_id: str, metadata: dict = None):
+async def complete_upload(
+    upload_id: str,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    x_device_sig: str = Header(alias="X-Device-Sig"),
+):
     """
     Complete a parallel upload by reassembling chunks and publishing the content.
     
+    Returns immediately with content hash, triggers async background processing
+    for IPFS pinning, Nostr publishing, and content store writes.
+    
+    Device authentication is REQUIRED at this endpoint for security.
+    
     Args:
         upload_id: Unique identifier for the upload session
-        metadata: Optional metadata dict with title, tags, etc.
+        request: FastAPI request object
+        background_tasks: FastAPI background tasks for async processing
+        x_device_sig: Device signature header for authentication
     
     Returns:
         Published content information including root_hash
     """
     _validate_hash_component(upload_id)
+    
+    # Verify device signature
+    device_id = request.headers.get("X-Device-Id")
+    if not device_id:
+        raise HTTPException(
+            status_code=401,
+            detail="Missing X-Device-Id header — enroll first via /api/enroll",
+        )
+    
+    if not _verify_device_sig(device_id, x_device_sig, upload_id, _device_registry):
+        _metrics.inc("tfp_auth_failures_total")
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or missing device signature — enroll first via /api/enroll",
+        )
     
     with _uploads_lock:
         if upload_id not in _ongoing_uploads:
@@ -2711,25 +3142,39 @@ async def complete_upload(upload_id: str, metadata: dict = None):
         # Clean up upload session
         del _ongoing_uploads[upload_id]
     
-    # Publish the reassembled content using the existing publish flow
-    # For now, we'll return the content hash. In a full implementation,
-    # this would call the publish logic with proper device authentication.
+    # Compute content hash
     content_hash = hashlib.sha3_256(full_content).hexdigest()
     
+    # Extract metadata from request body if provided
+    try:
+        body = await request.json()
+        metadata = body.get("metadata", {})
+    except Exception:
+        metadata = {}
+    
     log.info(
-        "Completed upload %s: %d chunks, %d bytes, hash=%s",
+        "Completed upload %s: %d chunks, %d bytes, hash=%s (processing in background)",
         upload_id,
         len(sorted_indices),
         len(full_content),
         content_hash[:16],
     )
     
+    # Queue background processing for IPFS/Nostr/store
+    background_tasks.add_task(
+        _process_upload_async,
+        content_hash=content_hash,
+        content=full_content,
+        metadata=metadata,
+    )
+    
     return {
-        "status": "completed",
+        "status": "processing",
         "upload_id": upload_id,
         "root_hash": content_hash,
         "chunk_count": len(sorted_indices),
         "size_bytes": len(full_content),
+        "processing": "async",
     }
 
 

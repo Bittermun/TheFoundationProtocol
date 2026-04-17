@@ -32,7 +32,7 @@ pytestmark = pytest.mark.concurrency
 def _make_store() -> tuple[sqlite3.Connection, TaskStore]:
     conn = sqlite3.connect(":memory:", check_same_thread=False)
     db_lock = threading.RLock()
-    store = TaskStore(conn, db_lock)
+    store = TaskStore(conn, db_lock, clock_skew_tolerance=30)
     return conn, store
 
 
@@ -226,7 +226,7 @@ def test_supply_cap_enforced_under_concurrent_mint():
 
     conn = sqlite3.connect(":memory:", check_same_thread=False)
     db_lock = threading.RLock()
-    store = TaskStore(conn, db_lock)
+    store = TaskStore(conn, db_lock, clock_skew_tolerance=30)
 
     MINT_AMOUNT = 3_000_000
     NUM_THREADS = 10  # 10 × 3M = 30M > 21M cap

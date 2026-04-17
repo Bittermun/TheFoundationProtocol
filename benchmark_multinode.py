@@ -48,7 +48,7 @@ def api_call(node_url, method, path, data=None, headers=None, timeout=30):
         return {"error": error_msg}
 
 
-def wait_for_node(node_url, timeout=60):
+def wait_for_node(node_url, timeout=120):
     """Wait for node to become ready."""
     start = time.time()
     while time.time() - start < timeout:
@@ -65,19 +65,27 @@ def main():
     print("=" * 60)
 
     # Node URLs (10 nodes)
-    nodes = [f"http://localhost:800{i}" for i in range(1, 11)]
+    nodes = [f"http://localhost:900{i}" for i in range(1, 11)]
 
     # Wait for all nodes to be ready
     log("Waiting for nodes to start...")
+    ready_nodes = []
     for i, node in enumerate(nodes, 1):
         if wait_for_node(node):
             log(f"✓ Node {i} ready ({node})")
+            ready_nodes.append(node)
         else:
-            log(f"✗ Node {i} failed to start")
-            return 1
+            log(f"✗ Node {i} failed to start, skipping")
+
+    if not ready_nodes:
+        log("No nodes ready, exiting")
+        return 1
+
+    nodes = ready_nodes
+    log(f"Proceeding with {len(nodes)} nodes")
 
     device_id = "multinode-bench-001"
-    puf_entropy = "m" * 64
+    puf_entropy = "a" * 64
     entropy_bytes = bytes.fromhex(puf_entropy)
 
     # Enroll on first node

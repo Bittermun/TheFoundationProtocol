@@ -41,7 +41,9 @@ Offline mode (no relay required; useful for testing)::
 import collections
 import json
 import logging
+import random
 import threading
+import time
 from typing import Any, Callable, Dict, List, Optional
 
 from tfp_client.lib.bridges.nostr_bridge import (
@@ -84,7 +86,9 @@ class NostrSubscriber:
         relay_url: WebSocket URL of the Nostr relay.
         on_event: Callback invoked for each valid TFP event dict received.
         filters: NIP-01 filter dict (default: ``{"kinds": [30078, 30079, 30080]}``).
-        reconnect_delay: Seconds to wait before reconnecting after an error.
+        reconnect_delay: Initial seconds to wait before reconnecting after an error.
+        max_reconnect_delay: Maximum seconds to wait between reconnection attempts.
+        backoff_factor: Multiplier for exponential backoff (default: 2.0).
         offline: If ``True``, skip all network calls (useful for unit tests).
     """
 
@@ -94,6 +98,8 @@ class NostrSubscriber:
         on_event: Optional[Callable[[Dict[str, Any]], None]] = None,
         filters: Optional[Dict[str, Any]] = None,
         reconnect_delay: float = 5.0,
+        max_reconnect_delay: float = 60.0,
+        backoff_factor: float = 2.0,
         offline: bool = False,
     ):
         self.relay_url = relay_url
@@ -101,7 +107,10 @@ class NostrSubscriber:
         self._filters: Dict[str, Any] = (
             filters if filters is not None else dict(_DEFAULT_FILTER)
         )
-        self._reconnect_delay = reconnect_delay
+        self._initial_reconnect_delay = reconnect_delay
+        self._current_reconnect_delay = reconnect_delay
+        self._max_reconnect_delay = max_reconnect_delay
+        self._backoff_factor = backoff_factor
         self.offline = offline
 
         self._thread: Optional[threading.Thread] = None
@@ -156,15 +165,33 @@ class NostrSubscriber:
         while not self._stop_event.is_set():
             try:
                 self._connect_and_listen()
+                # Reset backoff on successful connection
+                self._reset_backoff()
             except Exception as exc:
                 if self._stop_event.is_set():
                     break
                 logger.warning(
                     "NostrSubscriber: relay error (%s), reconnecting in %.1fs",
                     exc,
-                    self._reconnect_delay,
+                    self._current_reconnect_delay,
                 )
-                self._stop_event.wait(timeout=self._reconnect_delay)
+                self._stop_event.wait(timeout=self._current_reconnect_delay)
+                # Exponential backoff with jitter
+                self._increase_backoff()
+
+    def _reset_backoff(self) -> None:
+        """Reset reconnection delay to initial value after successful connection."""
+        self._current_reconnect_delay = self._initial_reconnect_delay
+
+    def _increase_backoff(self) -> None:
+        """Increase reconnection delay exponentially with jitter."""
+        # Calculate next delay with exponential backoff
+        next_delay = self._current_reconnect_delay * self._backoff_factor
+        # Cap at maximum delay
+        next_delay = min(next_delay, self._max_reconnect_delay)
+        # Add jitter to avoid thundering herd problem (±50%)
+        jitter = next_delay * 0.5 * (2.0 * random.random() - 1.0)
+        self._current_reconnect_delay = next_delay + jitter
 
     def _connect_and_listen(self) -> None:
         """Connect to relay, send REQ, and process incoming messages until stopped."""
@@ -174,13 +201,15 @@ class NostrSubscriber:
             logger.debug(
                 "NostrSubscriber: websockets not installed; cannot connect to relay"
             )
-            self._stop_event.wait(timeout=self._reconnect_delay)
+            self._stop_event.wait(timeout=self._current_reconnect_delay)
             return
 
         req_msg = json.dumps(["REQ", _SUB_ID, self._filters], separators=(",", ":"))
         with _ws_sync.connect(self.relay_url, open_timeout=10) as ws:
             ws.send(req_msg)
             logger.debug("NostrSubscriber: subscribed to %s", self.relay_url)
+            # Reset backoff immediately after successful connection
+            self._reset_backoff()
 
             while not self._stop_event.is_set():
                 try:

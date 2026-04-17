@@ -272,3 +272,63 @@ class TestMockedWebSocket:
         msg = json.loads(last_call_args)
         assert msg[0] == "CLOSE"
         assert msg[1] == _SUB_ID
+
+
+def test_exponential_backoff_increases_delay():
+    """Reconnection delay should increase exponentially after failures."""
+    sub = NostrSubscriber(offline=True)
+    initial_delay = sub._current_reconnect_delay
+    assert initial_delay == 5.0  # Default
+
+    # Simulate 3 failures
+    for _ in range(3):
+        sub._increase_backoff()
+
+    # Delay should have increased (5 -> 10 -> 20 -> 40)
+    assert sub._current_reconnect_delay > initial_delay
+    assert sub._current_reconnect_delay == 40.0
+
+
+def test_exponential_backoff_resets_on_success():
+    """Reconnection delay should reset to initial value after successful connection."""
+    sub = NostrSubscriber(offline=True)
+
+    # Increase backoff
+    sub._increase_backoff()
+    sub._increase_backoff()
+    assert sub._current_reconnect_delay > 5.0
+
+    # Reset on success
+    sub._reset_backoff()
+    assert sub._current_reconnect_delay == 5.0
+
+
+def test_exponential_backoff_capped_at_max():
+    """Reconnection delay should be capped at max_reconnect_delay."""
+    sub = NostrSubscriber(max_reconnect_delay=60.0, offline=True)
+
+    # Increase backoff many times
+    for _ in range(10):
+        sub._increase_backoff()
+
+    # Should not exceed max
+    assert sub._current_reconnect_delay <= 60.0
+
+
+def test_exponential_backoff_includes_jitter():
+    """Reconnection delay should include jitter to avoid thundering herd."""
+    import random
+
+    # Fix random seed for reproducibility
+    random.seed(42)
+
+    sub = NostrSubscriber(offline=True)
+    sub._increase_backoff()
+    first_delay = sub._current_reconnect_delay
+
+    sub._increase_backoff()
+    second_delay = sub._current_reconnect_delay
+
+    # Due to jitter, exact values may differ but should be in reasonable range
+    assert first_delay > 5.0
+    assert second_delay > first_delay

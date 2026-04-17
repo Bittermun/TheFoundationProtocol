@@ -16,6 +16,8 @@ import hmac as _hmac
 import logging
 import os
 import struct
+import threading
+from concurrent.futures import ProcessPoolExecutor
 from typing import List, Tuple
 
 log = logging.getLogger(__name__)
@@ -23,6 +25,12 @@ log = logging.getLogger(__name__)
 _SHARD_SIZE = int(os.getenv("TFP_CHUNK_SIZE", 262144))  # bytes per shard (default: 256KB)
 _MAX_OVERHEAD = 0.5  # max redundancy fraction
 _HMAC_SIZE = 32  # HMAC-SHA3-256 digest length
+
+# Global ProcessPoolExecutor for parallel encoding
+# Created once and reused for all encoding operations
+_encode_executor: ProcessPoolExecutor = None
+_encode_executor_lock = threading.Lock()
+_PARALLEL_THRESHOLD = 5 * 1024 * 1024  # 5MB - only parallelize for files >= 5MB
 
 
 class IntegrityError(Exception):
@@ -68,6 +76,41 @@ def _shard_hmac(key: bytes, payload: bytes) -> bytes:
     return _hmac.new(key, payload, hashlib.sha3_256).digest()
 
 
+def _generate_repair_shard(args: Tuple[int, int, List[bytes], int]) -> bytes:
+    """
+    Generate a single repair shard for parallel encoding.
+    
+    Args:
+        args: Tuple of (repair_index, k, source_shards, shard_size)
+    
+    Returns:
+        Repair shard bytes
+    """
+    r, k, source, shard_size = args
+    seed = hashlib.sha256(f"repair:{r}:{k}".encode()).digest()
+    combo = bytearray(shard_size)
+    for i in range(k):
+        # include source shard i if bit i of seed is 1
+        if seed[i % len(seed)] & (1 << (i % 8)):
+            combo = bytearray(_xor(bytes(combo), source[i]))
+    # ensure at least one source is XORed in
+    if all(b == 0 for b in combo):
+        combo = bytearray(source[r % k])
+    return bytes(combo)
+
+
+def shutdown_encode_executor():
+    """Gracefully shutdown the global encoding executor."""
+    global _encode_executor
+    if _encode_executor is not None:
+        try:
+            _encode_executor.shutdown(wait=True, timeout=30.0)
+            log.info("Encoding executor shutdown complete")
+        except Exception as e:
+            log.warning(f"Executor shutdown error: {e}")
+        _encode_executor = None
+
+
 class RealRaptorQAdapter:
     """
     Real systematic erasure code adapter.
@@ -95,19 +138,25 @@ class RealRaptorQAdapter:
             padded[i * self.shard_size : (i + 1) * self.shard_size] for i in range(k)
         ]
         n_repair = max(1, int(k * redundancy) + 1)
-        # Generate repair shards: deterministic XOR combinations seeded by index
-        repair = []
-        for r in range(n_repair):
-            seed = hashlib.sha256(f"repair:{r}:{k}".encode()).digest()
-            combo = bytearray(self.shard_size)
-            for i in range(k):
-                # include source shard i if bit i of seed is 1
-                if seed[i % len(seed)] & (1 << (i % 8)):
-                    combo = bytearray(_xor(bytes(combo), source[i]))
-            # ensure at least one source is XORed in
-            if all(b == 0 for b in combo):
-                combo = bytearray(source[r % k])
-            repair.append(bytes(combo))
+        
+        # Use parallel encoding for large files (>= 1MB)
+        if len(data) >= _PARALLEL_THRESHOLD and n_repair > 4:
+            repair = self._encode_repair_parallel(n_repair, k, source)
+        else:
+            # Sequential encoding for small files or few repair shards
+            repair = []
+            for r in range(n_repair):
+                seed = hashlib.sha256(f"repair:{r}:{k}".encode()).digest()
+                combo = bytearray(self.shard_size)
+                for i in range(k):
+                    # include source shard i if bit i of seed is 1
+                    if seed[i % len(seed)] & (1 << (i % 8)):
+                        combo = bytearray(_xor(bytes(combo), source[i]))
+                # ensure at least one source is XORed in
+                if all(b == 0 for b in combo):
+                    combo = bytearray(source[r % k])
+                repair.append(bytes(combo))
+        
         # Systematic: source shards first, then repair
         all_shards = source + repair
         # Prepend metadata: original length (8 bytes), k (4 bytes), shard index (4 bytes)
@@ -120,6 +169,58 @@ class RealRaptorQAdapter:
                 frame = frame + _shard_hmac(hmac_key, frame)
             result.append(frame)
         return result
+    
+    def _encode_repair_parallel(self, n_repair: int, k: int, source: List[bytes]) -> List[bytes]:
+        """Generate repair shards using ProcessPoolExecutor for parallel encoding."""
+        global _encode_executor
+        
+        # Thread-safe executor initialization
+        with _encode_executor_lock:
+            if _encode_executor is None:
+                _encode_executor = ProcessPoolExecutor(max_workers=os.cpu_count())
+        
+        # Prepare arguments for parallel processing
+        shard_size = self.shard_size
+        args = [(r, k, source, shard_size) for r in range(n_repair)]
+        
+        # Generate repair shards in parallel with specific exception handling
+        import pickle
+        import concurrent.futures
+        
+        try:
+            repair = list(_encode_executor.map(_generate_repair_shard, args))
+        except pickle.PickleError as e:
+            log.error(f"Cannot pickle data for parallel encoding: {e}")
+            # Fall back to sequential encoding
+            repair = self._encode_repair_sequential(n_repair, k, source, shard_size)
+        except concurrent.futures.process.BrokenProcessPool as e:
+            log.warning(f"Process pool broken: {e}, falling back to sequential")
+            # Reset executor and fall back
+            with _encode_executor_lock:
+                _encode_executor = None
+            repair = self._encode_repair_sequential(n_repair, k, source, shard_size)
+        except OSError as e:
+            log.error(f"System error in parallel encoding: {e}, falling back to sequential")
+            repair = self._encode_repair_sequential(n_repair, k, source, shard_size)
+        except Exception as e:
+            log.warning(f"Unexpected parallel encoding error: {e}, falling back to sequential")
+            repair = self._encode_repair_sequential(n_repair, k, source, shard_size)
+        
+        return repair
+    
+    def _encode_repair_sequential(self, n_repair: int, k: int, source: List[bytes], shard_size: int) -> List[bytes]:
+        """Sequential fallback for repair shard generation."""
+        repair = []
+        for r in range(n_repair):
+            seed = hashlib.sha256(f"repair:{r}:{k}".encode()).digest()
+            combo = bytearray(shard_size)
+            for i in range(k):
+                if seed[i % len(seed)] & (1 << (i % 8)):
+                    combo = bytearray(_xor(bytes(combo), source[i]))
+            if all(b == 0 for b in combo):
+                combo = bytearray(source[r % k])
+            repair.append(bytes(combo))
+        return repair
 
     def decode(
         self, shards: List[bytes], k: int = None, hmac_key: bytes = None

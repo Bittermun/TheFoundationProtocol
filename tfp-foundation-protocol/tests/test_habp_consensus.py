@@ -305,3 +305,65 @@ def test_completed_task_returns_409_on_further_submission():
             headers={"X-Device-Sig": sig},
         )
         assert r4.status_code == 409
+
+
+def test_habp_cleanup_after_task_completion():
+    """HABP verifier should clean up proofs after task completion to prevent memory leaks."""
+    from tfp_client.lib.compute.verify_habp import HABPVerifier, generate_execution_proof
+
+    verifier = HABPVerifier(consensus_threshold=3, redundancy_factor=5)
+
+    # Submit proofs for a task
+    task_id = "cleanup-test-001"
+    for i in range(3):
+        proof = generate_execution_proof(
+            device_id=f"device-{i}",
+            task_id=task_id,
+            output_data=b"test-data",
+            execution_time=0.1,
+            has_tee=False,
+        )
+        verifier.submit_proof(proof)
+
+    # Verify proofs are stored
+    assert verifier.get_proof_count(task_id) == 3
+    assert task_id in verifier.get_all_task_ids()
+
+    # Clear the task
+    verifier.clear_task(task_id)
+
+    # Verify cleanup
+    assert verifier.get_proof_count(task_id) == 0
+    assert task_id not in verifier.get_all_task_ids()
+
+
+def test_habp_cleanup_stale_tasks():
+    """HABP verifier should clean up multiple stale tasks efficiently."""
+    from tfp_client.lib.compute.verify_habp import HABPVerifier, generate_execution_proof
+
+    verifier = HABPVerifier(consensus_threshold=3, redundancy_factor=5)
+
+    # Submit proofs for multiple tasks
+    completed_task_ids = []
+    for i in range(5):
+        task_id = f"cleanup-test-{i}"
+        completed_task_ids.append(task_id)
+        for j in range(2):
+            proof = generate_execution_proof(
+                device_id=f"device-{j}",
+                task_id=task_id,
+                output_data=b"test-data",
+                execution_time=0.1,
+                has_tee=False,
+            )
+            verifier.submit_proof(proof)
+
+    # Verify all tasks are stored
+    assert len(verifier.get_all_task_ids()) == 5
+
+    # Clean up all completed tasks
+    cleaned = verifier.cleanup_stale_tasks(completed_task_ids)
+    assert cleaned == 5
+
+    # Verify cleanup
+    assert len(verifier.get_all_task_ids()) == 0

@@ -1090,7 +1090,7 @@ class TestTaskExpiryReaper:
 
         conn = sqlite3.connect(":memory:")
         db_lock = threading.RLock()
-        ts = TaskStore(conn, db_lock)
+        ts = TaskStore(conn, db_lock, clock_skew_tolerance=30)
         # Manually insert an already-expired task
         spec_dict = {
             "task_id": "expired-001",
@@ -1118,7 +1118,7 @@ class TestTaskExpiryReaper:
 
         conn = sqlite3.connect(":memory:")
         db_lock = threading.RLock()
-        ts = TaskStore(conn, db_lock)
+        ts = TaskStore(conn, db_lock, clock_skew_tolerance=30)
         spec_dict = {
             "task_id": "reap-001",
             "task_type": "hash_preimage",
@@ -1224,7 +1224,7 @@ class TestHABPRestartSurvival:
         conn = sqlite3.connect(":memory:")
         db_lock = threading.RLock()
 
-        ts = TaskStore(conn, db_lock)
+        ts = TaskStore(conn, db_lock, clock_skew_tolerance=30)
 
         # Create a task
         spec = ts.create_task("hash_preimage", 1, b"restart-seed")
@@ -1495,7 +1495,7 @@ class TestDeviceStatsDirect:
         db_lock = threading.RLock()
         dr = DeviceRegistry(conn, db_lock)
         CreditStore(conn, db_lock)  # creates credit_ledger table
-        ts = TaskStore(conn, db_lock)
+        ts = TaskStore(conn, db_lock, clock_skew_tolerance=30)
         dr.enroll("stats-dev", os.urandom(32))
         result = ts.device_stats("stats-dev")
         assert result is not None
@@ -1512,7 +1512,7 @@ class TestDeviceStatsDirect:
         db_lock = threading.RLock()
         DeviceRegistry(conn, db_lock)
         CreditStore(conn, db_lock)
-        ts = TaskStore(conn, db_lock)
+        ts = TaskStore(conn, db_lock, clock_skew_tolerance=30)
         assert ts.device_stats("ghost-device") is None
 
     def test_get_device_endpoint_ok(self):
