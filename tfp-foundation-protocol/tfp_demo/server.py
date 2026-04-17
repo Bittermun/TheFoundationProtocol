@@ -3346,8 +3346,8 @@ async def publish(
     if x_device_sig is None:
         _metrics.inc("tfp_auth_failures_total")
         raise HTTPException(
-            status_code=401,
-            detail="invalid or missing device signature — enroll first via /api/enroll",
+            status_code=422,
+            detail="missing X-Device-Sig header",
         )
     if not _verify_device_sig(device_id, x_device_sig, message, _device_registry):
         _metrics.inc("tfp_auth_failures_total")
@@ -4208,8 +4208,8 @@ def submit_task_result(
     if x_device_sig is None:
         _metrics.inc("tfp_auth_failures_total")
         raise HTTPException(
-            status_code=401,
-            detail="invalid or missing device signature — enroll first via /api/enroll",
+            status_code=422,
+            detail="missing X-Device-Sig header",
         )
     if not _verify_device_sig(
         payload.device_id, x_device_sig, message, _device_registry
