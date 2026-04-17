@@ -41,7 +41,6 @@ Offline mode (no relay required; useful for testing)::
 import collections
 import json
 import logging
-import random
 import threading
 from typing import Any, Callable, Dict, List, Optional
 
