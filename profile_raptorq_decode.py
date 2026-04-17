@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 The Foundation Protocol Contributors
+
 #!/usr/bin/env python3
 """
 Profile RaptorQ decoding performance to identify bottlenecks.

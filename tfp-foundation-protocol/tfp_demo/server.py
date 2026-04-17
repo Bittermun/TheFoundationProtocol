@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 The Foundation Protocol Contributors
 
+import asyncio
 import collections
 import hashlib
 import hmac as _hmac
@@ -10,7 +11,6 @@ import os
 import re
 import sqlite3
 import threading
-
 import time
 
 from tfp_demo.database import Database, get_database_from_env
@@ -84,8 +84,7 @@ _DEVICE_RATE_LIMIT = 1000  # Max chunks per minute per device
 _DEVICE_RATE_WINDOW = 60.0  # Time window in seconds
 
 # Retry queue for failed background processing
-from collections import deque
-_failed_upload_queue = deque(maxlen=1000)  # Max 1000 failed uploads in queue
+_failed_upload_queue = collections.deque(maxlen=1000)  # Max 1000 failed uploads in queue
 _failed_upload_lock = threading.Lock()
 _MAX_RETRY_ATTEMPTS = 3
 
