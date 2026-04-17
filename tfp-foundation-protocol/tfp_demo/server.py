@@ -3316,7 +3316,7 @@ def enroll(payload: EnrollRequest, request: Request) -> dict:
 @app.post("/api/publish")
 async def publish(
     request: Request,
-    x_device_sig: str = Header(alias="X-Device-Sig"),
+    x_device_sig: str | None = Header(default=None, alias="X-Device-Sig"),
 ) -> dict:
     content_type = request.headers.get("content-type", "")
     if "application/json" in content_type:
@@ -3343,6 +3343,12 @@ async def publish(
         raise HTTPException(status_code=415, detail="Unsupported Media Type")
 
     message = f"{device_id}:{title}"
+    if x_device_sig is None:
+        _metrics.inc("tfp_auth_failures_total")
+        raise HTTPException(
+            status_code=401,
+            detail="invalid or missing device signature — enroll first via /api/enroll",
+        )
     if not _verify_device_sig(device_id, x_device_sig, message, _device_registry):
         _metrics.inc("tfp_auth_failures_total")
         raise HTTPException(
@@ -4186,7 +4192,7 @@ def get_task(task_id: str) -> dict:
 def submit_task_result(
     task_id: str,
     payload: SubmitResultRequest,
-    x_device_sig: str = Header(alias="X-Device-Sig"),
+    x_device_sig: str | None = Header(default=None, alias="X-Device-Sig"),
 ) -> dict:
     """
     Submit a compute result for a task.
@@ -4199,6 +4205,12 @@ def submit_task_result(
     automatically applied if the device is already tracked server-side.
     """
     message = f"{payload.device_id}:{task_id}"
+    if x_device_sig is None:
+        _metrics.inc("tfp_auth_failures_total")
+        raise HTTPException(
+            status_code=401,
+            detail="invalid or missing device signature — enroll first via /api/enroll",
+        )
     if not _verify_device_sig(
         payload.device_id, x_device_sig, message, _device_registry
     ):

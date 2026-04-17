@@ -49,6 +49,21 @@ def _parse_csv_set(value: str | None, *, lowercase: bool) -> frozenset[str]:
     return frozenset(items)
 
 
+def _parse_nonnegative_int(value: str | None, *, default: int, var_name: str) -> int:
+    """Parse a non-negative integer (>= 0) from environment variable."""
+    if value is None or not value.strip():
+        return default
+    try:
+        parsed = int(value.strip())
+        if parsed < 0:
+            raise ValueError(f"{var_name} must be non-negative (got {parsed})")
+        return parsed
+    except ValueError as exc:
+        raise ValueError(
+            f"{var_name} must be a non-negative integer (got {value!r})"
+        ) from exc
+
+
 def _parse_positive_int(value: str | None, *, default: int, var_name: str) -> int:
     """Parse a positive integer from environment variable."""
     if value is None or not value.strip():
@@ -149,7 +164,7 @@ def validate_runtime_config(
     if redis_url:
         _validate_url(redis_url, var_name="TFP_REDIS_URL")
 
-    shard_size_kb = _parse_positive_int(
+    shard_size_kb = _parse_nonnegative_int(
         environ.get("TFP_SHARD_SIZE_KB"),
         default=64,
         var_name="TFP_SHARD_SIZE_KB",
