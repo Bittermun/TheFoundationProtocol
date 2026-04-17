@@ -4,7 +4,7 @@ global:
 scrape_configs:
   - job_name: 'tfp-nodes'
     static_configs:
-      - targets: 
+      - targets:
           - 'tfp-demo-1:8000'
           - 'tfp-demo-2:8000'
           - 'tfp-demo-3:8000'
