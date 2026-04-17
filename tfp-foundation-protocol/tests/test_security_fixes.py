@@ -136,7 +136,16 @@ def test_clock_skew_tolerance_allows_late_submissions():
         INSERT INTO tasks (task_id, task_type, difficulty, spec_json, status, created_at, deadline, credit_reward)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (spec.task_id, spec.task_type.value, spec.difficulty, json.dumps(spec.to_dict()), "open", time.time(), past_deadline, 10),
+        (
+            spec.task_id,
+            spec.task_type.value,
+            spec.difficulty,
+            json.dumps(spec.to_dict()),
+            "open",
+            time.time(),
+            past_deadline,
+            10,
+        ),
     )
     conn.commit()
 
@@ -165,7 +174,16 @@ def test_clock_skew_tolerance_rejects_very_late_submissions():
         INSERT INTO tasks (task_id, task_type, difficulty, spec_json, status, created_at, deadline, credit_reward)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (spec.task_id, spec.task_type.value, spec.difficulty, json.dumps(spec.to_dict()), "open", time.time(), past_deadline, 10),
+        (
+            spec.task_id,
+            spec.task_type.value,
+            spec.difficulty,
+            json.dumps(spec.to_dict()),
+            "open",
+            time.time(),
+            past_deadline,
+            10,
+        ),
     )
     conn.commit()
 
@@ -184,20 +202,26 @@ def test_state_transition_validation_rejects_invalid_transitions():
     """Invalid state transitions should be rejected with ValueError."""
     # Try to transition from completed to verifying (invalid)
     with pytest.raises(ValueError) as exc_info:
-        store = TaskStore(sqlite3.connect(":memory:"), threading.RLock(), clock_skew_tolerance=30)
+        store = TaskStore(
+            sqlite3.connect(":memory:"), threading.RLock(), clock_skew_tolerance=30
+        )
         store._validate_state_transition("test-task", "completed", "verifying")
     assert "Invalid state transition" in str(exc_info.value)
 
     # Try to transition from failed to open (invalid)
     with pytest.raises(ValueError) as exc_info:
-        store = TaskStore(sqlite3.connect(":memory:"), threading.RLock(), clock_skew_tolerance=30)
+        store = TaskStore(
+            sqlite3.connect(":memory:"), threading.RLock(), clock_skew_tolerance=30
+        )
         store._validate_state_transition("test-task", "failed", "open")
     assert "Invalid state transition" in str(exc_info.value)
 
 
 def test_state_transition_validation_allows_valid_transitions():
     """Valid state transitions should be accepted."""
-    store = TaskStore(sqlite3.connect(":memory:"), threading.RLock(), clock_skew_tolerance=30)
+    store = TaskStore(
+        sqlite3.connect(":memory:"), threading.RLock(), clock_skew_tolerance=30
+    )
 
     # All valid transitions should not raise
     store._validate_state_transition("task-1", "open", "verifying")

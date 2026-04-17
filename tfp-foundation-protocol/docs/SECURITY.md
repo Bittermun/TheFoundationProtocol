@@ -73,6 +73,9 @@ The following limitations are **not vulnerabilities** in the current single-node
 |---|-----------|--------|-----------|--------|
 | L1 | **HABP device identity is `device_id` string only** — In the demo server, Sybil resistance rests entirely on the UNIQUE(task_id, device_id) constraint. Any caller that can register N distinct `device_id` values can form their own consensus group. | Fake consensus with N devices under attacker control. | In production: couple `device_id` to hardware PUF/TEE attestation (the `PUFEnclave` module exists; it is not yet wired into the demo server's enroll → consensus path). | ⚠️ **KNOWN LIMITATION** |
 | L2 | **SQLite is not safe for `--workers > 1`** — Database abstraction layer implemented, but store classes use SQLite-specific SQL. | Partial — Database connection supports PostgreSQL, but stores (ContentStore, DeviceRegistry, EarnLog, CreditStore, TaskStore) use `sqlite_master`, `PRAGMA`, `INSERT OR REPLACE`, `rowid` which are SQLite-specific. | Use SQLite for production. Full PostgreSQL support requires store class refactoring to use database-agnostic SQL. Connection layer is ready; see server startup warning if PostgreSQL is detected. | ⚠️ **PARTIALLY RESOLVED** (v3.1+) — Connection layer ready, stores need refactoring |
+| L3 | **Peer secret is optional** — The `TFP_PEER_SECRET` environment variable defaults to empty. If unset, the `/api/peer/{root_hash}` endpoint accepts unauthenticated requests from any caller. | In multi-node deployments, a misconfigured node without `TFP_PEER_SECRET` can be used to exfiltrate content without authentication. | Set `TFP_PEER_SECRET` to a strong random value on ALL nodes in a cluster. Ensure the secret matches across all nodes. Verify in logs that "Peer secret configured" appears at startup. | ⚠️ **CONFIGURATION RISK** |
+| L4 | **Schnorr nonce derivation is not RFC 6979** — The pure-Python BIP-340 implementation in `nostr_bridge.py` uses deterministic SHA-256 nonce derivation (`k = SHA-256(privkey || msg32)`). | For high-value assets, RFC 6979 (HMAC-SHA-256 based) provides stronger security guarantees against nonce leakage. The current implementation is safe for this use case (each `(privkey, msg)` pair is unique), but not cryptographically optimal. | For production deployments handling high-value assets, replace `_schnorr_sign` with an RFC 6979-compliant implementation (e.g., using `coincurve` or `secp256k1` library). | ⚠️ **CRYPTOGRAPHIC TRADE-OFF** |
+| L5 | **Chunk upload has no per-upload size limit** — The `_ongoing_uploads` dict holds all chunks in memory until `complete` is called. No max bytes per upload_id is enforced. | A malicious client could upload many large chunks without completing, causing memory exhaustion (OOM). | Add configurable max bytes per upload (e.g., `TFP_MAX_UPLOAD_BYTES`) and reject chunks exceeding this limit. This is a hardening TODO, not a vulnerability in current single-node demo. | ⚠️ **HARDENING NEEDED** |
 
 ---
 
@@ -164,3 +167,25 @@ Any claim of the form "X tests passing" or "security hardened" must be:
 
 ### In-memory rate limiter caveat
 Document in all deployment guides that `_RateLimiter` is per-process and does not survive restart. Operators deploying multi-node configurations must implement a shared rate-limit store before the rate-limiting claims apply to their deployment.
+
+### Production deployment settings
+For production deployments, the following environment variables are strongly recommended:
+
+| Variable | Recommended Value | Reason |
+|----------|------------------|--------|
+| `TFP_MODE` | `production` | Enables stricter validation, requires peer secret and admin device IDs |
+| `TFP_DB_PATH` | File path (not `:memory:`) | Ensures data persistence across restarts |
+| `TFP_PEER_SECRET` | Strong random value (32+ chars) | Required for multi-node peer authentication; prevents unauthorized content access |
+| `TFP_ADMIN_DEVICE_IDS` | Comma-separated list of admin device IDs | Restricts admin operations to known devices |
+| `TFP_NOSTR_TRUSTED_PUBKEYS` | Comma-separated list of trusted Nostr pubkeys | Restricts inbound gossip to trusted sources in production |
+| `TFP_REDIS_URL` | Redis connection URL | Enables distributed rate limiting across workers/nodes |
+| `TFP_ENABLE_IPFS` | `1` | Enables IPFS fallback for cross-node content retrieval |
+| `TFP_ENABLE_NOSTR` | `1` | Enables Nostr gossip for decentralized content discovery |
+| `TFP_CLOCK_SKEW_TOLERANCE_SECONDS` | `30` | Allows for clock drift between devices and server |
+
+**Critical configuration checks before production:**
+- Verify `TFP_PEER_SECRET` is set on ALL nodes in a cluster
+- Verify log shows "Peer secret configured" at startup
+- Verify `TFP_MODE=production` is set
+- Verify database is file-backed, not `:memory:`
+- If using `--workers > 1`, verify `TFP_REDIS_URL` is set and Redis is reachable

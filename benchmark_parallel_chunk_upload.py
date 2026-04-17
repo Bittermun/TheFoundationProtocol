@@ -30,7 +30,7 @@ import sys
 import time
 import urllib.request
 from dataclasses import dataclass, field, asdict
-from typing import List, Dict, Optional, Callable
+from typing import List, Dict, Optional, Union
 from pathlib import Path
 
 # Add tfp-foundation-protocol to path for imports
@@ -39,6 +39,7 @@ sys.path.insert(0, str(Path(__file__).parent / "tfp-foundation-protocol"))
 # Try to import Prometheus exporter
 try:
     from tfp_core.audit.prometheus_exporter import MetricsExporter
+
     PROMETHEUS_AVAILABLE = True
 except ImportError:
     PROMETHEUS_AVAILABLE = False
@@ -46,6 +47,7 @@ except ImportError:
 # Try to import psutil for resource monitoring
 try:
     import psutil
+
     PSUTIL_AVAILABLE = True
 except ImportError:
     PSUTIL_AVAILABLE = False
@@ -57,16 +59,20 @@ try:
     from tfp_client.lib.upload.chunk_uploader import ChunkUploader
     from tfp_client.lib.upload.chunk_encoder import ChunkEncoder
     from tfp_client.lib.upload.retry_handler import RetryHandler
+
     CHUNK_UPLOAD_AVAILABLE = True
 except ImportError as e:
     CHUNK_UPLOAD_AVAILABLE = False
     print(f"Warning: Chunk upload components not available: {e}")
-    print("Ensure you're running from project root with tfp-foundation-protocol/ accessible.")
+    print(
+        "Ensure you're running from project root with tfp-foundation-protocol/ accessible."
+    )
 
 
 @dataclass
 class UploadMetrics:
     """Metrics for a single upload operation."""
+
     upload_type: str  # 'streaming' or 'parallel'
     file_size_bytes: int
     chunk_size: int
@@ -89,6 +95,7 @@ class UploadMetrics:
 @dataclass
 class BenchmarkResult:
     """Aggregated results for a test scenario."""
+
     scenario_name: str
     upload_type: str
     file_size_bytes: int
@@ -111,6 +118,7 @@ class BenchmarkResult:
 @dataclass
 class ResourceMetrics:
     """System resource metrics during benchmark."""
+
     cpu_percent: float
     memory_percent: float
     memory_mb: float
@@ -124,24 +132,22 @@ class TFPBenchmarkClient:
     """Client for TFP benchmark operations."""
 
     def __init__(self, base_url: str = "http://localhost:9001"):
-        self.base_url = base_url.rstrip('/')
+        self.base_url = base_url.rstrip("/")
         self.device_id: Optional[str] = None
         self.puf_entropy: Optional[bytes] = None
         self._chunk_uploader: Optional[ChunkUploader] = None
         self._chunk_encoder: Optional[ChunkEncoder] = None
         self._retry_handler: Optional[RetryHandler] = None
 
-    def initialize_chunk_components(self, chunk_size: int = 262144, max_concurrent: int = 8):
+    def initialize_chunk_components(
+        self, chunk_size: int = 262144, max_concurrent: int = 8
+    ):
         """Initialize chunk upload components."""
         if CHUNK_UPLOAD_AVAILABLE:
             self._chunk_uploader = ChunkUploader(
-                max_concurrent=max_concurrent,
-                chunk_size=chunk_size
+                max_concurrent=max_concurrent, chunk_size=chunk_size
             )
-            self._chunk_encoder = ChunkEncoder(
-                chunk_size=chunk_size,
-                redundancy=0.1
-            )
+            self._chunk_encoder = ChunkEncoder(chunk_size=chunk_size, redundancy=0.1)
             self._retry_handler = RetryHandler(max_retries=3, base_delay=0.5)
 
     def enroll(self, device_id: str = "benchmark-device-001") -> bool:
@@ -150,10 +156,7 @@ class TFPBenchmarkClient:
         puf_hex = "a" * 64
         self.puf_entropy = bytes.fromhex(puf_hex)
 
-        data = {
-            "device_id": device_id,
-            "puf_entropy_hex": puf_hex
-        }
+        data = {"device_id": device_id, "puf_entropy_hex": puf_hex}
 
         try:
             result = self._api_call("POST", "/api/enroll", data)
@@ -170,8 +173,14 @@ class TFPBenchmarkClient:
             return hmac.new(self.puf_entropy, message, hashlib.sha256).hexdigest()
         return hmac.new(self.puf_entropy, message.encode(), hashlib.sha256).hexdigest()
 
-    def _api_call(self, method: str, path: str, data: Optional[dict] = None,
-                  headers: Optional[dict] = None, timeout: int = 120) -> dict:
+    def _api_call(
+        self,
+        method: str,
+        path: str,
+        data: Optional[dict] = None,
+        headers: Optional[dict] = None,
+        timeout: int = 120,
+    ) -> dict:
         """Make API call to TFP node."""
         url = f"{self.base_url}{path}"
         req = urllib.request.Request(url, method=method)
@@ -211,11 +220,13 @@ class TFPBenchmarkClient:
             {
                 "device_id": self.device_id,
                 "title": title,
-                "text": data.decode('utf-8', errors='replace') if isinstance(data, bytes) else data,
+                "text": data.decode("utf-8", errors="replace")
+                if isinstance(data, bytes)
+                else data,
                 "tags": ["benchmark", "streaming"],
             },
             headers={"X-Device-Sig": sig},
-            timeout=300
+            timeout=300,
         )
         elapsed_ms = (time.perf_counter() - start) * 1000
 
@@ -232,7 +243,7 @@ class TFPBenchmarkClient:
             redundancy=0.0,
             total_time_ms=elapsed_ms,
             success=success,
-            error=error_msg
+            error=error_msg,
         )
         metrics.throughput_mbps = metrics.calculate_throughput()
         return metrics
@@ -244,7 +255,7 @@ class TFPBenchmarkClient:
         chunk_size: int = 262144,
         concurrency: int = 8,
         redundancy: float = 0.0,
-        simulate_failures: bool = False
+        simulate_failures: bool = False,
     ) -> UploadMetrics:
         """Upload using parallel chunk system."""
         if not self.device_id:
@@ -255,7 +266,9 @@ class TFPBenchmarkClient:
         import httpx
 
         # Generate unique upload ID
-        upload_id = hashlib.sha256(f"{self.device_id}:{title}:{time.time()}".encode()).hexdigest()[:32]
+        upload_id = hashlib.sha256(
+            f"{self.device_id}:{title}:{time.time()}".encode()
+        ).hexdigest()[:32]
 
         chunk_times: List[float] = []
         retry_count = 0
@@ -299,21 +312,24 @@ class TFPBenchmarkClient:
                         response.raise_for_status()
                         chunk_times.append((time.perf_counter() - chunk_start) * 1000)
                         return True
-                    except Exception as e:
+                    except Exception:
                         chunk_times.append((time.perf_counter() - chunk_start) * 1000)
                         raise
 
             # Upload all chunks with retry logic
             tasks = []
             for i, chunk in enumerate(chunks):
+
                 async def upload_with_retry(chunk, idx, attempt=0):
                     nonlocal retry_count
                     try:
                         return await upload_single_chunk(chunk, idx)
-                    except Exception as e:
+                    except Exception:
                         if attempt < 2:  # Max 2 retries
                             retry_count += 1
-                            await asyncio.sleep(0.5 * (attempt + 1))  # Exponential backoff
+                            await asyncio.sleep(
+                                0.5 * (attempt + 1)
+                            )  # Exponential backoff
                             return await upload_with_retry(chunk, idx, attempt + 1)
                         raise
 
@@ -326,12 +342,14 @@ class TFPBenchmarkClient:
                 sig = self._sign(upload_id.encode())
                 complete_result = await client.post(
                     f"{self.base_url}/api/upload/complete/{upload_id}",
-                    json={"metadata": {"title": title, "tags": ["benchmark", "parallel"]}},
+                    json={
+                        "metadata": {"title": title, "tags": ["benchmark", "parallel"]}
+                    },
                     headers={
                         "X-Device-Id": self.device_id,
                         "X-Device-Sig": sig,
                     },
-                    timeout=30.0
+                    timeout=30.0,
                 )
                 complete_result.raise_for_status()
 
@@ -351,7 +369,7 @@ class TFPBenchmarkClient:
                     chunk_times_ms=chunk_times,
                     retry_count=retry_count,
                     success=success,
-                    error=None if success else result_data.get("error")
+                    error=None if success else result_data.get("error"),
                 )
                 metrics.throughput_mbps = metrics.calculate_throughput()
                 return metrics
@@ -363,7 +381,9 @@ class TFPBenchmarkClient:
                 elif e.response.status_code == 429:
                     error_msg = f"Rate limit exceeded: {e.response.text}"
                 else:
-                    error_msg = f"Server error {e.response.status_code}: {e.response.text}"
+                    error_msg = (
+                        f"Server error {e.response.status_code}: {e.response.text}"
+                    )
                 return UploadMetrics(
                     upload_type="parallel",
                     file_size_bytes=len(data),
@@ -374,11 +394,12 @@ class TFPBenchmarkClient:
                     chunk_times_ms=chunk_times,
                     retry_count=retry_count,
                     success=False,
-                    error=error_msg
+                    error=error_msg,
                 )
             except Exception as e:
                 elapsed_ms = (time.perf_counter() - start_total) * 1000
                 import traceback
+
                 error_msg = f"{type(e).__name__}: {str(e)}\n{traceback.format_exc()}"
                 return UploadMetrics(
                     upload_type="parallel",
@@ -390,14 +411,19 @@ class TFPBenchmarkClient:
                     chunk_times_ms=chunk_times,
                     retry_count=retry_count,
                     success=False,
-                    error=error_msg
+                    error=error_msg,
                 )
 
 
 class ParallelChunkBenchmark:
     """Main benchmark runner for parallel chunk upload comparison."""
 
-    def __init__(self, client: TFPBenchmarkClient, iterations: int = 3, warmup_iterations: int = 5):
+    def __init__(
+        self,
+        client: TFPBenchmarkClient,
+        iterations: int = 3,
+        warmup_iterations: int = 5,
+    ):
         self.client = client
         self.iterations = iterations
         self.warmup_iterations = warmup_iterations
@@ -409,12 +435,12 @@ class ParallelChunkBenchmark:
         """Collect system resource metrics."""
         if not PSUTIL_AVAILABLE:
             return None
-        
+
         cpu = psutil.cpu_percent(interval=0.1)
         mem = psutil.virtual_memory()
         disk = psutil.disk_io_counters()
         net = psutil.net_io_counters()
-        
+
         return ResourceMetrics(
             cpu_percent=cpu,
             memory_percent=mem.percent,
@@ -431,7 +457,9 @@ class ParallelChunkBenchmark:
         random.seed(42)
         return bytes(random.randint(0, 255) for _ in range(size_bytes))
 
-    def _aggregate_metrics(self, metrics: List[UploadMetrics], scenario_name: str) -> BenchmarkResult:
+    def _aggregate_metrics(
+        self, metrics: List[UploadMetrics], scenario_name: str
+    ) -> BenchmarkResult:
         """Aggregate multiple metrics into a benchmark result."""
         successful = [m for m in metrics if m.success]
         failed = [m for m in metrics if not m.success]
@@ -455,7 +483,9 @@ class ParallelChunkBenchmark:
                 p99_time_ms=first_metric.total_time_ms if first_metric else 0.0,
                 min_time_ms=first_metric.total_time_ms if first_metric else 0.0,
                 max_time_ms=first_metric.total_time_ms if first_metric else 0.0,
-                avg_throughput_mbps=first_metric.throughput_mbps if first_metric else 0.0
+                avg_throughput_mbps=first_metric.throughput_mbps
+                if first_metric
+                else 0.0,
             )
 
         times = [m.total_time_ms for m in successful]
@@ -473,11 +503,15 @@ class ParallelChunkBenchmark:
             fail_count=len(failed),
             avg_time_ms=statistics.mean(times),
             p50_time_ms=statistics.median(times),
-            p95_time_ms=statistics.quantiles(times, n=20)[18] if len(times) >= 20 else max(times),
-            p99_time_ms=statistics.quantiles(times, n=100)[98] if len(times) >= 100 else max(times),
+            p95_time_ms=statistics.quantiles(times, n=20)[18]
+            if len(times) >= 20
+            else max(times),
+            p99_time_ms=statistics.quantiles(times, n=100)[98]
+            if len(times) >= 100
+            else max(times),
             min_time_ms=min(times),
             max_time_ms=max(times),
-            avg_throughput_mbps=statistics.mean(throughputs)
+            avg_throughput_mbps=statistics.mean(throughputs),
         )
 
     def run_streaming_benchmark(self, file_sizes: List[int]) -> List[BenchmarkResult]:
@@ -490,7 +524,7 @@ class ParallelChunkBenchmark:
 
         for size in file_sizes:
             scenario_name = f"streaming_{size // 1024}KB"
-            print(f"\nTesting {size / (1024*1024):.2f}MB streaming upload...")
+            print(f"\nTesting {size / (1024 * 1024):.2f}MB streaming upload...")
 
             # Warmup phase - don't measure these
             if self.warmup_iterations > 0:
@@ -504,15 +538,14 @@ class ParallelChunkBenchmark:
             metrics_list = []
             for i in range(self.iterations):
                 data = self._generate_test_data(size)
-                print(f"  Iteration {i+1}/{self.iterations}...", end=" ", flush=True)
-                
-                # Collect resource metrics before upload
-                resources_before = self._collect_resource_metrics()
-                
+                print(f"  Iteration {i + 1}/{self.iterations}...", end=" ", flush=True)
+
                 metric = self.client.streaming_upload(data, f"streaming-{size}-{i}")
                 metrics_list.append(metric)
-                print(f"{metric.total_time_ms:.0f}ms ({metric.throughput_mbps:.2f} MB/s)")
-                
+                print(
+                    f"{metric.total_time_ms:.0f}ms ({metric.throughput_mbps:.2f} MB/s)"
+                )
+
                 # Collect resource metrics after upload
                 resources_after = self._collect_resource_metrics()
                 if resources_after:
@@ -529,7 +562,7 @@ class ParallelChunkBenchmark:
         file_sizes: List[int],
         chunk_sizes: List[int],
         concurrency_levels: List[int],
-        redundancy_levels: List[float] = [0.0, 0.1]
+        redundancy_levels: List[float] = [0.0, 0.1],
     ) -> List[BenchmarkResult]:
         """Run parallel chunk upload benchmarks."""
         print("\n" + "=" * 60)
@@ -545,13 +578,15 @@ class ParallelChunkBenchmark:
             test_req = urllib.request.Request(
                 f"{self.client.base_url}/api/upload/chunk/test123/0",
                 data=b"test",
-                method="POST"
+                method="POST",
             )
             urllib.request.urlopen(test_req, timeout=5)
         except urllib.error.HTTPError as e:
             if e.code == 404:
                 print("Chunk upload endpoints not available on server (404).")
-                print("The testbed server needs to be updated to include /api/upload/chunk endpoints.")
+                print(
+                    "The testbed server needs to be updated to include /api/upload/chunk endpoints."
+                )
                 print("Skipping parallel chunk upload tests.")
                 return []
             raise
@@ -570,7 +605,7 @@ class ParallelChunkBenchmark:
                         if size <= chunk_size and concurrency > 1:
                             continue
 
-                        scenario_name = f"parallel_{size//1024}KB_c{concurrency}_r{int(redundancy*100)}"
+                        scenario_name = f"parallel_{size // 1024}KB_c{concurrency}_r{int(redundancy * 100)}"
                         print(f"\nTesting {scenario_name}...")
 
                         self.client.initialize_chunk_components(chunk_size, concurrency)
@@ -578,16 +613,22 @@ class ParallelChunkBenchmark:
                         metrics_list = []
                         for i in range(self.iterations):
                             data = self._generate_test_data(size)
-                            print(f"  Iteration {i+1}/{self.iterations}...", end=" ", flush=True)
+                            print(
+                                f"  Iteration {i + 1}/{self.iterations}...",
+                                end=" ",
+                                flush=True,
+                            )
 
                             try:
-                                metric = asyncio.run(self.client.parallel_chunk_upload(
-                                    data,
-                                    f"parallel-{size}-{i}",
-                                    chunk_size=chunk_size,
-                                    concurrency=concurrency,
-                                    redundancy=redundancy
-                                ))
+                                metric = asyncio.run(
+                                    self.client.parallel_chunk_upload(
+                                        data,
+                                        f"parallel-{size}-{i}",
+                                        chunk_size=chunk_size,
+                                        concurrency=concurrency,
+                                        redundancy=redundancy,
+                                    )
+                                )
                             except Exception as e:
                                 # Handle any errors gracefully
                                 metric = UploadMetrics(
@@ -598,15 +639,17 @@ class ParallelChunkBenchmark:
                                     redundancy=redundancy,
                                     total_time_ms=0,
                                     success=False,
-                                    error=str(e)
+                                    error=str(e),
                                 )
 
                             metrics_list.append(metric)
                             status = "✓" if metric.success else "✗"
-                            print(f"{status} {metric.total_time_ms:.0f}ms ({metric.throughput_mbps:.2f} MB/s)")
+                            print(
+                                f"{status} {metric.total_time_ms:.0f}ms ({metric.throughput_mbps:.2f} MB/s)"
+                            )
                             if not metric.success and metric.error:
                                 # Print first line of error for brevity
-                                error_line = metric.error.split('\n')[0][:100]
+                                error_line = metric.error.split("\n")[0][:100]
                                 print(f"    Error: {error_line}")
 
                         result = self._aggregate_metrics(metrics_list, scenario_name)
@@ -615,8 +658,11 @@ class ParallelChunkBenchmark:
 
         return results
 
-    def calculate_speedups(self, streaming_results: List[BenchmarkResult],
-                          parallel_results: List[BenchmarkResult]) -> None:
+    def calculate_speedups(
+        self,
+        streaming_results: List[BenchmarkResult],
+        parallel_results: List[BenchmarkResult],
+    ) -> None:
         """Calculate speedup factors for parallel vs streaming."""
         # Create lookup by file size
         streaming_by_size: Dict[int, BenchmarkResult] = {}
@@ -637,7 +683,7 @@ class ParallelChunkBenchmark:
         if self.resource_metrics and PSUTIL_AVAILABLE:
             avg_cpu = statistics.mean([m.cpu_percent for m in self.resource_metrics])
             avg_mem = statistics.mean([m.memory_percent for m in self.resource_metrics])
-            lines.append(f"\n\n## Resource Utilization\n")
+            lines.append("\n\n## Resource Utilization\n")
             lines.append(f"- **Average CPU usage**: {avg_cpu:.1f}%")
             lines.append(f"- **Average memory usage**: {avg_mem:.1f}%")
 
@@ -647,12 +693,20 @@ class ParallelChunkBenchmark:
 
         # Summary table
         lines.append("\n## Summary by Upload Type\n")
-        lines.append(f"{'Scenario':<30} {'Type':<10} {'Size':<10} {'Conc':<6} {'Avg(ms)':<10} {'Throughput':<12} {'Speedup':<8}")
+        lines.append(
+            f"{'Scenario':<30} {'Type':<10} {'Size':<10} {'Conc':<6} {'Avg(ms)':<10} {'Throughput':<12} {'Speedup':<8}"
+        )
         lines.append("-" * 90)
 
-        for result in sorted(self.results, key=lambda r: (r.file_size_bytes, r.upload_type)):
-            size_str = f"{result.file_size_bytes / (1024*1024):.1f}MB"
-            speedup_str = f"{result.speedup_vs_streaming:.2f}x" if result.speedup_vs_streaming else "N/A"
+        for result in sorted(
+            self.results, key=lambda r: (r.file_size_bytes, r.upload_type)
+        ):
+            size_str = f"{result.file_size_bytes / (1024 * 1024):.1f}MB"
+            speedup_str = (
+                f"{result.speedup_vs_streaming:.2f}x"
+                if result.speedup_vs_streaming
+                else "N/A"
+            )
             lines.append(
                 f"{result.scenario_name:<30} "
                 f"{result.upload_type:<10} "
@@ -665,7 +719,9 @@ class ParallelChunkBenchmark:
 
         # Detailed latency breakdown
         lines.append("\n\n## Latency Percentiles (successful uploads)\n")
-        lines.append(f"{'Scenario':<30} {'p50(ms)':<10} {'p95(ms)':<10} {'p99(ms)':<10} {'Min':<10} {'Max':<10}")
+        lines.append(
+            f"{'Scenario':<30} {'p50(ms)':<10} {'p95(ms)':<10} {'p99(ms)':<10} {'Min':<10} {'Max':<10}"
+        )
         lines.append("-" * 80)
 
         for result in sorted(self.results, key=lambda r: r.avg_time_ms):
@@ -700,39 +756,61 @@ class ParallelChunkBenchmark:
         speedups = [r for r in self.results if r.speedup_vs_streaming]
         if speedups:
             best = max(speedups, key=lambda r: r.speedup_vs_streaming or 0)
-            lines.append(f"- **Best speedup**: {best.speedup_vs_streaming:.2f}x using {best.scenario_name}")
+            lines.append(
+                f"- **Best speedup**: {best.speedup_vs_streaming:.2f}x using {best.scenario_name}"
+            )
 
         # Find best throughput
         if self.results:
             best_tp = max(self.results, key=lambda r: r.avg_throughput_mbps)
-            lines.append(f"- **Best throughput**: {best_tp.avg_throughput_mbps:.2f} MB/s with {best_tp.scenario_name}")
+            lines.append(
+                f"- **Best throughput**: {best_tp.avg_throughput_mbps:.2f} MB/s with {best_tp.scenario_name}"
+            )
 
         # Resource utilization summary
         if self.resource_metrics and PSUTIL_AVAILABLE:
             avg_cpu = statistics.mean([m.cpu_percent for m in self.resource_metrics])
             avg_mem = statistics.mean([m.memory_percent for m in self.resource_metrics])
-            lines.append(f"\n\n## Resource Utilization\n")
+            lines.append("\n\n## Resource Utilization\n")
             lines.append(f"- **Average CPU usage**: {avg_cpu:.1f}%")
             lines.append(f"- **Average memory usage**: {avg_mem:.1f}%")
 
         # Compare redundancy impact
-        with_redundancy = [r for r in self.results if r.redundancy > 0 and r.upload_type == "parallel"]
-        without_redundancy = [r for r in self.results if r.redundancy == 0 and r.upload_type == "parallel"]
+        with_redundancy = [
+            r for r in self.results if r.redundancy > 0 and r.upload_type == "parallel"
+        ]
+        without_redundancy = [
+            r for r in self.results if r.redundancy == 0 and r.upload_type == "parallel"
+        ]
         if with_redundancy and without_redundancy:
             avg_with = statistics.mean([r.avg_time_ms for r in with_redundancy])
             avg_without = statistics.mean([r.avg_time_ms for r in without_redundancy])
-            overhead = ((avg_with - avg_without) / avg_without * 100) if avg_without > 0 else 0
-            lines.append(f"- **Redundancy overhead**: {overhead:.1f}% (10% RaptorQ redundancy)")
+            overhead = (
+                ((avg_with - avg_without) / avg_without * 100) if avg_without > 0 else 0
+            )
+            lines.append(
+                f"- **Redundancy overhead**: {overhead:.1f}% (10% RaptorQ redundancy)"
+            )
 
         # Concurrency scaling analysis
-        for size in sorted(set(r.file_size_bytes for r in self.results if r.upload_type == "parallel")):
-            parallel_for_size = [r for r in self.results if r.file_size_bytes == size and r.upload_type == "parallel"]
+        for size in sorted(
+            set(r.file_size_bytes for r in self.results if r.upload_type == "parallel")
+        ):
+            parallel_for_size = [
+                r
+                for r in self.results
+                if r.file_size_bytes == size and r.upload_type == "parallel"
+            ]
             if len(parallel_for_size) >= 2:
                 by_concurrency = sorted(parallel_for_size, key=lambda r: r.concurrency)
                 if len(by_concurrency) >= 2:
                     c1, c2 = by_concurrency[0], by_concurrency[-1]
-                    scaling = (c1.avg_time_ms / c2.avg_time_ms) if c2.avg_time_ms > 0 else 0
-                    lines.append(f"- **Concurrency scaling ({size//(1024*1024)}MB)**: {c1.concurrency}->{c2.concurrency} = {scaling:.2f}x improvement")
+                    scaling = (
+                        (c1.avg_time_ms / c2.avg_time_ms) if c2.avg_time_ms > 0 else 0
+                    )
+                    lines.append(
+                        f"- **Concurrency scaling ({size // (1024 * 1024)}MB)**: {c1.concurrency}->{c2.concurrency} = {scaling:.2f}x improvement"
+                    )
 
         report = "\n".join(lines)
 
@@ -744,11 +822,20 @@ class ParallelChunkBenchmark:
                 "summary": {
                     "total_scenarios": len(self.results),
                     "total_iterations": len(self.raw_metrics),
-                    "best_speedup": max((r.speedup_vs_streaming for r in self.results if r.speedup_vs_streaming), default=0),
-                    "best_throughput_mbps": max((r.avg_throughput_mbps for r in self.results), default=0)
-                }
+                    "best_speedup": max(
+                        (
+                            r.speedup_vs_streaming
+                            for r in self.results
+                            if r.speedup_vs_streaming
+                        ),
+                        default=0,
+                    ),
+                    "best_throughput_mbps": max(
+                        (r.avg_throughput_mbps for r in self.results), default=0
+                    ),
+                },
             }
-            with open(output_file, 'w') as f:
+            with open(output_file, "w") as f:
                 json.dump(json_data, f, indent=2)
             print(f"\nResults saved to: {output_file}")
 
@@ -757,14 +844,31 @@ class ParallelChunkBenchmark:
 
 def main():
     parser = argparse.ArgumentParser(description="TFP Parallel Chunk Upload Benchmark")
-    parser.add_argument("--base-url", default="http://localhost:9001", help="TFP node base URL")
-    parser.add_argument("--iterations", type=int, default=3, help="Number of iterations per test")
-    parser.add_argument("--quick", action="store_true", help="Quick mode: 3 iterations, 100KB-1MB only")
+    parser.add_argument(
+        "--base-url", default="http://localhost:9001", help="TFP node base URL"
+    )
+    parser.add_argument(
+        "--iterations", type=int, default=3, help="Number of iterations per test"
+    )
+    parser.add_argument(
+        "--quick", action="store_true", help="Quick mode: 3 iterations, 100KB-1MB only"
+    )
     parser.add_argument("--output", help="Output JSON file for results")
-    parser.add_argument("--device-id", default="benchmark-device-001", help="Device ID for enrollment")
-    parser.add_argument("--puf-entropy", default="a" * 64, help="PUF entropy hex string")
-    parser.add_argument("--prometheus-port", type=int, default=9091, help="Prometheus metrics port")
-    parser.add_argument("--warmup-iterations", type=int, default=5, help="Warmup iterations before measurement")
+    parser.add_argument(
+        "--device-id", default="benchmark-device-001", help="Device ID for enrollment"
+    )
+    parser.add_argument(
+        "--puf-entropy", default="a" * 64, help="PUF entropy hex string"
+    )
+    parser.add_argument(
+        "--prometheus-port", type=int, default=9091, help="Prometheus metrics port"
+    )
+    parser.add_argument(
+        "--warmup-iterations",
+        type=int,
+        default=5,
+        help="Warmup iterations before measurement",
+    )
     args = parser.parse_args()
 
     if args.quick:
@@ -775,7 +879,9 @@ def main():
     if PROMETHEUS_AVAILABLE:
         exporter = MetricsExporter(port=args.prometheus_port)
         exporter.start_server(blocking=False)
-        print(f"Prometheus metrics available at http://localhost:{args.prometheus_port}/metrics")
+        print(
+            f"Prometheus metrics available at http://localhost:{args.prometheus_port}/metrics"
+        )
 
     print("=" * 60)
     print("TFP Parallel Chunk Upload Benchmark")
@@ -801,15 +907,17 @@ def main():
         concurrency_levels = [1, 8]
     else:
         file_sizes = [
-            100 * 1024,      # 100KB
-            1024 * 1024,     # 1MB
-            10 * 1024 * 1024 # 10MB
+            100 * 1024,  # 100KB
+            1024 * 1024,  # 1MB
+            10 * 1024 * 1024,  # 10MB
         ]
         chunk_sizes = [65536, 262144]  # 64KB, 256KB
         concurrency_levels = [1, 4, 8, 16]
 
     # Initialize benchmark runner
-    benchmark = ParallelChunkBenchmark(client, iterations=args.iterations, warmup_iterations=args.warmup_iterations)
+    benchmark = ParallelChunkBenchmark(
+        client, iterations=args.iterations, warmup_iterations=args.warmup_iterations
+    )
 
     # Legacy streaming
     streaming_results = benchmark.run_streaming_benchmark(file_sizes)
@@ -817,10 +925,7 @@ def main():
 
     # Parallel chunks
     parallel_results = benchmark.run_parallel_benchmark(
-        file_sizes,
-        chunk_sizes,
-        concurrency_levels,
-        redundancy_levels=[0.0, 0.1]
+        file_sizes, chunk_sizes, concurrency_levels, redundancy_levels=[0.0, 0.1]
     )
     benchmark.results.extend(parallel_results)
 

@@ -641,7 +641,7 @@ class NostrBridge:
 
             with _ws_sync.connect(self.relay_url, open_timeout=5) as ws:
                 ws.send(msg)
-                
+
                 # Wait briefly for relay response (NOTICE messages)
                 # This helps debug "invalid event" errors from the relay
                 try:
@@ -661,7 +661,7 @@ class NostrBridge:
                 except TimeoutError:
                     # No response is normal - relay may not send ACK
                     pass
-                
+
                 return True
         except ImportError:
             # websockets not installed — log and return False (graceful degradation)

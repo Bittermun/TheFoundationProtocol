@@ -4,8 +4,18 @@
 """
 TFP Protocol Adapter - UI to Core Bridge
 
-Maps simple UI actions (Listen, Share, Earn) to complex TFP protocol operations.
-Completely abstracts technical details from the user interface.
+STATUS: API Specification / Stub Implementation
+
+This file defines the interface between UI actions (Listen, Share, Earn) and
+the TFP core protocol. The current implementation is a stub with placeholder
+return values. Real implementation requires integration with:
+
+- tfp_core.identity.puf_enclave (device identity)
+- tfp_client.lib.ndn.adapter (content retrieval)
+- tfp_client.lib.fountain.adapter (RaptorQ encoding)
+- tfp_client/lib/credit/ledger.py (credit economics)
+
+See tfp_ui/README.md for contributor guidance on implementing this bridge.
 """
 
 from dataclasses import dataclass
