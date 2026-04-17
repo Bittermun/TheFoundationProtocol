@@ -152,3 +152,31 @@ When addressing items from this TODO:
 ## Completed Items
 
 *(None yet - this is a new document)*
+
+---
+
+## Type Annotation Improvement Plan (Post-CI Unblock)
+
+The mypy configuration has been temporarily relaxed to unblock CI. The following files need type annotation improvements:
+
+**High Priority (Type Errors):**
+- tfp_client/lib/lexicon/hlt/tree.py — dict[str, str] contains int values
+- tfp_client/lib/metadata/tag_index.py — return type mismatch (tuples vs bytes)
+- tfp_client/lib/cache/chunk_store.py — duplicate BloomFilter definition, missing attribute
+- tfp_client/lib/lexicon/dict_lexicon_adapter.py — Any return types
+- tfp_client/lib/lexicon/hlt/sync.py — missing type annotations, str/int comparison
+- tfp_client/lib/core/tfp_engine.py — Optional parameters need | None
+- tfp_client/lib/fountain/fountain_real.py — None assignments to typed variables
+- tfp_client/lib/upload/retry_handler.py — generic function type issues
+- tfp_client/lib/publish/ingestion.py — None assignment, type object issues
+- tfp_client/lib/bridges/ipfs_bridge.py — None handling
+- tfp_client/lib/rate_limiter.py — async/sync Redis client mixing
+- tfp_client/lib/rag_search.py — None callable, missing annotations
+- tfp_demo/server.py — Optional global handling
+
+**Approach:**
+1. Gradually re-enable mypy error codes one at a time
+2. Fix each category of errors before moving to the next
+3. Start with strict_optional = true and fix None handling
+4. Then enable warn_return_any and fix return types
+5. Finally enable remaining error codes
