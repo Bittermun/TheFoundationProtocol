@@ -1,8 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 The Foundation Protocol Contributors
 
+import os
 from dataclasses import dataclass
 from typing import Mapping
+from urllib.parse import urlparse
 
 
 _FALSE_VALUES = {"0", "false", "no", "off"}
@@ -18,6 +20,12 @@ class RuntimeConfig:
     nostr_trusted_pubkeys: frozenset[str]
     peer_secret: str
     admin_device_ids: frozenset[str]
+    real_adapters: bool
+    enable_rag: bool
+    peer_nodes: frozenset[str]
+    redis_url: str | None
+    shard_size_kb: int
+    supply_gossip_buffer: int
 
 
 def _parse_bool(value: str | None, *, default: bool, var_name: str) -> bool:
@@ -42,6 +50,31 @@ def _parse_csv_set(value: str | None, *, lowercase: bool) -> frozenset[str]:
     return frozenset(items)
 
 
+def _parse_positive_int(value: str | None, *, default: int, var_name: str) -> int:
+    """Parse a positive integer from environment variable."""
+    if value is None or not value.strip():
+        return default
+    try:
+        parsed = int(value.strip())
+        if parsed <= 0:
+            raise ValueError(f"{var_name} must be positive (got {parsed})")
+        return parsed
+    except ValueError as exc:
+        raise ValueError(f"{var_name} must be a positive integer (got {value!r})") from exc
+
+
+def _validate_url(value: str, *, var_name: str) -> None:
+    """Validate that a string is a valid URL."""
+    try:
+        parsed = urlparse(value)
+        if not all([parsed.scheme, parsed.netloc]):
+            raise ValueError(f"{var_name} must be a valid URL (got {value!r})")
+        if parsed.scheme not in {"http", "https", "redis", "rediss"}:
+            raise ValueError(f"{var_name} must use http/https/redis/rediss scheme (got {parsed.scheme})")
+    except Exception as exc:
+        raise ValueError(f"{var_name} must be a valid URL (got {value!r})") from exc
+
+
 def _validate_nostr_private_key(raw_key: str) -> None:
     try:
         key = bytes.fromhex(raw_key)
@@ -49,6 +82,16 @@ def _validate_nostr_private_key(raw_key: str) -> None:
         raise ValueError("NOSTR_PRIVATE_KEY must be valid hex") from exc
     if len(key) != 32:
         raise ValueError(f"NOSTR_PRIVATE_KEY must be 64 hex chars (got {len(key) * 2})")
+
+
+def _validate_csv_urls(value: str | None, *, var_name: str) -> None:
+    """Validate comma-separated list of URLs."""
+    if value is None or not value.strip():
+        return
+    
+    urls = [u.strip() for u in value.split(",") if u.strip()]
+    for url in urls:
+        _validate_url(url, var_name=var_name)
 
 
 def validate_runtime_config(
@@ -82,6 +125,39 @@ def validate_runtime_config(
         lowercase=False,
     )
 
+    # New validations
+    real_adapters = _parse_bool(
+        environ.get("TFP_REAL_ADAPTERS"),
+        default=False,
+        var_name="TFP_REAL_ADAPTERS",
+    )
+    
+    enable_rag = _parse_bool(
+        environ.get("TFP_ENABLE_RAG"),
+        default=False,
+        var_name="TFP_ENABLE_RAG",
+    )
+    
+    peer_nodes_str = environ.get("TFP_PEER_NODES", "")
+    _validate_csv_urls(peer_nodes_str, var_name="TFP_PEER_NODES")
+    peer_nodes = _parse_csv_set(peer_nodes_str, lowercase=False)
+    
+    redis_url = environ.get("TFP_REDIS_URL")
+    if redis_url:
+        _validate_url(redis_url, var_name="TFP_REDIS_URL")
+    
+    shard_size_kb = _parse_positive_int(
+        environ.get("TFP_SHARD_SIZE_KB"),
+        default=64,
+        var_name="TFP_SHARD_SIZE_KB",
+    )
+    
+    supply_gossip_buffer = _parse_positive_int(
+        environ.get("TFP_SUPPLY_GOSSIP_BUFFER"),
+        default=1000,
+        var_name="TFP_SUPPLY_GOSSIP_BUFFER",
+    )
+
     if mode == "production":
         if db_path == ":memory:":
             raise ValueError("TFP_DB_PATH must be persistent in production mode")
@@ -108,4 +184,10 @@ def validate_runtime_config(
         nostr_trusted_pubkeys=nostr_trusted_pubkeys,
         peer_secret=peer_secret,
         admin_device_ids=admin_device_ids,
+        real_adapters=real_adapters,
+        enable_rag=enable_rag,
+        peer_nodes=peer_nodes,
+        redis_url=redis_url,
+        shard_size_kb=shard_size_kb,
+        supply_gossip_buffer=supply_gossip_buffer,
     )

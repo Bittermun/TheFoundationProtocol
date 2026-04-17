@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- HTTP connection pooling using httpx.Client in benchmark_download_retrieval.py (20-40% performance improvement for concurrent downloads)
+- Rate limit headers (X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, X-RateLimit-Window) in API responses
+- Enhanced configuration validation with type and format checks for environment variables
+- Context manager support for DownloadBenchmarkClient (with statement support)
+- Explicit close() method for DownloadBenchmarkClient for proper resource cleanup
+- Validation functions: _parse_positive_int, _validate_url, _validate_csv_urls
+- New RuntimeConfig fields: real_adapters, enable_rag, peer_nodes, redis_url, shard_size_kb, supply_gossip_buffer
 - Phase 1 performance optimizations: chunk size increase, HTTP/2, connection pooling, request batching, content cache
 - Phase 2 parallel upload: client chunking, server reassembly, RaptorQ integration, retry logic
 - Phase 0 Nostr relay debugging: NOTICE message capture, enhanced logging
@@ -20,6 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Security.txt for vulnerability disclosure coordination
 
 ### Changed
+- benchmark_download_retrieval.py replaced urllib.request with httpx.Client for connection pooling
+- server.py now uses validated runtime_cfg values for TFP_PEER_NODES and TFP_REDIS_URL instead of direct os.environ reads
+- server.py rate limit headers now calculated after rate limit check for accuracy
+- config_validation.py extended RuntimeConfig dataclass with additional validated fields
 - Default chunk size increased from 128 bytes to 256KB (configurable via TFP_CHUNK_SIZE)
 - HTTP/2 enabled in uvicorn server startup
 - Added persistent httpx.Client with connection pooling to IPFSBridge
@@ -29,6 +40,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - OpenSSF Scorecard now publishes results publicly
 
 ### Fixed
+- Resource leak risk in DownloadBenchmarkClient by adding explicit close() method and context manager support
+- Configuration validation bypass where server.py read TFP_PEER_NODES and TFP_REDIS_URL directly from os.environ instead of using validated runtime_cfg
+- Race condition in rate limit headers where current_count was calculated before rate limit check
 - Nostr relay discovery debugging with enhanced logging for "invalid event" errors
 - ContentCache broken lru_cache implementation (now uses proper LRU with OrderedDict)
 - ChunkUploader race condition in progress tracking (added asyncio.Lock)

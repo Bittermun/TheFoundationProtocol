@@ -65,3 +65,7 @@ crash.log
 *.key
 *.hex
 node_key.hex
+
+# Benchmark results (large files)
+benchmark_results.json
+profile_*.json

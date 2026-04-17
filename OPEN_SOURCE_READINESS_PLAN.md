@@ -85,7 +85,7 @@ Every_Document_Must_Have:
 ### 2.3 README Badge Accuracy Chain
 
 ```
-README.md badge (749 tests)
+README.md badge (780 tests)
     ↓ must match
 pytest --collect-only count
     ↓ validated by

@@ -17,6 +17,7 @@ Task Types:
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import struct
 import time
@@ -223,7 +224,10 @@ def execute_task(spec: TaskSpec, timeout_s: float = 30.0) -> ExecutionResult:
 
     elapsed = time.monotonic() - start
     output_hash = hashlib.sha3_256(result).hexdigest()
-    verified = output_hash == spec.expected_output_hash
+    # Use constant-time comparison to prevent timing attacks
+    verified = hmac.compare_digest(
+        output_hash.encode(), spec.expected_output_hash.encode()
+    )
 
     return ExecutionResult(
         task_id=spec.task_id,
@@ -243,7 +247,10 @@ def verify_result(spec: TaskSpec, result: ExecutionResult) -> bool:
     """
     try:
         expected = execute_task(spec, timeout_s=60.0)
-        return result.output_hash == expected.output_hash
+        # Use constant-time comparison to prevent timing attacks
+        return hmac.compare_digest(
+            result.output_hash.encode(), expected.output_hash.encode()
+        )
     except TaskExecutionError:
         return False
 

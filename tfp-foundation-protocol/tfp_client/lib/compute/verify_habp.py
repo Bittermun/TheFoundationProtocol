@@ -9,6 +9,7 @@ TEE attestation fallback. Returns verification status and credit weight.
 """
 
 import hashlib
+import threading
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -55,10 +56,16 @@ class HABPVerifier:
         self._proofs: Dict[str, List[ExecutionProof]] = defaultdict(list)
         self._verified_tasks: Dict[str, ConsensusResult] = {}
         self._trusted_tees: Set[str] = set()  # Known good TEE identifiers
+        self._task_timestamps: Dict[str, float] = {}  # Track when tasks were added for cleanup
+        self._lock = threading.Lock()  # Lock to prevent race conditions during cleanup
 
     def submit_proof(self, proof: ExecutionProof) -> bool:
         """Submit an execution proof for verification."""
-        self._proofs[proof.task_id].append(proof)
+        with self._lock:
+            self._proofs[proof.task_id].append(proof)
+            # Track timestamp for cleanup
+            if proof.task_id not in self._task_timestamps:
+                self._task_timestamps[proof.task_id] = proof.timestamp
         return True
 
     def verify_consensus(self, task_id: str) -> Optional[ConsensusResult]:
@@ -68,60 +75,61 @@ class HABPVerifier:
         Requires consensus_threshold matching outputs out of
         redundancy_factor total executions.
         """
-        if task_id not in self._proofs:
-            return None
+        with self._lock:
+            if task_id not in self._proofs:
+                return None
 
-        proofs = self._proofs[task_id]
-        if len(proofs) < self._consensus_threshold:
-            return None  # Not enough proofs yet
+            proofs = self._proofs[task_id]
+            if len(proofs) < self._consensus_threshold:
+                return None  # Not enough proofs yet
 
-        # Group by output hash
-        hash_groups: Dict[str, List[ExecutionProof]] = defaultdict(list)
-        for proof in proofs:
-            hash_groups[proof.output_hash].append(proof)
+            # Group by output hash
+            hash_groups: Dict[str, List[ExecutionProof]] = defaultdict(list)
+            for proof in proofs:
+                hash_groups[proof.output_hash].append(proof)
 
-        # Find largest matching group
-        largest_group = max(hash_groups.values(), key=len)
+            # Find largest matching group
+            largest_group = max(hash_groups.values(), key=len)
 
-        if len(largest_group) >= self._consensus_threshold:
-            matching = [p.device_id for p in largest_group]
-            conflicting = [
-                p.device_id
-                for p in proofs
-                if p.output_hash != largest_group[0].output_hash
-            ]
+            if len(largest_group) >= self._consensus_threshold:
+                matching = [p.device_id for p in largest_group]
+                conflicting = [
+                    p.device_id
+                    for p in proofs
+                    if p.output_hash != largest_group[0].output_hash
+                ]
 
-            confidence = len(largest_group) / len(proofs)
-            credit_weight = confidence * (
-                1.0 + (len(largest_group) - self._consensus_threshold) * 0.1
-            )
-            credit_weight = min(2.0, credit_weight)  # Cap at 2x
+                confidence = len(largest_group) / len(proofs)
+                credit_weight = confidence * (
+                    1.0 + (len(largest_group) - self._consensus_threshold) * 0.1
+                )
+                credit_weight = min(2.0, credit_weight)  # Cap at 2x
 
+                result = ConsensusResult(
+                    verified=True,
+                    confidence=confidence,
+                    matching_devices=matching,
+                    conflicting_devices=list(set(conflicting)),
+                    credit_weight=credit_weight,
+                    method="consensus",
+                )
+
+                self._verified_tasks[task_id] = result
+                return result
+
+            # No consensus reached
+            all_devices = [p.device_id for p in proofs]
             result = ConsensusResult(
-                verified=True,
-                confidence=confidence,
-                matching_devices=matching,
-                conflicting_devices=list(set(conflicting)),
-                credit_weight=credit_weight,
+                verified=False,
+                confidence=0.0,
+                matching_devices=[],
+                conflicting_devices=all_devices,
+                credit_weight=0.0,
                 method="consensus",
             )
 
             self._verified_tasks[task_id] = result
             return result
-
-        # No consensus reached
-        all_devices = [p.device_id for p in proofs]
-        result = ConsensusResult(
-            verified=False,
-            confidence=0.0,
-            matching_devices=[],
-            conflicting_devices=all_devices,
-            credit_weight=0.0,
-            method="consensus",
-        )
-
-        self._verified_tasks[task_id] = result
-        return result
 
     def verify_tee(
         self, proof: ExecutionProof, expected_output_hash: str
@@ -161,7 +169,8 @@ class HABPVerifier:
                 method="tee",
             )
 
-        self._verified_tasks[proof.task_id] = result
+        with self._lock:
+            self._verified_tasks[proof.task_id] = result
         return result
 
     def _verify_tee_quote(self, quote: str, device_id: str) -> bool:
@@ -179,18 +188,51 @@ class HABPVerifier:
 
     def get_verification_result(self, task_id: str) -> Optional[ConsensusResult]:
         """Get verification result for a task."""
-        return self._verified_tasks.get(task_id)
+        with self._lock:
+            return self._verified_tasks.get(task_id)
 
     def get_proof_count(self, task_id: str) -> int:
         """Get number of proofs submitted for a task."""
-        return len(self._proofs.get(task_id, []))
+        with self._lock:
+            return len(self._proofs.get(task_id, []))
 
     def clear_task(self, task_id: str) -> None:
         """Clear proofs and results for a task."""
-        if task_id in self._proofs:
-            del self._proofs[task_id]
-        if task_id in self._verified_tasks:
-            del self._verified_tasks[task_id]
+        with self._lock:
+            if task_id in self._proofs:
+                del self._proofs[task_id]
+            if task_id in self._verified_tasks:
+                del self._verified_tasks[task_id]
+            if task_id in self._task_timestamps:
+                del self._task_timestamps[task_id]
+
+    def cleanup_stale_tasks(self, completed_task_ids: List[str]) -> int:
+        """
+        Clean up in-memory state for completed/failed tasks to prevent memory leaks.
+        
+        Args:
+            completed_task_ids: List of task IDs that have been completed or failed
+            
+        Returns:
+            Number of tasks cleaned up
+        """
+        cleaned = 0
+        with self._lock:
+            for task_id in completed_task_ids:
+                if task_id in self._proofs or task_id in self._verified_tasks:
+                    if task_id in self._proofs:
+                        del self._proofs[task_id]
+                    if task_id in self._verified_tasks:
+                        del self._verified_tasks[task_id]
+                    if task_id in self._task_timestamps:
+                        del self._task_timestamps[task_id]
+                    cleaned += 1
+        return cleaned
+
+    def get_all_task_ids(self) -> List[str]:
+        """Get all task IDs currently stored in the verifier."""
+        with self._lock:
+            return list(set(self._proofs.keys()) | set(self._verified_tasks.keys()))
 
 
 def generate_execution_proof(
