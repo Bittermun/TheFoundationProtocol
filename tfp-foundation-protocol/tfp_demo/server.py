@@ -1738,9 +1738,7 @@ class _RedisRateLimiterAdapter:
 
 class PublishRequest(BaseModel):
     title: str = Field(min_length=1, max_length=120)
-    text: str = Field(
-        min_length=1, max_length=10485760
-    )  # Increased to 10MB for benchmarking
+    text: str = Field(min_length=1, max_length=20000)
     tags: List[str] = Field(default_factory=list)
     device_id: str = Field(min_length=1, max_length=120)
 
@@ -3316,7 +3314,6 @@ def enroll(payload: EnrollRequest, request: Request) -> dict:
 @app.post("/api/publish")
 async def publish(
     request: Request,
-    x_device_sig: str | None = Header(default=None, alias="X-Device-Sig"),
 ) -> dict:
     content_type = request.headers.get("content-type", "")
     if "application/json" in content_type:
@@ -3343,6 +3340,7 @@ async def publish(
         raise HTTPException(status_code=415, detail="Unsupported Media Type")
 
     message = f"{device_id}:{title}"
+    x_device_sig = request.headers.get("X-Device-Sig")
     if x_device_sig is None:
         _metrics.inc("tfp_auth_failures_total")
         raise HTTPException(
@@ -4192,7 +4190,7 @@ def get_task(task_id: str) -> dict:
 def submit_task_result(
     task_id: str,
     payload: SubmitResultRequest,
-    x_device_sig: str | None = Header(default=None, alias="X-Device-Sig"),
+    request: Request,
 ) -> dict:
     """
     Submit a compute result for a task.
@@ -4205,6 +4203,7 @@ def submit_task_result(
     automatically applied if the device is already tracked server-side.
     """
     message = f"{payload.device_id}:{task_id}"
+    x_device_sig = request.headers.get("X-Device-Sig")
     if x_device_sig is None:
         _metrics.inc("tfp_auth_failures_total")
         raise HTTPException(
