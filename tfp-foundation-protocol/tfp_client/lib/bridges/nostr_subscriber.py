@@ -183,14 +183,11 @@ class NostrSubscriber:
         self._current_reconnect_delay = self._initial_reconnect_delay
 
     def _increase_backoff(self) -> None:
-        """Increase reconnection delay exponentially with jitter."""
+        """Increase reconnection delay exponentially (deterministic)."""
         # Calculate next delay with exponential backoff
         next_delay = self._current_reconnect_delay * self._backoff_factor
         # Cap at maximum delay
-        next_delay = min(next_delay, self._max_reconnect_delay)
-        # Add jitter to avoid thundering herd problem (±50%)
-        jitter = next_delay * 0.5 * (2.0 * random.random() - 1.0)
-        self._current_reconnect_delay = next_delay + jitter
+        self._current_reconnect_delay = min(next_delay, self._max_reconnect_delay)
 
     def _connect_and_listen(self) -> None:
         """Connect to relay, send REQ, and process incoming messages until stopped."""
