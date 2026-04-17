@@ -24,7 +24,6 @@ Usage:
 
 import argparse
 import asyncio
-import importlib.util
 import httpx
 import json
 import hmac
@@ -40,11 +39,6 @@ from pathlib import Path
 
 # Add tfp-foundation-protocol to path for imports
 sys.path.insert(0, str(Path(__file__).parent / "tfp-foundation-protocol"))
-
-# Check Prometheus exporter availability
-PROMETHEUS_AVAILABLE = (
-    importlib.util.find_spec("tfp_core.audit.prometheus_exporter") is not None
-)
 
 # Try to import psutil for resource monitoring
 try:

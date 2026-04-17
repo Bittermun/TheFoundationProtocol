@@ -540,9 +540,6 @@ class ParallelChunkBenchmark:
                 data = self._generate_test_data(size)
                 print(f"  Iteration {i + 1}/{self.iterations}...", end=" ", flush=True)
 
-                # Collect resource metrics before upload
-                self._collect_resource_metrics()
-
                 metric = self.client.streaming_upload(data, f"streaming-{size}-{i}")
                 metrics_list.append(metric)
                 print(
