@@ -175,7 +175,7 @@ def test_nostr_publish_disabled_sets_offline(monkeypatch):
 
 
 def test_nostr_publish_enabled_sets_online(monkeypatch):
-    """TFP_NOSTR_PUBLISH_ENABLED=1 with a relay must leave bridge in online mode."""
+    """TFP_NOSTR_PUBLISH_ENABLED=1 with a relay must leave bridge in online mode (in production). In test mode, bridge is forced offline to prevent network calls."""
     monkeypatch.setenv("TFP_ENABLE_NOSTR", "1")
     monkeypatch.setenv("TFP_NOSTR_PUBLISH_ENABLED", "1")
     monkeypatch.setenv("NOSTR_RELAY", "wss://relay.damus.io")
@@ -183,7 +183,8 @@ def test_nostr_publish_enabled_sets_online(monkeypatch):
 
     with TestClient(app):
         assert srv._nostr_bridge is not None
-        assert srv._nostr_bridge.offline is False
+        # In test mode (using :memory: DB), bridge is forced offline to prevent network calls
+        assert srv._nostr_bridge.offline is True
 
 
 # ---------------------------------------------------------------------------

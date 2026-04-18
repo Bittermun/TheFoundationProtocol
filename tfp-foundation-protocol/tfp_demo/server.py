@@ -2707,7 +2707,10 @@ async def lifespan(_app: FastAPI):
             _ipfs_bridge = IPFSBridge(api_url=ipfs_api, offline=ipfs_offline)
             _broadcaster.ipfs_bridge = _ipfs_bridge
             log.info(
-                "IPFS bridge initialised (api=%s, offline=%s, test_mode=%s).", ipfs_api, ipfs_offline, test_mode
+                "IPFS bridge initialised (api=%s, offline=%s, test_mode=%s).",
+                ipfs_api,
+                ipfs_offline,
+                test_mode,
             )
         else:
             _ipfs_bridge = None
@@ -2716,7 +2719,7 @@ async def lifespan(_app: FastAPI):
 
         # ── Stage: nostr_init ─────────────────────────────────────────────
         _startup_stage = "nostr_init"
-        if _enable_nostr and not test_mode:
+        if _enable_nostr:
             relay_url = os.environ.get("NOSTR_RELAY") or os.environ.get(
                 "NOSTR_RELAY_URL", ""
             )
@@ -2757,7 +2760,7 @@ async def lifespan(_app: FastAPI):
             _nostr_subscriber = NostrSubscriber(
                 relay_url=relay_url or "wss://relay.damus.io",
                 on_event=_on_nostr_event,
-                offline=not relay_url,
+                offline=not relay_url or test_mode,
                 filters={
                     "kinds": [
                         TFP_CONTENT_KIND,
@@ -2768,25 +2771,23 @@ async def lifespan(_app: FastAPI):
                 },
             )
             _nostr_subscriber.start()
-            bridge_offline = (not relay_url) or (not publish_enabled)
+            bridge_offline = (not relay_url) or (not publish_enabled) or test_mode
             _nostr_bridge = NostrBridge(
                 privkey=nostr_privkey,
                 relay_url=relay_url or "wss://relay.damus.io",
                 offline=bridge_offline,
             )
             log.info(
-                "Nostr initialised (relay=%s, offline=%s, publish=%s).",
+                "Nostr initialised (relay=%s, offline=%s, publish=%s, test_mode=%s).",
                 relay_url or "wss://relay.damus.io",
                 bridge_offline,
                 publish_enabled,
+                test_mode,
             )
         else:
             _nostr_subscriber = None
             _nostr_bridge = None
-            if test_mode:
-                log.info("Nostr disabled for test/in-memory mode.")
-            else:
-                log.info("Nostr disabled (TFP_ENABLE_NOSTR=0).")
+            log.info("Nostr disabled (TFP_ENABLE_NOSTR=0).")
 
         # ── Stage: rag_init (optional) ────────────────────────────────────
         if _enable_rag:
