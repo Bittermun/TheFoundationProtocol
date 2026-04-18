@@ -10,11 +10,11 @@ This document analyzes the CI failures in PR #59 and provides a comprehensive st
 
 **Root Cause**: One file (`tfp_demo/server.py`) was not formatted according to the repository's ruff format standards. The pre-commit hook `ruff format` detected this and reformatted the file, causing the check to exit with code 1.
 
-**Fix Applied**: 
+**Fix Applied**:
 - Ran `python -m ruff format tfp_demo/server.py` to reformat the file
 - Committed the formatted version
 
-**Verification**: 
+**Verification**:
 - `python -m ruff format . --check` now passes (149 files already formatted)
 - `python -m ruff check --fix` passes (All checks passed!)
 
