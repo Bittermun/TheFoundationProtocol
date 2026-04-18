@@ -2424,6 +2424,8 @@ async def lifespan(_app: FastAPI):
     _runtime_mode = runtime_cfg.mode
     _trusted_nostr_pubkeys = runtime_cfg.nostr_trusted_pubkeys
     _admin_device_ids = runtime_cfg.admin_device_ids
+    db_path = runtime_cfg.db_path
+    test_mode = db_path == ":memory:"
     if _runtime_mode == "production" and not _trusted_nostr_pubkeys:
         log.warning(
             "Production mode started without TFP_NOSTR_TRUSTED_PUBKEYS; "
@@ -2700,10 +2702,15 @@ async def lifespan(_app: FastAPI):
         _startup_stage = "ipfs_init"
         if _enable_ipfs:
             ipfs_api = os.environ.get("TFP_IPFS_API_URL", "http://tfp-ipfs:5001")
-            _ipfs_bridge = IPFSBridge(api_url=ipfs_api, offline=not ipfs_api)
+            # Force offline mode in test mode to prevent network calls during tests
+            ipfs_offline = (not ipfs_api) or test_mode
+            _ipfs_bridge = IPFSBridge(api_url=ipfs_api, offline=ipfs_offline)
             _broadcaster.ipfs_bridge = _ipfs_bridge
             log.info(
-                "IPFS bridge initialised (api=%s, offline=%s).", ipfs_api, not ipfs_api
+                "IPFS bridge initialised (api=%s, offline=%s, test_mode=%s).",
+                ipfs_api,
+                ipfs_offline,
+                test_mode,
             )
         else:
             _ipfs_bridge = None
@@ -2753,7 +2760,7 @@ async def lifespan(_app: FastAPI):
             _nostr_subscriber = NostrSubscriber(
                 relay_url=relay_url or "wss://relay.damus.io",
                 on_event=_on_nostr_event,
-                offline=not relay_url,
+                offline=not relay_url or test_mode,
                 filters={
                     "kinds": [
                         TFP_CONTENT_KIND,
@@ -2764,17 +2771,18 @@ async def lifespan(_app: FastAPI):
                 },
             )
             _nostr_subscriber.start()
-            bridge_offline = (not relay_url) or (not publish_enabled)
+            bridge_offline = (not relay_url) or (not publish_enabled) or test_mode
             _nostr_bridge = NostrBridge(
                 privkey=nostr_privkey,
                 relay_url=relay_url or "wss://relay.damus.io",
                 offline=bridge_offline,
             )
             log.info(
-                "Nostr initialised (relay=%s, offline=%s, publish=%s).",
+                "Nostr initialised (relay=%s, offline=%s, publish=%s, test_mode=%s).",
                 relay_url or "wss://relay.damus.io",
                 bridge_offline,
                 publish_enabled,
+                test_mode,
             )
         else:
             _nostr_subscriber = None
