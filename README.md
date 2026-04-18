@@ -60,46 +60,83 @@ Create a **Global Information Commons** that works for pennies: anyone can publi
 ## What Makes TFP Different
 
 - **Uncensorable & discoverable** — Hash-based NDN routing + tag-overlay index (no central server or registry). Nostr relay bridge for cross-network peer discovery.
+
 - **Bandwidth & compute efficient** — RaptorQ erasure coding + hierarchical lexicon tree designed for efficient content distribution in low-bandwidth environments.
+
 - **Secure by design** — PUF/TEE identity (Sybil-resistant), HMAC-per-request device auth, ZKPs, post-quantum crypto agility, WASM sandboxing, behavioral heuristics for anomaly detection.
+
 - **Privacy-first** — Metadata shielding, zero PII logging, device-bound identity.
+
 - **Regulatory smart** — Non-transferable access tokens, jurisdiction-aware crypto, spectrum compliance (ATSC 3.0, 5G MBSFN).
+
 - **Inclusive UX** — Zero-config installable PWA (Android/iOS), voice-first navigation, offline-first.
+
 - **Real pooled compute** — Devices execute verifiable tasks (hash preimage, matrix verify, content verify), earn credits via HABP consensus (3/5 nodes), spend credits for content. 21M supply cap.
 
 ## Current Status (v3.1.x)
 
 - ✅ Production-ready core (42k+ LOC, 189 Python files, 142 with Apache-2.0 headers).
+
 - ✅ **780+ tests passing** — Protocol tests + root-level integration tests. `TFP_DB_PATH=:memory: PYTHONPATH=. python -m pytest tests/ -q`
+
 - ✅ **Real compute tasks** — 3 task types (HASH_PREIMAGE, MATRIX_VERIFY, CONTENT_VERIFY) with cryptographic proof-of-work.
+
 - ✅ **HABP consensus** — Credits only mint when 3/5 devices agree on identical output hash. **Proofs survive server restart** (rebuilt from SQLite on boot).
+
 - ✅ **21M credit supply cap** — Hard-coded MAX_SUPPLY enforced at every mint via SupplyCapError.
+
 - ✅ **Task dispatch API** — `POST /api/task`, `GET /api/tasks`, `POST /api/task/{id}/result`.
+
 - ✅ **Prometheus metrics** — `GET /metrics` with 12 counters (tasks, credits, content, devices). **Seeded from DB on startup** so counters survive restarts.
+
 - ✅ **Admin dashboard** — `GET /admin` live HTML dashboard (auto-refresh, supply bar, device leaderboard).
+
 - ✅ **`tfp join`** — Single command to join the compute pool, earn credits, spend on content.
+
 - ✅ **`tfp tasks` / `tfp leaderboard`** — CLI commands to inspect the live pool.
+
 - ✅ **Content pagination** — `GET /api/content?limit=N&offset=N` with `total` in response.
+
 - ✅ **Device leaderboard** — `GET /api/devices` (sorted by credits) + `GET /api/device/{id}`.
+
 - ✅ **Background maintenance thread** — periodic reap + replenishment every 30s (pool never runs dry).
+
 - ✅ **SQLite WAL mode** — concurrent reads during writes; "database is locked" errors eliminated.
+
 - ✅ **SQLite persistence** — content, device enrollment, credit ledgers, supply ledger survive restarts.
+
 - ✅ **Device auth** — HMAC-SHA-256 per-request signing (constant-time compare); identity persisted at `~/.tfp/identity.json`.
+
 - ✅ **Rate limiting** — sliding-window per device on `/api/earn` and `/api/task/{id}/result`. Per-device (1000 chunks/min) and per-upload (100 chunks/sec) rate limiting on chunk uploads.
+
 - ✅ **Nostr subscriber + bridge** — remote peer content discovery & publishing via relay (offline-safe).
+
 - ✅ **Parallel chunk upload** — `/api/upload/chunk` and `/api/upload/complete` with 8-16 concurrent uploads, RaptorQ encoding, and retry logic.
+
 - ✅ **Upload idle timeout** — 5-minute cleanup of abandoned uploads to prevent memory leaks.
+
 - ✅ **Chunk checksum validation** — Optional SHA-256 validation via X-Chunk-Hash header to detect corruption.
+
 - ✅ **Retry queue** — Failed background uploads queued with exponential backoff and Prometheus metrics.
+
 - ✅ **Parallel RaptorQ encoding** — ProcessPoolExecutor for files >= 5MB with thread-safe initialization and graceful shutdown.
+
 - ✅ **IPFS bridge** — content pinning with hash↔CID mapping; offline-safe fallback.
+
 - ✅ **Multipart upload** — `/api/publish` supports both `application/json` and `multipart/form-data` for large binary payloads.
+
 - ✅ **Streaming download** — `/api/get/{hash}?stream=true` for chunked 64KB responses.
+
 - ✅ **Content discovery** — `/api/discovery?domain=X` returns Nostr-announced content hashes.
+
 - ✅ **PWA** — installable on Android/iOS, offline-first service worker.
+
 - ✅ **10-node testbed** — Docker Compose with 10 nodes (ports 9001–9010). Run: `docker compose -f docker-compose.testbed.yml up`
+
 - ✅ **100-node benchmark** — Docker Compose with 100 nodes + OpenTelemetry, Tempo, Prometheus, Grafana. Run: `docker compose -f tests/benchmarks/docker-compose.100.yml up` (resource-intensive)
+
 - ✅ **CI/CD** — 9 workflows: tests, security, license, release, OpenSSF Scorecard.
+
 - **Cloud deployment** — Docker local verified. Render/Railway/Fly.io need community testing (see `docs/deploy_demo.md`).
 
 ---
@@ -134,7 +171,9 @@ python benchmark_simple.py
 Measures publish/retrieve latency and throughput. Results (in-memory, single-node):
 
 - **Publish**: ~0.1 ops/sec (~7s per operation)
+
 - **Retrieve**: ~0.5 ops/sec (~2s per operation)
+
 - **Note**: Production with disk persistence will be 2-5x slower
 
 ### Parallel Chunk Upload Benchmark
@@ -205,13 +244,17 @@ Benchmarks server-side RealRaptorQAdapter encoding efficiency:
 ### Efficiency Claims
 
 - **RaptorQ encoding**: ~12% overhead for realistic file sizes (1MB+)
+
 - **Fault tolerance**: Can reconstruct from any k source shards
+
 - **Semantic search**: HierarchicalLexiconTree structure ready (domain-aware reconstruction implemented)
 
 ### What Still Needs Multi-Node Deployment
 
 - **P2P shard exchange**: Requires multi-node deployment to measure bandwidth savings
+
 - **Semantic search efficiency**: Requires multi-node deployment to benchmark
+
 - **Partial reconstruction benefits**: Visible in multi-node scenarios with network latency
 
 ### Join the compute pool from CLI
