@@ -306,8 +306,8 @@ Full request/response schemas: [`docs/v3.0-integration-guide.md`](tfp-foundation
 ## Simulation
 
 ```bash
-python tfp_simulator/attack_inject.py --seed 42 --requests 500
-bash tfp_simulator/run_sim.sh   # uses ns-3 if installed
+python tfp-foundation-protocol/tfp_simulator/attack_inject.py --seed 42 --requests 500
+bash tfp-foundation-protocol/tfp_simulator/run_sim.sh   # uses ns-3 if installed
 ```
 
 ## Benchmark Results
