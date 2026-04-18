@@ -1,4 +1,5 @@
 # TFP v3.1 Foundation Protocol
+
 **A decentralized content & compute protocol for global information access — uncensorable, efficient, and built for everyone.**
 
 ![Tests](https://img.shields.io/badge/tests-770%20passing-green)
@@ -16,11 +17,17 @@ python demo_30sec.py
 ```
 
 This script automatically:
+
 - Starts a demo server
+
 - Enrolls a device
+
 - Publishes sample content
+
 - Retrieves and displays it
+
 - Shows timing metrics
+
 ---
 
 ## Documentation Map
@@ -125,6 +132,7 @@ python benchmark_simple.py
 ```
 
 Measures publish/retrieve latency and throughput. Results (in-memory, single-node):
+
 - **Publish**: ~0.1 ops/sec (~7s per operation)
 - **Retrieve**: ~0.5 ops/sec (~2s per operation)
 - **Note**: Production with disk persistence will be 2-5x slower
@@ -155,35 +163,53 @@ python benchmark_raptorq.py
 ```
 
 Benchmarks server-side RealRaptorQAdapter encoding efficiency:
+
 - **Encoding speed**: ~1.9 MB/s
+
 - **Overhead**: ~12% for realistic file sizes (1MB+)
+
 - **Fault tolerance**: Can reconstruct from any k source shards
+
 - **Note**: Client-side retrieval requires real NDN adapter (currently mock)
 
 ## Implementation Status
 
 ### Working (Production-Ready)
+
 - **Server-side chunking**: RealRaptorQAdapter (XOR-based erasure coding)
+
 - **Client-side retrieval**: RealNDNAdapter with blob_store fallback (single-node) or python-ndn (multi-node)
+
 - **Lexicon adapter**: RealLexiconAdapter with HierarchicalLexiconTree integration
+
 - **Credit ledger**: SQLite-backed, non-transferable credits
+
 - **Nostr integration**: Real relay connectivity for discovery
+
 - **IPFS bridge**: Content pinning and retrieval
+
 - **755+ tests**: Comprehensive test coverage
+
 - **End-to-end real adapters**: Working with TFP_REAL_ADAPTERS=1
 
 ### What's Implemented Now
+
 - **Real NDN adapter**: Supports local blob_store for single-node, python-ndn for multi-node
+
 - **Real Lexicon adapter**: Uses HierarchicalLexiconTree for domain-aware reconstruction
+
 - **Real RaptorQ adapter**: XOR-based erasure coding with fault tolerance
+
 - **End-to-end flow**: Publish → chunk → retrieve → reconstruct all working with real adapters
 
 ### Efficiency Claims
+
 - **RaptorQ encoding**: ~12% overhead for realistic file sizes (1MB+)
 - **Fault tolerance**: Can reconstruct from any k source shards
 - **Semantic search**: HierarchicalLexiconTree structure ready (domain-aware reconstruction implemented)
 
 ### What Still Needs Multi-Node Deployment
+
 - **P2P shard exchange**: Requires multi-node deployment to measure bandwidth savings
 - **Semantic search efficiency**: Requires multi-node deployment to benchmark
 - **Partial reconstruction benefits**: Visible in multi-node scenarios with network latency
@@ -431,9 +457,9 @@ python tfp_pilots/community_bootstrap.py --community-id "my-region"
 | ---- | -------------- | ---------- |
 | **Core Contributor** | Fix bugs, add features, review PRs | Pick a `good first issue` on GitHub |
 | **Plugin Developer** | Build audio galleries, offline packs, browser tools | [`docs/plugin_tutorial_30_min.md`](docs/plugin_tutorial_30_min.md) |
-| **Community Organizer** | Deploy pilots, onboard NGOs, host hackathons | Contact: governance@tfp-protocol.org |
+| **Community Organizer** | Deploy pilots, onboard NGOs, host hackathons | Contact: <governance@tfp-protocol.org> |
 | **Researcher** | Study protocol economics, mesh behavior, security | [`docs/archive/TFP_VISION_AND_CURRENT_STATE.md`](docs/archive/TFP_VISION_AND_CURRENT_STATE.md) |
-| **Donor/Partner** | Fund audits, sponsor pilots, provide infrastructure | Contact: governance@tfp-protocol.org |
+| **Donor/Partner** | Fund audits, sponsor pilots, provide infrastructure | Contact: <governance@tfp-protocol.org> |
 
 ---
 
