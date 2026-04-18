@@ -1,6 +1,4 @@
 # TFP v3.1 Foundation Protocol
-Creator note: I'm a highschooler. I think bandwidth on decentralized networks could be much better. I used AI, the code is raw. But I think this could be pretty cool. Take a look and let me know where I messed up.
-
 **A decentralized content & compute protocol for global information access — uncensorable, efficient, and built for everyone.**
 
 ![Tests](https://img.shields.io/badge/tests-770%20passing-green)
@@ -463,5 +461,5 @@ python tfp_pilots/community_bootstrap.py --community-id "my-region"
 | Governance Transparency | 100% | 100% | ✅ |
 
 ---
-
+Creator note: I'm a highschooler. I think bandwidth on decentralized networks could be much better. I used AI, the code is raw. But I think this could be pretty cool. Take a look and let me know where I messed up.
 *"A digital commons for humanity."*
