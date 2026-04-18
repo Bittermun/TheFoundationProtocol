@@ -355,8 +355,11 @@ bash tfp-foundation-protocol/tfp_simulator/run_sim.sh   # uses ns-3 if installed
 **Network I/O Analysis (1.5 MB content published):**
 
 - IPFS processed: 33.6 MB total (20.6 MB in + 13.6 MB out)
+
 - Bandwidth overhead: **22.4x** (due to RaptorQ erasure coding + IPFS replication)
+
 - Upload latency: 86s for 1 MB video, 21s for 512 KB audio
+
 - Per-node coordination overhead: ~5-6 KB
 
 **Known Issues:**
@@ -369,10 +372,15 @@ bash tfp-foundation-protocol/tfp_simulator/run_sim.sh   # uses ns-3 if installed
 ### 100-Node Benchmark Infrastructure
 
 **Components:**
+
 - 100 TFP nodes (ports 8001-8100)
+
 - OpenTelemetry Collector (traces/metrics)
+
 - Tempo (distributed tracing)
+
 - Prometheus (metrics aggregation)
+
 - Grafana (visualization dashboard)
 
 **Status:** Infrastructure verified and operational. Full 100-node deployment is resource-intensive and recommended for production benchmarking only.
@@ -384,10 +392,15 @@ bash tfp-foundation-protocol/tfp_simulator/run_sim.sh   # uses ns-3 if installed
 **Status:** Many improvements have been implemented but accurate performance measurements are not yet available.
 
 **Implemented (Performance Impact Unknown):**
+
 - Parallel chunk upload (ChunkUploader with 8-16 concurrent uploads)
+
 - Larger chunk sizes (256KB default vs 4KB old)
+
 - HTTP/2 multiplexing and connection pooling
+
 - RaptorQ erasure coding (ChunkEncoder with configurable redundancy)
+
 - Exponential backoff retry logic (RetryHandler)
 
 **Note:** Previous benchmark attempts were invalid. Accurate performance measurement requires a real benchmark comparing old /api/publish streaming upload vs new chunk upload system with full TFP workflow (enrollment, credits, IPFS, Nostr relay).
@@ -404,15 +417,23 @@ Memory budget: **122 KB Flash / 130 KB RAM** out of a 1 MB / 256 KB envelope.
 See [`docs/SECURITY.md`](tfp-foundation-protocol/docs/SECURITY.md) for the full verified security model, known limitations, and validation checklist.
 
 **Implemented security controls (all verified against source):**
+
 - All mutating endpoints require `X-Device-Sig: HMAC-SHA-256(puf_entropy, message)`.
+
 - `hmac.compare_digest` (constant-time) prevents timing oracles.
+
 - Sliding-window rate limiting per device on earn and result-submission endpoints.
+
 - `EarnLog` SQLite UNIQUE constraint prevents credit replay.
+
 - 21M hard supply cap enforced at every mint.
+
 - HABP UNIQUE(task_id, device_id) prevents self-mint.
 
 **Known single-node limitations (not vulnerabilities in demo, relevant at scale):**
+
 - Rate limiters are in-memory — reset on restart, not shared across replicas.
+
 - Hardware-bound Sybil resistance requires PUF/TEE wiring (not wired in demo).
 
 See the historical hardening notes in [`docs/archive/v2.2-hardening.md`](tfp-foundation-protocol/docs/archive/v2.2-hardening.md).
