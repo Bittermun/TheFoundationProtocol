@@ -95,7 +95,9 @@ def db_file():
     for _ in range(5):
         try:
             pathlib.Path(tmp.name).unlink(missing_ok=True)
-            shutil.rmtree(pathlib.Path(tmp.name).with_suffix(".blobs"), ignore_errors=True)
+            shutil.rmtree(
+                pathlib.Path(tmp.name).with_suffix(".blobs"), ignore_errors=True
+            )
             break
         except PermissionError:
             time.sleep(0.1)

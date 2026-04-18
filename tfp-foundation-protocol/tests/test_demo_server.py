@@ -306,7 +306,9 @@ def test_credits_persist_across_restarts():
         for _ in range(5):
             try:
                 pathlib.Path(db_file).unlink(missing_ok=True)
-                shutil.rmtree(pathlib.Path(db_file).with_suffix(".blobs"), ignore_errors=True)
+                shutil.rmtree(
+                    pathlib.Path(db_file).with_suffix(".blobs"), ignore_errors=True
+                )
                 break
             except PermissionError:
                 time.sleep(0.1)

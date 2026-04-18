@@ -109,7 +109,9 @@ class CaliperAdapter:
         max_p99_latency_ms: Max allowed p99 latency for any benchmark.
     """
 
-    DEFAULT_MIN_ENCODE_THROUGHPUT = 5_000  # 5 KB/s (realistic for current implementation)
+    DEFAULT_MIN_ENCODE_THROUGHPUT = (
+        5_000  # 5 KB/s (realistic for current implementation)
+    )
     DEFAULT_MIN_CREDIT_OPS = 100  # 100 tx/s
     DEFAULT_MAX_P99_MS = 200.0  # 200 ms
 
