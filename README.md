@@ -115,6 +115,8 @@ Open `http://localhost:8000/admin` — live admin dashboard (tasks + device lead
 Open `http://localhost:8000/metrics` — Prometheus metrics.
 Open `http://localhost:8000/health` — health check (used by Docker + load balancers).
 
+**Live Demo:** https://tfp-icy-cherry-2504.fly.dev/
+
 ### Quick Benchmark
 
 ```bash
