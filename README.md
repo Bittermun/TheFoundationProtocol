@@ -290,11 +290,17 @@ docker compose up --build
 cd tfp-foundation-protocol
 pip install -e .
 tfp tasks                              # list open compute tasks
+
 tfp leaderboard                        # top devices by credits earned
+
 tfp join --device-id my-laptop         # join the compute pool
+
 tfp earn --task-id demo-task-1         # legacy earn
+
 tfp publish --title "Hello" --text "From CLI" --tags demo,cli
+
 tfp search --tag demo
+
 tfp status                             # node status + supply info
 ```
 
