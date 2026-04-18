@@ -8,7 +8,7 @@
 
 ## Quick Start
 
-### 30-Second Demo 
+### 30-Second Demo
 
 ```bash
 cd TheFoundationProtocol
@@ -26,7 +26,7 @@ This script automatically:
 ## Documentation Map
 
 | Document | Purpose |
-|----------|---------|
+| ---------- | --------- |
 | **[Integration Guide](tfp-foundation-protocol/docs/v3.0-integration-guide.md)** | API reference, task execution, credit economics, deployment runbook, testing, extension guide — **start here** |
 | **[Security Model & Checklist](tfp-foundation-protocol/docs/SECURITY.md)** | Verified security properties, known limitations, per-release checklist, maintenance policy |
 | **[Deploy & Bootstrap Guide](docs/deploy_demo.md)** | Run locally, Docker, cloud (Render/Railway/Fly.io), Nostr relay setup, compute pool bootstrap |
@@ -93,7 +93,7 @@ Create a **Global Information Commons** that works for pennies: anyone can publi
 - ✅ **10-node testbed** — Docker Compose with 10 nodes (ports 9001–9010). Run: `docker compose -f docker-compose.testbed.yml up`
 - ✅ **100-node benchmark** — Docker Compose with 100 nodes + OpenTelemetry, Tempo, Prometheus, Grafana. Run: `docker compose -f tests/benchmarks/docker-compose.100.yml up` (resource-intensive)
 - ✅ **CI/CD** — 9 workflows: tests, security, license, release, OpenSSF Scorecard.
--  **Cloud deployment** — Docker local verified. Render/Railway/Fly.io need community testing (see `docs/deploy_demo.md`).
+- **Cloud deployment** — Docker local verified. Render/Railway/Fly.io need community testing (see `docs/deploy_demo.md`).
 
 ---
 
@@ -115,7 +115,7 @@ Open `http://localhost:8000/admin` — live admin dashboard (tasks + device lead
 Open `http://localhost:8000/metrics` — Prometheus metrics.
 Open `http://localhost:8000/health` — health check (used by Docker + load balancers).
 
-**Live Demo:** https://tfp-icy-cherry-2504.fly.dev/
+**Live Demo:** <https://tfp-icy-cherry-2504.fly.dev/>
 
 ### Quick Benchmark
 
@@ -231,7 +231,7 @@ tfp status                             # node status + supply info
 
 ## Architecture
 
-```
+```text
 tfp-foundation-protocol/
 ├── tfp_client/lib/
 │   ├── bridges/       # NostrBridge (pub) + NostrSubscriber (sub) + IPFSBridge
@@ -262,7 +262,7 @@ tfp-foundation-protocol/
 ## API Endpoints (Demo Node)
 
 | Method | Path | Auth | Description |
-|--------|------|------|-------------|
+| ------ | ---- | ---- | ----------- |
 | `GET` | `/health` | None | Liveness check |
 | `GET` | `/api/status` | None | Node status + Nostr subscriber info |
 | `POST` | `/api/enroll` | None | Register device PUF entropy |
@@ -286,7 +286,7 @@ Full request/response schemas: [`docs/v3.0-integration-guide.md`](tfp-foundation
 ## Key Components
 
 | Module | Technology | Status |
-|--------|-----------|--------|
+| ------ | ----------- | ------ |
 | `ContentStore` | SQLite + in-memory tag index | ✅ v3.0 |
 | `DeviceRegistry` | SQLite device enrollment | ✅ v3.0 |
 | `TaskStore` | SQLite task lifecycle (open→verifying→completed) + HABP | ✅ v3.0 |
@@ -317,7 +317,7 @@ bash tfp-foundation-protocol/tfp_simulator/run_sim.sh   # uses ns-3 if installed
 ### Caliper Synthetic Benchmarks (In-Memory)
 
 | Benchmark | Ops/Sec | p99 Latency | Throughput | Status |
-|-----------|---------|-------------|------------|--------|
+| --------- | ------- | ---------- | ---------- | ------ |
 | RaptorQ Encode/Decode | 9,704 | 0.16ms | 19.9 MB/sec | ✅ Pass |
 | Credit Ledger Ops | 164,204 | 0.007ms | N/A | ✅ Pass |
 | End-to-End Request | 229,885 | 0.01ms | 117.7 MB/sec | ✅ Pass |
@@ -394,7 +394,7 @@ See the historical hardening notes in [`docs/archive/v2.2-hardening.md`](tfp-fou
 ## Who It's For
 
 | Audience | Use Case | Getting Started |
-|----------|----------|-----------------|
+| -------- | ------- | --------------- |
 | **Rural communities & NGOs** | Offline, low-cost delivery of education, health, and emergency information | See [`docs/deploy_demo.md`](docs/deploy_demo.md) for deployment guide |
 | **Developers** | Building censorship-resistant apps, plugins, browser extensions | See [`docs/hackathon_kit.md`](docs/hackathon_kit.md) + [`docs/plugin_tutorial_30_min.md`](docs/plugin_tutorial_30_min.md) |
 | **Organizations** | Compliant, low-cost compute/content distribution | See [`docs/archive/TFP_FINAL_STATUS.md`](docs/archive/TFP_FINAL_STATUS.md) (regulatory positioning) |
@@ -403,7 +403,7 @@ See the historical hardening notes in [`docs/archive/v2.2-hardening.md`](tfp-fou
 
 ---
 
-##  Get Involved
+## Get Involved
 
 ### Immediate Actions You Can Take Today
 
@@ -428,7 +428,7 @@ python tfp_pilots/community_bootstrap.py --community-id "my-region"
 ### Contribution Paths
 
 | Role | What You'll Do | Start Here |
-|------|----------------|------------|
+| ---- | -------------- | ---------- |
 | **Core Contributor** | Fix bugs, add features, review PRs | Pick a `good first issue` on GitHub |
 | **Plugin Developer** | Build audio galleries, offline packs, browser tools | [`docs/plugin_tutorial_30_min.md`](docs/plugin_tutorial_30_min.md) |
 | **Community Organizer** | Deploy pilots, onboard NGOs, host hackathons | Contact: governance@tfp-protocol.org |
@@ -437,7 +437,7 @@ python tfp_pilots/community_bootstrap.py --community-id "my-region"
 
 ---
 
-##  License
+## License
 
 **Apache-2.0** — see [LICENSE](LICENSE).
 
@@ -448,7 +448,7 @@ python tfp_pilots/community_bootstrap.py --community-id "my-region"
 ## Repository Health Metrics
 
 | Metric | Value | Target | Status |
-|--------|-------|--------|--------|
+| ------ | ----- | ------ | ------ |
 | Python Files | 189 | — | ✅ |
 | Total LOC | ~42,000 | <50k | ✅ |
 | Tests Passing | 755 | >400 | ✅ |
