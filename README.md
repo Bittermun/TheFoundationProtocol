@@ -6,9 +6,24 @@
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue)
 ![Security](https://img.shields.io/badge/security-hardened-green)
 
+## Quick Start
+
+### 30-Second Demo 
+
+```bash
+cd TheFoundationProtocol
+python demo_30sec.py
+```
+
+This script automatically:
+- Starts a demo server
+- Enrolls a device
+- Publishes sample content
+- Retrieves and displays it
+- Shows timing metrics
 ---
 
-## 📚 Documentation Map
+## Documentation Map
 
 | Document | Purpose |
 |----------|---------|
@@ -78,29 +93,13 @@ Create a **Global Information Commons** that works for pennies: anyone can publi
 - ✅ **10-node testbed** — Docker Compose with 10 nodes (ports 9001–9010). Run: `docker compose -f docker-compose.testbed.yml up`
 - ✅ **100-node benchmark** — Docker Compose with 100 nodes + OpenTelemetry, Tempo, Prometheus, Grafana. Run: `docker compose -f tests/benchmarks/docker-compose.100.yml up` (resource-intensive)
 - ✅ **CI/CD** — 9 workflows: tests, security, license, release, OpenSSF Scorecard.
-- 🔧 **Cloud deployment** — Docker local verified. Render/Railway/Fly.io need community testing (see `docs/deploy_demo.md`).
+-  **Cloud deployment** — Docker local verified. Render/Railway/Fly.io need community testing (see `docs/deploy_demo.md`).
 
 ---
 
 ## v3.2 Planning
 
 See [ROADMAP.md](ROADMAP.md) for planned v3.2 milestones and [GitHub Milestones](https://github.com/Bittermun/TheFoundationProtocol/milestones) for issue-level tracking.
-
-## Quick Start
-
-### 30-Second Demo (Easiest)
-
-```bash
-cd TheFoundationProtocol
-python demo_30sec.py
-```
-
-This script automatically:
-- Starts a demo server
-- Enrolls a device
-- Publishes sample content
-- Retrieves and displays it
-- Shows timing metrics
 
 ### Full Setup
 
@@ -115,8 +114,6 @@ Open `http://localhost:8000` — the PWA is installable directly from the browse
 Open `http://localhost:8000/admin` — live admin dashboard (tasks + device leaderboard).
 Open `http://localhost:8000/metrics` — Prometheus metrics.
 Open `http://localhost:8000/health` — health check (used by Docker + load balancers).
-
-**Live Demo:** https://tfp-icy-cherry-2504.fly.dev/
 
 ### Quick Benchmark
 
@@ -438,7 +435,7 @@ python tfp_pilots/community_bootstrap.py --community-id "my-region"
 
 ---
 
-## 📜 License
+##  License
 
 **Apache-2.0** — see [LICENSE](LICENSE).
 
@@ -446,7 +443,7 @@ python tfp_pilots/community_bootstrap.py --community-id "my-region"
 
 ---
 
-## 📊 Repository Health Metrics
+## Repository Health Metrics
 
 | Metric | Value | Target | Status |
 |--------|-------|--------|--------|
