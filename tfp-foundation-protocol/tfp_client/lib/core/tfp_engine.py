@@ -37,7 +37,7 @@ class TFPClient:
         # Use provided adapters or defaults
         self.ndn = ndn or RealNDNAdapter()
         self.raptorq = raptorq or RaptorQAdapter()  # Keep mock for now, will upgrade separately
-        self.zkp = zkp or RealZKPAdapter()
+        self.zkp = zkp or RealZKPAdapter()  # Real SECP256K1 Schnorr proof (same curve as Bitcoin/Ethereum)
         self.lexicon = lexicon or RealLexiconAdapter()  # Use real by default
         self.ledger = ledger or CreditLedger()
         self.preprocessor = preprocessor
