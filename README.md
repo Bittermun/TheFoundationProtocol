@@ -2,7 +2,7 @@
 
 **A decentralized content & compute protocol for global information access — uncensorable, efficient, and built for everyone.**
 
-![Tests](https://img.shields.io/badge/tests-770%20passing-green)
+![Tests](https://img.shields.io/badge/tests-784%20passing-green)
 ![Python Files](https://img.shields.io/badge/python%20files-149-blue)
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue)
 ![Security](https://img.shields.io/badge/security-hardened-green)
@@ -77,7 +77,7 @@ Create a **Global Information Commons** that works for pennies: anyone can publi
 
 - ✅ Production-ready core (42k+ LOC, 189 Python files, 142 with Apache-2.0 headers).
 
-- ✅ **780+ tests passing** — Protocol tests + root-level integration tests. `TFP_DB_PATH=:memory: PYTHONPATH=. python -m pytest tests/ -q`
+- ✅ **784 tests passing** — Protocol tests + root-level integration tests. `TFP_DB_PATH=:memory: PYTHONPATH=. python -m pytest tests/ -q`
 
 - ✅ **Real compute tasks** — 3 task types (HASH_PREIMAGE, MATRIX_VERIFY, CONTENT_VERIFY) with cryptographic proof-of-work.
 

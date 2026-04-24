@@ -73,9 +73,9 @@ class TestRealZKPAdapter:
     def setup_method(self):
         self.zkp = RealZKPAdapter()
 
-    def test_proof_is_64_bytes(self):
+    def test_proof_is_65_bytes(self):
         proof = self.zkp.generate_proof("access_to_hash", b"secret_claim")
-        assert len(proof) == 64
+        assert len(proof) == 65  # 33 bytes compressed R + 32 bytes s
 
     def test_proof_verifies(self):
         proof = self.zkp.generate_proof("access_to_hash", b"secret_claim")
@@ -185,9 +185,9 @@ class TestEndToEndRealAdapters:
         self.client.request_content("hash_xyz")
         assert self.ledger.balance == before_spend - 1  # spent 1 credit
 
-    def test_prove_access_returns_64_bytes(self):
+    def test_prove_access_returns_65_bytes(self):
         proof = self.client.prove_access("hash_abc", b"my_private_key")
-        assert len(proof) == 64
+        assert len(proof) == 65  # 33 bytes compressed R + 32 bytes s
 
     def test_submit_task_mints_credits(self):
         before = self.ledger.balance

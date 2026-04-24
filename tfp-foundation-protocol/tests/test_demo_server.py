@@ -481,7 +481,7 @@ def test_real_zkp_generate_and_verify():
 
     adapter = RealZKPAdapter()
     proof = adapter.generate_proof("access_to_hash", b"my_secret_witness")
-    assert len(proof) == 64
+    assert len(proof) == 65  # 33 bytes compressed R + 32 bytes s
     # Verify against the same public input
     public = hashlib.sha3_256(b"access_to_hash").digest()
     assert adapter.verify_proof(proof, public) is True
