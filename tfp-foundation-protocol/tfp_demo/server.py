@@ -3559,25 +3559,35 @@ def get_content(
     client = _client_for(device_id)
     item = _content_store.get(root_hash)
 
-    # If not in local content store, try fetching via NDN (which now checks IPFS)
-    try:
-        content = client.request_content(root_hash)
-    except ValueError as exc:
-        msg = str(exc).lower()
-        if "no earned credits" in msg or "insufficient credits" in msg:
+    # If content is in local store, use it directly (but still check credits)
+    if item is not None:
+        content = item
+    else:
+        # If not in local content store, try fetching via NDN (which now checks IPFS)
+        try:
+            content = client.request_content(root_hash)
+        except ValueError as exc:
+            msg = str(exc).lower()
+            if "no earned credits" in msg or "insufficient credits" in msg:
+                raise HTTPException(
+                    status_code=402, detail="earn credits first via /api/earn"
+                ) from exc
+            # Explicit 404 for not found
             raise HTTPException(
-                status_code=402, detail="earn credits first via /api/earn"
+                status_code=404,
+                detail=f"content {root_hash} not found on local node or via discovery",
             ) from exc
-        # Explicit 404 for not found
+        except Exception as exc:
+            log.error("NDN retrieval error for %s: %s", root_hash, exc)
+            raise HTTPException(
+                status_code=500, detail="Internal error during retrieval"
+            ) from exc
+
+    # Check if device has credits for local content retrieval
+    if _credit_store and client.ledger.balance <= 0:
         raise HTTPException(
-            status_code=404,
-            detail=f"content {root_hash} not found on local node or via discovery",
-        ) from exc
-    except Exception as exc:
-        log.error("NDN retrieval error for %s: %s", root_hash, exc)
-        raise HTTPException(
-            status_code=500, detail="Internal error during retrieval"
-        ) from exc
+            status_code=402, detail="earn credits first via /api/earn"
+        )
 
     _metrics.inc("tfp_content_served_total")
     _metrics.inc("tfp_credits_spent_total")
