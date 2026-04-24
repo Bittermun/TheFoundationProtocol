@@ -10,10 +10,9 @@ from __future__ import annotations
 
 import hashlib
 import logging
-import os
 
 from cryptography.hazmat.primitives.asymmetric import ec
-from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.backends import default_backend
 
 log = logging.getLogger(__name__)
@@ -114,7 +113,7 @@ class RealZKPAdapter:
             s = int.from_bytes(s_bytes, "big")
 
             # Load R point to verify it's a valid curve point
-            R = ec.EllipticCurvePublicKey.from_encoded_point(_CURVE, R_bytes)
+            ec.EllipticCurvePublicKey.from_encoded_point(_CURVE, R_bytes)
 
             # Get public key P
             P = self._public_key
@@ -124,7 +123,7 @@ class RealZKPAdapter:
                 encoding=serialization.Encoding.X962,
                 format=serialization.PublicFormat.CompressedPoint
             )
-            e = int.from_bytes(
+            int.from_bytes(
                 hashlib.sha3_256(R_bytes + P_bytes + public_input).digest(),
                 "big"
             ) % self._private_key.curve.group_order
