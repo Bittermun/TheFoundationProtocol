@@ -151,7 +151,30 @@ When addressing items from this TODO:
 
 ## Completed Items
 
-*(None yet - this is a new document)*
+### [CDC-001] FastCDC Implementation
+**Location:** `tfp_transport/cdc.py`
+**Description:** Replaced Rabin-Karp CDC with FastCDC (Gear hash) for better performance and chunk distribution.
+**Status:** ✅ Completed
+- Implemented FastCDC class with Gear rolling hash
+- Added normalized masking for adaptive chunking
+- Preserved CDCChunker interface for backward compatibility
+- All tests passing (22 passed, 5 skipped)
+
+### [CDC-002] TemplateDescriptor Metadata
+**Location:** `tfp_transport/template_descriptor.py`
+**Description:** Added lightweight template descriptor for publish-time metadata.
+**Status:** ✅ Completed
+- Created TemplateDescriptor dataclass with chunking, semantic, and integrity fields
+- Added lightweight validation (no JSON Schema overhead)
+- Complements existing Recipe system for reconstruction
+
+### [CDC-003] CDC Metrics in ChunkStore
+**Location:** `tfp_client/lib/cache/chunk_store.py`
+**Description:** Extended ChunkStore with CDC deduplication tracking.
+**Status:** ✅ Completed
+- Added cdc_chunk_hashes, dedup_savings_bytes, cdc_strategy to ChunkCacheEntry
+- Updated get_statistics() with CDC metrics
+- Added update_dedup_savings() and get_chunks_by_cdc_hash() methods
 
 ---
 

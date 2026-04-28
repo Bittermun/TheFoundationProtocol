@@ -24,16 +24,28 @@ try:
 except ImportError:
     # Fallback if bloom_filter not available
     class BloomFilter:
-        """Minimal fallback Bloom filter."""
+        """Minimal fallback Bloom filter (simple set-based implementation)."""
 
-        def __init__(self, *args, **kwargs):
+        def __init__(self, size_bits: int = 0, hash_count: int = 0, *args, **kwargs):
             self._items = set()
 
+        @staticmethod
+        def optimal_size(n: int, p: float) -> int:
+            """Calculate optimal bit size for Bloom filter."""
+            import math
+            return int(-n * math.log(p) / (math.log(2) ** 2))
+
+        @staticmethod
+        def optimal_hash_count(m: int, n: int) -> int:
+            """Calculate optimal number of hash functions."""
+            import math
+            return int((m / n) * math.log(2))
+
         def add(self, item):
-            self._items.add(hash(item))
+            self._items.add(item)
 
         def __contains__(self, item):
-            return hash(item) in self._items
+            return item in self._items
 
 
 @dataclass
@@ -49,6 +61,9 @@ class ChunkCacheEntry:
         access_count: Number of times this chunk has been accessed
         last_access_time: Timestamp of last access
         pinned: Whether this chunk is pinned (protected from eviction)
+        cdc_chunk_hashes: Optional list of CDC chunk hashes for deduplication tracking
+        dedup_savings_bytes: Bytes saved due to deduplication (CDC reuse)
+        cdc_strategy: CDC strategy used (e.g., "fastcdc", "fixed")
     """
 
     chunk_id: str
@@ -58,6 +73,9 @@ class ChunkCacheEntry:
     access_count: int = 0
     last_access_time: float = field(default_factory=time.time)
     pinned: bool = False
+    cdc_chunk_hashes: List[str] = field(default_factory=list)
+    dedup_savings_bytes: int = 0
+    cdc_strategy: str = "fixed"
 
     def to_dict(self) -> Dict[str, Any]:
         """Serialize entry to dictionary."""
@@ -69,6 +87,9 @@ class ChunkCacheEntry:
             "access_count": self.access_count,
             "last_access_time": self.last_access_time,
             "pinned": self.pinned,
+            "cdc_chunk_hashes": self.cdc_chunk_hashes,
+            "dedup_savings_bytes": self.dedup_savings_bytes,
+            "cdc_strategy": self.cdc_strategy,
         }
 
     @classmethod
@@ -82,6 +103,9 @@ class ChunkCacheEntry:
             access_count=data.get("access_count", 0),
             last_access_time=data.get("last_access_time", time.time()),
             pinned=data.get("pinned", False),
+            cdc_chunk_hashes=data.get("cdc_chunk_hashes", []),
+            dedup_savings_bytes=data.get("dedup_savings_bytes", 0),
+            cdc_strategy=data.get("cdc_strategy", "fixed"),
         )
 
 
@@ -161,6 +185,9 @@ class ChunkStore:
     - Category-based queries
     """
 
+    # Valid CDC strategies
+    VALID_CDC_STRATEGIES = {"fixed", "fastcdc"}
+
     def __init__(
         self,
         max_chunks: int = 1000,
@@ -221,6 +248,8 @@ class ChunkStore:
         chunk_data: bytes,
         category: str,
         chunk_id_hint: Optional[str] = None,
+        cdc_chunk_hashes: Optional[List[str]] = None,
+        cdc_strategy: str = "fixed",
     ) -> str:
         """
         Store a chunk in the cache.
@@ -229,10 +258,21 @@ class ChunkStore:
             chunk_data: Raw chunk data bytes
             category: Category name
             chunk_id_hint: Optional hint for chunk ID (auto-generated if None)
+            cdc_chunk_hashes: Optional list of CDC chunk hashes for deduplication tracking
+            cdc_strategy: CDC strategy used (e.g., "fastcdc", "fixed")
 
         Returns:
             The chunk ID
+
+        Raises:
+            ValueError: If cdc_strategy is not valid
         """
+        if cdc_strategy not in self.VALID_CDC_STRATEGIES:
+            raise ValueError(
+                f"Invalid CDC strategy: {cdc_strategy}. "
+                f"Valid strategies: {self.VALID_CDC_STRATEGIES}"
+            )
+
         import uuid
 
         # Generate or use provided chunk ID
@@ -252,17 +292,15 @@ class ChunkStore:
             category=category,
             access_count=1,  # Initial access from put
             last_access_time=time.time(),
+            cdc_chunk_hashes=cdc_chunk_hashes or [],
+            cdc_strategy=cdc_strategy,
         )
 
         with self._lock:
             # Check if updating existing chunk
             if chunk_id in self._chunks:
                 old_entry = self._chunks[chunk_id]
-                self._total_bytes -= (
-                    old_entry.size_bytes
-                    if hasattr(old_entry, "size_bytes")
-                    else len(old_entry.data)
-                )
+                self._total_bytes -= len(old_entry.data)
 
             # Store chunk
             self._chunks[chunk_id] = entry
@@ -418,17 +456,26 @@ class ChunkStore:
 
     def get_statistics(self) -> Dict[str, Any]:
         """
-        Get cache statistics.
+        Get cache statistics including CDC metrics.
 
         Returns:
             Dictionary with statistics
         """
         with self._lock:
             by_category: Dict[str, int] = {}
+            by_cdc_strategy: Dict[str, int] = {}
+            total_dedup_savings = 0
+            total_cdc_chunks = 0
 
             for entry in self._chunks.values():
                 cat = entry.category
                 by_category[cat] = by_category.get(cat, 0) + 1
+                
+                # CDC metrics
+                strategy = entry.cdc_strategy
+                by_cdc_strategy[strategy] = by_cdc_strategy.get(strategy, 0) + 1
+                total_dedup_savings += entry.dedup_savings_bytes
+                total_cdc_chunks += len(entry.cdc_chunk_hashes)
 
             return {
                 "count": len(self._chunks),
@@ -442,7 +489,49 @@ class ChunkStore:
                 "utilization_bytes": self._total_bytes / self._max_bytes
                 if self._max_bytes > 0
                 else 0,
+                "cdc": {
+                    "by_strategy": by_cdc_strategy,
+                    "total_dedup_savings_bytes": total_dedup_savings,
+                    "total_cdc_chunks_tracked": total_cdc_chunks,
+                    "dedup_ratio": total_dedup_savings / self._total_bytes
+                    if self._total_bytes > 0
+                    else 0,
+                },
             }
+
+    def update_dedup_savings(self, chunk_id: str, savings_bytes: int) -> None:
+        """
+        Update deduplication savings for a chunk.
+
+        Call this when a chunk is reused via CDC deduplication.
+
+        Args:
+            chunk_id: ID of chunk to update
+            savings_bytes: Bytes saved due to deduplication
+        """
+        with self._lock:
+            entry = self._chunks.get(chunk_id)
+            if entry:
+                entry.dedup_savings_bytes += savings_bytes
+
+    def get_chunks_by_cdc_hash(self, cdc_hash: str) -> List[ChunkCacheEntry]:
+        """
+        Find all cached chunks that contain a specific CDC chunk hash.
+
+        Useful for discovering content reuse patterns.
+
+        Args:
+            cdc_hash: SHA-256 hash of a CDC chunk
+
+        Returns:
+            List of ChunkCacheEntry objects containing this CDC hash
+        """
+        with self._lock:
+            return [
+                entry
+                for entry in self._chunks.values()
+                if cdc_hash in entry.cdc_chunk_hashes
+            ]
 
     def _enforce_limits(self) -> None:
         """

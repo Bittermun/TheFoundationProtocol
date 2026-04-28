@@ -18,6 +18,7 @@ TFP v3.1 Foundation Protocol node server.
 | Rate limiting | `_RateLimiter` / `_RedisRateLimiterAdapter` | Sliding-window per-device; Redis for multi-worker deployments (`TFP_REDIS_URL`) |
 | Semantic search | `RAGGraph` (optional) | ChromaDB + CodeBERT; gated by `TFP_ENABLE_RAG=1` |
 | Template system | `TemplateAssembler` + `ChunkStore` (framework) | Chunk caching, HLT validation, AI fill-in — internal framework for content assembly |
+| Content-Defined Chunking | `FastCDC` (`tfp_transport/cdc.py`) | Gear hash-based CDC for deduplication; replaces Rabin-Karp for better performance |
 
 ## Key Design Decisions
 

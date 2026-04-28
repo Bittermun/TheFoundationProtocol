@@ -1,0 +1,89 @@
+{
+  "timestamp": "2026-04-24T20:26:47.446155",
+  "implementation": "Rabin-Karp CDC (current)",
+  "results": [
+    {
+      "dataset_name": "text_educational_100kb",
+      "data_size_bytes": 290023,
+      "throughput_mbps": 0.02209391432997717,
+      "chunk_count": 5,
+      "avg_chunk_size": 58004.6,
+      "min_chunk_size": 27879,
+      "max_chunk_size": 65536,
+      "std_chunk_size": 16840.722365741916,
+      "boundary_stability": 0.0,
+      "memory_peak_mb": 5.176837921142578,
+      "duration_seconds": 13.126827400000138
+    },
+    {
+      "dataset_name": "health_pdf_50kb",
+      "data_size_bytes": 50014,
+      "throughput_mbps": 0.020977086641106823,
+      "chunk_count": 1,
+      "avg_chunk_size": 50014,
+      "min_chunk_size": 50014,
+      "max_chunk_size": 50014,
+      "std_chunk_size": 0,
+      "boundary_stability": 0.0,
+      "memory_peak_mb": 1.820490837097168,
+      "duration_seconds": 2.3842204999998557
+    },
+    {
+      "dataset_name": "audio_pattern_80kb",
+      "data_size_bytes": 80010,
+      "throughput_mbps": 0.018651342214784677,
+      "chunk_count": 2,
+      "avg_chunk_size": 40005,
+      "min_chunk_size": 14474,
+      "max_chunk_size": 65536,
+      "std_chunk_size": 36106.28646094749,
+      "boundary_stability": 0.0,
+      "memory_peak_mb": 2.9577789306640625,
+      "duration_seconds": 4.289771700000074
+    },
+    {
+      "dataset_name": "video_like_60kb",
+      "data_size_bytes": 60019,
+      "throughput_mbps": 0.016261125184572383,
+      "chunk_count": 1,
+      "avg_chunk_size": 60019,
+      "min_chunk_size": 60019,
+      "max_chunk_size": 60019,
+      "std_chunk_size": 0,
+      "boundary_stability": 0.0,
+      "memory_peak_mb": 2.4484291076660156,
+      "duration_seconds": 3.690950000000157
+    },
+    {
+      "dataset_name": "mixed_corpus_75kb",
+      "data_size_bytes": 75000,
+      "throughput_mbps": 0.020504254851593833,
+      "chunk_count": 2,
+      "avg_chunk_size": 37500,
+      "min_chunk_size": 9464,
+      "max_chunk_size": 65536,
+      "std_chunk_size": 39648.891434692094,
+      "boundary_stability": 0.0,
+      "memory_peak_mb": 2.714567184448242,
+      "duration_seconds": 3.6577773999999863
+    },
+    {
+      "dataset_name": "large_text_10mb",
+      "data_size_bytes": 13500000,
+      "throughput_mbps": 0.02355782556947918,
+      "chunk_count": 206,
+      "avg_chunk_size": 65533.98058252427,
+      "min_chunk_size": 65120,
+      "max_chunk_size": 65536,
+      "std_chunk_size": 28.984093394531296,
+      "boundary_stability": 0.0,
+      "memory_peak_mb": 17.89708137512207,
+      "duration_seconds": 573.0579828
+    }
+  ],
+  "summary": {
+    "avg_throughput_mbps": 0.020340924798585677,
+    "avg_boundary_stability": 0.0,
+    "total_data_size_mb": 13.403955459594727
+  }
+}

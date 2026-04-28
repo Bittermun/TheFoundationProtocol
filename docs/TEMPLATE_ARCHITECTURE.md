@@ -126,8 +126,9 @@ Potential enhancements to make this a user-facing feature:
 1. **Template Marketplace**: Centralized repository for sharing templates
 2. **UX Layer**: Web interface for template creation and assembly
 3. **Perceptual Hash Integration**: Use PDQ/wavelet hashes for template matching
-4. **Content-Defined Chunking**: Use fastchunking's CDC for automatic chunk boundary detection
+4. ~~**Content-Defined Chunking**: Use fastchunking's CDC for automatic chunk boundary detection~~ ✅ **COMPLETED**: FastCDC implemented in `tfp_transport/cdc.py`
 5. **Auto-Recipe Generation**: AI-powered recipe creation from content analysis
+6. **TemplateDescriptor Integration**: Use `tfp_transport/template_descriptor.py` for publish-time metadata
 
 ## Extension Points
 
