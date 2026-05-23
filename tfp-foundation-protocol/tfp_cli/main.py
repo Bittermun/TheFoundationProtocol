@@ -47,30 +47,54 @@ def _load_or_create_identity(device_id: str) -> dict:
                 "device_id": result["device_id"],
                 "puf_entropy": result["puf_entropy"],
             }
-        except IdentityError:
-            pass  # Fall through to legacy plaintext method
+        except Exception as exc:
+            # If passphrase is set but loading throws an error (e.g., decryption failed,
+            # cryptography library missing), raise and abort immediately. Silent fallback
+            # to plaintext is a severe security vulnerability.
+            raise IdentityError(f"Failed to load encrypted identity: {exc}")
+
+    # If identity.enc exists, but no passphrase is provided:
+    enc_path = os.path.join(os.path.expanduser("~"), ".tfp", "identity.enc")
+    if os.path.exists(enc_path):
+        raise IdentityError(
+            "Encrypted identity file (identity.enc) found, but no passphrase was provided via environment variable TFP_IDENTITY_PASSPHRASE."
+        )
 
     # Legacy fallback: plaintext identity.json
     path = os.path.join(os.path.expanduser("~"), ".tfp", "identity.json")
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    if os.path.exists(path):
-        with open(path) as f:
-            identities = json.load(f)
-        if device_id in identities:
-            entry = identities[device_id]
-            return {
-                "device_id": device_id,
-                "puf_entropy": bytes.fromhex(entry["puf_entropy_hex"]),
-            }
-    # Generate new identity (legacy plaintext format for backward compat)
-    puf_entropy = os.urandom(32)
     identities = {}
     if os.path.exists(path):
-        with open(path) as f:
-            identities = json.load(f)
+        try:
+            with open(path) as f:
+                identities = json.load(f)
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    if device_id in identities:
+        entry = identities[device_id]
+        return {
+            "device_id": device_id,
+            "puf_entropy": bytes.fromhex(entry["puf_entropy_hex"]),
+        }
+
+    # Generate new legacy identity (plaintext format)
+    puf_entropy = os.urandom(32)
     identities[device_id] = {"puf_entropy_hex": puf_entropy.hex()}
-    with open(path, "w") as f:
-        json.dump(identities, f, indent=2)
+    
+    # Secure legacy plaintext database permissions to 0o600 (owner read/write only)
+    try:
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w") as f:
+            json.dump(identities, f, indent=2)
+    except Exception:
+        with open(path, "w") as f:
+            json.dump(identities, f, indent=2)
+        try:
+            os.chmod(path, 0o600)
+        except Exception:
+            pass
+
     return {"device_id": device_id, "puf_entropy": puf_entropy}
 
 
@@ -275,15 +299,22 @@ def cmd_join(args) -> int:
     try:
         while True:
             # Fetch open tasks
-            resp = httpx.get(f"{args.api}/api/tasks", timeout=10)
-            if resp.status_code != 200:
+            try:
+                resp = httpx.get(f"{args.api}/api/tasks", timeout=10)
+                if not (200 <= resp.status_code < 300):
+                    print(
+                        f"[join] WARN: /api/tasks returned {resp.status_code}, retrying in {args.interval}s"
+                    )
+                    time.sleep(args.interval)
+                    continue
+                tasks = resp.json().get("tasks", [])
+            except httpx.RequestError as exc:
                 print(
-                    f"[join] WARN: /api/tasks returned {resp.status_code}, retrying in {args.interval}s"
+                    f"[join] WARN: failed to query tasks due to network error: {exc}, retrying in {args.interval}s"
                 )
                 time.sleep(args.interval)
                 continue
 
-            tasks = resp.json().get("tasks", [])
             if not tasks:
                 print(f"[join] No open tasks. Waiting {args.interval}s …")
                 time.sleep(args.interval)
@@ -297,13 +328,18 @@ def cmd_join(args) -> int:
             )
 
             # Fetch full spec
-            detail_resp = httpx.get(f"{args.api}/api/task/{task_id}", timeout=10)
-            if detail_resp.status_code != 200:
-                print("[join] WARN: could not fetch task spec, skipping")
+            try:
+                detail_resp = httpx.get(f"{args.api}/api/task/{task_id}", timeout=10)
+                if not (200 <= detail_resp.status_code < 300):
+                    print(f"[join] WARN: could not fetch task spec (status: {detail_resp.status_code}), skipping")
+                    time.sleep(2)
+                    continue
+                detail = detail_resp.json()
+            except httpx.RequestError as exc:
+                print(f"[join] WARN: failed to fetch task spec due to network error: {exc}, skipping")
                 time.sleep(2)
                 continue
 
-            detail = detail_resp.json()
             try:
                 spec = TaskSpec.from_dict(
                     {
@@ -328,18 +364,24 @@ def cmd_join(args) -> int:
 
             # Submit result
             sig = _make_sig(puf_entropy, f"{device_id}:{task_id}")
-            submit_resp = httpx.post(
-                f"{args.api}/api/task/{task_id}/result",
-                json={
-                    "device_id": device_id,
-                    "output_hash": result.output_hash,
-                    "exec_time_s": result.execution_time_s,
-                    "has_tee": False,
-                },
-                headers={"X-Device-Sig": sig},
-                timeout=15,
-            )
-            if submit_resp.status_code == 200:
+            try:
+                submit_resp = httpx.post(
+                    f"{args.api}/api/task/{task_id}/result",
+                    json={
+                        "device_id": device_id,
+                        "output_hash": result.output_hash,
+                        "exec_time_s": result.execution_time_s,
+                        "has_tee": False,
+                    },
+                    headers={"X-Device-Sig": sig},
+                    timeout=15,
+                )
+            except httpx.RequestError as exc:
+                print(f"[join] WARN: failed to submit task result due to network error: {exc}, retrying loop in {args.interval}s")
+                time.sleep(args.interval)
+                continue
+
+            if 200 <= submit_resp.status_code < 300:
                 v = submit_resp.json()
                 status = v.get("status", "?")  # noqa: F841
                 credits_earned = v.get("credits_earned", 0)
@@ -368,6 +410,120 @@ def cmd_join(args) -> int:
     return 0
 
 
+def cmd_run_task(args) -> int:
+    """
+    Fetch a single task by ID, execute it locally, and submit the result.
+    """
+    identity = _load_or_create_identity(args.device_id)
+    device_id = identity["device_id"]
+    puf_entropy = identity["puf_entropy"]
+
+    print(f"[run-task] Device: {device_id}")
+    print(f"[run-task] Enrolling with node {args.api} …")
+    if not _ensure_enrolled(args.api, device_id, puf_entropy):
+        print("[run-task] ERROR: enroll failed — is the server running?")
+        return 1
+    print(f"[run-task] Enrolled. Fetching task spec for task: {args.task_id} …")
+
+    # Fetch full spec
+    detail_resp = httpx.get(f"{args.api}/api/task/{args.task_id}", timeout=10)
+    if detail_resp.status_code != 200:
+        print(f"[run-task] ERROR: could not fetch task spec for {args.task_id} (status: {detail_resp.status_code})")
+        return 1
+
+    try:
+        detail = detail_resp.json()
+    except JSONDecodeError:
+        print(f"[run-task] ERROR: server response was not valid JSON: {detail_resp.text[:200]}")
+        return 1
+
+    try:
+        spec = TaskSpec.from_dict(
+            {
+                "task_id": args.task_id,
+                "task_type": detail["task_type"],
+                "difficulty": detail["difficulty"],
+                "input_data_hex": detail.get("input_data_hex", ""),
+                "expected_output_hash": detail.get("expected_output_hash", ""),
+                "credit_reward": detail.get("credit_reward", 10),
+            }
+        )
+        t0 = time.monotonic()
+        result = execute_task(spec, timeout_s=args.timeout)
+        elapsed = time.monotonic() - t0
+        print(
+            f"[run-task]   ✓ executed in {elapsed:.2f}s — output_hash={result.output_hash[:16]}…"
+        )
+    except KeyError as exc:
+        print(f"[run-task]   ✗ execution failed: missing required task spec field {exc}")
+        return 1
+    except Exception as exc:
+        print(f"[run-task]   ✗ execution failed: {exc}")
+        return 1
+
+    # Submit result
+    sig = _make_sig(puf_entropy, f"{device_id}:{args.task_id}")
+    submit_resp = httpx.post(
+        f"{args.api}/api/task/{args.task_id}/result",
+        json={
+            "device_id": device_id,
+            "output_hash": result.output_hash,
+            "exec_time_s": result.execution_time_s,
+            "has_tee": False,
+        },
+        headers={"X-Device-Sig": sig},
+        timeout=15,
+    )
+    if 200 <= submit_resp.status_code < 300:
+        try:
+            v = submit_resp.json()
+        except JSONDecodeError:
+            print(f"[run-task] ERROR: server response on result submission was not valid JSON: {submit_resp.text[:200]}")
+            return 1
+        credits_earned = v.get("credits_earned", 0)
+        _print_json(v)
+        if v.get("verified"):
+            print(f"[run-task]   💰 CONSENSUS REACHED — earned {credits_earned} credits!")
+        else:
+            needed = v.get("consensus_needed", "?")
+            print(f"[run-task]   ⏳ pending consensus ({needed} more proofs needed)")
+        return 0
+    else:
+        print(f"[run-task]   ERROR: submit failed ({submit_resp.status_code}): {submit_resp.text[:120]}")
+        return 1
+
+
+def cmd_ping(args) -> int:
+    """
+    Measure round-trip latency to the node, verify liveness, and inspect readiness.
+    """
+    print(f"[ping] Pinging node at {args.api} …")
+    import time as _time
+    try:
+        t0 = _time.monotonic()
+        resp = httpx.get(f"{args.api}/health", timeout=args.timeout)
+        latency_ms = (_time.monotonic() - t0) * 1000
+        if resp.status_code == 200:
+            try:
+                data = resp.json()
+            except JSONDecodeError:
+                print(f"[ping]   ✗ Reachable but response was not valid JSON: {resp.text[:200]}")
+                return 1
+            ready_str = "READY" if data.get("ready") else "NOT READY"
+            print(f"[ping]   ✓ Reachable (Status 200)")
+            print(f"[ping]   ⚡ Latency: {latency_ms:.1f} ms")
+            print(f"[ping]   📋 Node State: {ready_str}")
+            print(f"[ping]   🚀 Startup Stage: '{data.get('startup_stage', 'unknown')}'")
+            print(f"[ping]   📦 Content Items: {data.get('content_items', 0)}")
+            return 0
+        else:
+            print(f"[ping]   ✗ Reachable but returned status {resp.status_code}: {resp.text[:120]}")
+            return 1
+    except httpx.RequestError as exc:
+        print(f"[ping]   ✗ Unreachable: {exc}")
+        return 1
+
+
 # ---------------------------------------------------------------------------
 # Parser
 # ---------------------------------------------------------------------------
@@ -376,6 +532,9 @@ def cmd_join(args) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="tfp", description="TFP demo CLI")
     parser.add_argument("--api", default=DEFAULT_API, help="TFP demo API base URL")
+    parser.add_argument(
+        "--version", "-v", action="version", version="v3.2.0-alpha"
+    )
 
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -447,9 +606,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     join.add_argument(
         "--device-id",
-        default=f"cli-{os.getpid()}",
+        default="cli-user",
         dest="device_id",
-        help="Device id (auto-generated per-process if not set)",
+        help="Device id (default: 'cli-user')",
     )
     join.add_argument(
         "--interval",
@@ -464,6 +623,35 @@ def build_parser() -> argparse.ArgumentParser:
         help="Max seconds per task execution (default: 30)",
     )
     join.set_defaults(func=cmd_join)
+
+    run_task = sub.add_parser(
+        "run-task", help="Execute a single compute task from the pool and submit the result"
+    )
+    run_task.add_argument(
+        "--task-id", required=True, dest="task_id", help="The task recipe identifier to execute"
+    )
+    run_task.add_argument(
+        "--device-id",
+        default="cli-user",
+        dest="device_id",
+        help="Device id (default: 'cli-user')",
+    )
+    run_task.add_argument(
+        "--timeout",
+        type=float,
+        default=30.0,
+        help="Max seconds for task execution (default: 30)",
+    )
+    run_task.set_defaults(func=cmd_run_task)
+
+    ping = sub.add_parser("ping", help="Ping the node health endpoint and measure latency")
+    ping.add_argument(
+        "--timeout",
+        type=float,
+        default=5.0,
+        help="Timeout in seconds (default: 5.0)",
+    )
+    ping.set_defaults(func=cmd_ping)
 
     return parser
 

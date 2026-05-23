@@ -1,0 +1,1793 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scholo Radio - TFP P2P Community Audio</title>
+    <!-- SEO Metadata -->
+    <meta name="description" content="Decentralized offline-first audio streaming and collaborative communication app built on The Foundation Protocol.">
+    <!-- Google Fonts Outfit & Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        /* Modern CSS Design System & Theme */
+        :root {
+            --bg-gradient: linear-gradient(135deg, #090615 0%, #110928 50%, #030107 100%);
+            --glass-bg: rgba(20, 15, 38, 0.6);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --text-primary: #f5f3fa;
+            --text-secondary: #a9a4b8;
+            --primary: #8257ff;
+            --primary-glow: rgba(130, 87, 255, 0.4);
+            --accent: #ff4081;
+            --accent-glow: rgba(255, 64, 129, 0.4);
+            --success: #00e676;
+            --success-glow: rgba(0, 230, 118, 0.3);
+            --warning: #ffb300;
+            --glow-color: rgba(130, 87, 255, 0.15);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-gradient);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow-x: hidden;
+            padding: 20px;
+        }
+
+        /* Screen Frame Mockup */
+        .app-container {
+            width: 100%;
+            max-width: 440px;
+            height: 820px;
+            background: rgba(12, 8, 24, 0.85);
+            border-radius: 40px;
+            border: 4px solid #1c172d;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 0 40px var(--glow-color);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            backdrop-filter: blur(20px);
+        }
+
+        /* Notch / Status Bar */
+        .status-bar {
+            height: 44px;
+            padding: 0 28px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            font-size: 13px;
+            font-family: 'Outfit', sans-serif;
+            font-weight: 500;
+            color: var(--text-secondary);
+            padding-bottom: 8px;
+            z-index: 10;
+        }
+
+        .status-bar-right {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .signal-dots {
+            display: flex;
+            gap: 2px;
+        }
+        .signal-dot {
+            width: 4px;
+            height: 4px;
+            background-color: var(--text-secondary);
+            border-radius: 50%;
+        }
+        .signal-dot.active {
+            background-color: var(--success);
+        }
+
+        /* App Screens Wrapper */
+        .screen-content {
+            flex: 1;
+            padding: 16px 24px;
+            overflow-y: auto;
+            position: relative;
+            scroll-behavior: smooth;
+        }
+
+        .screen-content::-webkit-scrollbar {
+            display: none;
+        }
+
+        .screen {
+            display: none;
+            flex-direction: column;
+            height: 100%;
+            animation: fadeIn 0.4s ease-out forwards;
+        }
+
+        .screen.active {
+            display: flex;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Header typography */
+        h1 {
+            font-family: 'Outfit', sans-serif;
+            font-weight: 700;
+            font-size: 28px;
+            letter-spacing: -0.5px;
+            margin-bottom: 4px;
+            background: linear-gradient(120deg, #fff 40%, #c4b5fd 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .subtitle {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-bottom: 24px;
+        }
+
+        /* Onboarding Screen Spec */
+        .onboarding-screen {
+            justify-content: space-between;
+            text-align: center;
+            padding: 40px 10px;
+        }
+
+        .onboarding-illustration {
+            width: 100%;
+            height: 240px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+        }
+
+        .orb-glow {
+            width: 140px;
+            height: 140px;
+            background: radial-gradient(circle, var(--primary) 0%, rgba(130,87,255,0) 70%);
+            position: absolute;
+            animation: pulseOrb 4s infinite alternate;
+            filter: blur(10px);
+        }
+
+        @keyframes pulseOrb {
+            0% { transform: scale(1); opacity: 0.6; }
+            100% { transform: scale(1.3); opacity: 0.9; }
+        }
+
+        .antenna-svg {
+            width: 120px;
+            height: 120px;
+            z-index: 2;
+            fill: none;
+            stroke: var(--text-primary);
+            stroke-width: 2.5;
+            stroke-linecap: round;
+        }
+
+        .voice-caption {
+            font-size: 16px;
+            color: var(--text-primary);
+            font-weight: 500;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 12px 20px;
+            border-radius: 20px;
+            border: 1px solid var(--glass-border);
+            margin: 20px 0;
+            line-height: 1.5;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .speaker-btn {
+            background: var(--primary);
+            border: none;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 0 10px var(--primary-glow);
+        }
+
+        .speaker-btn svg {
+            width: 16px;
+            height: 16px;
+            fill: white;
+        }
+
+        .onboarding-btn {
+            background: linear-gradient(135deg, var(--primary) 0%, #5d34d3 100%);
+            border: none;
+            padding: 16px 32px;
+            border-radius: 24px;
+            color: white;
+            font-family: 'Outfit', sans-serif;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 8px 24px var(--primary-glow);
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            width: 100%;
+        }
+
+        .onboarding-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 30px var(--primary-glow);
+        }
+
+        .lang-select-container {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 16px;
+        }
+
+        .lang-pill {
+            background: rgba(255,255,255,0.06);
+            border: 1px solid var(--glass-border);
+            padding: 6px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .lang-pill.active {
+            background: rgba(130, 87, 255, 0.15);
+            border-color: var(--primary);
+            color: var(--text-primary);
+        }
+
+        /* Category Horizontal Carousel */
+        .category-carousel {
+            display: flex;
+            gap: 10px;
+            overflow-x: auto;
+            margin-bottom: 20px;
+            padding-bottom: 6px;
+        }
+
+        .category-carousel::-webkit-scrollbar {
+            display: none;
+        }
+
+        .category-pill {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--glass-border);
+            padding: 10px 18px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            white-space: nowrap;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .category-pill.active {
+            background: var(--primary);
+            color: white;
+            border-color: transparent;
+            box-shadow: 0 4px 15px var(--primary-glow);
+        }
+
+        /* Content Grid */
+        .content-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 120px; /* Spacer for player bar */
+        }
+
+        .content-card {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            padding: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .content-card:hover {
+            border-color: var(--primary);
+            background: rgba(255, 255, 255, 0.03);
+            transform: scale(1.01);
+        }
+
+        .content-card-left {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .content-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 16px;
+            background: rgba(130, 87, 255, 0.12);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--primary);
+            border: 1px solid rgba(130, 87, 255, 0.2);
+        }
+
+        .content-icon.emergency {
+            background: rgba(255, 64, 129, 0.12);
+            color: var(--accent);
+            border: 1px solid rgba(255, 64, 129, 0.2);
+        }
+
+        .content-info {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .content-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .content-meta {
+            font-size: 12px;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .pin-indicator {
+            color: var(--warning);
+            display: flex;
+            align-items: center;
+        }
+
+        .pin-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 50%;
+            transition: all 0.2s;
+        }
+
+        .pin-btn:hover {
+            color: var(--warning);
+            background: rgba(255,255,255,0.05);
+        }
+
+        .pin-btn.pinned {
+            color: var(--warning);
+        }
+
+        /* Player Bar Component */
+        .player-bar {
+            position: absolute;
+            bottom: 84px;
+            left: 16px;
+            right: 16px;
+            background: rgba(28, 22, 54, 0.95);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+            padding: 12px 18px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            display: none;
+            flex-direction: column;
+            gap: 8px;
+            z-index: 100;
+            animation: slideUp 0.3s ease-out;
+            backdrop-filter: blur(10px);
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .player-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .player-details {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .player-text {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .player-title {
+            font-size: 14px;
+            font-weight: 600;
+            max-width: 180px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .player-source {
+            font-size: 11px;
+            color: var(--text-secondary);
+        }
+
+        .player-controls {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .play-btn {
+            background: var(--primary);
+            border: none;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: white;
+            transition: all 0.2s;
+        }
+
+        .play-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 10px var(--primary-glow);
+        }
+
+        /* Visualizer & RaptorQ Chunk Assembly bar */
+        .progress-bar-container {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .progress-bar-track {
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background: var(--primary);
+            width: 0%;
+            border-radius: 2px;
+            transition: width 0.2s linear;
+        }
+
+        .progress-time {
+            display: flex;
+            justify-content: space-between;
+            font-size: 10px;
+            color: var(--text-secondary);
+        }
+
+        .chunk-grid-visualizer {
+            display: flex;
+            gap: 2px;
+            margin-top: 4px;
+        }
+
+        .chunk-block {
+            flex: 1;
+            height: 5px;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 1px;
+            transition: background 0.3s;
+        }
+
+        .chunk-block.loaded {
+            background: var(--success);
+            box-shadow: 0 0 4px var(--success-glow);
+        }
+
+        .chunk-block.loading {
+            background: var(--primary);
+            animation: pulseBlock 0.8s infinite alternate;
+        }
+
+        @keyframes pulseBlock {
+            0% { opacity: 0.4; }
+            100% { opacity: 1; }
+        }
+
+        /* 📤 SHARE SCREEN STYLE */
+        .share-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 24px;
+            padding-top: 10px;
+        }
+
+        .record-orb-container {
+            width: 180px;
+            height: 180px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+        }
+
+        .record-btn-glow {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: var(--accent-glow);
+            position: absolute;
+            opacity: 0;
+            transition: all 0.3s ease;
+        }
+
+        .record-btn-glow.recording {
+            animation: pulseRecord 1.5s infinite;
+            opacity: 0.7;
+        }
+
+        @keyframes pulseRecord {
+            0% { transform: scale(1); opacity: 0.7; }
+            100% { transform: scale(1.35); opacity: 0; }
+        }
+
+        .record-btn {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--accent) 0%, #d81b60 100%);
+            border: none;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            box-shadow: 0 8px 24px rgba(255, 64, 129, 0.4);
+            z-index: 2;
+            transition: all 0.2s;
+        }
+
+        .record-btn:active {
+            transform: scale(0.95);
+        }
+
+        .record-btn svg {
+            width: 48px;
+            height: 48px;
+            fill: white;
+            transition: transform 0.2s;
+        }
+
+        .record-btn.recording svg {
+            transform: scale(0.85);
+        }
+
+        .record-timer {
+            font-family: 'Outfit', sans-serif;
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--text-primary);
+            opacity: 0.5;
+            transition: opacity 0.3s;
+        }
+
+        .record-timer.recording {
+            opacity: 1;
+            color: var(--accent);
+        }
+
+        .share-form {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            opacity: 0.5;
+            pointer-events: none;
+            transition: all 0.3s;
+        }
+
+        .share-form.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .input-label {
+            font-size: 13px;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .text-input {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            padding: 14px;
+            color: white;
+            font-family: 'Inter', sans-serif;
+            font-size: 15px;
+            transition: all 0.2s;
+        }
+
+        .text-input:focus {
+            outline: none;
+            border-color: var(--accent);
+            background: rgba(255, 255, 255, 0.07);
+        }
+
+        .media-preview-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(255,255,255,0.03);
+            border: 1px dashed var(--glass-border);
+            padding: 10px 14px;
+            border-radius: 16px;
+        }
+
+        .media-preview-icon {
+            color: var(--accent);
+        }
+
+        .media-preview-text {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .share-cat-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+        }
+
+        .share-cat-btn {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid var(--glass-border);
+            padding: 10px 6px;
+            border-radius: 12px;
+            font-size: 12px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+
+        .share-cat-btn.active {
+            background: rgba(255, 64, 129, 0.15);
+            border-color: var(--accent);
+            color: var(--text-primary);
+        }
+
+        .send-btn {
+            background: linear-gradient(135deg, var(--accent) 0%, #d81b60 100%);
+            border: none;
+            padding: 16px;
+            border-radius: 20px;
+            color: white;
+            font-family: 'Outfit', sans-serif;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(255, 64, 129, 0.3);
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .send-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(255, 64, 129, 0.4);
+        }
+
+        /* 🔄 EARN SCREEN STYLE */
+        .earn-container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .earn-toggle-card {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 28px;
+            padding: 24px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .toggle-switch-wrapper {
+            position: relative;
+            width: 120px;
+            height: 64px;
+            cursor: pointer;
+        }
+
+        .toggle-switch-bg {
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 32px;
+            border: 1px solid var(--glass-border);
+            transition: all 0.3s;
+        }
+
+        .toggle-switch-handle {
+            width: 48px;
+            height: 48px;
+            background: white;
+            border-radius: 50%;
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            transition: all 0.3s cubic-bezier(0.68, -0.6, 0.32, 1.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #120928;
+        }
+
+        .toggle-switch-wrapper.active .toggle-switch-bg {
+            background: var(--success);
+            box-shadow: 0 0 20px var(--success-glow);
+            border-color: transparent;
+        }
+
+        .toggle-switch-wrapper.active .toggle-switch-handle {
+            left: 64px;
+            color: var(--success);
+        }
+
+        .toggle-status-text {
+            font-family: 'Outfit', sans-serif;
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+        /* Metrics Dashboard */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+
+        .metric-card {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .metric-val {
+            font-family: 'Outfit', sans-serif;
+            font-size: 28px;
+            font-weight: 800;
+            color: var(--text-primary);
+        }
+
+        .metric-label {
+            font-size: 11px;
+            color: var(--text-secondary);
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .metric-icon {
+            align-self: flex-end;
+            margin-bottom: -10px;
+            opacity: 0.3;
+            color: var(--primary);
+        }
+
+        /* Safety & Status Indicator */
+        .safety-indicators {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 14px 20px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+        }
+
+        .safety-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .safety-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--success);
+            box-shadow: 0 0 6px var(--success-glow);
+        }
+
+        .safety-dot.warn {
+            background: var(--warning);
+            box-shadow: 0 0 6px rgba(255,179,0,0.5);
+        }
+
+        /* Interactive puzzle verification simulation */
+        .puzzle-card {
+            background: rgba(130, 87, 255, 0.05);
+            border: 1px dashed rgba(130, 87, 255, 0.2);
+            border-radius: 20px;
+            padding: 16px;
+            display: none;
+            flex-direction: column;
+            gap: 12px;
+            animation: fadeIn 0.3s;
+        }
+
+        .puzzle-card.active {
+            display: flex;
+        }
+
+        .puzzle-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .puzzle-status {
+            font-weight: 600;
+            color: var(--primary);
+        }
+
+        .puzzle-visual {
+            height: 48px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 12px;
+            overflow: hidden;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: monospace;
+            font-size: 11px;
+            letter-spacing: 2px;
+            color: var(--text-secondary);
+        }
+
+        .puzzle-scanner {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            width: 20%;
+            background: linear-gradient(90deg, rgba(130,87,255,0) 0%, rgba(130,87,255,0.4) 50%, rgba(130,87,255,0) 100%);
+            animation: scanPuzzle 1.5s infinite linear;
+        }
+
+        @keyframes scanPuzzle {
+            0% { left: -20%; }
+            100% { left: 100%; }
+        }
+
+        /* Bottom Tab Navigation Bar */
+        .bottom-nav {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 76px;
+            background: #100a24;
+            border-top: 1px solid var(--glass-border);
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            padding-bottom: 8px;
+            z-index: 90;
+        }
+
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-secondary);
+            font-size: 11px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            width: 72px;
+            height: 52px;
+            border-radius: 16px;
+        }
+
+        .nav-item:hover {
+            color: var(--text-primary);
+            background: rgba(255,255,255,0.03);
+        }
+
+        .nav-item.active {
+            color: var(--primary);
+        }
+
+        .nav-item.active.share {
+            color: var(--accent);
+        }
+
+        .nav-icon {
+            width: 26px;
+            height: 26px;
+            margin-bottom: 2px;
+            fill: currentColor;
+        }
+
+        /* Custom Notification Toast */
+        .toast {
+            position: absolute;
+            top: 60px;
+            left: 20px;
+            right: 20px;
+            background: rgba(16, 12, 38, 0.95);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 14px 18px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            z-index: 1000;
+            transform: translateY(-100px);
+            opacity: 0;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            backdrop-filter: blur(8px);
+        }
+
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        .toast-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: rgba(0, 230, 118, 0.15);
+            color: var(--success);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .toast-icon.accent {
+            background: rgba(255, 64, 129, 0.15);
+            color: var(--accent);
+        }
+
+        .toast-text {
+            font-size: 13px;
+            font-weight: 500;
+            line-height: 1.4;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Screen Container Frame (Matches premium smartphone view) -->
+    <div class="app-container" id="appFrame">
+        
+        <!-- Status Bar -->
+        <div class="status-bar">
+            <span id="statusBarTime">04:30</span>
+            <div class="status-bar-right">
+                <div class="signal-dots">
+                    <div class="signal-dot active"></div>
+                    <div class="signal-dot active"></div>
+                    <div class="signal-dot active"></div>
+                    <div class="signal-dot active"></div>
+                </div>
+                <span>TFP-Mesh</span>
+            </div>
+        </div>
+
+        <!-- Notification Toast System -->
+        <div class="toast" id="appToast">
+            <div class="toast-icon" id="toastIcon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            </div>
+            <div class="toast-text" id="toastText">Successfully connected to neighborhood mesh!</div>
+        </div>
+
+        <!-- 1. 🚀 ONBOARDING / INTRO SCREEN -->
+        <div class="screen-content">
+            <div class="screen onboarding-screen active" id="screenOnboarding">
+                <div>
+                    <h1>Scholo Radio</h1>
+                    <div class="subtitle" style="margin-bottom: 12px;">Decentralized Neighborhood Voice</div>
+                </div>
+
+                <div class="onboarding-illustration">
+                    <div class="orb-glow"></div>
+                    <!-- Antenna SVG with wave animations -->
+                    <svg class="antenna-svg" viewBox="0 0 100 100">
+                        <circle cx="50" cy="80" r="4" fill="currentColor"/>
+                        <line x1="50" y1="80" x2="50" y2="40" stroke="currentColor"/>
+                        <circle cx="50" cy="38" r="6" stroke="currentColor" fill="none"/>
+                        <!-- Wave arcs -->
+                        <path d="M 38,26 A 20,20 0 0,1 62,26" stroke="currentColor" stroke-dasharray="3,3" id="onboardingWave1"/>
+                        <path d="M 28,16 A 32,32 0 0,1 72,16" stroke="currentColor" id="onboardingWave2"/>
+                    </svg>
+                </div>
+
+                <div>
+                    <div class="voice-caption">
+                        <button class="speaker-btn" id="onboardingVoiceBtn" onclick="toggleVoiceOnboarding()">
+                            <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>
+                        </button>
+                        <span id="voicePromptText">"Welcome! This is your community radio. Click here to listen."</span>
+                    </div>
+
+                    <button class="onboarding-btn" id="startBtn" onclick="completeOnboarding()">
+                        <span id="startBtnText">Start Listening</span>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+                    </button>
+
+                    <div class="lang-select-container">
+                        <div class="lang-pill active" onclick="setLanguage('en')">English</div>
+                        <div class="lang-pill" onclick="setLanguage('sw')">Kiswahili</div>
+                        <div class="lang-pill" onclick="setLanguage('es')">Español</div>
+                        <div class="lang-pill" onclick="setLanguage('hi')">हिन्दी</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. 📡 DISCOVER SCREEN (LISTEN) -->
+            <div class="screen" id="screenListen">
+                <h1>Listen</h1>
+                <div class="subtitle">Stories and info nearby</div>
+
+                <!-- Horizontal Carousel -->
+                <div class="category-carousel">
+                    <div class="category-pill active" onclick="filterCategory('all', this)">All Content</div>
+                    <div class="category-pill" onclick="filterCategory('emergency_alerts', this)">🚨 Emergency</div>
+                    <div class="category-pill" onclick="filterCategory('community_news', this)">📢 Community</div>
+                    <div class="category-pill" onclick="filterCategory('education', this)">📚 Education</div>
+                </div>
+
+                <!-- Content Cards Grid -->
+                <div class="content-grid" id="contentGrid">
+                    <!-- Cards will be populated dynamically -->
+                </div>
+            </div>
+
+            <!-- 3. 📤 SHARE SCREEN -->
+            <div class="screen" id="screenShare">
+                <h1>Share</h1>
+                <div class="subtitle">Broadcast your voice to neighbors</div>
+
+                <div class="share-container">
+                    <div class="record-orb-container">
+                        <div class="record-btn-glow" id="recordGlow"></div>
+                        <button class="record-btn" id="recordBtn" onclick="toggleRecording()">
+                            <svg viewBox="0 0 24 24" id="recordIcon"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></svg>
+                        </button>
+                    </div>
+
+                    <div class="record-timer" id="recordTimer">00:00</div>
+
+                    <!-- Post-recording details Form -->
+                    <div class="share-form" id="shareForm">
+                        <div class="input-group">
+                            <span class="input-label">Title (Voice-transcribed or typed)</span>
+                            <input type="text" class="text-input" id="shareTitle" placeholder="Give this voice story a title...">
+                        </div>
+
+                        <!-- Mini Media Preview -->
+                        <div class="media-preview-container">
+                            <svg class="media-preview-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+                            <span class="media-preview-text" id="previewText">Recorded Audio (0.42 MB, 3 chunks)</span>
+                        </div>
+
+                        <div class="input-group">
+                            <span class="input-label">Select Category</span>
+                            <div class="share-cat-grid">
+                                <div class="share-cat-btn active" onclick="setShareCategory('community_news', this)">📢 News</div>
+                                <div class="share-cat-btn" onclick="setShareCategory('emergency_alerts', this)">🚨 Alert</div>
+                                <div class="share-cat-btn" onclick="setShareCategory('education', this)">📚 Education</div>
+                            </div>
+                        </div>
+
+                        <button class="send-btn" onclick="submitShare()">
+                            <span>Share with Neighbors</span>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4. 🔄 EARN SCREEN -->
+            <div class="screen" id="screenEarn">
+                <h1>Help Nearby</h1>
+                <div class="subtitle">Contribute idle compute while charging</div>
+
+                <div class="earn-container">
+                    <div class="earn-toggle-card">
+                        <div class="toggle-switch-wrapper" id="earnToggle" onclick="toggleEarnMode()">
+                            <div class="toggle-switch-bg"></div>
+                            <div class="toggle-switch-handle">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12.55a11 11 0 0 1 14.08 0"></path><path d="M1.42 9a16 16 0 0 1 21.16 0"></path><path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path><line x1="12" y1="20" x2="12.01" y2="20"></line></svg>
+                            </div>
+                        </div>
+                        <div class="toggle-status-text" id="earnStatusText">Charge-Mode Off</div>
+                        <p class="subtitle" style="margin-bottom: 0;">Device helps sync data and verify hashes when plugged in.</p>
+                    </div>
+
+                    <!-- Metrics Dashboard -->
+                    <div class="metrics-grid">
+                        <div class="metric-card">
+                            <span class="metric-val" id="thanksVal">42</span>
+                            <span class="metric-label">Thanks Received</span>
+                        </div>
+                        <div class="metric-card">
+                            <span class="metric-val" id="neighborsVal">12</span>
+                            <span class="metric-label">Neighbors Helped</span>
+                        </div>
+                        <div class="metric-card" style="grid-column: span 2;">
+                            <span class="metric-val" id="contributedVal">3.2 Hrs</span>
+                            <span class="metric-label">Active Computing Contributions</span>
+                        </div>
+                    </div>
+
+                    <!-- Safety checks -->
+                    <div class="safety-indicators">
+                        <div class="safety-item">
+                            <div class="safety-dot"></div>
+                            <span>Battery Status: Charging (92%)</span>
+                        </div>
+                        <div class="safety-item">
+                            <div class="safety-dot"></div>
+                            <span>Temp: 34°C (Safe)</span>
+                        </div>
+                    </div>
+
+                    <!-- Task Verification simulation card -->
+                    <div class="puzzle-card" id="puzzleCard">
+                        <div class="puzzle-header">
+                            <span>Validating Block Preimage...</span>
+                            <span class="puzzle-status" id="puzzleStatus">Solving ZKP Proof</span>
+                        </div>
+                        <div class="puzzle-visual">
+                            <div class="puzzle-scanner"></div>
+                            <span id="puzzleHash">0x7f3c...921a</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 📻 Embedded Sticky Player Bar (Bottom) -->
+        <div class="player-bar" id="playerBar">
+            <div class="player-top">
+                <div class="player-details">
+                    <div class="content-icon" style="width: 38px; height: 38px; border-radius: 10px;" id="playerIcon">
+                        📢
+                    </div>
+                    <div class="player-text">
+                        <span class="player-title" id="playerTitle">Select a Story</span>
+                        <span class="player-source" id="playerSource">From 12 neighbors</span>
+                    </div>
+                </div>
+                <div class="player-controls">
+                    <button class="pin-btn" id="playerPinBtn" onclick="togglePinCurrent()">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+                    </button>
+                    <button class="play-btn" id="playerPlayBtn" onclick="togglePlayback()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" id="playIconSvg"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Progress Bar / RaptorQ loader -->
+            <div class="progress-bar-container">
+                <div class="progress-bar-track">
+                    <div class="progress-bar-fill" id="playerProgressFill"></div>
+                </div>
+                <div class="progress-time">
+                    <span id="playerCurrentTime">0:00</span>
+                    <span id="playerTotalTime">2:00</span>
+                </div>
+                <!-- Chunk Blocks Visualizer -->
+                <div class="chunk-grid-visualizer" id="chunkGrid">
+                    <div class="chunk-block"></div>
+                    <div class="chunk-block"></div>
+                    <div class="chunk-block"></div>
+                    <div class="chunk-block"></div>
+                    <div class="chunk-block"></div>
+                    <div class="chunk-block"></div>
+                    <div class="chunk-block"></div>
+                    <div class="chunk-block"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 📱 Bottom Navigation Tab Bar -->
+        <div class="bottom-nav" id="bottomNav" style="display: none;">
+            <div class="nav-item active" onclick="switchTab('listen', this)">
+                <svg class="nav-icon" viewBox="0 0 24 24">
+                    <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+                </svg>
+                <span>Listen</span>
+            </div>
+            <div class="nav-item share" onclick="switchTab('share', this)">
+                <svg class="nav-icon" viewBox="0 0 24 24">
+                    <path d="M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/>
+                </svg>
+                <span>Share</span>
+            </div>
+            <div class="nav-item" onclick="switchTab('earn', this)">
+                <svg class="nav-icon" viewBox="0 0 24 24">
+                    <path d="M15.67 4H14V2h-4v2H8.33C7.6 4 7 4.6 7 5.33v15.33C7 21.4 7.6 22 8.33 22h7.33c.74 0 1.34-.6 1.34-1.33V5.33C17 4.6 16.4 4 15.67 4zM11 20v-5.5H9L13 7v5.5h2L11 20z"/>
+                </svg>
+                <span>Earn</span>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- PWA Simulated Logic (ProtocolAdapter Bridging Metaphors) -->
+    <script>
+        // Language database for onboarding simulation
+        const i18n = {
+            en: {
+                greeting: '"Welcome! This is your community radio. Click here to listen."',
+                startBtn: 'Start Listening',
+                connected: 'Successfully connected to neighborhood mesh!',
+                welcome: 'Welcome'
+            },
+            sw: {
+                greeting: '"Karibu! Hii ni redio ya jamii yako. Bofya hapa kusikiliza."',
+                startBtn: 'Anza Kusikiliza',
+                connected: 'Umefanikiwa kuunganishwa kwenye mtandao wa jamii!',
+                welcome: 'Karibu'
+            },
+            es: {
+                greeting: '"¡Bienvenido! Esta es la radio de tu comunidad. Haz clic para escuchar."',
+                startBtn: 'Comenzar a Escuchar',
+                connected: '¡Conectado con éxito a la red vecinal!',
+                welcome: 'Bienvenido'
+            },
+            hi: {
+                greeting: '"आपका स्वागत है! यह आपका सामुदायिक रेडियो है। सुनने के लिए यहाँ क्लिक करें।"',
+                startBtn: 'सुनना शुरू करें',
+                connected: 'पड़ोस के जाल (Mesh) से सफलतापूर्वक जुड़ गए!',
+                welcome: 'स्वागत'
+            }
+        };
+
+        // Curated content catalog optimized with content-defined chunk counts
+        const audioCatalog = [
+            {
+                id: "hash_emergency_weather_001",
+                title: "Emergency Weather Alert",
+                category: "emergency_alerts",
+                duration: 45,
+                icon: "🚨",
+                source: "From 8 neighbors",
+                pinned: false,
+                chunksCount: 8
+            },
+            {
+                id: "hash_community_news_042",
+                title: "Community Meeting Summary",
+                category: "community_news",
+                duration: 180,
+                icon: "📢",
+                source: "From 15 neighbors",
+                pinned: false,
+                chunksCount: 16
+            },
+            {
+                id: "hash_public_health_012",
+                title: "Public Health Basics",
+                category: "education",
+                duration: 120,
+                icon: "📚",
+                source: "From 12 neighbors",
+                pinned: false,
+                chunksCount: 12
+            },
+            {
+                id: "hash_harvest_safety_077",
+                title: "Safe Harvest & Storage Tips",
+                category: "education",
+                duration: 240,
+                icon: "📚",
+                source: "From 4 neighbors",
+                pinned: false,
+                chunksCount: 20
+            }
+        ];
+
+        // App States
+        let currentLanguage = 'en';
+        let currentCategory = 'all';
+        let activeTab = 'listen';
+        let selectedContent = null;
+        let isPlaying = false;
+        let isRecording = false;
+        let recordingSeconds = 0;
+        let recordInterval = null;
+        let isEarnModeActive = false;
+        let earnSimulatorInterval = null;
+        let currentPlaybackInterval = null;
+        let playbackTime = 0;
+
+        // Onboarding voice guide simulator
+        function setLanguage(lang) {
+            currentLanguage = lang;
+            document.querySelectorAll('.lang-pill').forEach(el => el.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            // Update texts dynamically
+            document.getElementById('voicePromptText').innerText = i18n[lang].greeting;
+            document.getElementById('startBtnText').innerText = i18n[lang].startBtn;
+            
+            showToast(i18n[lang].welcome + "!", "primary");
+        }
+
+        // Onboarding Audio Simulator
+        let onboardingAudioPlaying = false;
+        function toggleVoiceOnboarding() {
+            onboardingAudioPlaying = !onboardingAudioPlaying;
+            const wave1 = document.getElementById('onboardingWave1');
+            const wave2 = document.getElementById('onboardingWave2');
+            
+            if (onboardingAudioPlaying) {
+                document.getElementById('onboardingVoiceBtn').style.background = 'var(--accent)';
+                wave1.style.stroke = 'var(--accent)';
+                wave2.style.stroke = 'var(--accent)';
+                wave1.setAttribute('stroke-dasharray', '0');
+                showToast("Simulating slow, slow, mono warm voice introduction guide...");
+            } else {
+                document.getElementById('onboardingVoiceBtn').style.background = 'var(--primary)';
+                wave1.style.stroke = 'var(--text-primary)';
+                wave2.style.stroke = 'var(--text-primary)';
+                wave1.setAttribute('stroke-dasharray', '3,3');
+            }
+        }
+
+        // Complete onboarding -> Launch radio
+        function completeOnboarding() {
+            onboardingAudioPlaying = false;
+            document.getElementById('screenOnboarding').classList.remove('active');
+            document.getElementById('screenListen').classList.add('active');
+            document.getElementById('bottomNav').style.display = 'flex';
+            
+            showToast(i18n[currentLanguage].connected, "success");
+            populateContentGrid();
+        }
+
+        // Display contents
+        function populateContentGrid() {
+            const grid = document.getElementById('contentGrid');
+            grid.innerHTML = '';
+            
+            const filtered = currentCategory === 'all' 
+                ? audioCatalog 
+                : audioCatalog.filter(item => item.category === currentCategory);
+                
+            filtered.forEach(item => {
+                const card = document.createElement('div');
+                card.className = `content-card ${item.category === 'emergency_alerts' ? 'emergency-card' : ''}`;
+                card.onclick = () => selectAndPlay(item);
+                
+                const durationText = `${Math.floor(item.duration / 60)}m ${item.duration % 60}s`;
+                
+                card.innerHTML = `
+                    <div class="content-card-left">
+                        <div class="content-icon ${item.category === 'emergency_alerts' ? 'emergency' : ''}">
+                            ${item.icon}
+                        </div>
+                        <div class="content-info">
+                            <span class="content-title">${item.title}</span>
+                            <span class="content-meta">
+                                <span>${durationText}</span>
+                                <span>•</span>
+                                <span>${item.source}</span>
+                                ${item.pinned ? `<span class="pin-indicator"><svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path></svg> Pinned</span>` : ''}
+                            </span>
+                        </div>
+                    </div>
+                    <button class="pin-btn ${item.pinned ? 'pinned' : ''}" onclick="event.stopPropagation(); togglePinCard('${item.id}')">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="${item.pinned ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2.5"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+                    </button>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        function filterCategory(cat, element) {
+            currentCategory = cat;
+            document.querySelectorAll('.category-pill').forEach(el => el.classList.remove('active'));
+            element.classList.add('active');
+            populateContentGrid();
+        }
+
+        // Playback Logic (Simulates RaptorQ Chunk assembly progress & stream)
+        function selectAndPlay(item) {
+            selectedContent = item;
+            
+            // Show player bar
+            const playerBar = document.getElementById('playerBar');
+            playerBar.style.display = 'flex';
+            
+            document.getElementById('playerTitle').innerText = item.title;
+            document.getElementById('playerSource').innerText = item.source;
+            document.getElementById('playerIcon').innerText = item.icon;
+            document.getElementById('playerTotalTime').innerText = `${Math.floor(item.duration / 60)}:${(item.duration % 60).toString().padStart(2, '0')}`;
+            
+            // Set Pin state
+            const pinBtn = document.getElementById('playerPinBtn');
+            if (item.pinned) {
+                pinBtn.classList.add('pinned');
+                pinBtn.querySelector('svg').setAttribute('fill', 'currentColor');
+            } else {
+                pinBtn.classList.remove('pinned');
+                pinBtn.querySelector('svg').setAttribute('fill', 'none');
+            }
+
+            // Setup chunk blocks visualizer
+            const chunkGrid = document.getElementById('chunkGrid');
+            chunkGrid.innerHTML = '';
+            for (let i = 0; i < item.chunksCount; i++) {
+                const block = document.createElement('div');
+                block.className = 'chunk-block';
+                chunkGrid.appendChild(block);
+            }
+
+            // Start playing simulation
+            startPlaybackSimulation(item);
+        }
+
+        function startPlaybackSimulation(item) {
+            if (currentPlaybackInterval) clearInterval(currentPlaybackInterval);
+            isPlaying = true;
+            playbackTime = 0;
+            document.getElementById('playIconSvg').innerHTML = '<rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect>';
+            
+            const fill = document.getElementById('playerProgressFill');
+            const timeLabel = document.getElementById('playerCurrentTime');
+            const blocks = document.querySelectorAll('#chunkGrid .chunk-block');
+            
+            // Step-by-step RaptorQ simulation logic
+            currentPlaybackInterval = setInterval(() => {
+                if (!isPlaying) return;
+                
+                playbackTime++;
+                if (playbackTime > item.duration) {
+                    clearInterval(currentPlaybackInterval);
+                    isPlaying = false;
+                    document.getElementById('playIconSvg').innerHTML = '<polygon points="5 3 19 12 5 21 5 3"></polygon>';
+                    return;
+                }
+                
+                // Update slider progress
+                const percent = (playbackTime / item.duration) * 100;
+                fill.style.width = `${percent}%`;
+                
+                // Format time
+                timeLabel.innerText = `${Math.floor(playbackTime / 60)}:${(playbackTime % 60).toString().padStart(2, '0')}`;
+                
+                // Load chunks in blocks dynamically (Simulating active NDN fetch)
+                const chunksLoaded = Math.floor((playbackTime / item.duration) * item.chunksCount);
+                blocks.forEach((block, index) => {
+                    if (index < chunksLoaded) {
+                        block.className = 'chunk-block loaded';
+                    } else if (index === chunksLoaded) {
+                        block.className = 'chunk-block loading';
+                    } else {
+                        block.className = 'chunk-block';
+                    }
+                });
+            }, 1000);
+        }
+
+        function togglePlayback() {
+            if (!selectedContent) return;
+            isPlaying = !isPlaying;
+            if (isPlaying) {
+                document.getElementById('playIconSvg').innerHTML = '<rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect>';
+                showToast("Resumed listening...");
+            } else {
+                document.getElementById('playIconSvg').innerHTML = '<polygon points="5 3 19 12 5 21 5 3"></polygon>';
+                showToast("Paused listening");
+            }
+        }
+
+        function togglePinCurrent() {
+            if (!selectedContent) return;
+            togglePinCard(selectedContent.id);
+            selectAndPlay(selectedContent);
+        }
+
+        function togglePinCard(id) {
+            const item = audioCatalog.find(i => i.id === id);
+            if (!item) return;
+            
+            item.pinned = !item.pinned;
+            if (item.pinned) {
+                showToast(`Story saved for offline listening! Earns extra thanks.`, "success");
+            } else {
+                showToast("Story unpinned from local storage.");
+            }
+            populateContentGrid();
+        }
+
+        // 📤 SHARE SCREEN RECORDING SIMULATION
+        let shareCategory = 'community_news';
+
+        function toggleRecording() {
+            isRecording = !isRecording;
+            const btn = document.getElementById('recordBtn');
+            const glow = document.getElementById('recordGlow');
+            const timer = document.getElementById('recordTimer');
+            const form = document.getElementById('shareForm');
+            
+            if (isRecording) {
+                btn.style.background = 'linear-gradient(135deg, #e91e63 0%, #ad1457 100%)';
+                glow.classList.add('recording');
+                timer.classList.add('recording');
+                recordingSeconds = 0;
+                timer.innerText = "00:00";
+                
+                showToast("Tell your story... Recording high-quality audio", "accent");
+                
+                recordInterval = setInterval(() => {
+                    recordingSeconds++;
+                    const m = Math.floor(recordingSeconds / 60).toString().padStart(2, '0');
+                    const s = (recordingSeconds % 60).toString().padStart(2, '0');
+                    timer.innerText = `${m}:${s}`;
+                }, 1000);
+                
+                form.classList.remove('active');
+            } else {
+                clearInterval(recordInterval);
+                btn.style.background = 'linear-gradient(135deg, var(--accent) 0%, #d81b60 100%)';
+                glow.classList.remove('recording');
+                timer.classList.remove('recording');
+                
+                showToast("Recording completed! Applying Content-Defined Chunking...");
+                
+                // Unlock details form
+                form.classList.add('active');
+                
+                // Auto-generate title hint using mock voice-to-text
+                const hints = ["Neighborhood Farm Update", "Water Source Review", "Market Opening Notes", "Emergency Signal Report"];
+                document.getElementById('shareTitle').value = hints[Math.floor(Math.random() * hints.length)];
+                
+                // Update size preview based on seconds
+                const sizeMb = (recordingSeconds * 0.015).toFixed(2);
+                const chunkCount = Math.max(1, Math.floor(recordingSeconds / 3));
+                document.getElementById('previewText').innerText = `Recorded Audio (${sizeMb} MB, ${chunkCount} chunks generated)`;
+            }
+        }
+
+        function setShareCategory(cat, element) {
+            shareCategory = cat;
+            document.querySelectorAll('.share-cat-btn').forEach(el => el.classList.remove('active'));
+            element.classList.add('active');
+        }
+
+        function submitShare() {
+            const title = document.getElementById('shareTitle').value || "Unnamed Story";
+            
+            // Add custom items dynamically to local catalog to simulate actual publish!
+            const newContent = {
+                id: `hash_custom_${Date.now()}`,
+                title: title,
+                category: shareCategory,
+                duration: recordingSeconds || 30,
+                icon: shareCategory === 'emergency_alerts' ? '🚨' : (shareCategory === 'education' ? '📚' : '📢'),
+                source: "From your device",
+                pinned: true,
+                chunksCount: Math.max(2, Math.floor(recordingSeconds / 4))
+            };
+            
+            audioCatalog.unshift(newContent);
+            
+            // Simulating core publish bridge
+            showToast(`Shared to 12 nearby devices. Earned 3 thanks!`, "success");
+            
+            // Reset form
+            document.getElementById('shareTitle').value = '';
+            document.getElementById('shareForm').classList.remove('active');
+            document.getElementById('recordTimer').innerText = "00:00";
+            
+            // Update thanks counter instantly
+            let thanks = parseInt(document.getElementById('thanksVal').innerText);
+            document.getElementById('thanksVal').innerText = thanks + 3;
+            
+            switchTab('listen', document.querySelectorAll('.nav-item')[0]);
+            populateContentGrid();
+        }
+
+        // 🔄 EARN MODE - BACKGROUND TASK SOLVING
+        function toggleEarnMode() {
+            isEarnModeActive = !isEarnModeActive;
+            const toggle = document.getElementById('earnToggle');
+            const statusText = document.getElementById('earnStatusText');
+            const puzzle = document.getElementById('puzzleCard');
+            
+            if (isEarnModeActive) {
+                toggle.classList.add('active');
+                statusText.innerText = "Charge-Mode Active";
+                statusText.style.color = "var(--success)";
+                puzzle.classList.add('active');
+                
+                showToast("Connected to grid. Solving local network compute tasks...", "success");
+                startEarnComputeSimulation();
+            } else {
+                toggle.classList.remove('active');
+                statusText.innerText = "Charge-Mode Off";
+                statusText.style.color = "var(--text-primary)";
+                puzzle.classList.remove('active');
+                
+                if (earnSimulatorInterval) clearInterval(earnSimulatorInterval);
+                showToast("Charge-Mode deactivated.");
+            }
+        }
+
+        function startEarnComputeSimulation() {
+            const hashLabel = document.getElementById('puzzleHash');
+            const statusLabel = document.getElementById('puzzleStatus');
+            const thanksLabel = document.getElementById('thanksVal');
+            const neighborsLabel = document.getElementById('neighborsVal');
+            
+            earnSimulatorInterval = setInterval(() => {
+                // Generate simulated block hashes
+                const hexChars = "0123456789abcdef";
+                let mockHash = "0x";
+                for (let i = 0; i < 8; i++) mockHash += hexChars[Math.floor(Math.random() * 16)];
+                mockHash += "...";
+                for (let i = 0; i < 4; i++) mockHash += hexChars[Math.floor(Math.random() * 16)];
+                
+                hashLabel.innerText = mockHash;
+                statusLabel.innerText = "Validating...";
+                statusLabel.style.color = "var(--primary)";
+                
+                setTimeout(() => {
+                    if (!isEarnModeActive) return;
+                    statusLabel.innerText = "ZKP Verified! Minted";
+                    statusLabel.style.color = "var(--success)";
+                    
+                    // Award thanks and increment neighbors helped!
+                    let curThanks = parseInt(thanksLabel.innerText);
+                    thanksLabel.innerText = curThanks + 5;
+                    
+                    let curNeighbors = parseInt(neighborsLabel.innerText);
+                    neighborsLabel.innerText = curNeighbors + 1;
+                    
+                    showToast("Minted 5 thanks for resolving node block hashes!", "success");
+                }, 1800);
+                
+            }, 4500);
+        }
+
+        // UI Tabs Navigator
+        function switchTab(tabId, element) {
+            activeTab = tabId;
+            
+            // Update active state in nav
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+            element.classList.add('active');
+            
+            // Hide all screens and show active
+            document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
+            
+            if (tabId === 'listen') {
+                document.getElementById('screenListen').classList.add('active');
+                populateContentGrid();
+            } else if (tabId === 'share') {
+                document.getElementById('screenShare').classList.add('active');
+            } else if (tabId === 'earn') {
+                document.getElementById('screenEarn').classList.add('active');
+            }
+        }
+
+        // Helper Notification Toast
+        let toastTimeout = null;
+        function showToast(message, type = "primary") {
+            const toast = document.getElementById('appToast');
+            const icon = document.getElementById('toastIcon');
+            const text = document.getElementById('toastText');
+            
+            text.innerText = message;
+            
+            if (type === "success") {
+                icon.className = "toast-icon";
+                icon.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+            } else if (type === "accent") {
+                icon.className = "toast-icon accent";
+                icon.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>';
+            } else {
+                icon.className = "toast-icon";
+                icon.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><polyline points="12 16 12 12 10 12"></polyline><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>';
+            }
+            
+            toast.classList.add('show');
+            
+            if (toastTimeout) clearTimeout(toastTimeout);
+            toastTimeout = setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3500);
+        }
+
+        // Live system clock updater
+        setInterval(() => {
+            const now = new Date();
+            const hrs = now.getHours().toString().padStart(2, '0');
+            const mins = now.getMinutes().toString().padStart(2, '0');
+            document.getElementById('statusBarTime').innerText = `${hrs}:${mins}`;
+        }, 1000);
+    </script>
+</body>
+</html>
