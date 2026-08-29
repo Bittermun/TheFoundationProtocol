@@ -188,7 +188,7 @@ class RealRaptorQAdapter:
         args = [(r, k, source, shard_size) for r in range(n_repair)]
 
         # Generate repair shards in parallel with specific exception handling
-        import pickle
+        import pickle  # nosec B403 - used only for catching serialization exceptions
         import concurrent.futures
 
         try:
@@ -280,12 +280,10 @@ class RealRaptorQAdapter:
             result = b"".join(source_shards[i] for i in range(k))
             return result[:orig_len]
 
-        # Need repair shards — use Gaussian elimination over GF(2)
-        # Build the generator matrix rows for available shards
-        available = parsed[:k]  # take first k available
+        # Need repair shards — use Gaussian elimination over GF(2) across all available shards
         matrix_rows = []
-        shard_data = []
-        for idx, data in available:
+        shard_payloads = []
+        for idx, data in parsed:
             if idx < src_k:
                 row = [1 if j == idx else 0 for j in range(src_k)]
             else:
@@ -299,17 +297,41 @@ class RealRaptorQAdapter:
                 if sum(row) == 0:
                     row[r % src_k] = 1
             matrix_rows.append(row)
-            shard_data.append(bytearray(data))
+            # Ensure payload matches shard_size
+            if len(data) < self.shard_size:
+                data = data + b"\x00" * (self.shard_size - len(data))
+            shard_payloads.append(bytearray(data))
 
-        # Solve byte-by-byte
-        recovered = [bytearray(self.shard_size) for _ in range(src_k)]
-        # For each byte position, solve the GF(2) system
-        for byte_pos in range(self.shard_size):
-            aug = [row + [shard_data[i][byte_pos]] for i, row in enumerate(matrix_rows)]
-            rref, pivots = _gf2_rref(aug, src_k)
-            for pivot_idx, col in enumerate(pivots):
-                if pivot_idx < len(rref):
-                    recovered[col][byte_pos] = rref[pivot_idx][src_k]
+        # Vectorized Gaussian Elimination over GF(2)
+        m = [row[:] for row in matrix_rows]
+        p = shard_payloads
+        nrows = len(m)
+        ncols = src_k
+        pivot_row = 0
+        pivots = {}
 
+        for col in range(ncols):
+            found = -1
+            for row in range(pivot_row, nrows):
+                if m[row][col] == 1:
+                    found = row
+                    break
+            if found == -1:
+                continue
+
+            m[pivot_row], m[found] = m[found], m[pivot_row]
+            p[pivot_row], p[found] = p[found], p[pivot_row]
+            pivots[col] = pivot_row
+
+            for row in range(nrows):
+                if row != pivot_row and m[row][col] == 1:
+                    m[row] = [a ^ b for a, b in zip(m[row], m[pivot_row])]
+                    p[row] = bytearray(a ^ b for a, b in zip(p[row], p[pivot_row]))
+            pivot_row += 1
+
+        if len(pivots) < src_k:
+            raise ValueError(f"Insufficient linearly independent shards to decode (rank {len(pivots)} < {src_k})")
+
+        recovered = [p[pivots[c]] for c in range(src_k)]
         result = b"".join(bytes(s) for s in recovered)
         return result[:orig_len]

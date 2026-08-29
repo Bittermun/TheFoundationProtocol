@@ -2,24 +2,17 @@
 # Copyright (c) 2026 The Foundation Protocol Contributors
 
 """
-TFP Content-Defined Chunking (CDC) Codec
+FastCDC (Content-Defined Chunking) Engine for TFP v4.0
 
-Implements FastCDC (USENIX ATC '16) with standard 64-bit Gear hash lookup table
-and normalized dual-mask boundary detection. Splits arbitrary binary data into
-variable-sized chunks deterministically based on content boundaries.
-
-This enables maximum deduplication and delta-compression for constrained
-networks and distributed information synchronization.
+Implements 64-bit random gear matrix rolling hashing with dual-mask normalization
+as specified in USENIX ATC '16 to maximize deduplication efficiency.
 """
 
-from __future__ import annotations
-
-import hashlib
-import json
 from dataclasses import asdict, dataclass
+import hashlib
 from typing import Any, Dict, List, Tuple
 
-# Standard FastCDC 64-bit Gear lookup table (USENIX ATC '16 reference matrix)
+# 256-entry 64-bit random gear matrix for FastCDC
 _GEAR_MATRIX_64 = [
     0x534B5A5C77A7A645, 0xA575B5F3779836B2, 0xCEAC51FE16245F1B, 0x82C7C4EB75B49386,
     0x4E557262AB367184, 0x367A6B8856BD8396, 0x4896D8D5A344E9AE, 0x6E6686C56114D3C5,
@@ -87,111 +80,73 @@ _GEAR_MATRIX_64 = [
     0x1284756482930192, 0x9283746501928374, 0x7463524109283746, 0x6473829102938475,
 ]
 
-_UINT64_MAX = 0xFFFFFFFFFFFFFFFF
 
-
-@dataclass
+@dataclass(frozen=True)
 class ChunkRecipe:
-    """
-    Metadata representation of an assembled piece of content.
-    Allows exact bit-for-bit reconstruction using stored or gossiped chunks.
-    """
-    total_size: int
+    """Deterministic recipe manifest describing content assembly from discrete chunks."""
+
     root_hash: str
+    total_size: int
     chunk_hashes: List[str]
     chunk_sizes: List[int]
+    metadata: Dict[str, Any]
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
 
-    def to_json(self) -> str:
-        return json.dumps(self.to_dict(), indent=2)
-
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> ChunkRecipe:
+    def from_dict(cls, data: Dict[str, Any]) -> "ChunkRecipe":
         return cls(
-            total_size=data["total_size"],
             root_hash=data["root_hash"],
+            total_size=data["total_size"],
             chunk_hashes=data["chunk_hashes"],
             chunk_sizes=data["chunk_sizes"],
+            metadata=data.get("metadata", {}),
         )
-
-    @classmethod
-    def from_json(cls, json_str: str) -> ChunkRecipe:
-        return cls.from_dict(json.loads(json_str))
 
 
 class ContentDefinedChunker:
-    """
-    Splits binary data into variable-sized chunks using the FastCDC algorithm.
-    Guarantees boundary shift resistance and uniform chunk size distribution.
-    """
+    """FastCDC 64-bit normalized content-defined chunker."""
 
     def __init__(
         self,
-        min_size: int = 16384,     # 16 KB minimum size
-        max_size: int = 262144,    # 256 KB maximum size
-        target_size: int = 65536,  # 64 KB target average size
-        normalization_level: int = 1,
+        min_size: int = 512,
+        max_size: int = 4096,
+        target_size: int = 1024,
     ):
+        if not (min_size <= target_size <= max_size):
+            raise ValueError(f"Invalid size bounds: min={min_size} <= target={target_size} <= max={max_size}")
         self.min_size = min_size
         self.max_size = max_size
         self.target_size = target_size
-        self.normalization_level = normalization_level
 
-        # Calculate bitmasks for normalized chunking (USENIX FastCDC)
-        # Target bits: log2(target_size)
-        target_bits = max(1, (self.target_size - 1).bit_length())
-        
-        # Dual masks: smaller mask for region [min_size, target_size),
-        # larger mask for region [target_size, max_size)
-        bits_s = target_bits + self.normalization_level
-        bits_l = max(1, target_bits - self.normalization_level)
-        
-        self.mask_s = (1 << bits_s) - 1
-        self.mask_l = (1 << bits_l) - 1
-        self.mask = (1 << target_bits) - 1
+        # Compute dual bitmasks for normalization
+        bits = max(1, int(round(self._log2(target_size))))
+        self.mask_s = (1 << (bits + 1)) - 1
+        self.mask_l = (1 << (bits - 1)) - 1
 
-    def chunk_data(self, data: bytes) -> List[Dict[str, Any]]:
-        """
-        Partition data into variable-sized chunks.
+    @staticmethod
+    def _log2(n: int) -> float:
+        import math
+        return math.log2(n)
 
-        Returns:
-            List of dictionaries with keys:
-            - 'offset': int
-            - 'size': int
-            - 'hash': str (SHA3-256 hex digest)
-            - 'data': bytes
-        """
+    def chunk(self, data: bytes) -> List[bytes]:
+        """Partition arbitrary binary payload into FastCDC chunks."""
         if not data:
             return []
 
-        chunks: List[Dict[str, Any]] = []
         n = len(data)
-
-        # Fast path if total size <= min_size
         if n <= self.min_size:
-            h = hashlib.sha3_256(data).hexdigest()
-            return [{
-                "offset": 0,
-                "size": n,
-                "hash": h,
-                "data": data,
-            }]
+            return [data]
 
+        chunks = []
         offset = 0
+        uint64_max = 0xFFFFFFFFFFFFFFFF
+
         while offset < n:
-            # Trailing tail check
             remaining = n - offset
             if remaining <= self.min_size:
-                chunk_data = data[offset:]
-                h = hashlib.sha3_256(chunk_data).hexdigest()
-                chunks.append({
-                    "offset": offset,
-                    "size": len(chunk_data),
-                    "hash": h,
-                    "data": chunk_data,
-                })
+                chunks.append(data[offset:])
                 break
 
             chunk_start = offset
@@ -203,14 +158,14 @@ class ContentDefinedChunker:
 
             # 1. Warm up rolling hash on the minimum window
             for i in range(chunk_start, scan_pos):
-                byte_val = data[i]
-                rolling_hash = ((rolling_hash << 1) + _GEAR_MATRIX_64[byte_val]) & _UINT64_MAX
+                b = data[i]
+                rolling_hash = ((rolling_hash << 1) + _GEAR_MATRIX_64[b]) & uint64_max
 
             # 2. Sub-target region: use tighter mask (mask_s)
             boundary_found = False
             while scan_pos < mid_point:
-                byte_val = data[scan_pos]
-                rolling_hash = ((rolling_hash << 1) + _GEAR_MATRIX_64[byte_val]) & _UINT64_MAX
+                b = data[scan_pos]
+                rolling_hash = ((rolling_hash << 1) + _GEAR_MATRIX_64[b]) & uint64_max
                 if (rolling_hash & self.mask_s) == 0:
                     boundary_found = True
                     scan_pos += 1
@@ -220,8 +175,8 @@ class ContentDefinedChunker:
             # 3. Post-target region: use looser mask (mask_l) if boundary not yet found
             if not boundary_found:
                 while scan_pos < max_scan:
-                    byte_val = data[scan_pos]
-                    rolling_hash = ((rolling_hash << 1) + _GEAR_MATRIX_64[byte_val]) & _UINT64_MAX
+                    b = data[scan_pos]
+                    rolling_hash = ((rolling_hash << 1) + _GEAR_MATRIX_64[b]) & uint64_max
                     if (rolling_hash & self.mask_l) == 0:
                         boundary_found = True
                         scan_pos += 1
@@ -229,50 +184,44 @@ class ContentDefinedChunker:
                     scan_pos += 1
 
             chunk_bytes = data[chunk_start:scan_pos]
-            h = hashlib.sha3_256(chunk_bytes).hexdigest()
-            chunks.append({
-                "offset": chunk_start,
-                "size": len(chunk_bytes),
-                "hash": h,
-                "data": chunk_bytes,
-            })
-
+            chunks.append(chunk_bytes)
             offset = scan_pos
 
         return chunks
 
-    def create_recipe(self, data: bytes) -> Tuple[ChunkRecipe, List[bytes]]:
-        """
-        Chunk data and produce both a serializable ChunkRecipe and the raw chunk bytes list.
-        """
-        chunks = self.chunk_data(data)
-        root_hash = hashlib.sha3_256(data).hexdigest()
+    def create_recipe(self, data: bytes, metadata: Dict[str, Any] = None) -> Tuple[ChunkRecipe, List[bytes]]:
+        """Chunk payload, hash components with SHA3-256, and produce Recipe."""
+        chunks = self.chunk(data)
+        chunk_hashes = [hashlib.sha3_256(c).hexdigest() for c in chunks]
+        chunk_sizes = [len(c) for c in chunks]
+
+        # Calculate deterministic root hash over the sequence of chunk hashes
+        hasher = hashlib.sha3_256()
+        for h in chunk_hashes:
+            hasher.update(h.encode("utf-8"))
+        root_hash = hasher.hexdigest()
+
         recipe = ChunkRecipe(
-            total_size=len(data),
             root_hash=root_hash,
-            chunk_hashes=[c["hash"] for c in chunks],
-            chunk_sizes=[c["size"] for c in chunks],
+            total_size=len(data),
+            chunk_hashes=chunk_hashes,
+            chunk_sizes=chunk_sizes,
+            metadata=metadata or {},
         )
-        chunk_bytes = [c["data"] for c in chunks]
-        return recipe, chunk_bytes
+        return recipe, chunks
 
     @staticmethod
-    def assemble_from_chunks(recipe: ChunkRecipe, chunk_store: Dict[str, bytes]) -> bytes:
-        """
-        Reconstruct the original data from a recipe and a chunk dictionary.
-        Raises KeyError if any chunk hash is missing.
-        Raises ValueError if reconstructed hash doesn't match recipe root_hash.
-        """
-        assembled_parts = []
-        for chash in recipe.chunk_hashes:
-            if chash not in chunk_store:
-                raise KeyError(f"Missing required chunk hash: {chash}")
-            assembled_parts.append(chunk_store[chash])
-
-        reconstructed = b"".join(assembled_parts)
-        actual_hash = hashlib.sha3_256(reconstructed).hexdigest()
-        if actual_hash != recipe.root_hash:
-            raise ValueError(
-                f"Integrity check failed on assembly: expected {recipe.root_hash}, got {actual_hash}"
-            )
-        return reconstructed
+    def assemble(recipe: ChunkRecipe, chunk_map: Dict[str, bytes]) -> bytes:
+        """Bit-exact assembly of chunks according to recipe."""
+        assembled = bytearray()
+        for expected_hash, size in zip(recipe.chunk_hashes, recipe.chunk_sizes):
+            if expected_hash not in chunk_map:
+                raise KeyError(f"Missing required chunk: {expected_hash}")
+            chunk = chunk_map[expected_hash]
+            if len(chunk) != size:
+                raise ValueError(f"Chunk size mismatch for {expected_hash}: expected {size}, got {len(chunk)}")
+            actual_hash = hashlib.sha3_256(chunk).hexdigest()
+            if actual_hash != expected_hash:
+                raise ValueError(f"Corrupted chunk data: hash mismatch for {expected_hash}")
+            assembled.extend(chunk)
+        return bytes(assembled)

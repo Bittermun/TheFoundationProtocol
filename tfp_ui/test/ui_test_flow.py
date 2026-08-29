@@ -9,7 +9,14 @@ Uses MockProtocolAdapter to simulate protocol responses.
 """
 
 import asyncio
+import os
+from pathlib import Path
+import sys
 from typing import List
+
+UI_DIR = Path(__file__).resolve().parent.parent
+if str(UI_DIR) not in sys.path:
+    sys.path.insert(0, str(UI_DIR))
 
 from core_bridge.protocol_adapter import (
     MockProtocolAdapter,
@@ -26,7 +33,7 @@ class UITestRunner:
 
     async def run_all_tests(self) -> bool:
         """Execute all UI test flows"""
-        print("🚀 Starting TFP UI Test Flow\n")
+        print("Starting TFP UI Test Flow\n")
 
         tests = [
             ("Onboarding & Initialize", self.test_onboarding),
@@ -43,13 +50,13 @@ class UITestRunner:
         for test_name, test_func in tests:
             try:
                 result = await test_func()
-                status = "✅ PASS" if result else "❌ FAIL"
+                status = "[PASS]" if result else "[FAIL]"
                 self.test_results.append((test_name, result))
                 print(f"{status}: {test_name}")
                 if not result:
                     all_passed = False
             except Exception as e:
-                print(f"❌ FAIL: {test_name} - {str(e)}")
+                print(f"[FAIL]: {test_name} - {str(e)}")
                 self.test_results.append((test_name, False))
                 all_passed = False
 
@@ -83,15 +90,15 @@ class UITestRunner:
                 return False
 
             print(
-                f"   → Initialized with {len(self.adapter._content_cache)} cached items"
+                f"   -> Initialized with {len(self.adapter._content_cache)} cached items"
             )
             print(
-                f"   → Network: {status['broadcast_source']}, {status['neighbors_count']} neighbors"
+                f"   -> Network: {status['broadcast_source']}, {status['neighbors_count']} neighbors"
             )
 
             return True
         except Exception as e:
-            print(f"   → Error: {str(e)}")
+            print(f"   -> Error: {str(e)}")
             return False
 
     async def test_browse_content(self) -> bool:
@@ -124,7 +131,7 @@ class UITestRunner:
             assert all(i.category == "emergency_alerts" for i in emergency_items)
 
         print(
-            f"   → Browsed {len(items)} items, {len(emergency_items)} emergency alerts"
+            f"   -> Browsed {len(items)} items, {len(emergency_items)} emergency alerts"
         )
 
         return True
@@ -153,8 +160,8 @@ class UITestRunner:
         if playback_started_id != items[0].id:
             return False
 
-        print(f"   → Played: '{items[0].title}' ({items[0].display_duration})")
-        print(f"   → Source: {items[0].source_label}")
+        print(f"   -> Played: '{items[0].title}' ({items[0].display_duration})")
+        print(f"   -> Source: {items[0].source_label}")
 
         return True
 
@@ -184,9 +191,9 @@ class UITestRunner:
         if thanks_earned != thanks:
             return False
 
-        print("   → Shared voice recording")
-        print(f"   → Earned {thanks} thanks")
-        print("   → Broadcast to neighbors (simulated)")
+        print("   -> Shared voice recording")
+        print(f"   -> Earned {thanks} thanks")
+        print("   -> Broadcast to neighbors (simulated)")
 
         return True
 
@@ -208,10 +215,10 @@ class UITestRunner:
         if summary_off is None:
             return False
 
-        print("   → Earn mode toggled")
-        print(f"   → Total thanks: {summary.total_thanks}")
-        print(f"   → Stories shared: {summary.stories_shared}")
-        print(f"   → Neighbors helped: {summary.neighbors_helped}")
+        print("   -> Earn mode toggled")
+        print(f"   -> Total thanks: {summary.total_thanks}")
+        print(f"   -> Stories shared: {summary.stories_shared}")
+        print(f"   -> Neighbors helped: {summary.neighbors_helped}")
 
         return True
 
@@ -238,9 +245,9 @@ class UITestRunner:
             if not hasattr(summary, field):
                 return False
 
-        print("   → Thanks summary retrieved")
-        print(f"   → {summary.total_thanks} total thanks")
-        print(f"   → Pin suggestion: {summary.pin_suggestion}")
+        print("   -> Thanks summary retrieved")
+        print(f"   -> {summary.total_thanks} total thanks")
+        print(f"   -> Pin suggestion: {summary.pin_suggestion}")
 
         return True
 
@@ -262,7 +269,7 @@ class UITestRunner:
         if not success:
             return False
 
-        print(f"   → Pinned and unpinned: '{items[0].title}'")
+        print(f"   -> Pinned and unpinned: '{items[0].title}'")
 
         return True
 
@@ -289,8 +296,8 @@ class UITestRunner:
             if key not in status:
                 return False
 
-        print("   → Offline handling: OK")
-        print(f"   → Cache hit rate: {status['cache_hit_rate'] * 100:.0f}%")
+        print("   -> Offline handling: OK")
+        print(f"   -> Cache hit rate: {status['cache_hit_rate'] * 100:.0f}%")
 
         return True
 
@@ -302,7 +309,7 @@ async def main():
 
     print("\n" + "=" * 50)
     if success:
-        print("✅ All UI tests passed!")
+        print("[SUCCESS] All UI tests passed!")
         print("\nNext steps:")
         print("1. Integrate with real TFP core modules")
         print("2. Add platform-specific UI (Flutter/React Native)")
@@ -310,7 +317,7 @@ async def main():
         print("4. Create universal icon set")
         print("5. Performance profiling (<50MB RAM, <200MB install)")
     else:
-        print("❌ Some tests failed. Review output above.")
+        print("[ERROR] Some tests failed. Review output above.")
 
     return success
 
