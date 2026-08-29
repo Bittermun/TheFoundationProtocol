@@ -13,7 +13,6 @@ Provides:
 """
 
 import base64
-import hashlib
 import http.server
 import io
 import json
@@ -26,7 +25,7 @@ import struct
 import sys
 import urllib.parse
 import wave
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 # Add repository root to path
 ROOT_DIR = Path(__file__).resolve().parent.parent.parent
@@ -35,9 +34,9 @@ for p in (str(ROOT_DIR), str(TFP_PKG_DIR)):
     if p not in sys.path:
         sys.path.insert(0, p)
 
-from tfp_client.lib.fountain.cdc import ChunkRecipe, ContentDefinedChunker
-from tfp_client.lib.fountain.raptorq_ffi import RealRaptorQAdapter
-from tfp_transport.merkleized_raptorq import MerkleizedRaptorQ
+from tfp_client.lib.fountain.cdc import ChunkRecipe, ContentDefinedChunker  # noqa: E402
+from tfp_client.lib.fountain.raptorq_ffi import RealRaptorQAdapter  # noqa: E402
+from tfp_transport.merkleized_raptorq import MerkleizedRaptorQ  # noqa: E402
 
 PORT = 8080
 DIRECTORY = os.path.dirname(os.path.abspath(__file__))
@@ -300,7 +299,7 @@ class ScholoHTTPHandler(http.server.SimpleHTTPRequestHandler):
                 else:
                     # Synthesize valid audio if plain text was sent
                     content_str = data.get("content", "Community Story Audio")
-                    raw_audio = generate_synthesized_wav(duration=float(duration), freq=440.0, label=title)
+                    raw_audio = generate_synthesized_wav(duration=float(duration), freq=440.0, label=f"{title} ({content_str})")
 
                 entry = ENGINE.publish_audio(
                     title=title,

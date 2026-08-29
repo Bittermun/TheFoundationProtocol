@@ -132,11 +132,18 @@ class PQCAdapter:
                 public_key=public_key, secret_key=secret_key, algorithm="dilithium5"
             )
         else:
-            # Stub for testing without PQC libs
+            # Cryptographic fallback using Ed25519 keys
             import os
-
-            pk = os.urandom(2592)  # Dilithium5 public key size
-            sk = os.urandom(4864)  # Dilithium5 secret key size
+            try:
+                from cryptography.hazmat.primitives.asymmetric import ed25519
+                sk_obj = ed25519.Ed25519PrivateKey.generate()
+                sk_seed = sk_obj.private_bytes_raw()
+                pk_raw = sk_obj.public_key().public_bytes_raw()
+                pk = pk_raw + os.urandom(2592 - len(pk_raw))
+                sk = sk_seed + os.urandom(4864 - len(sk_seed))
+            except Exception:
+                sk = os.urandom(4864)
+                pk = hashlib.sha3_256(sk).digest() + os.urandom(2592 - 32)
             return KeyPair(public_key=pk, secret_key=sk, algorithm="dilithium5_stub")
 
     def generate_sphincs_keypair(self) -> KeyPair:
@@ -147,11 +154,17 @@ class PQCAdapter:
                 public_key=public_key, secret_key=secret_key, algorithm="sphincs+"
             )
         else:
-            # Stub
             import os
-
-            pk = os.urandom(32)
-            sk = os.urandom(64)
+            try:
+                from cryptography.hazmat.primitives.asymmetric import ed25519
+                sk_obj = ed25519.Ed25519PrivateKey.generate()
+                sk_seed = sk_obj.private_bytes_raw()
+                pk_raw = sk_obj.public_key().public_bytes_raw()
+                pk = pk_raw
+                sk = sk_seed + os.urandom(64 - len(sk_seed))
+            except Exception:
+                sk = os.urandom(64)
+                pk = hashlib.sha3_256(sk).digest()
             return KeyPair(public_key=pk, secret_key=sk, algorithm="sphincs+_stub")
 
     def generate_kyber768_keypair(self) -> KeyPair:
@@ -189,28 +202,32 @@ class PQCAdapter:
         # Hash the message
         message_hash = hashlib.blake2b(message, digest_size=32).digest()
 
-        # Generate PQC signature
-        if keypair.algorithm == "dilithium5":
-            if self.use_pqc and PQC_AVAILABLE:
-                signature = dilithium5.sign(keypair.secret_key, message)
-            else:
-                # Stub signature
-                signature = b"<dilithium5_stub_sig>" + message_hash
-        elif keypair.algorithm == "sphincs+":
-            if self.use_pqc and PQC_AVAILABLE:
-                signature = sphincsplus.sign(keypair.secret_key, message)
-            else:
-                signature = b"<sphincs+_stub_sig>" + message_hash
-        elif "stub" in keypair.algorithm:
-            # Handle stub algorithms
-            signature = f"<{keypair.algorithm}_sig>".encode() + message_hash
+        # Generate PQC / fallback signature
+        if keypair.algorithm == "dilithium5" and self.use_pqc and PQC_AVAILABLE:
+            signature = dilithium5.sign(keypair.secret_key, message)
+        elif keypair.algorithm == "sphincs+" and self.use_pqc and PQC_AVAILABLE:
+            signature = sphincsplus.sign(keypair.secret_key, message)
         else:
-            signature = f"<{keypair.algorithm}_stub_sig>".encode() + message_hash
+            # Cryptographic fallback using Ed25519 or HMAC
+            try:
+                from cryptography.hazmat.primitives.asymmetric import ed25519
+                sk_seed = keypair.secret_key[:32]
+                sk_obj = ed25519.Ed25519PrivateKey.from_private_bytes(sk_seed)
+                signature = sk_obj.sign(message)
+            except Exception:
+                import hmac
+                signature = hmac.new(keypair.secret_key[:32], message, hashlib.sha3_256).digest()
 
         classical_sig = None
         if use_dual:
-            # In production, would sign with Ed25519/ECDSA here
-            classical_sig = b"<classical_stub_sig>" + message_hash
+            try:
+                from cryptography.hazmat.primitives.asymmetric import ed25519
+                sk_seed = keypair.secret_key[:32]
+                sk_obj = ed25519.Ed25519PrivateKey.from_private_bytes(sk_seed)
+                classical_sig = sk_obj.sign(message)
+            except Exception:
+                import hmac
+                classical_sig = hmac.new(keypair.secret_key[:32], message, hashlib.sha256).digest()
 
         return Signature(
             signature=signature,
@@ -234,23 +251,44 @@ class PQCAdapter:
         Returns:
             True if valid, False otherwise
         """
+        if not signature or not signature.signature or not public_key or not message:
+            return False
+
+        # Reject unvalidated stub brackets
+        if signature.signature.startswith(b"<") and signature.signature.endswith(b">"):
+            return False
+
         try:
             if signature.algorithm == "dilithium5":
                 if self.use_pqc and PQC_AVAILABLE:
                     return dilithium5.verify(public_key, message, signature.signature)
-                else:
-                    # Stub verification
-                    return signature.signature.startswith(b"<dilithium5_stub_sig>")
+                return False
 
             elif signature.algorithm == "sphincs+":
                 if self.use_pqc and PQC_AVAILABLE:
                     return sphincsplus.verify(public_key, message, signature.signature)
-                else:
-                    return signature.signature.startswith(b"<sphincs+_stub_sig>")
+                return False
 
-            elif "stub" in signature.algorithm:
-                # Accept any stub signature for testing
-                return True
+            # Verify genuine cryptographic fallback signatures (Ed25519 / HMAC)
+            if "stub" in signature.algorithm or "dilithium" in signature.algorithm or "sphincs" in signature.algorithm or "+" in signature.algorithm:
+                # Try Ed25519 verification
+                try:
+                    from cryptography.hazmat.primitives.asymmetric import ed25519
+                    pk_bytes = public_key[:32]
+                    pk_obj = ed25519.Ed25519PublicKey.from_public_bytes(pk_bytes)
+                    pk_obj.verify(signature.signature, message)
+                    return True
+                except Exception:
+                    pass
+
+                # Try HMAC fallback
+                try:
+                    import hmac
+                    expected = hmac.new(public_key[:32], message, hashlib.sha3_256).digest()
+                    if hmac.compare_digest(signature.signature, expected):
+                        return True
+                except Exception:
+                    pass
 
             return False
 
@@ -372,9 +410,14 @@ class PQCAdapter:
         # Add classical signature if key provided
         classical_sig = None
         if classical_keypair:
-            # In production, would use Ed25519/ECDSA
-            msg_hash = self.hash_message(message, "sha256")
-            classical_sig = b"<classical_ed25519_stub>" + msg_hash
+            try:
+                from cryptography.hazmat.primitives.asymmetric import ed25519
+                sk_bytes = classical_keypair.secret_key[:32]
+                sk_obj = ed25519.Ed25519PrivateKey.from_private_bytes(sk_bytes)
+                classical_sig = sk_obj.sign(message)
+            except Exception:
+                import hmac
+                classical_sig = hmac.new(classical_keypair.secret_key[:32], message, hashlib.sha256).digest()
 
         return Signature(
             signature=pqc_sig.signature,
@@ -411,8 +454,20 @@ class PQCAdapter:
         # Verify classical signature if present
         classical_valid = False
         if signature.classical_signature and classical_public_key:
-            # In production, would verify Ed25519/ECDSA
-            classical_valid = signature.classical_signature.startswith(b"<classical_")
+            try:
+                from cryptography.hazmat.primitives.asymmetric import ed25519
+                pk_bytes = classical_public_key[:32]
+                pk_obj = ed25519.Ed25519PublicKey.from_public_bytes(pk_bytes)
+                pk_obj.verify(signature.classical_signature, message)
+                classical_valid = True
+            except Exception:
+                try:
+                    import hmac
+                    expected = hmac.new(classical_public_key[:32], message, hashlib.sha256).digest()
+                    if hmac.compare_digest(signature.classical_signature, expected):
+                        classical_valid = True
+                except Exception:
+                    pass
 
         return pqc_valid, classical_valid
 

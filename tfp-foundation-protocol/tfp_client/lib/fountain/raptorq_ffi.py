@@ -133,6 +133,7 @@ class RealRaptorQAdapter:
         parsed = []
         orig_len = None
         src_k = None
+        hmac_failed_count = 0
         
         for shard in shards:
             if shard.startswith(b'fallback_shard_'):
@@ -149,7 +150,9 @@ class RealRaptorQAdapter:
                 frame, received_mac = shard[:-_HMAC_SIZE], shard[-_HMAC_SIZE:]
                 expected_mac = _shard_hmac(hmac_key, frame)
                 if not _hmac.compare_digest(received_mac, expected_mac):
-                    raise IntegrityError("per-shard HMAC verification failed")
+                    log.warning("Dropping corrupted shard: per-shard HMAC verification failed")
+                    hmac_failed_count += 1
+                    continue
                 shard = frame
             
             if len(shard) < 16:
@@ -161,6 +164,8 @@ class RealRaptorQAdapter:
             parsed.append((idx, shard[16:]))
         
         if orig_len is None or src_k is None:
+            if hmac_key is not None and hmac_failed_count > 0:
+                raise IntegrityError("per-shard HMAC verification failed for all shards")
             return b"".join(s[:k] if k else s for s in shards)[
                 : k * self.shard_size if k else None
             ]
@@ -169,6 +174,10 @@ class RealRaptorQAdapter:
             k = src_k
         
         if len(parsed) < k:
+            if hmac_key is not None and hmac_failed_count > 0:
+                raise IntegrityError(
+                    f"Insufficient valid shards after dropping corrupted shards: need {k}, got {len(parsed)}"
+                )
             raise ValueError(
                 f"Insufficient shards: need {k}, got {len(parsed)}"
             )

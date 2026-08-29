@@ -55,13 +55,9 @@ class TFPClient:
         if self.ledger.balance < credits:
             raise ValueError(f"insufficient balance: {self.ledger.balance} < {credits}")
 
-        receipt = self._earned_receipts[0]
+        receipt = self._earned_receipts.pop(0)
         self.ledger.spend(credits, receipt)
         self._spends.append(receipt)
-
-        # If balance hits zero, we can discard the receipt (for simplicity)
-        if self.ledger.balance == 0:
-            self._earned_receipts.pop(0)
 
     def request_content(
         self, root_hash: str, zkp_proof=None, recipe: dict = None

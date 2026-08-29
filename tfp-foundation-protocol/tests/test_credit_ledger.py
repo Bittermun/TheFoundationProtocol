@@ -189,3 +189,24 @@ def test_audit_trail_matches_chain():
     trail = ledger.audit_trail()
     for i, entry in enumerate(trail):
         assert entry["block_hash"] == chain[i]
+
+
+def test_spend_receipt_reuse_raises_error():
+    """HIGH-02: Prevent reusing a spent receipt."""
+    ledger = CreditLedger()
+    receipt1 = ledger.mint(10, make_proof("p1"))
+    receipt2 = ledger.mint(10, make_proof("p2"))
+    assert ledger.balance == 20
+
+    # First spend succeeds
+    ledger.spend(5, receipt1)
+    assert ledger.balance == 15
+    assert receipt1.chain_hash in ledger.spent_receipts
+
+    # Second spend with identical receipt must be rejected
+    with pytest.raises(ValueError, match="receipt has already been spent"):
+        ledger.spend(5, receipt1)
+
+    # Different receipt succeeds
+    ledger.spend(5, receipt2)
+    assert ledger.balance == 10

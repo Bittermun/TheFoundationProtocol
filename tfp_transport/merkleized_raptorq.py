@@ -418,18 +418,19 @@ class MerkleizedRaptorQ:
 
     def _log_dropped_shard(self, content_hash: str, shard_id: int, reason: str) -> None:
         """Log a dropped shard for auditing."""
-        self._dropped_shards.append(
-            {
-                "content_hash": content_hash,
-                "shard_id": shard_id,
-                "reason": reason,
-                "timestamp": time.time(),
-            }
-        )
+        with self._lock:
+            self._dropped_shards.append(
+                {
+                    "content_hash": content_hash,
+                    "shard_id": shard_id,
+                    "reason": reason,
+                    "timestamp": time.time(),
+                }
+            )
 
-        # Limit log size
-        if len(self._dropped_shards) > 10000:
-            self._dropped_shards = self._dropped_shards[-5000:]
+            # Limit log size
+            if len(self._dropped_shards) > 10000:
+                self._dropped_shards = self._dropped_shards[-5000:]
 
 
 # Feature gate check

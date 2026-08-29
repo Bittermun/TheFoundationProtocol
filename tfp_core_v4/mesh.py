@@ -26,13 +26,13 @@ class GossipMessage:
     sender_id: str
     recipe: ChunkRecipe
     merkle_root: str
-    ttl: int = 4
+    ttl: int = 10
 
 
 class MeshPeer:
     """An autonomous node in the TFP decentralized mesh network."""
 
-    def __init__(self, node_id: str, loss_rate: float = 0.0):
+    def __init__(self, node_id: str, loss_rate: float = 0.0, symbol_size: int = 256):
         self.node_id = node_id
         self.loss_rate = loss_rate
         self.neighbors: Set["MeshPeer"] = set()
@@ -41,7 +41,7 @@ class MeshPeer:
         self.droplet_store: Dict[str, Dict[int, FountainDroplet]] = {}
         self.reconstructed_payloads: Dict[str, bytes] = {}
         self.seen_gossip: Set[str] = set()
-        self.codec = FountainCodec(symbol_size=256)
+        self.codec = FountainCodec(symbol_size=symbol_size)
         self.is_alive = True
 
     def connect(self, peer: "MeshPeer"):
@@ -94,17 +94,45 @@ class MeshPeer:
                 if neighbor.is_alive and neighbor.node_id != msg.sender_id:
                     asyncio.create_task(neighbor.receive_gossip(fwd_msg))
 
-    async def request_droplets(self, root_hash: str) -> List[FountainDroplet]:
-        """Request available droplets from this peer subject to link loss."""
+    async def request_droplets(self, root_hash: str, visited: Optional[Set[str]] = None) -> List[FountainDroplet]:
+        """Request available droplets from this peer subject to link loss with dynamic rateless synthesis and multi-hop routing."""
         if not self.is_alive:
             return []
-        if root_hash not in self.droplet_store:
-            return []
-        results = []
-        for d in self.droplet_store[root_hash].values():
-            if random.random() >= self.loss_rate:  # nosec B311: Network loss simulator
-                results.append(d)
-        return results
+        if visited is None:
+            visited = set()
+        visited.add(self.node_id)
+
+        # If payload is reconstructed locally, dynamically synthesize fresh droplets to ensure rateless coverage
+        if root_hash in self.reconstructed_payloads and root_hash in self.known_recipes:
+            payload = self.reconstructed_payloads[root_hash]
+            k = (len(payload) + self.codec.symbol_size - 1) // self.codec.symbol_size
+            needed = max(k + 10, int(k * 1.5))
+            redundancy = max(0.50, (needed - k) / max(k, 1))
+            synth_droplets, _, _ = self.codec.encode(payload, redundancy=redundancy)
+            if root_hash not in self.droplet_store:
+                self.droplet_store[root_hash] = {}
+            for d in synth_droplets:
+                self.droplet_store[root_hash][d.seed] = d
+
+        if root_hash in self.droplet_store and self.droplet_store[root_hash]:
+            results = []
+            for d in list(self.droplet_store[root_hash].values()):
+                if random.random() >= self.loss_rate:  # nosec B311: Network loss simulator
+                    results.append(d)
+            return results
+
+        # Multi-hop mesh query if not found locally
+        for neighbor in list(self.neighbors):
+            if neighbor.is_alive and neighbor.node_id not in visited:
+                sub_droplets = await neighbor.request_droplets(root_hash, visited=visited)
+                if sub_droplets:
+                    results = []
+                    for d in sub_droplets:
+                        if random.random() >= self.loss_rate:
+                            results.append(d)
+                    return results
+
+        return []
 
     async def swarm_fetch(self, root_hash: str) -> Optional[bytes]:
         """Gather fountain droplets from all reachable peers and reconstruct payload."""
@@ -122,25 +150,38 @@ class MeshPeer:
         if root_hash in self.droplet_store:
             gathered_droplets.update(self.droplet_store[root_hash])
 
-        # Query all live neighbors in parallel
+        # Query all live neighbors
         peers_to_query = [p for p in self.neighbors if p.is_alive]
-        for peer in peers_to_query:
-            incoming = await peer.request_droplets(root_hash)
-            for d in incoming:
-                gathered_droplets[d.seed] = d
-                if len(gathered_droplets) >= k:
-                    # Attempt decode
-                    try:
-                        recovered = self.codec.decode(
-                            list(gathered_droplets.values()),
-                            k=k,
-                            orig_len=recipe.total_size,
-                        )
-                        self.reconstructed_payloads[root_hash] = recovered
-                        self.droplet_store[root_hash] = gathered_droplets
-                        return recovered
-                    except Exception:  # nosec B112: Try decoding on each incoming droplet
-                        continue
+        for _ in range(5):
+            for peer in peers_to_query:
+                incoming = await peer.request_droplets(root_hash)
+                for d in incoming:
+                    gathered_droplets[d.seed] = d
+                    if len(gathered_droplets) >= k:
+                        # Attempt decode
+                        try:
+                            recovered = self.codec.decode(
+                                list(gathered_droplets.values()),
+                                k=k,
+                                orig_len=recipe.total_size,
+                            )
+                            self.reconstructed_payloads[root_hash] = recovered
+                            self.droplet_store[root_hash] = gathered_droplets
+                            return recovered
+                        except Exception:  # nosec B112: Try decoding on each incoming droplet
+                            continue
+            if len(gathered_droplets) >= k:
+                try:
+                    recovered = self.codec.decode(
+                        list(gathered_droplets.values()),
+                        k=k,
+                        orig_len=recipe.total_size,
+                    )
+                    self.reconstructed_payloads[root_hash] = recovered
+                    self.droplet_store[root_hash] = gathered_droplets
+                    return recovered
+                except Exception:
+                    pass
 
         # Final decode attempt if rank was achieved
         if len(gathered_droplets) >= k:
@@ -164,8 +205,8 @@ class SwarmNetwork:
     def __init__(self):
         self.peers: Dict[str, MeshPeer] = {}
 
-    def add_peer(self, node_id: str, loss_rate: float = 0.0) -> MeshPeer:
-        peer = MeshPeer(node_id, loss_rate=loss_rate)
+    def add_peer(self, node_id: str, loss_rate: float = 0.0, symbol_size: int = 256) -> MeshPeer:
+        peer = MeshPeer(node_id, loss_rate=loss_rate, symbol_size=symbol_size)
         self.peers[node_id] = peer
         return peer
 

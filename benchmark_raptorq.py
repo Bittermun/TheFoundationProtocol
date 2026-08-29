@@ -138,17 +138,17 @@ def benchmark_encoding():
 
                 if decoded == test_data:
                     log(
-                        f"  {pct}% shards ({needed} shards): ✓ Success in {elapsed:.0f}ms"
+                        f"  {pct}% shards ({needed} shards): [OK] Success in {elapsed:.0f}ms"
                     )
                 else:
-                    log(f"  {pct}% shards ({needed} shards): ✗ Data mismatch")
+                    log(f"  {pct}% shards ({needed} shards): [FAIL] Data mismatch")
             except Exception as e:
-                log(f"  {pct}% shards ({needed} shards): ✗ Error: {e}")
+                log(f"  {pct}% shards ({needed} shards): [FAIL] Error: {e}")
         else:
-            log(f"  {pct}% shards ({needed} shards): ✗ Not enough shards")
+            log(f"  {pct}% shards ({needed} shards): [FAIL] Not enough shards")
 
     log("")
-    log("💡 Key Findings:")
+    log("[KEY FINDINGS]")
     log(
         f"  - RealRaptorQAdapter adds ~{avg_overhead:.1f}% overhead (10% redundancy + headers)"
     )
@@ -156,7 +156,7 @@ def benchmark_encoding():
     log("  - Can reconstruct from any k source shards (fault tolerance)")
     log("  - Partial retrieval saves bandwidth in P2P scenarios")
     log("")
-    log("⚠️  Note: This is server-side encoding only.")
+    log("[NOTE] This is server-side encoding only.")
     log("   Client-side retrieval requires real NDN adapter (currently mock).")
 
 

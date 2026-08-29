@@ -9,7 +9,6 @@ Uses MockProtocolAdapter to simulate protocol responses.
 """
 
 import asyncio
-import os
 from pathlib import Path
 import sys
 from typing import List
@@ -18,7 +17,7 @@ UI_DIR = Path(__file__).resolve().parent.parent
 if str(UI_DIR) not in sys.path:
     sys.path.insert(0, str(UI_DIR))
 
-from core_bridge.protocol_adapter import (
+from core_bridge.protocol_adapter import (  # noqa: E402
     MockProtocolAdapter,
     UIContentItem,
 )

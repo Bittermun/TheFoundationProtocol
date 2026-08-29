@@ -28,6 +28,7 @@ class CreditLedger:
         total_minted: int = 0,
         network_total_minted: int = 0,
         max_supply: int = MAX_SUPPLY,
+        spent_receipts: List[bytes] = None,
     ):
         self._chain: List[bytes] = list(chain) if chain else []
         self._balance: int = balance
@@ -36,6 +37,7 @@ class CreditLedger:
         # Network-wide minted total (injected by server; used for cap enforcement)
         self._network_total_minted: int = network_total_minted
         self._max_supply: int = max_supply
+        self._spent_receipts: set[bytes] = set(spent_receipts) if spent_receipts else set()
 
     @classmethod
     def from_snapshot(
@@ -45,6 +47,7 @@ class CreditLedger:
         total_minted: int = 0,
         network_total_minted: int = 0,
         max_supply: int = MAX_SUPPLY,
+        spent_receipts: List[bytes] = None,
     ) -> "CreditLedger":
         """Restore a ledger from a persisted chain + balance snapshot."""
         return cls(
@@ -53,6 +56,7 @@ class CreditLedger:
             total_minted=total_minted,
             network_total_minted=network_total_minted,
             max_supply=max_supply,
+            spent_receipts=spent_receipts,
         )
 
     def mint(self, credits: int, proof_hash: bytes) -> Receipt:
@@ -88,23 +92,31 @@ class CreditLedger:
         """Network-wide total minted (as last reported by server)."""
         return self._network_total_minted
 
+    @property
+    def spent_receipts(self) -> set[bytes]:
+        """Set of spent receipt chain hashes (nullifiers)."""
+        return set(self._spent_receipts)
+
     def spend(self, credits: int, receipt: Receipt) -> None:
         """Deduct `credits` from balance, authorised by an in-chain earn receipt.
 
         Raises:
             ValueError: if credits <= 0, the receipt is not in the chain,
-                        or the balance is insufficient.
+                        the receipt has already been spent, or the balance is insufficient.
         """
         if credits <= 0:
             raise ValueError("credits must be positive")
+        if receipt.chain_hash in self._spent_receipts:
+            raise ValueError("receipt has already been spent")
         if not self.verify_spend(receipt):
             raise ValueError("invalid receipt: not in chain")
         if self._balance < credits:
             raise ValueError("insufficient balance")
+        self._spent_receipts.add(receipt.chain_hash)
         self._balance -= credits
 
     def verify_spend(self, receipt: Receipt) -> bool:
-        return receipt.chain_hash in self._chain
+        return receipt.chain_hash in self._chain and receipt.chain_hash not in self._spent_receipts
 
     def export_merkle_root(self) -> bytes:
         """Build a binary Merkle tree over the chain blocks and return the root hash."""

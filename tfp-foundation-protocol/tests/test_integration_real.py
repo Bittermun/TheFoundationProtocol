@@ -65,6 +65,25 @@ class TestRealFountainRoundTrip:
         k = struct.unpack(">QII", shards[0][:16])[1]
         assert len(shards) > k  # repair shards exist
 
+    def test_repair_equation_non_periodic(self):
+        from tfp_client.lib.fountain.fountain_real import _generate_repair_row
+        # k > 256: bit vector across columns 0..511 should not repeat with period 256
+        row = _generate_repair_row(0, 512)
+        assert len(row) == 512
+        assert row[:256] != row[256:], "Repair row equation must not repeat with period 256"
+
+    def test_decode_with_dropped_source_shards(self):
+        adapter = RealRaptorQAdapter(shard_size=128)
+        data = b"TFP REAL FOUNTAIN DECODE WITH LOSS TEST: " * 20
+        shards = adapter.encode(data, redundancy=0.30)
+        import struct
+        k = struct.unpack(">QII", shards[0][:16])[1]
+        # Drop first 2 source shards, keeping remaining source + repair shards
+        lossy = shards[2:]
+        assert len(lossy) >= k
+        recovered = adapter.decode(lossy)
+        assert recovered == data
+
 
 # ── ZKP Schnorr proof ─────────────────────────────────────────────────────────
 
@@ -241,18 +260,37 @@ class TestPerShardHMAC:
         # Each protected shard is 32 bytes longer (HMAC appended)
         assert len(protected[0]) == len(plain[0]) + 32
 
-    def test_tampered_shard_raises_integrity_error(self):
+    def test_tampered_shard_raises_integrity_error_when_all_corrupted(self):
         data = b"important payload"
         shards = self.fq.encode(data, hmac_key=self.key)
-        # Flip a byte in the payload area of the first shard (after the 16-byte header)
         import struct
 
         header_size = struct.calcsize(">QII")  # 16 bytes: orig_len(8) + k(4) + idx(4)
-        bad = bytearray(shards[0])
-        bad[header_size] ^= 0xFF  # corrupt first payload byte
-        shards[0] = bytes(bad)
+        # Corrupt all shards
+        corrupted_shards = []
+        for s in shards:
+            bad = bytearray(s)
+            bad[header_size] ^= 0xFF
+            corrupted_shards.append(bytes(bad))
+
         with pytest.raises(IntegrityError):
-            self.fq.decode(shards, hmac_key=self.key)
+            self.fq.decode(corrupted_shards, hmac_key=self.key)
+
+    def test_single_corrupted_shard_dropped_and_reconstructed(self):
+        """HIGH-01: Discard single corrupted shard and decode from remaining valid repair shards."""
+        data = b"important payload to test resilient recovery"
+        shards = self.fq.encode(data, hmac_key=self.key)
+        import struct
+
+        header_size = struct.calcsize(">QII")
+        # Corrupt only the first shard
+        bad_first = bytearray(shards[0])
+        bad_first[header_size] ^= 0xFF
+        shards_with_one_bad = [bytes(bad_first)] + list(shards[1:])
+
+        # Should successfully recover from remaining valid shards without raising IntegrityError
+        recovered = self.fq.decode(shards_with_one_bad, hmac_key=self.key)
+        assert recovered == data
 
     def test_wrong_key_raises_integrity_error(self):
         data = b"secret payload"

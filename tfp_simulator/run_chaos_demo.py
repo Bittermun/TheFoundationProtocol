@@ -98,7 +98,7 @@ def scenario_3_malicious_actors():
             device.specs.honesty_factor = 0.1
             malicious_count += 1
 
-    print(f"  → {malicious_count} malicious nodes active in the pool")
+    print(f"  [+] {malicious_count} malicious nodes active in the pool")
 
     # Assign tasks to everyone
     for i, device in enumerate(orchestrator.devices.values()):
@@ -121,10 +121,10 @@ def scenario_3_malicious_actors():
         if d.specs.honesty_factor < 0.5
     )
 
-    print("\n📊 ANALYSIS:")
+    print("\n[ANALYSIS]")
     print(f"  Honest nodes completed: {honest_completed} tasks")
     print(f"  Malicious nodes completed: {malicious_completed} tasks")
-    print("  → Malicious nodes earned fewer credits due to slower actual work")
+    print("  [+] Malicious nodes earned fewer credits due to slower actual work")
 
 
 def scenario_4_thermal_throttling():
@@ -154,8 +154,8 @@ def scenario_4_thermal_throttling():
         if d.state.state == DeviceState.OVERHEATED or d.state.tasks_failed > 0
     )
 
-    print(f"\n🔥 Thermal Events: {overheat_events}/{len(devices)} nodes throttled")
-    print("  → Device safety guards prevented hardware damage")
+    print(f"\n[THERMAL] Thermal Events: {overheat_events}/{len(devices)} nodes throttled")
+    print("  [+] Device safety guards prevented hardware damage")
 
 
 def scenario_5_mixed_reality():
@@ -198,10 +198,10 @@ def scenario_5_mixed_reality():
 
 
 def main():
-    print("\n" + "🚀" * 35)
+    print("\n" + "=" * 70)
     print("   TFP CHAOS ENGINEERING DEMO")
     print("   Virtual Device & P2P Compute Pool Stress Tests")
-    print("🚀" * 35)
+    print("=" * 70)
 
     scenarios = [
         ("Steady State Baseline", scenario_1_steady_state),
@@ -215,15 +215,15 @@ def main():
         try:
             func()
         except Exception as e:
-            print(f"\n❌ Scenario '{name}' failed: {e}")
+            print(f"\n[FAIL] Scenario '{name}' failed: {e}")
             import traceback
 
             traceback.print_exc()
 
-    print("\n" + "✅" * 35)
+    print("\n" + "=" * 70)
     print("   ALL SCENARIOS COMPLETED")
     print("   Review results above for network resilience metrics")
-    print("✅" * 35 + "\n")
+    print("=" * 70 + "\n")
 
 
 if __name__ == "__main__":

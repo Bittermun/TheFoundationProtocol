@@ -127,13 +127,34 @@ class HeuristicPack:
     is_active: bool = True
 
     def verify_signature(self, public_key: bytes) -> bool:
-        """Verify pack signature before applying."""
-        # Simplified: In production, use Ed25519
-        import hashlib
-
+        """Verify pack signature against public key or shared secret."""
+        if not public_key or not self.signature:
+            return False
+        import hmac
         data = f"{self.version}:{str(self.rules)}".encode()
-        expected_hash = hashlib.sha3_256(data).hexdigest()
-        return self.signature == expected_hash[:16]
+        # Ed25519 verification if 32-byte public key
+        try:
+            from cryptography.hazmat.primitives.asymmetric import ed25519
+            if len(public_key) == 32:
+                pk = ed25519.Ed25519PublicKey.from_public_bytes(public_key)
+                sig_bytes = bytes.fromhex(self.signature) if isinstance(self.signature, str) else self.signature
+                pk.verify(sig_bytes, data)
+                return True
+        except Exception:
+            pass
+
+        # Keyed HMAC verification
+        try:
+            expected = hmac.new(public_key, data, hashlib.sha3_256).hexdigest()
+            sig_str = self.signature if isinstance(self.signature, str) else self.signature.hex()
+            if hmac.compare_digest(sig_str, expected):
+                return True
+            if len(sig_str) >= 16 and hmac.compare_digest(sig_str, expected[:len(sig_str)]):
+                return True
+        except Exception:
+            pass
+
+        return False
 
 
 class LocalTrustCache:
@@ -254,16 +275,25 @@ class GossipVerifier:
         return positive / len(recent), len(recent)
 
     def _sign_signal(self, auditor_id: str, outcome: bool) -> str:
-        """Sign trust signal (simplified)."""
+        """Sign trust signal using keyed HMAC with device key."""
+        import hmac
+        key = hashlib.sha3_256(f"tfp_gossip_key_{self.device_id}".encode()).digest()
         data = f"{self.device_id}:{auditor_id}:{outcome}".encode()
-        return hashlib.sha3_256(data).hexdigest()[:16]
+        return hmac.new(key, data, hashlib.sha3_256).hexdigest()[:16]
 
     def _verify_signal(self, signal: dict) -> bool:
-        """Verify signal signature (simplified)."""
-        expected = hashlib.sha3_256(
-            f"{signal['reporter']}:{signal['auditor']}:{signal['outcome']}".encode()
-        ).hexdigest()[:16]
-        return signal["signature"] == expected
+        """Verify signal signature against reporter device key."""
+        import hmac
+        reporter = signal.get("reporter", "")
+        auditor = signal.get("auditor", "")
+        outcome = signal.get("outcome", False)
+        sig = signal.get("signature", "")
+        if not sig or not reporter:
+            return False
+        key = hashlib.sha3_256(f"tfp_gossip_key_{reporter}".encode()).digest()
+        data = f"{reporter}:{auditor}:{outcome}".encode()
+        expected = hmac.new(key, data, hashlib.sha3_256).hexdigest()[:16]
+        return hmac.compare_digest(sig, expected)
 
 
 class MutualisticAuditor:
@@ -393,20 +423,17 @@ class MutualisticAuditor:
         }
 
     def _calculate_entropy(self, data: bytes) -> float:
-        """Calculate Shannon entropy of data."""
+        """Calculate true Shannon entropy of data in bits per byte [0.0 - 8.0]."""
         if not data:
             return 0.0
 
+        import math
         freq = defaultdict(int)
         for byte in data:
             freq[byte] += 1
 
-        entropy = 0.0
-        for count in freq.values():
-            p = count / len(data)
-            entropy -= p * (p and (p * 0.693147) or 0)  # ln(2) approximation
-
-        return entropy / 0.693147  # Normalize to bits
+        length = len(data)
+        return -sum((count / length) * math.log2(count / length) for count in freq.values())
 
     def report_audit_outcome(self, auditor_id: str, was_correct: bool, category: str):
         """

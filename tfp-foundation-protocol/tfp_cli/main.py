@@ -510,7 +510,7 @@ def cmd_ping(args) -> int:
                 print(f"[ping]   ✗ Reachable but response was not valid JSON: {resp.text[:200]}")
                 return 1
             ready_str = "READY" if data.get("ready") else "NOT READY"
-            print(f"[ping]   ✓ Reachable (Status 200)")
+            print("[ping]   ✓ Reachable (Status 200)")
             print(f"[ping]   ⚡ Latency: {latency_ms:.1f} ms")
             print(f"[ping]   📋 Node State: {ready_str}")
             print(f"[ping]   🚀 Startup Stage: '{data.get('startup_stage', 'unknown')}'")

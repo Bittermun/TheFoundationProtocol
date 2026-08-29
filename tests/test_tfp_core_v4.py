@@ -122,6 +122,25 @@ class TestTFPCoreV4(unittest.TestCase):
 
         asyncio.run(run_mesh())
 
+    def test_invariant_6_dynamic_droplet_synthesis_reconstructed_payload(self):
+        """Verify MeshPeer.request_droplets dynamically synthesizes droplets when payload is reconstructed locally."""
+        async def run_test():
+            payload = b"DYNAMIC FOUNTAIN SYNTHESIS TEST PAYLOAD DATA: " * 50
+            recipe, _ = self.chunker.create_recipe(payload)
+            peer = MeshPeer("reseeder_peer", loss_rate=0.0, symbol_size=self.codec.symbol_size)
+            peer.known_recipes[recipe.root_hash] = recipe
+            peer.reconstructed_payloads[recipe.root_hash] = payload
+
+            # Request droplets from peer with empty droplet_store initially
+            requested = await peer.request_droplets(recipe.root_hash)
+            self.assertGreaterEqual(len(requested), k)
+            self.assertIn(recipe.root_hash, peer.droplet_store)
+            for d in requested:
+                self.assertIsNotNone(d.payload)
+                self.assertIsInstance(d.seed, int)
+
+        asyncio.run(run_test())
+
 
 if __name__ == "__main__":
     unittest.main()

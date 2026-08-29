@@ -312,8 +312,9 @@ class TestMutualisticAuditor(unittest.TestCase):
         self.assertEqual(profile.total_audits, 5)  # Audits tracked, not erased
 
     def test_heuristic_pack_signature_verification(self):
-        """Invalid heuristic packs rejected."""
+        """Invalid heuristic packs and unkeyed/wrong signatures rejected."""
         import hashlib
+        import hmac
 
         valid_pack = HeuristicPack(
             version="1.0.0",
@@ -321,16 +322,20 @@ class TestMutualisticAuditor(unittest.TestCase):
             rules={"rule1": {"pattern": "deadbeef", "severity": "critical"}},
         )
 
-        # Generate correct signature
+        # Generate correct keyed signature
+        key = b"auditor_secret_public_key_32bytes"
         data = f"{valid_pack.version}:{str(valid_pack.rules)}".encode()
-        valid_pack.signature = hashlib.sha3_256(data).hexdigest()[:16]
+        valid_pack.signature = hmac.new(key, data, hashlib.sha3_256).hexdigest()
 
-        result = self.auditor.update_heuristic_pack(valid_pack, b"public_key")
+        result = self.auditor.update_heuristic_pack(valid_pack, key)
         self.assertTrue(result)
+
+        # Wrong key should fail
+        self.assertFalse(valid_pack.verify_signature(b"wrong_key_bytes"))
 
         # Tampered pack should fail
         valid_pack.rules["rule1"]["severity"] = "low"
-        result = self.auditor.update_heuristic_pack(valid_pack, b"public_key")
+        result = self.auditor.update_heuristic_pack(valid_pack, key)
         self.assertFalse(result)
 
     def test_tag_decay_cleanup(self):
@@ -451,6 +456,7 @@ class TestEdgeCases(unittest.TestCase):
 
         # Add heuristic rule for malware pattern
         import hashlib
+        import hmac
 
         pack = HeuristicPack(
             version="1.0.0",
@@ -464,7 +470,7 @@ class TestEdgeCases(unittest.TestCase):
             },
         )
         data = f"{pack.version}:{str(pack.rules)}".encode()
-        pack.signature = hashlib.sha3_256(data).hexdigest()[:16]
+        pack.signature = hmac.new(b"key", data, hashlib.sha3_256).hexdigest()
         auditor.update_heuristic_pack(pack, b"key")
 
         # Malicious content with low requests

@@ -99,8 +99,8 @@ class ATSC3LCTHeader:
     def serialize(self) -> bytes:
         """Serialize LCT header to bytes."""
         # Simplified LCT header (actual spec is more complex)
-        # Use unsigned int with proper bounds checking
-        timestamp_ms = min(int(self.sender_current_time * 1000), 0xFFFFFFFF)
+        # Use 32-bit cyclic timestamp (wrap around 2^32 ms)
+        timestamp_ms = int(self.sender_current_time * 1000) & 0xFFFFFFFF
         header = struct.pack(
             "!BBHI",
             (self.version << 4) | self.congestion_control,
@@ -274,11 +274,12 @@ class SpectrumEncapsulator:
         # Create LCT header for ATSC 3.0
         lct_header = None
         if self.active_standard == BroadcastStandard.ATSC_3_0:
+            pid = int(hashlib.sha256(content_hash.encode()).hexdigest()[:8], 16)
             lct_header = ATSC3LCTHeader(
                 version=1,
                 transport_session_id=transport_session_id,
                 sender_current_time=time.time(),
-                payload_id=hash(content_hash) & 0xFFFFFFFF,
+                payload_id=pid,
             )
 
         packet = EncapsulatedPacket(

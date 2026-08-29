@@ -434,9 +434,14 @@ def verify_signature(
 ) -> bool:
     """
     Verify a signature using the specified suite.
-
-    In production, this would call liboqs/pqcrypto bindings.
     """
+    if not signature or not public_key or not data:
+        return False
+
+    # Disallow unvalidated mock placeholders
+    if signature.startswith(b"<") and signature.endswith(b">"):
+        return False
+
     registry = get_registry()
     suite = registry.get_suite(suite_id)
 
@@ -444,10 +449,24 @@ def verify_signature(
         logger.error(f"Suite not found: {suite_id}")
         return False
 
-    # In production: call PQC verification library
-    # For now, return True for valid-looking placeholders
-    if signature.startswith(b"<") and signature.endswith(b">"):
-        logger.debug(f"Placeholder signature verified for {suite_id}")
-        return True
+    # Try Ed25519 verification if 32-byte public key / 64-byte signature
+    try:
+        from cryptography.hazmat.primitives.asymmetric import ed25519
+        pk_bytes = public_key[:32] if len(public_key) >= 32 else public_key
+        if len(pk_bytes) == 32 and len(signature) == 64:
+            pk = ed25519.Ed25519PublicKey.from_public_bytes(pk_bytes)
+            pk.verify(signature, data)
+            return True
+    except Exception:
+        pass
+
+    # Keyed HMAC verification fallback
+    try:
+        import hmac
+        expected = hmac.new(public_key, data, hashlib.sha3_256).digest()
+        if hmac.compare_digest(signature, expected):
+            return True
+    except Exception:
+        pass
 
     return False

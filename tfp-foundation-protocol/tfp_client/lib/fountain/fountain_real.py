@@ -15,6 +15,7 @@ import hashlib
 import hmac as _hmac
 import logging
 import os
+import random
 import struct
 import threading
 from concurrent.futures import ProcessPoolExecutor
@@ -78,6 +79,25 @@ def _shard_hmac(key: bytes, payload: bytes) -> bytes:
     return _hmac.new(key, payload, hashlib.sha3_256).digest()
 
 
+def _generate_repair_row_int(r: int, k: int) -> int:
+    """
+    Generate deterministic pseudo-random binary equation bitmask of length k for repair shard r.
+    Uses PRNG seeded deterministically (random.Random(f'repair:{r}:{k}')) to guarantee
+    full linear independence across all columns 0..k-1 without 256-bit repetition.
+    """
+    rng = random.Random(f"repair:{r}:{k}")  # nosec B311: Deterministic fountain PRNG
+    row_int = rng.getrandbits(k)
+    if row_int == 0:
+        row_int = 1 << (r % k)
+    return row_int
+
+
+def _generate_repair_row(r: int, k: int) -> List[int]:
+    """Generate deterministic pseudo-random binary equation vector of length k for repair shard r."""
+    row_int = _generate_repair_row_int(r, k)
+    return [(row_int >> i) & 1 for i in range(k)]
+
+
 def _generate_repair_shard(args: Tuple[int, int, List[bytes], int]) -> bytes:
     """
     Generate a single repair shard for parallel encoding.
@@ -89,16 +109,12 @@ def _generate_repair_shard(args: Tuple[int, int, List[bytes], int]) -> bytes:
         Repair shard bytes
     """
     r, k, source, shard_size = args
-    seed = hashlib.sha256(f"repair:{r}:{k}".encode()).digest()
-    combo = bytearray(shard_size)
+    row_int = _generate_repair_row_int(r, k)
+    combo_int = 0
     for i in range(k):
-        # include source shard i if bit i of seed is 1
-        if seed[i % len(seed)] & (1 << (i % 8)):
-            combo = bytearray(_xor(bytes(combo), source[i]))
-    # ensure at least one source is XORed in
-    if all(b == 0 for b in combo):
-        combo = bytearray(source[r % k])
-    return bytes(combo)
+        if (row_int >> i) & 1:
+            combo_int ^= int.from_bytes(source[i], "big")
+    return combo_int.to_bytes(shard_size, "big")
 
 
 def shutdown_encode_executor():
@@ -148,16 +164,12 @@ class RealRaptorQAdapter:
             # Sequential encoding for small files or few repair shards
             repair = []
             for r in range(n_repair):
-                seed = hashlib.sha256(f"repair:{r}:{k}".encode()).digest()
-                combo = bytearray(self.shard_size)
+                row_int = _generate_repair_row_int(r, k)
+                combo_int = 0
                 for i in range(k):
-                    # include source shard i if bit i of seed is 1
-                    if seed[i % len(seed)] & (1 << (i % 8)):
-                        combo = bytearray(_xor(bytes(combo), source[i]))
-                # ensure at least one source is XORed in
-                if all(b == 0 for b in combo):
-                    combo = bytearray(source[r % k])
-                repair.append(bytes(combo))
+                    if (row_int >> i) & 1:
+                        combo_int ^= int.from_bytes(source[i], "big")
+                repair.append(combo_int.to_bytes(self.shard_size, "big"))
 
         # Systematic: source shards first, then repair
         all_shards = source + repair
@@ -222,14 +234,12 @@ class RealRaptorQAdapter:
         """Sequential fallback for repair shard generation."""
         repair = []
         for r in range(n_repair):
-            seed = hashlib.sha256(f"repair:{r}:{k}".encode()).digest()
-            combo = bytearray(shard_size)
+            row_int = _generate_repair_row_int(r, k)
+            combo_int = 0
             for i in range(k):
-                if seed[i % len(seed)] & (1 << (i % 8)):
-                    combo = bytearray(_xor(bytes(combo), source[i]))
-            if all(b == 0 for b in combo):
-                combo = bytearray(source[r % k])
-            repair.append(bytes(combo))
+                if (row_int >> i) & 1:
+                    combo_int ^= int.from_bytes(source[i], "big")
+            repair.append(combo_int.to_bytes(shard_size, "big"))
         return repair
 
     def decode(
@@ -241,6 +251,7 @@ class RealRaptorQAdapter:
         parsed = []
         orig_len = None
         src_k = None
+        hmac_failed_count = 0
         for shard in shards:
             if hmac_key is not None:
                 # Shard = header(16) + payload(shard_size) + hmac(32)
@@ -253,7 +264,9 @@ class RealRaptorQAdapter:
                 frame, received_mac = shard[:-_HMAC_SIZE], shard[-_HMAC_SIZE:]
                 expected_mac = _shard_hmac(hmac_key, frame)
                 if not _hmac.compare_digest(received_mac, expected_mac):
-                    raise IntegrityError("per-shard HMAC verification failed")
+                    log.warning("Dropping corrupted shard: per-shard HMAC verification failed")
+                    hmac_failed_count += 1
+                    continue
                 shard = frame  # strip MAC for further processing
             if len(shard) < 16:
                 continue
@@ -263,6 +276,8 @@ class RealRaptorQAdapter:
             parsed.append((idx, shard[16:]))
 
         if orig_len is None or src_k is None:
+            if hmac_key is not None and hmac_failed_count > 0:
+                raise IntegrityError("per-shard HMAC verification failed for all shards")
             # Legacy shards without header — concatenate directly
             return b"".join(s[:k] if k else s for s in shards)[
                 : k * self.shard_size if k else None
@@ -270,6 +285,13 @@ class RealRaptorQAdapter:
 
         if k is None:
             k = src_k
+
+        if len(parsed) < k:
+            if hmac_key is not None and hmac_failed_count > 0:
+                raise IntegrityError(
+                    f"Insufficient valid shards after dropping corrupted shards: need {k}, got {len(parsed)}"
+                )
+            raise ValueError(f"Insufficient shards: need {k}, got {len(parsed)}")
 
         # Sort shards by index
         parsed.sort(key=lambda x: x[0])
@@ -281,39 +303,32 @@ class RealRaptorQAdapter:
             return result[:orig_len]
 
         # Need repair shards — use Gaussian elimination over GF(2) across all available shards
-        matrix_rows = []
-        shard_payloads = []
+        m = []
+        p = []
         for idx, data in parsed:
             if idx < src_k:
-                row = [1 if j == idx else 0 for j in range(src_k)]
+                row_int = 1 << idx
             else:
                 # Reconstruct the XOR combination for this repair shard
                 r = idx - src_k
-                seed = hashlib.sha256(f"repair:{r}:{src_k}".encode()).digest()
-                row = [
-                    1 if (seed[i % len(seed)] & (1 << (i % 8))) else 0
-                    for i in range(src_k)
-                ]
-                if sum(row) == 0:
-                    row[r % src_k] = 1
-            matrix_rows.append(row)
+                row_int = _generate_repair_row_int(r, src_k)
+            m.append(row_int)
             # Ensure payload matches shard_size
             if len(data) < self.shard_size:
                 data = data + b"\x00" * (self.shard_size - len(data))
-            shard_payloads.append(bytearray(data))
+            p.append(int.from_bytes(data, "big"))
 
-        # Vectorized Gaussian Elimination over GF(2)
-        m = [row[:] for row in matrix_rows]
-        p = shard_payloads
+        # Vectorized Gaussian Elimination over GF(2) with bitmask integers
         nrows = len(m)
         ncols = src_k
         pivot_row = 0
         pivots = {}
 
         for col in range(ncols):
+            mask = 1 << col
             found = -1
             for row in range(pivot_row, nrows):
-                if m[row][col] == 1:
+                if m[row] & mask:
                     found = row
                     break
             if found == -1:
@@ -323,15 +338,18 @@ class RealRaptorQAdapter:
             p[pivot_row], p[found] = p[found], p[pivot_row]
             pivots[col] = pivot_row
 
+            piv_m = m[pivot_row]
+            piv_p = p[pivot_row]
+
             for row in range(nrows):
-                if row != pivot_row and m[row][col] == 1:
-                    m[row] = [a ^ b for a, b in zip(m[row], m[pivot_row])]
-                    p[row] = bytearray(a ^ b for a, b in zip(p[row], p[pivot_row]))
+                if row != pivot_row and (m[row] & mask):
+                    m[row] ^= piv_m
+                    p[row] ^= piv_p
             pivot_row += 1
 
         if len(pivots) < src_k:
             raise ValueError(f"Insufficient linearly independent shards to decode (rank {len(pivots)} < {src_k})")
 
-        recovered = [p[pivots[c]] for c in range(src_k)]
-        result = b"".join(bytes(s) for s in recovered)
+        recovered = [p[pivots[c]].to_bytes(self.shard_size, "big") for c in range(src_k)]
+        result = b"".join(recovered)
         return result[:orig_len]

@@ -3530,6 +3530,14 @@ def earn(
             status_code=409,
             detail="task_id already processed — each task may only be submitted once",
         )
+    # Execution proof / task verification (HIGH-03)
+    if _task_store is not None:
+        task_row = _task_store.get_task_row(payload.task_id)
+        if task_row is not None and task_row.get("status") == "failed":
+            raise HTTPException(
+                status_code=400,
+                detail="cannot earn credits on failed or expired task",
+            )
     client = _client_for(payload.device_id)
     # Inject network-wide total so supply cap is enforced
     client.ledger.set_network_total_minted(

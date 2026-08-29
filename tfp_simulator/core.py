@@ -252,7 +252,16 @@ class ChaosOrchestrator:
     def add_chaos_event(self, event_type: ChaosEvent, target_ids: List[str] = None):
         """Manually trigger a chaos event."""
         if event_type == ChaosEvent.NODE_CRASH:
-            targets = target_ids or list(self.devices.keys())
+            if target_ids is not None:
+                targets = target_ids
+            else:
+                # Target a single random active device rather than crashing 100% of nodes
+                online_nodes = [
+                    tid
+                    for tid, d in self.devices.items()
+                    if d.state.state != DeviceState.OFFLINE
+                ]
+                targets = [random.choice(online_nodes)] if online_nodes else []
             for tid in targets:
                 if tid in self.devices:
                     self.devices[tid].state.state = DeviceState.OFFLINE

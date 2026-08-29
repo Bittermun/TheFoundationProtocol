@@ -156,15 +156,31 @@ class WebBridge:
             fallback_url=query_params.get("fallback", [None])[0],
         )
 
-        # Parse hash-based URL: tfp://<hash>
-        if parsed.netloc or (parsed.path and not parsed.path.startswith("/tag/")):
-            potential_hash = parsed.netloc or parsed.path.lstrip("/")
+        # Parse tag-based URL: tfp://tag/<category>/<query> or tfp:///tag/<category>/<query>
+        if parsed.netloc == "tag" or parsed.path.startswith("/tag/"):
+            if parsed.netloc == "tag":
+                path_str = parsed.path.strip("/")
+                path_parts = path_str.split("/") if path_str else []
+            else:
+                path_parts = [p for p in parsed.path.split("/")[2:] if p]
 
-            # Validate hash format (64 hex chars for SHA3-256)
-            if len(potential_hash) == 64 and all(
-                c in "0123456789abcdef" for c in potential_hash.lower()
+            if path_parts:
+                category = path_parts[0]
+                query = "/".join(path_parts[1:]) if len(path_parts) > 1 else ""
+                request.tag_query = f"{category}:{query}" if query else category
+                request.content_type = TFPContentType.UNKNOWN
+            else:
+                return None
+
+        # Parse hash-based URL: tfp://<hash>
+        elif parsed.netloc or parsed.path:
+            potential_hash = (parsed.netloc or parsed.path.lstrip("/")).split("/")[0]
+            # Strip extension if present
+            hash_part = potential_hash.split(".")[0]
+            if len(hash_part) == 64 and all(
+                c in "0123456789abcdef" for c in hash_part.lower()
             ):
-                request.content_hash = potential_hash.lower()
+                request.content_hash = hash_part.lower()
 
                 # Infer content type from extension if present
                 if "." in potential_hash:
@@ -174,15 +190,6 @@ class WebBridge:
                     )
                 else:
                     request.content_type = TFPContentType.UNKNOWN
-
-        # Parse tag-based URL: tfp://tag/<category>/<query>
-        elif parsed.path.startswith("/tag/"):
-            path_parts = parsed.path.split("/")
-            if len(path_parts) >= 3:
-                category = path_parts[2]
-                query = "/".join(path_parts[3:]) if len(path_parts) > 3 else ""
-                request.tag_query = f"{category}:{query}" if query else category
-                request.content_type = TFPContentType.UNKNOWN
 
         return request
 

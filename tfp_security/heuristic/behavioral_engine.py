@@ -186,7 +186,7 @@ class BehavioralEngine:
     # Entropy thresholds (bytes)
     MIN_ENTROPY = 0.0  # Completely uniform
     MAX_ENTROPY = 8.0  # Maximum for byte-level (log2(256))
-    SUSPICIOUS_HIGH_ENTROPY = 7.95  # Encrypted/compressed
+    SUSPICIOUS_HIGH_ENTROPY = 7.2  # Encrypted/compressed
     SUSPICIOUS_LOW_ENTROPY = 2.0  # Highly repetitive
 
     # Velocity thresholds
@@ -213,7 +213,7 @@ class BehavioralEngine:
     def _create_default_rule_pack(self) -> None:
         """Create default detection rules."""
         default_rules = {
-            "entropy": {"high_threshold": 7.95, "low_threshold": 2.0, "weight": 0.35},
+            "entropy": {"high_threshold": 7.2, "low_threshold": 2.0, "weight": 0.35},
             "structure": {
                 "magic_byte_patterns": [
                     {"offset": 0, "bytes": "MZ", "type": "executable"},
@@ -458,20 +458,18 @@ class BehavioralEngine:
         max_entropy = self.MAX_ENTROPY
         normalized_entropy = entropy / max_entropy
 
-        high_thresh = rules.get(
-            "high_threshold", self.SUSPICIOUS_HIGH_ENTROPY / max_entropy
-        )
-        low_thresh = rules.get(
-            "low_threshold", self.SUSPICIOUS_LOW_ENTROPY / max_entropy
-        )
+        raw_high = rules.get("high_threshold", self.SUSPICIOUS_HIGH_ENTROPY)
+        high_thresh = raw_high / max_entropy if raw_high > 1.0 else raw_high
+        raw_low = rules.get("low_threshold", self.SUSPICIOUS_LOW_ENTROPY)
+        low_thresh = raw_low / max_entropy if raw_low > 1.0 else raw_low
 
         # Score based on deviation from normal (4.0-6.0 is typical for media)
         if normalized_entropy > high_thresh:
             # Too random (encrypted/compressed/stego)
-            return min(1.0, (normalized_entropy - high_thresh) / (1.0 - high_thresh))
+            return min(1.0, (normalized_entropy - high_thresh) / max(1e-6, (1.0 - high_thresh)))
         elif normalized_entropy < low_thresh:
             # Too uniform (suspiciously simple)
-            return min(1.0, (low_thresh - normalized_entropy) / low_thresh)
+            return min(1.0, (low_thresh - normalized_entropy) / max(1e-6, low_thresh))
         else:
             # Normal range
             return 0.1  # Low baseline suspicion
@@ -485,23 +483,85 @@ class BehavioralEngine:
         if not content:
             return 0.0
 
-        score = 0.0
-        patterns = rules.get("magic_byte_patterns", [])
+        # Known magic byte signatures
+        media_magic = [
+            bytes.fromhex("89504e47"),  # PNG
+            bytes.fromhex("ffd8ff"),    # JPEG
+            b"GIF8",                    # GIF
+            b"RIFF",                    # WAV / AVI / WEBP
+            b"OggS",                    # OGG Vorbis / Opus
+            b"ID3",                     # MP3 with ID3
+            bytes.fromhex("0000001866747970"),  # MP4
+            bytes.fromhex("0000001c66747970"),  # MP4
+            bytes.fromhex("0000002066747970"),  # MP4
+            bytes.fromhex("1a45dfa3"),  # MKV / WEBM
+            b"%PDF",                    # PDF
+        ]
+        archive_magic = [
+            b"PK\x03\x04",              # ZIP
+            bytes.fromhex("1f8b"),      # GZIP
+            bytes.fromhex("377abcaf271c"),  # 7z
+            b"BZh",                     # BZIP2
+            bytes.fromhex("fd377a585a00"),  # XZ
+            bytes.fromhex("28b52ffd"),  # Zstandard
+            b"Rar!\x1a\x07",            # RAR
+            b"ustar",                   # TAR
+        ]
+        exec_magic = [
+            b"MZ",                      # PE Windows Executable
+            bytes.fromhex("7f454c46"),  # ELF Linux Executable
+            bytes.fromhex("cffaedfe"),  # Mach-O 64-bit
+            bytes.fromhex("feedfacf"),  # Mach-O 64-bit rev
+            bytes.fromhex("cefaedfe"),  # Mach-O 32-bit
+            bytes.fromhex("feedface"),  # Mach-O 32-bit rev
+            bytes.fromhex("cafebabe"),  # Java Class / Mach-O Fat Binary
+        ]
 
-        # Check magic bytes
+        # Check for explicitly matching magic byte patterns from custom rules if present
+        patterns = rules.get("magic_byte_patterns", [])
+        custom_exec = False
+        custom_matched_valid = False
         for pattern in patterns:
             offset = pattern.get("offset", 0)
-            expected_bytes = pattern.get("bytes", "")
+            expected_hex = pattern.get("bytes", "")
+            ptype = pattern.get("type", "")
+            try:
+                if all(c in "0123456789abcdefABCDEF" for c in expected_hex) and len(expected_hex) % 2 == 0:
+                    expected_b = bytes.fromhex(expected_hex)
+                else:
+                    expected_b = expected_hex.encode("latin1")
+            except Exception:
+                expected_b = expected_hex.encode("latin1")
 
-            if offset < len(content):
-                actual_hex = content[offset : offset + len(expected_bytes) // 2].hex()
-                if actual_hex.lower() != expected_bytes.lower():
-                    # Mismatch detected
-                    score += 0.3
+            if offset + len(expected_b) <= len(content):
+                actual_b = content[offset : offset + len(expected_b)]
+                if actual_b == expected_b:
+                    if ptype in ("executable", "elf", "macho"):
+                        custom_exec = True
+                    else:
+                        custom_matched_valid = True
 
-        # Check for size anomalies (very small files claiming to be complex)
-        if len(content) < 100:
-            score += 0.2
+        score = 0.0
+        is_exec = custom_exec or any(content.startswith(m) for m in exec_magic)
+        is_media = custom_matched_valid or any(content.startswith(m) for m in media_magic)
+        is_archive = any(content.startswith(m) for m in archive_magic)
+
+        if is_exec:
+            score += 0.8  # Flag unexpected executable binaries
+        elif is_media or is_archive:
+            score = 0.05  # Valid media or archive format
+        else:
+            # Check for valid UTF-8 / JSON / Plaintext
+            try:
+                content.decode("utf-8")
+                score = 0.0  # Plaintext is safe
+            except UnicodeDecodeError:
+                # Mild score for unrecognized raw binary
+                score += 0.2
+
+        # Check for size anomalies only if content is suspiciously truncated binary
+        if len(content) < 8 and not is_media and not is_archive:
+            score += 0.1
 
         return min(1.0, score)
 
