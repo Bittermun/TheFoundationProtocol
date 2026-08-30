@@ -259,18 +259,14 @@ class PQCAdapter:
             return False
 
         try:
-            if signature.algorithm == "dilithium5":
-                if self.use_pqc and PQC_AVAILABLE:
-                    return dilithium5.verify(public_key, message, signature.signature)
-                return False
+            if signature.algorithm == "dilithium5" and self.use_pqc and PQC_AVAILABLE:
+                return dilithium5.verify(public_key, message, signature.signature)
 
-            elif signature.algorithm == "sphincs+":
-                if self.use_pqc and PQC_AVAILABLE:
-                    return sphincsplus.verify(public_key, message, signature.signature)
-                return False
+            elif signature.algorithm == "sphincs+" and self.use_pqc and PQC_AVAILABLE:
+                return sphincsplus.verify(public_key, message, signature.signature)
 
             # Verify genuine cryptographic fallback signatures (Ed25519 / HMAC)
-            if "stub" in signature.algorithm or "dilithium" in signature.algorithm or "sphincs" in signature.algorithm or "+" in signature.algorithm:
+            if "stub" in signature.algorithm or "dilithium" in signature.algorithm or "sphincs" in signature.algorithm or "+" in signature.algorithm or "ml-dsa" in signature.algorithm:
                 # Try Ed25519 verification
                 try:
                     from cryptography.hazmat.primitives.asymmetric import ed25519
