@@ -22,10 +22,25 @@ import time
 import json
 import urllib.request
 import urllib.error
+import io
 
+# Set UTF-8 encoding for Windows console
+if sys.platform == 'win32':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
-def log(msg):
-    print(f"[{time.strftime('%H:%M:%S')}] {msg}")
+def log(msg, level="INFO"):
+    """Log with timestamp and visual indicators"""
+    timestamp = time.strftime('%H:%M:%S')
+    symbols = {
+        "INFO": "ℹ️",
+        "SUCCESS": "✅",
+        "ERROR": "❌",
+        "WARN": "⚠️",
+        "PROGRESS": "🔄"
+    }
+    symbol = symbols.get(level, "ℹ️")
+    print(f"[{timestamp}] {symbol} {msg}")
 
 
 def wait_for_server(url, timeout=30):
@@ -59,12 +74,12 @@ def api_call(method, path, data=None, headers=None):
 
 
 def main():
-    log("=" * 60)
-    log("TFP 30-Second Demo")
-    log("=" * 60)
+    log("=" * 60, "INFO")
+    log("TFP 30-Second Demo", "INFO")
+    log("=" * 60, "INFO")
 
     # Step 1: Start server in background
-    log("Starting TFP demo server...")
+    log("Step 1/5: Starting TFP demo server...", "PROGRESS")
     server_proc = subprocess.Popen(
         [
             sys.executable,
@@ -88,14 +103,14 @@ def main():
 
     # Wait for server
     if not wait_for_server("http://localhost:8000/health"):
-        log("ERROR: Server failed to start")
+        log("ERROR: Server failed to start", "ERROR")
         server_proc.terminate()
         return 1
-    log("✓ Server ready on http://localhost:8000")
+    log("Server ready on http://localhost:8000", "SUCCESS")
 
     try:
         # Step 2: Enroll device
-        log("Enrolling demo device...")
+        log("Step 2/5: Enrolling demo device...", "PROGRESS")
         device_id = "demo-device-001"
         puf_entropy = "a" * 64  # Demo entropy
         result = api_call(
@@ -104,12 +119,12 @@ def main():
             {"device_id": device_id, "puf_entropy_hex": puf_entropy},
         )
         if "error" in result:
-            log(f"Enroll failed: {result['error']}")
+            log(f"Enroll failed: {result['error']}", "ERROR")
             return 1
-        log(f"✓ Device enrolled: {device_id}")
+        log(f"Device enrolled: {device_id}", "SUCCESS")
 
         # Step 3: Publish content
-        log("Publishing sample content...")
+        log("Step 3/5: Publishing sample content...", "PROGRESS")
         import hmac
         import hashlib
 
@@ -132,15 +147,15 @@ def main():
         publish_time = (time.time() - start) * 1000
 
         if "error" in result:
-            log(f"Publish failed: {result['error']}")
+            log(f"Publish failed: {result['error']}", "ERROR")
             return 1
 
         content_hash = result.get("root_hash", "unknown")
-        log(f"✓ Content published in {publish_time:.0f}ms")
-        log(f"  Hash: {content_hash[:16]}...")
+        log(f"Content published in {publish_time:.0f}ms", "SUCCESS")
+        log(f"  Hash: {content_hash[:16]}...", "INFO")
 
         # Step 4: Earn credits (required before retrieve)
-        log("Earning demo credits...")
+        log("Step 4/5: Earning demo credits...", "PROGRESS")
         task_id = "demo-task-001"
         earn_sig = hmac.new(
             entropy_bytes, f"{device_id}:{task_id}".encode(), hashlib.sha256
@@ -152,47 +167,48 @@ def main():
             headers={"X-Device-Sig": earn_sig},
         )
         if "error" in result:
-            log(f"Earn failed: {result['error']}")
-            log("Continuing anyway for demo...")
+            log(f"Earn failed: {result['error']}", "WARN")
+            log("Continuing anyway for demo...", "WARN")
         else:
-            log(f"✓ Credits earned: {result.get('credits_earned', 0)}")
+            log(f"Credits earned: {result.get('credits_earned', 0)}", "SUCCESS")
 
         # Step 5: Retrieve content
-        log("Retrieving content...")
+        log("Step 5/5: Retrieving content...", "PROGRESS")
         start = time.time()
         result = api_call("GET", f"/api/get/{content_hash}?device_id={device_id}")
         retrieve_time = (time.time() - start) * 1000
 
         if "error" in result:
-            log(f"Retrieve failed: {result['error']}")
+            log(f"Retrieve failed: {result['error']}", "ERROR")
             return 1
 
-        log(f"✓ Content retrieved in {retrieve_time:.0f}ms")
-        log(f"  Title: {result.get('title', 'N/A')}")
-        log(f"  Size: {len(result.get('text', ''))} chars")
+        log(f"Content retrieved in {retrieve_time:.0f}ms", "SUCCESS")
+        log(f"  Title: {result.get('title', 'N/A')}", "INFO")
+        log(f"  Size: {len(result.get('text', ''))} chars", "INFO")
 
         # Step 5: Check status
         status = api_call("GET", "/api/status")
-        log("Node status:")
-        log(f"  Version: {status.get('version', 'N/A')}")
-        log(f"  Total supply: {status.get('total_supply', 0)} credits")
-        log(f"  Enrolled devices: {status.get('total_enrolled', 0)}")
+        log("Node Status:", "INFO")
+        log(f"  Version: {status.get('version', 'N/A')}", "INFO")
+        log(f"  Total supply: {status.get('total_supply', 0)} credits", "INFO")
+        log(f"  Enrolled devices: {status.get('total_enrolled', 0)}", "INFO")
 
         # Summary
-        log("=" * 60)
-        log("Demo complete!")
-        log("=" * 60)
-        log(f"Publish time: {publish_time:.0f}ms")
-        log(f"Retrieve time: {retrieve_time:.0f}ms")
-        log(f"Total time: {publish_time + retrieve_time:.0f}ms")
-        log("")
-        log("Next steps:")
-        log("  - Open http://localhost:8000 for PWA demo")
-        log("  - Run: python -m tfp_cli.main join --device-id my-laptop")
-        log("  - See README.md for more examples")
+        log("=" * 60, "INFO")
+        log("🎉 Demo Complete!", "SUCCESS")
+        log("=" * 60, "INFO")
+        log(f"⏱️  Publish time: {publish_time:.0f}ms", "INFO")
+        log(f"⏱️  Retrieve time: {retrieve_time:.0f}ms", "INFO")
+        log(f"⏱️  Total time: {publish_time + retrieve_time:.0f}ms", "INFO")
+        log("", "INFO")
+        log("🚀 Next Steps:", "INFO")
+        log("  📱 Open http://localhost:8000 for PWA demo", "INFO")
+        log("  💻 Run: python -m tfp_cli.main join --device-id my-laptop", "INFO")
+        log("  📖 See README.md for more examples", "INFO")
+        log("  📚 Check DEMO_GUIDE.md for advanced scenarios", "INFO")
 
     finally:
-        log("Shutting down server...")
+        log("Shutting down server...", "INFO")
         server_proc.terminate()
         server_proc.wait()
 

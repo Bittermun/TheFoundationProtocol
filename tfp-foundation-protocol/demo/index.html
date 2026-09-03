@@ -7,50 +7,101 @@
   <link rel="manifest" href="/manifest.json" />
   <title>Scholo / TFP Live Demo</title>
   <style>
-    body { font-family: system-ui, sans-serif; margin: 2rem; max-width: 900px; }
-    textarea, input { width: 100%; margin: .4rem 0; padding: .5rem; }
-    button { padding: .5rem .8rem; margin-right: .5rem; }
-    .card { border: 1px solid #ddd; border-radius: 8px; padding: 1rem; margin: 1rem 0; }
-    code { word-break: break-all; }
-    #deviceStatus { font-size: .85rem; color: #555; }
+    body { font-family: system-ui, sans-serif; margin: 2rem; max-width: 900px; background: #f8fafc; }
+    .container { max-width: 900px; margin: 0 auto; padding: 2rem; }
+    h1 { color: #1e40af; margin-bottom: 0.5rem; }
+    .subtitle { color: #64748b; margin-bottom: 2rem; }
+    textarea, input { width: 100%; margin: .4rem 0; padding: .5rem; border: 1px solid #cbd5e1; border-radius: 4px; }
+    button { padding: .5rem .8rem; margin-right: .5rem; background: #2563eb; color: white; border: none; border-radius: 4px; cursor: pointer; }
+    button:hover { background: #1d4ed8; }
+    button:disabled { background: #94a3b8; cursor: not-allowed; }
+    .card { border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.5rem; margin: 1rem 0; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .card h2 { color: #1e40af; margin-top: 0; font-size: 1.25rem; }
+    code { word-break: break-all; background: #f1f5f9; padding: 0.2rem 0.4rem; border-radius: 4px; }
+    #deviceStatus { font-size: .85rem; color: #475569; background: #f1f5f9; padding: 0.5rem; border-radius: 4px; }
+    pre { background: #f1f5f9; padding: 1rem; border-radius: 4px; overflow-x: auto; font-size: 0.85rem; }
+    .status-indicator { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; }
+    .status-online { background: #22c55e; }
+    .status-offline { background: #ef4444; }
+    .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-top: 1rem; }
+    .metric-card { background: #f8fafc; padding: 1rem; border-radius: 4px; text-align: center; }
+    .metric-value { font-size: 1.5rem; font-weight: bold; color: #1e40af; }
+    .metric-label { font-size: 0.85rem; color: #64748b; }
+    .progress-bar { width: 100%; height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden; margin: 0.5rem 0; }
+    .progress-fill { height: 100%; background: #22c55e; transition: width 0.3s ease; }
+    .tag { display: inline-block; background: #dbeafe; color: #1e40af; padding: 0.2rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin: 0.2rem; }
+    .content-item { padding: 0.75rem; border-bottom: 1px solid #e2e8f0; }
+    .content-item:last-child { border-bottom: none; }
+    .content-hash { font-family: monospace; font-size: 0.75rem; color: #64748b; }
+    .loading { text-align: center; color: #64748b; padding: 1rem; }
   </style>
 </head>
 <body>
-  <h1>Scholo / TFP Live Demo</h1>
-  <p>Publish and retrieve content from a local TFP demo node.</p>
+  <div class="container">
+    <h1>🚀 TFP Live Demo</h1>
+    <p class="subtitle">Publish and retrieve content from a local TFP demo node</p>
 
-  <div class="card">
-    <h2>Device identity</h2>
-    <p id="deviceStatus">Loading…</p>
-    <button onclick="resetDevice()">Reset device (new identity)</button>
-  </div>
+    <div class="card">
+      <h2>📱 Device Identity</h2>
+      <p id="deviceStatus"><span class="status-indicator status-offline"></span>Loading…</p>
+      <button onclick="resetDevice()">Reset device (new identity)</button>
+    </div>
 
-  <div class="card">
-    <h2>1) Earn credits</h2>
-    <button onclick="earn()">Earn 10 credits</button>
-    <pre id="earnOut"></pre>
-  </div>
+    <div class="card">
+      <h2>💰 Earn Credits</h2>
+      <p>Participate in the compute pool to earn credits</p>
+      <button onclick="earn()" id="earnBtn">Earn 10 credits</button>
+      <div class="progress-bar">
+        <div class="progress-fill" id="earnProgress" style="width: 0%"></div>
+      </div>
+      <pre id="earnOut"></pre>
+    </div>
 
-  <div class="card">
-    <h2>2) Publish content</h2>
-    <input id="title" placeholder="Title" value="Community Bulletin" />
-    <input id="tags" placeholder="Tags (comma separated)" value="demo,community" />
-    <textarea id="text" rows="4">This is a demo post seeded through the TFP demo API.</textarea>
-    <button onclick="publish()">Publish</button>
-    <pre id="publishOut"></pre>
-  </div>
+    <div class="card">
+      <h2>📝 Publish Content</h2>
+      <input id="title" placeholder="Title" value="Community Bulletin" />
+      <input id="tags" placeholder="Tags (comma separated)" value="demo,community" />
+      <textarea id="text" rows="4">This is a demo post seeded through the TFP demo API.</textarea>
+      <button onclick="publish()" id="publishBtn">Publish content</button>
+      <div class="progress-bar">
+        <div class="progress-fill" id="publishProgress" style="width: 0%"></div>
+      </div>
+      <pre id="publishOut"></pre>
+    </div>
 
-  <div class="card">
-    <h2>3) Retrieve by hash</h2>
-    <input id="hash" placeholder="Paste root hash" />
-    <button onclick="fetchContent()">Get content</button>
-    <pre id="getOut"></pre>
-  </div>
+    <div class="card">
+      <h2>🔍 Retrieve Content</h2>
+      <input id="hash" placeholder="Paste root hash" />
+      <button onclick="fetchContent()" id="fetchBtn">Get content</button>
+      <div class="progress-bar">
+        <div class="progress-fill" id="fetchProgress" style="width: 0%"></div>
+      </div>
+      <pre id="getOut"></pre>
+    </div>
 
-  <div class="card">
-    <h2>Available content</h2>
-    <button onclick="listContent()">Refresh list</button>
-    <pre id="listOut"></pre>
+    <div class="card">
+      <h2>📚 Available Content</h2>
+      <button onclick="listContent()" id="listBtn">Refresh list</button>
+      <div id="contentList" class="loading">Loading content...</div>
+    </div>
+
+    <div class="card">
+      <h2>📊 Network Metrics</h2>
+      <div class="metrics">
+        <div class="metric-card">
+          <div class="metric-value" id="metricTotalContent">0</div>
+          <div class="metric-label">Total Content</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-value" id="metricMyCredits">0</div>
+          <div class="metric-label">My Credits</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-value" id="metricDevices">0</div>
+          <div class="metric-label">Active Devices</div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -108,51 +159,139 @@
 
     async function init() {
       await ensureEnrolled(DEVICE);
-      document.getElementById("deviceStatus").textContent =
-        `Device ID: ${DEVICE.id} (enrolled)`;
+      document.getElementById("deviceStatus").innerHTML =
+        `<span class="status-indicator status-online"></span>Device ID: ${DEVICE.id} (enrolled)`;
       listContent();
+      updateMetrics();
+    }
+
+    function setButtonLoading(btnId, loading, progressId = null) {
+      const btn = document.getElementById(btnId);
+      if (loading) {
+        btn.disabled = true;
+        btn.textContent = "Processing...";
+        if (progressId) {
+          document.getElementById(progressId).style.width = "30%";
+        }
+      } else {
+        btn.disabled = false;
+        btn.textContent = btnId === "earnBtn" ? "Earn 10 credits" :
+                       btnId === "publishBtn" ? "Publish content" :
+                       btnId === "fetchBtn" ? "Get content" : "Refresh list";
+        if (progressId) {
+          document.getElementById(progressId).style.width = "100%";
+          setTimeout(() => {
+            document.getElementById(progressId).style.width = "0%";
+          }, 500);
+        }
+      }
     }
 
     async function earn() {
-      const taskId = "demo-task-" + Date.now();
-      const sig = await makeDeviceSig(DEVICE, `${DEVICE.id}:${taskId}`);
-      const res = await fetch("/api/earn", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Device-Sig": sig },
-        body: JSON.stringify({ device_id: DEVICE.id, task_id: taskId })
-      });
-      document.getElementById("earnOut").textContent = JSON.stringify(await res.json(), null, 2);
+      setButtonLoading("earnBtn", true, "earnProgress");
+      try {
+        const taskId = "demo-task-" + Date.now();
+        const sig = await makeDeviceSig(DEVICE, `${DEVICE.id}:${taskId}`);
+        const res = await fetch("/api/earn", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Device-Sig": sig },
+          body: JSON.stringify({ device_id: DEVICE.id, task_id: taskId })
+        });
+        const result = await res.json();
+        document.getElementById("earnOut").textContent = JSON.stringify(result, null, 2);
+        updateMetrics();
+      } catch (error) {
+        document.getElementById("earnOut").textContent = `Error: ${error.message}`;
+      } finally {
+        setButtonLoading("earnBtn", false, "earnProgress");
+      }
     }
 
     async function publish() {
-      const title = document.getElementById("title").value;
-      const sig = await makeDeviceSig(DEVICE, `${DEVICE.id}:${title}`);
-      const payload = {
-        title,
-        text: document.getElementById("text").value,
-        tags: document.getElementById("tags").value.split(",").map(t => t.trim()).filter(Boolean),
-        device_id: DEVICE.id
-      };
-      const res = await fetch("/api/publish", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Device-Sig": sig },
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json();
-      document.getElementById("publishOut").textContent = JSON.stringify(data, null, 2);
-      if (data.root_hash) document.getElementById("hash").value = data.root_hash;
-      listContent();
+      setButtonLoading("publishBtn", true, "publishProgress");
+      try {
+        const title = document.getElementById("title").value;
+        const sig = await makeDeviceSig(DEVICE, `${DEVICE.id}:${title}`);
+        const payload = {
+          title,
+          text: document.getElementById("text").value,
+          tags: document.getElementById("tags").value.split(",").map(t => t.trim()).filter(Boolean),
+          device_id: DEVICE.id
+        };
+        const res = await fetch("/api/publish", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Device-Sig": sig },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        document.getElementById("publishOut").textContent = JSON.stringify(data, null, 2);
+        if (data.root_hash) document.getElementById("hash").value = data.root_hash;
+        listContent();
+        updateMetrics();
+      } catch (error) {
+        document.getElementById("publishOut").textContent = `Error: ${error.message}`;
+      } finally {
+        setButtonLoading("publishBtn", false, "publishProgress");
+      }
     }
 
     async function fetchContent() {
-      const hash = document.getElementById("hash").value.trim();
-      const res = await fetch(`/api/get/${hash}?device_id=${encodeURIComponent(DEVICE.id)}`);
-      document.getElementById("getOut").textContent = JSON.stringify(await res.json(), null, 2);
+      setButtonLoading("fetchBtn", true, "fetchProgress");
+      try {
+        const hash = document.getElementById("hash").value.trim();
+        if (!hash) {
+          document.getElementById("getOut").textContent = "Please enter a content hash";
+          return;
+        }
+        const res = await fetch(`/api/get/${hash}?device_id=${encodeURIComponent(DEVICE.id)}`);
+        const result = await res.json();
+        document.getElementById("getOut").textContent = JSON.stringify(result, null, 2);
+      } catch (error) {
+        document.getElementById("getOut").textContent = `Error: ${error.message}`;
+      } finally {
+        setButtonLoading("fetchBtn", false, "fetchProgress");
+      }
     }
 
     async function listContent() {
-      const res = await fetch("/api/content");
-      document.getElementById("listOut").textContent = JSON.stringify(await res.json(), null, 2);
+      try {
+        const res = await fetch("/api/content");
+        const data = await res.json();
+        const contentList = document.getElementById("contentList");
+        
+        if (data.content && data.content.length > 0) {
+          contentList.innerHTML = data.content.map(item => `
+            <div class="content-item">
+              <strong>${item.title || 'Untitled'}</strong>
+              <div class="content-hash">${item.root_hash || 'N/A'}</div>
+              <div>
+                ${(item.tags || []).map(tag => `<span class="tag">${tag}</span>`).join('')}
+              </div>
+            </div>
+          `).join('');
+        } else {
+          contentList.innerHTML = '<div class="loading">No content available yet. Publish some content to get started!</div>';
+        }
+      } catch (error) {
+        document.getElementById("contentList").innerHTML = `<div class="loading">Error loading content: ${error.message}</div>`;
+      }
+    }
+
+    async function updateMetrics() {
+      try {
+        const res = await fetch("/api/status");
+        const data = await res.json();
+        
+        document.getElementById("metricTotalContent").textContent = data.total_content || 0;
+        document.getElementById("metricDevices").textContent = data.total_enrolled || 0;
+        
+        // Get device-specific info
+        const deviceRes = await fetch(`/api/device/${encodeURIComponent(DEVICE.id)}`);
+        const deviceData = await deviceRes.json();
+        document.getElementById("metricMyCredits").textContent = deviceData.credits || 0;
+      } catch (error) {
+        console.error("Failed to update metrics:", error);
+      }
     }
 
     // -----------------------------------------------------------------------
