@@ -33,6 +33,19 @@ from fastapi.responses import (
 from tfp_client.lib.bridges.ipfs_bridge import IPFSBridge
 from pydantic import BaseModel, Field, ValidationError
 from tfp_demo.config_validation import validate_runtime_config
+from tfp_demo.peer_schema import PeerSchema
+from tfp_client.lib.peer.peer_repository import PeerRepository
+from tfp_client.lib.peer.peer_models import (
+    PeerInfo,
+    PeerDiscoverRequest,
+    PeerDiscoverResponse,
+    PeerHandshakeRequest,
+    PeerHandshakeResponse,
+    PeerAnnounceRequest,
+    PeerFilters,
+)
+from tfp_client.lib.peer.peer_discovery import PeerDiscovery as PeerDiscoveryService
+from tfp_client.lib.peer.peer_discovery import PeerHandshake as PeerHandshakeService
 from tfp_broadcaster.broadcaster import Broadcaster
 from tfp_client.lib.bridges.nostr_subscriber import NostrSubscriber
 from tfp_client.lib.bridges.nostr_bridge import (
@@ -69,6 +82,13 @@ _DEFAULT_DB_PATH = Path(__file__).resolve().parent.parent / "pib.db"
 # Database instance (initialized in lifespan)
 _db: Optional[Database] = None
 
+# Peer repository (initialized in lifespan)
+_peer_repo: Optional[PeerRepository] = None
+
+# Peer discovery services (initialized in lifespan)
+_peer_discovery: Optional[PeerDiscoveryService] = None
+_peer_handshake: Optional[PeerHandshakeService] = None
+
 # Track ongoing chunked uploads: upload_id -> {chunks: {index: bytes}, total_chunks: int, created_at: float}
 _ongoing_uploads: Dict[str, Dict] = {}
 _uploads_lock = threading.Lock()
@@ -76,6 +96,9 @@ _UPLOAD_CLEANUP_INTERVAL_SECONDS = 3600  # Clean up uploads older than 1 hour
 _UPLOAD_MAX_AGE_SECONDS = 3600  # Maximum age for an upload session
 _UPLOAD_IDLE_TIMEOUT = 300  # 5 minutes - Clean up uploads with no recent chunks
 _last_cleanup_time = 0.0  # Track last cleanup time
+
+# SEC-001: Chunk Upload Size Limit
+TFP_MAX_UPLOAD_BYTES = int(os.environ.get("TFP_MAX_UPLOAD_BYTES", 100 * 1024 * 1024))
 
 # Rate limiting for chunk uploads (in-memory, per upload_id)
 _chunk_rate_limits: Dict[str, List[float]] = {}
@@ -2477,6 +2500,15 @@ async def lifespan(_app: FastAPI):
         _conn = _db.get_underlying_connection()
         _db_lock = threading.RLock()
 
+        # ── Peer Schema: Initialize P2P networking tables ──
+        global _peer_repo, _peer_discovery, _peer_handshake
+        peer_schema = PeerSchema(_conn, _db_lock)
+        peer_schema.add_content_sharding_columns()
+        _peer_repo = PeerRepository(_conn, _db_lock)
+        _peer_discovery = PeerDiscoveryService(_peer_repo, _device_registry)
+        _peer_handshake = PeerHandshakeService(_peer_repo, _device_registry)
+        log.info("Peer repository and discovery services initialized")
+
         # ── BlobStore: filesystem for file-backed DB, in-memory for :memory: ──
         _tmp_blob_dir: Optional[str] = None
         if db_path != ":memory:":
@@ -3031,11 +3063,30 @@ async def upload_chunk(
             _ongoing_uploads[upload_id] = {
                 "chunks": {},
                 "total_chunks": 0,
+                "cumulative_bytes": 0,
                 "created_at": time.time(),
                 "last_chunk_time": time.time(),
             }
 
+        # SEC-001: Enforce cumulative size limit
+        current_cumulative = _ongoing_uploads[upload_id].get("cumulative_bytes", 0)
+        old_chunk = _ongoing_uploads[upload_id]["chunks"].get(chunk_index)
+        new_cumulative = (
+            current_cumulative - (len(old_chunk) if old_chunk else 0) + len(chunk_data)
+        )
+
+        if new_cumulative > TFP_MAX_UPLOAD_BYTES:
+            log.warning(
+                f"Upload size limit exceeded for {upload_id}: "
+                f"{new_cumulative} bytes > {TFP_MAX_UPLOAD_BYTES} bytes"
+            )
+            raise HTTPException(
+                status_code=413,
+                detail=f"Upload size limit exceeded (max {TFP_MAX_UPLOAD_BYTES} bytes)",
+            )
+
         _ongoing_uploads[upload_id]["chunks"][chunk_index] = chunk_data
+        _ongoing_uploads[upload_id]["cumulative_bytes"] = new_cumulative
         _ongoing_uploads[upload_id]["last_chunk_time"] = time.time()
         log.debug(
             "Received chunk %d for upload %s (total chunks: %d)",
@@ -4317,6 +4368,161 @@ def submit_task_result(
             log.warning("Task pool replenish failed: %s", exc)
 
     return verification
+
+
+# ---------------------------------------------------------------------------
+# P2P Peer Discovery & Management
+# ---------------------------------------------------------------------------
+
+
+@app.post("/api/peer/discover")
+async def discover_peers(
+    request: PeerDiscoverRequest,
+    x_device_sig: str = Header(alias="X-Device-Sig"),
+) -> dict:
+    """
+    Discover and register with peers in the network.
+    
+    This endpoint allows a peer to announce itself to the network and
+    request a list of available peers for connection. It performs
+    capability exchange and returns peers matching the requested criteria.
+    """
+    if _peer_discovery is None:
+        raise HTTPException(status_code=503, detail="Peer discovery service not initialized")
+    
+    # Verify device signature
+    message = f"{request.peer_id}:discover"
+    if not _verify_device_sig(request.peer_id, x_device_sig, message, _device_registry):
+        _metrics.inc("tfp_auth_failures_total")
+        raise HTTPException(
+            status_code=401,
+            detail="invalid device signature — enroll first via /api/enroll"
+        )
+    
+    try:
+        # Use peer discovery service
+        response = await _peer_discovery.discover_peers(request, request.peer_id)
+        return response.dict()
+        
+    except Exception as exc:
+        log.error("Peer discovery failed: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Peer discovery failed: {str(exc)}")
+
+
+@app.post("/api/peer/handshake")
+async def peer_handshake(
+    request: PeerHandshakeRequest,
+    x_device_sig: str = Header(alias="X-Device-Sig"),
+) -> dict:
+    """
+    Perform cryptographic handshake with a peer.
+    
+    This endpoint establishes a secure channel with another peer by
+    exchanging public keys, verifying signatures, and optionally performing
+    challenge-response authentication using existing PUF/TEE identity.
+    """
+    if _peer_handshake is None:
+        raise HTTPException(status_code=503, detail="Peer handshake service not initialized")
+    
+    # Verify device signature
+    message = f"{request.peer_id}:handshake"
+    if not _verify_device_sig(request.peer_id, x_device_sig, message, _device_registry):
+        _metrics.inc("tfp_auth_failures_total")
+        raise HTTPException(
+            status_code=401,
+            detail="invalid device signature — enroll first via /api/enroll"
+        )
+    
+    try:
+        # Use peer handshake service
+        response = await _peer_handshake.perform_handshake(request, request.peer_id)
+        return response.dict()
+        
+    except Exception as exc:
+        log.error("Peer handshake failed: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Peer handshake failed: {str(exc)}")
+
+
+@app.get("/api/peer/list")
+async def list_peers_endpoint(
+    status: str = Query(default="active"),
+    min_reputation: int = Query(default=50, ge=0, le=100),
+    limit: int = Query(default=50, ge=1, le=200),
+) -> dict:
+    """
+    Get list of available peers with filtering.
+    
+    Returns peers matching the specified criteria, useful for network
+    monitoring and peer selection algorithms.
+    """
+    if _peer_repo is None:
+        raise HTTPException(status_code=503, detail="Peer repository not initialized")
+    
+    try:
+        filters = PeerFilters(
+            status=status,
+            min_reputation=min_reputation,
+            limit=limit
+        )
+        
+        peers = await _peer_repo.list_peers(filters)
+        
+        return {
+            "peers": [peer.dict() for peer in peers],
+            "total_count": len(peers),
+            "filters": filters.dict()
+        }
+        
+    except Exception as exc:
+        log.error("Peer list retrieval failed: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Peer list retrieval failed: {str(exc)}")
+
+
+@app.post("/api/peer/announce")
+async def announce_peer(
+    request: PeerAnnounceRequest,
+    x_device_sig: str = Header(alias="X-Device-Sig"),
+) -> dict:
+    """
+    Announce peer presence to the network.
+    
+    This endpoint allows a peer to announce its presence and capabilities
+    to the network, making it discoverable by other peers.
+    """
+    if _peer_repo is None:
+        raise HTTPException(status_code=503, detail="Peer repository not initialized")
+    
+    # Verify device signature
+    message = f"{request.peer_id}:announce"
+    if not _verify_device_sig(request.peer_id, x_device_sig, message, _device_registry):
+        _metrics.inc("tfp_auth_failures_total")
+        raise HTTPException(
+            status_code=401,
+            detail="invalid device signature — enroll first via /api/enroll"
+        )
+    
+    try:
+        peer_info = PeerInfo(
+            peer_id=request.peer_id,
+            public_key=request.public_key,
+            ip_address=request.ip_address,
+            port=request.port,
+            capabilities=request.capabilities,
+            reputation_score=100,
+            status="active"
+        )
+        
+        registered_peer = await _peer_repo.register_peer(peer_info)
+        
+        return {
+            "success": True,
+            "peer_id": registered_peer.peer_id,
+            "registered_at": registered_peer.created_at.isoformat() if registered_peer.created_at else None
+        }
+        
+    except Exception as exc:
+        log.error("Peer announcement failed: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Peer announcement failed: {str(exc)}")
 
 
 # ---------------------------------------------------------------------------
