@@ -412,26 +412,28 @@ class PeerRepository:
         content_hash: str,
         shard_index: int,
         peer_id: str,
-        availability_score: float = 1.0
+        availability_score: float = 1.0,
+        shard_size: Optional[int] = None
     ) -> bool:
         """
         Register that a peer hosts a specific shard.
-        
+
         Args:
             content_hash: Parent content hash
             shard_index: Shard index
             peer_id: Hosting peer ID
             availability_score: Peer availability score
-            
+            shard_size: Optional shard size in bytes
+
         Returns:
             True if registration was successful, False otherwise
         """
         with self._db_lock:
             current_time = time.time()
-            
+
             self._conn.execute(
                 """
-                INSERT INTO content_shard_locations 
+                INSERT INTO content_shard_locations
                 (content_hash, shard_index, peer_id, availability_score, last_verified)
                 VALUES (?, ?, ?, ?, ?)
                 """,
@@ -485,6 +487,92 @@ class PeerRepository:
                 )
                 for row in rows
             ]
+
+    async def is_content_distributed(self, content_hash: str) -> bool:
+        """
+        Check if content has been distributed to peers.
+
+        Args:
+            content_hash: Content hash to check
+
+        Returns:
+            True if content has shard locations registered, False otherwise
+        """
+        with self._db_lock:
+            row = self._conn.execute(
+                """
+                SELECT COUNT(*) FROM content_shard_locations
+                WHERE content_hash = ?
+                """,
+                (content_hash,)
+            ).fetchone()
+            return row[0] > 0 if row else False
+
+    async def get_distribution_status(self, content_hash: str) -> Optional[dict]:
+        """
+        Get distribution status for a piece of content.
+
+        Args:
+            content_hash: Content hash to query
+
+        Returns:
+            Dictionary with distribution status or None if not found
+        """
+        with self._db_lock:
+            # Get shard metadata
+            shard_rows = self._conn.execute(
+                """
+                SELECT shard_index, size_bytes, parity_shard
+                FROM content_shards
+                WHERE content_hash = ?
+                ORDER BY shard_index
+                """,
+                (content_hash,)
+            ).fetchall()
+
+            if not shard_rows:
+                return None
+
+            # Get shard locations
+            location_rows = self._conn.execute(
+                """
+                SELECT shard_index, peer_id, availability_score, last_verified
+                FROM content_shard_locations
+                WHERE content_hash = ?
+                ORDER BY shard_index, availability_score DESC
+                """,
+                (content_hash,)
+            ).fetchall()
+
+            # Build status
+            total_shards = len(shard_rows)
+            data_shards = sum(1 for r in shard_rows if not r[2])
+            parity_shards = total_shards - data_shards
+
+            locations_by_shard = {}
+            for row in location_rows:
+                shard_idx = row[0]
+                if shard_idx not in locations_by_shard:
+                    locations_by_shard[shard_idx] = []
+                locations_by_shard[shard_idx].append({
+                    "peer_id": row[1],
+                    "availability_score": row[2],
+                    "last_verified": datetime.fromtimestamp(row[3]).isoformat() if row[3] else None
+                })
+
+            distributed_shards = len(locations_by_shard)
+            coverage_percent = (distributed_shards / total_shards * 100) if total_shards > 0 else 0
+
+            return {
+                "content_hash": content_hash,
+                "total_shards": total_shards,
+                "data_shards": data_shards,
+                "parity_shards": parity_shards,
+                "distributed_shards": distributed_shards,
+                "coverage_percent": round(coverage_percent, 2),
+                "shard_locations": locations_by_shard,
+                "state": "distributed" if coverage_percent >= 100 else "partial" if coverage_percent > 0 else "not_distributed"
+            }
 
     # --------------------------------------------------------------------------
     # Mesh Routing Operations

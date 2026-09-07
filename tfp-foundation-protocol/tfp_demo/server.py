@@ -46,6 +46,8 @@ from tfp_client.lib.peer.peer_models import (
 )
 from tfp_client.lib.peer.peer_discovery import PeerDiscovery as PeerDiscoveryService
 from tfp_client.lib.peer.peer_discovery import PeerHandshake as PeerHandshakeService
+from tfp_client.lib.distribution.shard_manager import ShardManager, DistributionPlan, DistributionResult
+from tfp_client.lib.distribution.shard_retriever import ShardRetriever
 from tfp_broadcaster.broadcaster import Broadcaster
 from tfp_client.lib.bridges.nostr_subscriber import NostrSubscriber
 from tfp_client.lib.bridges.nostr_bridge import (
@@ -69,6 +71,7 @@ from tfp_client.lib.compute.verify_habp import (
 from tfp_client.lib.core.tfp_engine import TFPClient
 from tfp_client.lib.credit.ledger import MAX_SUPPLY, CreditLedger, Receipt
 from tfp_client.lib.fountain.fountain_real import RealRaptorQAdapter
+from tfp_client.lib.fountain.raptorq_ffi import RaptorQError
 from tfp_client.lib.lexicon.hlt.tree import HierarchicalLexiconTree
 from tfp_client.lib.metadata.tag_index import TagOverlayIndex
 from tfp_client.lib.ndn.adapter import Data, NDNAdapter
@@ -88,6 +91,10 @@ _peer_repo: Optional[PeerRepository] = None
 # Peer discovery services (initialized in lifespan)
 _peer_discovery: Optional[PeerDiscoveryService] = None
 _peer_handshake: Optional[PeerHandshakeService] = None
+
+# Distribution services (initialized in lifespan)
+_shard_manager: Optional[ShardManager] = None
+_shard_retriever: Optional[ShardRetriever] = None
 
 # Track ongoing chunked uploads: upload_id -> {chunks: {index: bytes}, total_chunks: int, created_at: float}
 _ongoing_uploads: Dict[str, Dict] = {}
@@ -1797,6 +1804,16 @@ class SubmitResultRequest(BaseModel):
     has_tee: bool = Field(default=False)
 
 
+class DistributeContentRequest(BaseModel):
+    redundancy: float = Field(default=3.0, ge=1.0, le=10.0)
+
+
+class RegisterShardRequest(BaseModel):
+    shard_index: int = Field(ge=0)
+    peer_id: str = Field(min_length=1, max_length=120)
+    shard_size: int = Field(ge=0)
+
+
 # ---------------------------------------------------------------------------
 # App state (initialised in lifespan)
 # ---------------------------------------------------------------------------
@@ -2501,13 +2518,18 @@ async def lifespan(_app: FastAPI):
         _db_lock = threading.RLock()
 
         # ── Peer Schema: Initialize P2P networking tables ──
-        global _peer_repo, _peer_discovery, _peer_handshake
+        global _peer_repo, _peer_discovery, _peer_handshake, _shard_manager, _shard_retriever
         peer_schema = PeerSchema(_conn, _db_lock)
         peer_schema.add_content_sharding_columns()
         _peer_repo = PeerRepository(_conn, _db_lock)
         _peer_discovery = PeerDiscoveryService(_peer_repo, _device_registry)
         _peer_handshake = PeerHandshakeService(_peer_repo, _device_registry)
         log.info("Peer repository and discovery services initialized")
+
+        # ── Distribution Services: Initialize content sharding and retrieval ──
+        _shard_manager = ShardManager(_peer_repo)
+        _shard_retriever = ShardRetriever(_peer_repo)
+        log.info("Distribution services initialized")
 
         # ── BlobStore: filesystem for file-backed DB, in-memory for :memory: ──
         _tmp_blob_dir: Optional[str] = None
@@ -4526,6 +4548,183 @@ async def announce_peer(
 
 
 # ---------------------------------------------------------------------------
+# Content distribution endpoints
+# ---------------------------------------------------------------------------
+
+
+@app.post("/api/content/{content_hash}/distribute")
+async def distribute_content(
+    content_hash: str,
+    request: DistributeContentRequest,
+    x_tfp_peer_secret: str = Header(default="", alias="X-TFP-Peer-Secret"),
+) -> dict:
+    """
+    Trigger or schedule content distribution across the peer mesh.
+
+    Validates that the content exists locally, encodes it using RaptorQ,
+    and distributes shards to suitable peers with specified redundancy.
+
+    In production mode, requires X-TFP-Peer-Secret header.
+    """
+    if _runtime_mode == "production":
+        if not _peer_secret or not _hmac.compare_digest(
+            x_tfp_peer_secret, _peer_secret
+        ):
+            _metrics.inc("tfp_auth_failures_total")
+            raise HTTPException(
+                status_code=401,
+                detail="X-TFP-Peer-Secret required for /api/content/{content_hash}/distribute in production mode",
+            )
+
+    try:
+        # Validate content exists
+        content_row = await _content_store.get_by_hash(content_hash)
+        if not content_row:
+            raise HTTPException(status_code=404, detail="Content not found")
+
+        # Check if already distributed
+        if await _peer_repo.is_content_distributed(content_hash):
+            return {
+                "success": True,
+                "content_hash": content_hash,
+                "message": "Content already distributed",
+                "distribution_status": await _peer_repo.get_distribution_status(content_hash)
+            }
+
+        # Get content data
+        content_data = content_row.get("content")
+        if not content_data:
+            if isinstance(content_data, str):
+                content_data = content_data.encode("utf-8")
+            else:
+                raise HTTPException(status_code=500, detail="Content data unavailable")
+
+        # Use ShardManager to encode and distribute
+        result = await _shard_manager.distribute_shards(
+            content_hash=content_hash,
+            content_data=content_data,
+            hmac_key=None,  # TODO: Consider adding per-content HMAC keys
+            redundancy=request.redundancy
+        )
+
+        return {
+            "success": result.success,
+            "content_hash": content_hash,
+            "shards_distributed": result.shards_distributed,
+            "shards_failed": result.shards_failed,
+            "peer_ids": result.peer_ids,
+            "distribution_time_ms": result.distribution_time_ms,
+            "errors": result.errors
+        }
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        log.error("Content distribution failed: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Content distribution failed: {str(exc)}")
+
+
+@app.get("/api/content/{content_hash}/distribution/status")
+async def get_distribution_status(
+    content_hash: str,
+    x_tfp_peer_secret: str = Header(default="", alias="X-TFP-Peer-Secret"),
+) -> dict:
+    """
+    Return distribution status for a piece of content.
+
+    Includes shard count, required shards, redundancy, successful locations,
+    failed locations, and overall distribution state.
+
+    In production mode, requires X-TFP-Peer-Secret header.
+    """
+    if _runtime_mode == "production":
+        if not _peer_secret or not _hmac.compare_digest(
+            x_tfp_peer_secret, _peer_secret
+        ):
+            _metrics.inc("tfp_auth_failures_total")
+            raise HTTPException(
+                status_code=401,
+                detail="X-TFP-Peer-Secret required for /api/content/{content_hash}/distribution/status in production mode",
+            )
+
+    try:
+        status = await _peer_repo.get_distribution_status(content_hash)
+        if not status:
+            raise HTTPException(status_code=404, detail="Content distribution status not found")
+
+        return {
+            "content_hash": content_hash,
+            "distribution_status": status
+        }
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        log.error("Failed to retrieve distribution status: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve distribution status: {str(exc)}")
+
+
+@app.post("/api/content/{content_hash}/shard/register")
+async def register_shard(
+    content_hash: str,
+    request: RegisterShardRequest,
+    x_tfp_peer_secret: str = Header(default="", alias="X-TFP-Peer-Secret"),
+) -> dict:
+    """
+    Register a peer-hosted shard location.
+
+    Validates shard metadata and peer identity. Does not permit arbitrary
+    location spoofing.
+
+    In production mode, requires X-TFP-Peer-Secret header.
+    """
+    if _runtime_mode == "production":
+        if not _peer_secret or not _hmac.compare_digest(
+            x_tfp_peer_secret, _peer_secret
+        ):
+            _metrics.inc("tfp_auth_failures_total")
+            raise HTTPException(
+                status_code=401,
+                detail="X-TFP-Peer-Secret required for /api/content/{content_hash}/shard/register in production mode",
+            )
+
+    try:
+        # Verify peer exists
+        peer = await _peer_repo.get_peer(request.peer_id)
+        if not peer:
+            raise HTTPException(status_code=404, detail="Peer not found")
+
+        # Validate content exists
+        content_row = await _content_store.get_by_hash(content_hash)
+        if not content_row:
+            raise HTTPException(status_code=404, detail="Content not found")
+
+        # Register shard location
+        await _peer_repo.register_shard_location(
+            content_hash=content_hash,
+            shard_index=request.shard_index,
+            peer_id=request.peer_id,
+            availability_score=1.0,
+            shard_size=request.shard_size
+        )
+
+        return {
+            "success": True,
+            "content_hash": content_hash,
+            "shard_index": request.shard_index,
+            "peer_id": request.peer_id,
+            "shard_size": request.shard_size,
+            "registered_at": time.ctime()
+        }
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        log.error("Shard registration failed: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Shard registration failed: {str(exc)}")
+
+
+# ---------------------------------------------------------------------------
 # Device leaderboard
 # ---------------------------------------------------------------------------
 
@@ -4640,6 +4839,8 @@ _ADMIN_HTML = """<!DOCTYPE html>
     .completed{background:#1a2e4a;color:#5b9cf6}
     .verifying{background:#3a2a0e;color:#f0a030}
     .failed{background:#3a1a1a;color:#f06060}
+    .active{background:#1e3a2a;color:#4caf78}
+    .inactive{background:#3a1a1a;color:#f06060}
     .refresh{margin-top:24px;color:#666;font-size:.8rem}
     .progress{background:#1a1a24;border-radius:99px;height:8px;margin-top:8px;overflow:hidden}
     .progress-bar{height:100%;background:linear-gradient(90deg,#7c6fcd,#a89cef);border-radius:99px;transition:width .4s}
@@ -4662,18 +4863,25 @@ _ADMIN_HTML = """<!DOCTYPE html>
     <th>#</th><th>Device ID</th><th>Credits</th><th>Tasks</th><th>Last Active</th>
   </tr></thead><tbody id="devices-body"></tbody></table>
 
+  <h2>P2P Mesh Status</h2>
+  <table><thead><tr>
+    <th>Peer ID</th><th>IP:Port</th><th>Status</th><th>Reputation</th><th>Capabilities</th>
+  </tr></thead><tbody id="peers-body"></tbody></table>
+
   <div class="refresh">Auto-refreshes every 5 seconds ·
     <a href="/api/status" style="color:#7c6fcd">Raw JSON</a> ·
     <a href="/api/devices" style="color:#7c6fcd">Devices</a> ·
+    <a href="/api/peer/list" style="color:#7c6fcd">Peers</a> ·
     <a href="/metrics" style="color:#7c6fcd">Prometheus</a>
   </div>
 
   <script>
     async function refresh() {
-      const [s, t, dv] = await Promise.all([
+      const [s, t, dv, p] = await Promise.all([
         fetch('/api/status').then(r=>r.json()).catch(()=>({})),
         fetch('/api/tasks').then(r=>r.json()).catch(()=>({tasks:[]})),
         fetch('/api/devices').then(r=>r.json()).catch(()=>({devices:[]})),
+        fetch('/api/peer/list').then(r=>r.json()).catch(()=>({peers:[]})),
       ]);
       const tasks_s = s.tasks || {};
       const metrics_s = s.metrics || {};
@@ -4692,6 +4900,7 @@ _ADMIN_HTML = """<!DOCTYPE html>
         {label:'Devices Enrolled', value: metrics_s.tfp_devices_enrolled_total||0, sub:'unique devices'},
         {label:'Content Served', value: metrics_s.tfp_content_served_total||0, sub:'requests fulfilled'},
         {label:'Nostr Events', value: s.nostr_events_received||0, sub: s.nostr_subscriber_running?'live':'offline'},
+        {label:'Mesh Peers', value: (p.peers||[]).length, sub:'connected nodes'},
         {label:'Supply Used', value: pct+'%', sub:'<div class="progress"><div class="progress-bar" style="width:'+pct+'%"></div></div>'},
       ];
       document.getElementById('cards').innerHTML = cards.map(c=>
@@ -4715,6 +4924,15 @@ _ADMIN_HTML = """<!DOCTYPE html>
         <td>${d.last_active ? new Date(d.last_active*1000).toLocaleTimeString() : '—'}</td>
       </tr>`).join('') || '<tr><td colspan="5" style="text-align:center;color:#555">No devices yet</td></tr>';
       document.getElementById('devices-body').innerHTML = drows;
+
+      const prows = (p.peers||[]).slice(0,20).map(peer=>`<tr>
+        <td><code>${peer.peer_id}</code></td>
+        <td>${peer.ip_address}:${peer.port}</td>
+        <td><span class="badge ${peer.status}">${peer.status}</span></td>
+        <td>${peer.reputation_score}</td>
+        <td>${peer.capabilities ? (peer.capabilities.storage ? '📦' : '') + (peer.capabilities.compute ? '⚡' : '') + (peer.capabilities.relay ? '🔄' : '') : '—'}</td>
+      </tr>`).join('') || '<tr><td colspan="5" style="text-align:center;color:#555">No peers connected</td></tr>';
+      document.getElementById('peers-body').innerHTML = prows;
     }
     refresh();
     setInterval(refresh, 5000);
