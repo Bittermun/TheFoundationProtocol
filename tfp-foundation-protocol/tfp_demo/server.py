@@ -48,6 +48,8 @@ from tfp_client.lib.peer.peer_discovery import PeerDiscovery as PeerDiscoverySer
 from tfp_client.lib.peer.peer_discovery import PeerHandshake as PeerHandshakeService
 from tfp_client.lib.distribution.shard_manager import ShardManager, DistributionPlan, DistributionResult
 from tfp_client.lib.distribution.shard_retriever import ShardRetriever
+from tfp_client.lib.gossip.gossip_protocol import GossipProtocol, GossipConfig
+from tfp_client.lib.routing.mesh_router import MeshRouter, RoutingConfig
 from tfp_broadcaster.broadcaster import Broadcaster
 from tfp_client.lib.bridges.nostr_subscriber import NostrSubscriber
 from tfp_client.lib.bridges.nostr_bridge import (
@@ -95,6 +97,10 @@ _peer_handshake: Optional[PeerHandshakeService] = None
 # Distribution services (initialized in lifespan)
 _shard_manager: Optional[ShardManager] = None
 _shard_retriever: Optional[ShardRetriever] = None
+
+# Gossip and routing services (initialized in lifespan)
+_gossip_protocol: Optional[GossipProtocol] = None
+_mesh_router: Optional[MeshRouter] = None
 
 # Track ongoing chunked uploads: upload_id -> {chunks: {index: bytes}, total_chunks: int, created_at: float}
 _ongoing_uploads: Dict[str, Dict] = {}
@@ -2518,7 +2524,7 @@ async def lifespan(_app: FastAPI):
         _db_lock = threading.RLock()
 
         # ── Peer Schema: Initialize P2P networking tables ──
-        global _peer_repo, _peer_discovery, _peer_handshake, _shard_manager, _shard_retriever
+        global _peer_repo, _peer_discovery, _peer_handshake, _shard_manager, _shard_retriever, _gossip_protocol, _mesh_router
         peer_schema = PeerSchema(_conn, _db_lock)
         peer_schema.add_content_sharding_columns()
         _peer_repo = PeerRepository(_conn, _db_lock)
@@ -2530,6 +2536,18 @@ async def lifespan(_app: FastAPI):
         _shard_manager = ShardManager(_peer_repo)
         _shard_retriever = ShardRetriever(_peer_repo)
         log.info("Distribution services initialized")
+
+        # ── Gossip and Routing Services: Initialize mesh networking ──
+        from tfp_client.lib.bridges.nostr_bridge import NostrBridge
+        nostr_bridge = NostrBridge(offline=True)  # Offline for now
+        gossip_config = GossipConfig(enable_relay_broadcast=False)
+        _gossip_protocol = GossipProtocol(_peer_repo, nostr_bridge, gossip_config)
+
+        # Use a default local peer ID for routing
+        local_peer_id = "local_node"
+        routing_config = RoutingConfig()
+        _mesh_router = MeshRouter(_peer_repo, local_peer_id, routing_config)
+        log.info("Gossip and routing services initialized")
 
         # ── BlobStore: filesystem for file-backed DB, in-memory for :memory: ──
         _tmp_blob_dir: Optional[str] = None
@@ -4722,6 +4740,151 @@ async def register_shard(
     except Exception as exc:
         log.error("Shard registration failed: %s", exc)
         raise HTTPException(status_code=500, detail=f"Shard registration failed: {str(exc)}")
+
+
+# ---------------------------------------------------------------------------
+# Gossip and routing endpoints
+# ---------------------------------------------------------------------------
+
+
+@app.post("/api/gossip/broadcast")
+async def broadcast_gossip(
+    message_type: str = Query(...),
+    payload: dict = Query(...),
+    ttl: int = Query(default=10),
+    x_tfp_peer_secret: str = Header(default="", alias="X-TFP-Peer-Secret"),
+) -> dict:
+    """
+    Broadcast a gossip message to the peer network.
+
+    In production mode, requires X-TFP-Peer-Secret header.
+    """
+    if _runtime_mode == "production":
+        if not _peer_secret or not _hmac.compare_digest(
+            x_tfp_peer_secret, _peer_secret
+        ):
+            _metrics.inc("tfp_auth_failures_total")
+            raise HTTPException(
+                status_code=401,
+                detail="X-TFP-Peer-Secret required for /api/gossip/broadcast in production mode",
+            )
+
+    try:
+        success = await _gossip_protocol.broadcast_message(
+            message_type=message_type,
+            payload=payload,
+            ttl=ttl,
+        )
+
+        return {
+            "success": success,
+            "message_type": message_type,
+            "ttl": ttl,
+        }
+
+    except Exception as exc:
+        log.error("Gossip broadcast failed: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Gossip broadcast failed: {str(exc)}")
+
+
+@app.get("/api/gossip/pending")
+async def get_pending_gossip(
+    limit: int = Query(default=100, ge=1, le=1000),
+    x_tfp_peer_secret: str = Header(default="", alias="X-TFP-Peer-Secret"),
+) -> dict:
+    """
+    Get pending unprocessed gossip messages.
+
+    In production mode, requires X-TFP-Peer-Secret header.
+    """
+    if _runtime_mode == "production":
+        if not _peer_secret or not _hmac.compare_digest(
+            x_tfp_peer_secret, _peer_secret
+        ):
+            _metrics.inc("tfp_auth_failures_total")
+            raise HTTPException(
+                status_code=401,
+                detail="X-TFP-Peer-Secret required for /api/gossip/pending in production mode",
+            )
+
+    try:
+        messages = await _gossip_protocol.get_pending_messages(limit)
+
+        return {
+            "messages": [msg.to_dict() for msg in messages],
+            "count": len(messages),
+        }
+
+    except Exception as exc:
+        log.error("Failed to get pending gossip: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Failed to get pending gossip: {str(exc)}")
+
+
+@app.get("/api/routing/table")
+async def get_routing_table(
+    x_tfp_peer_secret: str = Header(default="", alias="X-TFP-Peer-Secret"),
+) -> dict:
+    """
+    Get current routing table.
+
+    In production mode, requires X-TFP-Peer-Secret header.
+    """
+    if _runtime_mode == "production":
+        if not _peer_secret or not _hmac.compare_digest(
+            x_tfp_peer_secret, _peer_secret
+        ):
+            _metrics.inc("tfp_auth_failures_total")
+            raise HTTPException(
+                status_code=401,
+                detail="X-TFP-Peer-Secret required for /api/routing/table in production mode",
+            )
+
+    try:
+        routing_table = await _mesh_router.get_routing_table()
+        network_stats = await _mesh_router.get_network_stats()
+
+        return {
+            "routing_table": routing_table,
+            "network_stats": network_stats,
+        }
+
+    except Exception as exc:
+        log.error("Failed to get routing table: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Failed to get routing table: {str(exc)}")
+
+
+@app.post("/api/routing/rebuild")
+async def rebuild_routing_table(
+    x_tfp_peer_secret: str = Header(default="", alias="X-TFP-Peer-Secret"),
+) -> dict:
+    """
+    Force rebuild of routing table.
+
+    In production mode, requires X-TFP-Peer-Secret header.
+    """
+    if _runtime_mode == "production":
+        if not _peer_secret or not _hmac.compare_digest(
+            x_tfp_peer_secret, _peer_secret
+        ):
+            _metrics.inc("tfp_auth_failures_total")
+            raise HTTPException(
+                status_code=401,
+                detail="X-TFP-Peer-Secret required for /api/routing/rebuild in production mode",
+            )
+
+    try:
+        await _mesh_router.invalidate_cache()
+        routing_table = await _mesh_router.rebuild_routing_table()
+
+        return {
+            "success": True,
+            "reachable_destinations": len(routing_table.routes),
+            "last_rebuild": routing_table.last_rebuild,
+        }
+
+    except Exception as exc:
+        log.error("Failed to rebuild routing table: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Failed to rebuild routing table: {str(exc)}")
 
 
 # ---------------------------------------------------------------------------

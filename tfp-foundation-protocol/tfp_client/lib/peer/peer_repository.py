@@ -162,16 +162,19 @@ class PeerRepository:
             
             return self._row_to_peer(row)
 
-    async def list_peers(self, filters: PeerFilters) -> List[Peer]:
+    async def list_peers(self, filters: Optional[PeerFilters] = None) -> List[Peer]:
         """
         List peers with optional filtering.
-        
+
         Args:
             filters: Filter criteria for peer selection
-            
+
         Returns:
             List of peers matching the filters
         """
+        if filters is None:
+            filters = PeerFilters()
+
         with self._db_lock:
             # Build query with filters
             query = """
@@ -180,40 +183,40 @@ class PeerRepository:
                 FROM peer_registry WHERE 1=1
             """
             params = []
-            
+
             if filters.status:
                 query += " AND status = ?"
                 params.append(filters.status)
-            
+
             if filters.min_reputation is not None:
                 query += " AND reputation_score >= ?"
                 params.append(filters.min_reputation)
-            
+
             # Add capability filters if specified
             if filters.has_compute is not None or filters.has_storage is not None:
                 query += " AND capabilities IS NOT NULL"
-            
+
             query += " ORDER BY reputation_score DESC, last_seen DESC"
-            
+
             if filters.limit:
                 query += " LIMIT ?"
                 params.append(filters.limit)
-            
+
             if filters.offset:
                 query += " OFFSET ?"
                 params.append(filters.offset)
-            
+
             rows = self._conn.execute(query, params).fetchall()
-            
+
             peers = [self._row_to_peer(row) for row in rows]
-            
+
             # Apply capability filters in Python (since they're JSON)
             if filters.has_compute is not None or filters.has_storage is not None:
                 peers = [
                     peer for peer in peers
                     if self._matches_capability_filters(peer, filters)
                 ]
-            
+
             return peers
 
     async def update_peer_status(self, peer_id: str, status: str) -> bool:
@@ -356,6 +359,42 @@ class PeerRepository:
                     last_active=datetime.fromtimestamp(row[5]) if row[5] else None
                 ))
             
+            return connections
+
+    async def get_all_peer_connections(self) -> List[PeerConnection]:
+        """
+        Get all peer connections in the network.
+
+        Returns:
+            List of all peer connections
+        """
+        with self._db_lock:
+            rows = self._conn.execute(
+                """
+                SELECT local_peer_id, remote_peer_id, connection_type,
+                       latency_ms, bandwidth_kbps, last_active
+                FROM peer_connections
+                ORDER BY last_active DESC
+                """
+            ).fetchall()
+
+            connections = []
+            for row in rows:
+                metrics = ConnectionMetrics(
+                    latency_ms=row[3],
+                    bandwidth_kbps=row[4]
+                ) if row[3] or row[4] else None
+
+                connections.append(
+                    PeerConnection(
+                        local_peer_id=row[0],
+                        remote_peer_id=row[1],
+                        connection_type=row[2],
+                        metrics=metrics,
+                        last_active=datetime.fromtimestamp(row[5]) if row[5] else None
+                    )
+                )
+
             return connections
 
     # --------------------------------------------------------------------------
