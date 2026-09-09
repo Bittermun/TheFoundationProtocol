@@ -740,7 +740,7 @@ class PeerRepository:
         with self._db_lock:
             current_time = time.time()
             
-            payload_json = json.dumps(payload)
+            payload_json = payload if isinstance(payload, str) else json.dumps(payload)
             
             cursor = self._conn.execute(
                 """

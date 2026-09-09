@@ -1,4 +1,4 @@
-# TFP v3.1 Foundation Protocol
+# TFP v3.2 Foundation Protocol
 
 **A decentralized content & compute protocol for global information access — uncensorable, efficient, and built for everyone.**
 
@@ -27,6 +27,34 @@ This script automatically:
 - Retrieves and displays it
 
 - Shows timing metrics
+
+### Advanced Demo (Multi-Scenario)
+
+```bash
+cd TheFoundationProtocol
+python demo_advanced.py
+```
+
+Interactive demo with multiple scenarios:
+- Compute Pool Participation
+- Rich Content Publishing with Tags
+- Multi-Device Simulation
+- Performance Testing
+
+### Interactive Web Demo
+
+```bash
+cd TheFoundationProtocol
+docker compose up --build
+```
+
+Then open: `http://localhost:8000`
+
+Features enhanced interface with:
+- Visual progress indicators
+- Real-time metrics dashboard
+- Modern responsive design
+- Enhanced error handling
 
 ---
 
@@ -73,7 +101,7 @@ Create a **Global Information Commons** that works for pennies: anyone can publi
 
 - **Real pooled compute** — Devices execute verifiable tasks (hash preimage, matrix verify, content verify), earn credits via HABP consensus (3/5 nodes), spend credits for content. 21M supply cap.
 
-## Current Status (v3.1.x)
+## Current Status (v3.2.x)
 
 - ✅ Production-ready core (42k+ LOC, 189 Python files, 142 with Apache-2.0 headers).
 
@@ -118,6 +146,18 @@ Create a **Global Information Commons** that works for pennies: anyone can publi
 - ✅ **Chunk checksum validation** — Optional SHA-256 validation via X-Chunk-Hash header to detect corruption.
 
 - ✅ **Retry queue** — Failed background uploads queued with exponential backoff and Prometheus metrics.
+
+- ✅ **P2P Mesh Networking** — Decentralized peer discovery, content sharding with RaptorQ, mesh routing with Dijkstra's algorithm, gossip protocol for network-wide information propagation.
+
+  - **Peer Discovery & Handshake** — Secure peer registration with capability exchange, reputation scoring (0-100), and status tracking.
+  
+  - **Content Distribution** — Automatic content sharding across peers with configurable redundancy (default 3x), parallel shard retrieval with fallback, and integrity verification.
+  
+  - **Mesh Routing** — Optimal path finding using Dijkstra's algorithm based on latency, hop count, and route quality. Network self-healing from peer failures.
+  
+  - **Gossip Protocol** — TTL-based message propagation for peer announcements, content availability, and route updates. NostrBridge integration for cross-network discovery.
+  
+  - **Admin Dashboard** — P2P mesh status view showing connected peers, their capabilities, reputation, and routing table with network statistics.
 
 - ✅ **Parallel RaptorQ encoding** — ProcessPoolExecutor for files >= 5MB with thread-safe initialization and graceful shutdown.
 

@@ -126,6 +126,25 @@ class GossipProtocol:
             # Use a default local peer ID for now
             source_peer_id = "local_peer"
 
+        # Ensure source peer exists in peer repository to satisfy foreign key constraints
+        if self._peer_repo is not None:
+            try:
+                peer = await self._peer_repo.get_peer(source_peer_id)
+                if peer is None:
+                    from ..peer.peer_models import PeerInfo, PeerCapabilities
+                    await self._peer_repo.register_peer(
+                        PeerInfo(
+                            peer_id=source_peer_id,
+                            public_key=f"pubkey_{source_peer_id}",
+                            ip_address="127.0.0.1",
+                            port=8000,
+                            capabilities=PeerCapabilities(compute=True, storage=True),
+                            status="active",
+                        )
+                    )
+            except Exception as exc:
+                log.debug("Could not auto-register peer %s: %s", source_peer_id, exc)
+
         # Check message size
         payload_str = json.dumps(payload, separators=(",", ":"))
         if len(payload_str.encode("utf-8")) > self._config.max_message_size:
@@ -141,10 +160,9 @@ class GossipProtocol:
         )
 
         # Store in repository for local peers
-        payload_json = json.dumps(message.payload, separators=(",", ":"))
         await self._peer_repo.store_gossip_message(
             message_type=message.message_type,
-            payload=payload_json,
+            payload=message.payload,
             source_peer_id=message.source_peer_id,
             ttl=message.ttl,
             signature=message.signature,

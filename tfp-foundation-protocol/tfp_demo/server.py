@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterator, List, Optional
 
-from fastapi import FastAPI, Header, HTTPException, Query, Request, BackgroundTasks
+from fastapi import Body, FastAPI, Header, HTTPException, Query, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import (
     FileResponse,
@@ -660,6 +660,21 @@ class ContentStore:
             if row is None:
                 return None
             return self._row_to_stored_content(row, include_data=True)
+
+    async def get_by_hash(self, content_hash: str, include_data: bool = True) -> Optional[dict]:
+        """Async compatibility method returning content dict for distribution services."""
+        item = self.get(content_hash)
+        if item is None:
+            return None
+        return {
+            "root_hash": item.root_hash,
+            "title": item.title,
+            "tags": item.tags,
+            "content": item.data,
+            "size_bytes": item.size_bytes,
+            "cid": item.cid,
+            "recipe_json": item.recipe_json,
+        }
 
     def get_blob_path(self, root_hash: str) -> Optional[str]:
         """Return the BlobStore key for *root_hash* without loading the blob."""
@@ -3419,11 +3434,16 @@ async def publish(
 ) -> dict:
     content_type = request.headers.get("content-type", "")
     if "application/json" in content_type:
-        body = await request.json()
+        try:
+            body = await request.json()
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail="Malformed JSON in request body") from exc
         try:
             payload = PublishRequest(**body)
         except ValidationError as exc:
             raise HTTPException(status_code=422, detail=exc.errors()) from exc
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
         device_id = payload.device_id
         title = payload.title
         tags_raw = payload.tags
@@ -3665,7 +3685,7 @@ def get_content(
         # If not in local content store, try fetching via NDN (which now checks IPFS)
         try:
             content = client.request_content(root_hash)
-        except ValueError as exc:
+        except (ValueError, KeyError, LookupError, FileNotFoundError) as exc:
             msg = str(exc).lower()
             if "no earned credits" in msg or "insufficient credits" in msg:
                 raise HTTPException(
@@ -4750,8 +4770,8 @@ async def register_shard(
 @app.post("/api/gossip/broadcast")
 async def broadcast_gossip(
     message_type: str = Query(...),
-    payload: dict = Query(...),
-    ttl: int = Query(default=10),
+    payload: dict = Body(...),
+    ttl: int = Query(default=10, ge=0),
     x_tfp_peer_secret: str = Header(default="", alias="X-TFP-Peer-Secret"),
 ) -> dict:
     """
@@ -4782,6 +4802,10 @@ async def broadcast_gossip(
             "ttl": ttl,
         }
 
+    except (ValidationError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except HTTPException:
+        raise
     except Exception as exc:
         log.error("Gossip broadcast failed: %s", exc)
         raise HTTPException(status_code=500, detail=f"Gossip broadcast failed: {str(exc)}")
@@ -5031,20 +5055,27 @@ _ADMIN_HTML = """<!DOCTYPE html>
     <th>Peer ID</th><th>IP:Port</th><th>Status</th><th>Reputation</th><th>Capabilities</th>
   </tr></thead><tbody id="peers-body"></tbody></table>
 
+  <h2>Mesh Topology</h2>
+  <div id="topology-body" style="background:#1a1a24;border:1px solid #2a2a38;border-radius:8px;padding:16px;margin-bottom:32px;font-family:monospace;font-size:.85rem;color:#888">
+    Loading topology…
+  </div>
+
   <div class="refresh">Auto-refreshes every 5 seconds ·
     <a href="/api/status" style="color:#7c6fcd">Raw JSON</a> ·
     <a href="/api/devices" style="color:#7c6fcd">Devices</a> ·
     <a href="/api/peer/list" style="color:#7c6fcd">Peers</a> ·
+    <a href="/api/routing/table" style="color:#7c6fcd">Routing Table</a> ·
     <a href="/metrics" style="color:#7c6fcd">Prometheus</a>
   </div>
 
   <script>
     async function refresh() {
-      const [s, t, dv, p] = await Promise.all([
+      const [s, t, dv, p, rt] = await Promise.all([
         fetch('/api/status').then(r=>r.json()).catch(()=>({})),
         fetch('/api/tasks').then(r=>r.json()).catch(()=>({tasks:[]})),
         fetch('/api/devices').then(r=>r.json()).catch(()=>({devices:[]})),
         fetch('/api/peer/list').then(r=>r.json()).catch(()=>({peers:[]})),
+        fetch('/api/routing/table').then(r=>r.json()).catch(()=>({routing_table:{},network_stats:{}})),
       ]);
       const tasks_s = s.tasks || {};
       const metrics_s = s.metrics || {};
@@ -5096,6 +5127,29 @@ _ADMIN_HTML = """<!DOCTYPE html>
         <td>${peer.capabilities ? (peer.capabilities.storage ? '📦' : '') + (peer.capabilities.compute ? '⚡' : '') + (peer.capabilities.relay ? '🔄' : '') : '—'}</td>
       </tr>`).join('') || '<tr><td colspan="5" style="text-align:center;color:#555">No peers connected</td></tr>';
       document.getElementById('peers-body').innerHTML = prows;
+
+      // Mesh topology visualization
+      const routes = rt.routing_table || {};
+      const stats = rt.network_stats || {};
+      const topologyLines = [];
+      
+      if (Object.keys(routes).length > 0) {
+        topologyLines.push(`Network Stats:`);
+        topologyLines.push(`  Total Nodes: ${stats.total_nodes || 0}`);
+        topologyLines.push(`  Reachable Peers: ${stats.reachable_peers || 0}`);
+        topologyLines.push(`  Avg Hops: ${stats.avg_hops || 0}`);
+        topologyLines.push(`  Avg Latency: ${stats.avg_latency_ms || 0}ms`);
+        topologyLines.push(``);
+        topologyLines.push(`Routing Table:`);
+        
+        for (const [dest, route] of Object.entries(routes)) {
+          topologyLines.push(`  ${dest.substring(0, 12)}... → next: ${route.next_hop_peer_id.substring(0, 12)}... (hops: ${route.hop_count}, quality: ${(route.route_quality * 100).toFixed(0)}%)`);
+        }
+      } else {
+        topologyLines.push('No routing information available');
+      }
+      
+      document.getElementById('topology-body').innerHTML = topologyLines.join('<br>');
     }
     refresh();
     setInterval(refresh, 5000);

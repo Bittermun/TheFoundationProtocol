@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- P2P Mesh Networking with complete peer discovery, content distribution, and mesh routing infrastructure
+  - Peer discovery and handshake with capability exchange and reputation scoring
+  - Content sharding using RaptorQ fountain coding with configurable redundancy
+  - Mesh routing with Dijkstra's algorithm for optimal path finding
+  - Gossip protocol with TTL-based message propagation and NostrBridge integration
+  - Network self-healing from peer failures
+  - Route quality tracking with exponential moving average
+  - Admin dashboard mesh topology visualization with routing statistics
+  - New API endpoints: `/api/peer/*`, `/api/content/{hash}/distribute`, `/api/content/{hash}/distribution/status`, `/api/content/{hash}/shard/register`, `/api/gossip/*`, `/api/routing/*`
+
+## [3.2.0] - 2026-08-29
+
+### Added
 - HTTP connection pooling using httpx.Client in benchmark_download_retrieval.py (20-40% performance improvement for concurrent downloads)
 - Rate limit headers (X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, X-RateLimit-Window) in API responses
 - Enhanced configuration validation with type and format checks for environment variables
@@ -82,6 +95,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Apache-2.0 license
 - Contributing guidelines
 
-[Unreleased]: https://github.com/Bittermun/TheFoundationProtocol/compare/v3.1.1...HEAD
+[Unreleased]: https://github.com/Bittermun/TheFoundationProtocol/compare/v3.2.0...HEAD
+[3.2.0]: https://github.com/Bittermun/TheFoundationProtocol/releases/tag/v3.2.0
 [3.1.1]: https://github.com/Bittermun/TheFoundationProtocol/releases/tag/v3.1.1
 [3.1.0]: https://github.com/Bittermun/TheFoundationProtocol/releases/tag/v3.1.0
