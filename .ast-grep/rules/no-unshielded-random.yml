@@ -1,0 +1,12 @@
+id: no-unshielded-random
+message: "Unshielded random call detected. Use secrets or deterministic cryptographic PRKs instead of module-level random functions."
+severity: error
+language: python
+rule:
+  any:
+    - pattern: random.random($$$ARGS)
+    - pattern: random.choice($$$ARGS)
+    - pattern: random.randint($$$ARGS)
+    - pattern: random.randrange($$$ARGS)
+    - pattern: random.sample($$$ARGS)
+    - pattern: random.shuffle($$$ARGS)

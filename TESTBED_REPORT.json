@@ -1,62 +1,70 @@
 {
-  "_comment": "SIMULATION DATA - Generated for testing analytics pipeline. Not a real deployment.",
-  "testbed_id": "simulation_001",
-  "region": "Simulated (Kenya-like parameters)",
-  "deployment_date": "2026-04-10T20:15:13.698060Z",
-  "duration_days": 30,
-  "simulation": true,
-  "metrics_summary": {
-    "testbed_id": "pilot_region_001",
-    "time_window_hours": 720,
-    "total_metrics": 60,
-    "statistics": {
-      "bandwidth_savings": {
-        "count": 20,
-        "mean": 60.5,
-        "min": 51.0,
-        "max": 70.0,
-        "median": 61.0,
-        "unit": "percent"
-      },
-      "reconstruction_time": {
-        "count": 20,
-        "mean": 2450.0,
-        "min": 1500,
-        "max": 3400,
-        "median": 2500,
-        "unit": "percent"
-      },
-      "node_availability": {
-        "count": 20,
-        "mean": 71.0,
-        "min": 52.0,
-        "max": 90.0,
-        "median": 72.0,
-        "unit": "percent"
-      }
-    },
-    "generated_at": "2026-04-10T20:15:13.700559Z"
+  "timestamp": "2026-09-10T14:05:11.849852+00:00",
+  "milestone": "Milestone 3 (Requirement R3)",
+  "audit_gate": "Autonomous Adversarial Fault Injection",
+  "overall_status": "CERTIFIED",
+  "summary": {
+    "total_mutants": 5,
+    "mutants_detected": 5,
+    "negative_proof_passed": true,
+    "positive_proof_passed": true
   },
-  "success_achievements": {
-    "bandwidth_savings": {
-      "target": 60.0,
-      "actual": 60.5,
-      "achieved": true
+  "mutant_results": [
+    {
+      "id": "M1",
+      "name": "FastCDC Chunk Boundary Corruption",
+      "target": "tests/fuzz/test_fastcdc_hypothesis.py -k test_boundary_shift_resistance",
+      "description": "Forces fixed-interval chunking in FastCDC to break content-defined boundary shift resistance.",
+      "detected": true,
+      "exit_code": 1,
+      "reason": "FAILED tests/fuzz/test_fastcdc_hypothesis.py::TestFastCDCHypothesis::test_boundary_shift_resistance"
     },
-    "reconstruction_time": {
-      "target": 3000.0,
-      "actual": 2450.0,
-      "achieved": true
+    {
+      "id": "M2",
+      "name": "Merkle Root Bit-Flip",
+      "target": "tests/fuzz/test_merkle_hypothesis.py -k test_audit_path_correctness_all_leaves",
+      "description": "Flips a bit in the root hash level to invalidate all audit path proofs.",
+      "detected": true,
+      "exit_code": 1,
+      "reason": "FAILED tests/fuzz/test_merkle_hypothesis.py::TestMerkleHypothesis::test_audit_path_correctness_all_leaves"
     },
-    "node_availability": {
-      "target": 80.0,
-      "actual": 71.0,
-      "achieved": false
+    {
+      "id": "M3",
+      "name": "Nostr Signature & Replay Tampering",
+      "target": "tests/fuzz/test_nostr_hypothesis.py -k test_replay_window_guard",
+      "description": "Bypasses timestamp replay guard to allow events outside the 300s replay window.",
+      "detected": true,
+      "exit_code": 1,
+      "reason": "FAILED tests/fuzz/test_nostr_hypothesis.py::TestNostrHypothesis::test_replay_window_guard"
+    },
+    {
+      "id": "M4",
+      "name": "Excess Loss >40% Low-Redundancy Matrix Inversion Deficit",
+      "target": "tests/fuzz/test_fountain_hypothesis.py -k test_gf2_decodability_with_repair_droplets",
+      "description": "Suppresses rank deficit ValueError and silently returns corrupted bytes instead of raising an error.",
+      "detected": true,
+      "exit_code": 1,
+      "reason": "FAILED tests/fuzz/test_fountain_hypothesis.py::TestFountainHypothesis::test_gf2_decodability_with_repair_droplets"
+    },
+    {
+      "id": "M5",
+      "name": "Droplet Payload Bit-Flip / Forged Seed Injection",
+      "target": "tests/fuzz/test_fountain_hypothesis.py -k test_anti_pollution_prefilter_o1_rejection",
+      "description": "Disables O(1) anti-pollution pre-filter check, accepting arbitrary forged seeds and tampered degrees.",
+      "detected": true,
+      "exit_code": 1,
+      "reason": "FAILED tests/fuzz/test_fountain_hypothesis.py::TestFountainHypothesis::test_anti_pollution_prefilter_o1_rejection"
     }
-  },
-  "overall_success_rate": 66.66666666666666,
-  "recommendations": [],
-  "generated_at": "2026-04-10T20:15:13.700670Z",
-  "signature": "28b99a5823ececcc264cb9d2c5d9b6b08c5c0044f1611a7184b725a2c60287ce",
-  "signature_algorithm": "SHA3-256"
+  ],
+  "clean_baseline": {
+    "passed": true,
+    "exit_code": 0,
+    "suites": [
+      "tests/fuzz/test_fastcdc_hypothesis.py",
+      "tests/fuzz/test_merkle_hypothesis.py",
+      "tests/fuzz/test_nostr_hypothesis.py",
+      "tests/fuzz/test_fountain_hypothesis.py"
+    ],
+    "summary": "25 passed, 922 warnings in 5.93s"
+  }
 }

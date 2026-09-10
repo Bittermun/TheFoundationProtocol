@@ -1,0 +1,9 @@
+id: no-blocking-sleep-in-async
+message: "Blocking time.sleep detected inside async def. Use await asyncio.sleep(...) instead."
+severity: error
+language: python
+rule:
+  pattern: time.sleep($$$ARGS)
+  inside:
+    pattern: "async def $FUNC($$$): $$$"
+

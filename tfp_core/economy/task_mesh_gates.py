@@ -10,6 +10,7 @@ and exponential decay to prevent bot farms and ensure fair compute distribution.
 All economic gates are pure math + hardware attestation. No central scheduler.
 """
 
+import hmac
 import threading
 import time
 from dataclasses import dataclass
@@ -240,7 +241,7 @@ class TaskMeshGates:
                         matching_devices = [
                             r.device_id
                             for r in record.results
-                            if r.output_hash == output_hash
+                            if hmac.compare_digest(r.output_hash, output_hash)
                         ]
 
                         return self._calculate_credit_yield(

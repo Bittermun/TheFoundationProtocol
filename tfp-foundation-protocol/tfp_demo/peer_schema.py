@@ -218,10 +218,20 @@ class PeerSchema:
                 log.debug("Content table does not exist yet, skipping sharding column addition")
                 return
             
-            # Check if columns already exist
-            existing_cols = set(
-                row[0] for row in self._conn.execute("PRAGMA table_info(content)").fetchall()
-            )
+            # Check if columns already exist (PRAGMA table_info returns (cid, name, type, notnull, dflt_value, pk))
+            existing_cols = set()
+            for row in self._conn.execute("PRAGMA table_info(content)").fetchall():
+                if isinstance(row, dict):
+                    col = row.get("name", row.get(1))
+                elif hasattr(row, "__getitem__"):
+                    try:
+                        col = row["name"]
+                    except (KeyError, IndexError, TypeError):
+                        col = row[1]
+                else:
+                    col = getattr(row, "name", row[1])
+                if col:
+                    existing_cols.add(col)
             
             columns_to_add = [
                 ("shard_count", "INTEGER DEFAULT 1"),

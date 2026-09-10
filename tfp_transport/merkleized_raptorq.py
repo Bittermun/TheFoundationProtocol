@@ -127,7 +127,7 @@ class MerkleTree:
 
             current_hash = hashlib.sha3_256(combined.encode()).hexdigest()
 
-        return current_hash == self.root_hash
+        return hmac.compare_digest(current_hash, self.root_hash)
 
 
 @dataclass

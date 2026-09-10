@@ -1,0 +1,11 @@
+# The Foundation Protocol - Production Runtime Dependencies
+# PURE production runtime dependencies ONLY.
+# Zero test/dev tooling (no pytest, httpx, hypothesis, ruff, mypy, bandit).
+
+fastapi>=0.115.0
+uvicorn>=0.30.0
+python-ndn>=0.4.0
+websockets>=12.0
+cryptography>=41.0.0
+prometheus_client>=0.20.0
+python-multipart>=0.0.20

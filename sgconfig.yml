@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 The Foundation Protocol Contributors
+# ast-grep configuration file for The Foundation Protocol
+
+ruleDirs:
+  - .ast-grep/rules

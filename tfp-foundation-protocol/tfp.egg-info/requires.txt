@@ -3,9 +3,11 @@ uvicorn>=0.30.0
 python-ndn>=0.4.0
 websockets>=12.0
 prometheus_client>=0.20.0
+cryptography>=41.0.0
+python-multipart>=0.0.20
 
 [all]
-tfp[distributed,rag,security,tracing]
+tfp[distributed,postgresql,rag,security,tracing]
 
 [dev]
 black>=24.0.0
@@ -14,6 +16,9 @@ mypy>=1.10.0
 
 [distributed]
 redis>=5.2.0
+
+[postgresql]
+psycopg2-binary>=2.9.0
 
 [rag]
 chromadb>=0.4.24

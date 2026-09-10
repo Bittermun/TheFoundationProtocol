@@ -10,6 +10,7 @@ as specified in USENIX ATC '16 to maximize deduplication efficiency.
 
 from dataclasses import asdict, dataclass
 import hashlib
+import hmac
 from typing import Any, Dict, List, Tuple
 
 # 256-entry 64-bit random gear matrix for FastCDC
@@ -221,7 +222,7 @@ class ContentDefinedChunker:
             if len(chunk) != size:
                 raise ValueError(f"Chunk size mismatch for {expected_hash}: expected {size}, got {len(chunk)}")
             actual_hash = hashlib.sha3_256(chunk).hexdigest()
-            if actual_hash != expected_hash:
+            if not hmac.compare_digest(actual_hash, expected_hash):
                 raise ValueError(f"Corrupted chunk data: hash mismatch for {expected_hash}")
             assembled.extend(chunk)
         return bytes(assembled)

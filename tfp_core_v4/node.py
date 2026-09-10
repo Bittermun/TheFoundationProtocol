@@ -9,7 +9,8 @@ across decentralized mesh topologies.
 """
 
 import hashlib
-import random
+import hmac
+import secrets
 from typing import Any, Dict, List
 
 from .cdc import ChunkRecipe, ContentDefinedChunker
@@ -98,7 +99,7 @@ class TFPNode:
         k = (recipe.total_size + self.codec.symbol_size - 1) // self.codec.symbol_size
 
         # Simulate network packet loss
-        surviving = [d for d in droplets if random.random() >= simulated_loss]  # nosec B311
+        surviving = [d for d in droplets if (secrets.randbelow(1_000_000) / 1_000_000.0) >= simulated_loss]
 
         # Rateless recovery: accumulate droplets from available pool until full rank
         reconstructed = None
@@ -124,7 +125,7 @@ class TFPNode:
             hasher.update(hashlib.sha3_256(c).hexdigest().encode("utf-8"))
         recovered_root = hasher.hexdigest()
 
-        if recovered_root != root_hash:
+        if not hmac.compare_digest(recovered_root, root_hash):
             raise ValueError(f"Hash mismatch after reconstruction: {recovered_root} != {root_hash}")
 
         self.telemetry["successful_reconstructions"] += 1

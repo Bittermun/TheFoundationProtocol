@@ -483,8 +483,8 @@ class TestHighErasureStressChannel:
 
     @pytest.mark.parametrize("sym_size", [16, 32, 128, 256, 512, 1024])
     def test_variable_symbol_sizes_under_40_percent_loss(self, sym_size: int):
-        """Verify deterministic fountain codecs operate consistently across different symbol sizes."""
-        raw_data = os.urandom(sym_size * 8 + 7)  # 9 blocks
+        # Deterministic byte sequence matching test's deterministic specification
+        raw_data = bytes((i * 31 + sym_size) % 256 for i in range(sym_size * 8 + 7))  # 9 blocks
         root = hashlib.sha3_256(raw_data).digest()
 
         codec = FountainCodec(symbol_size=sym_size, root_hash=root)

@@ -1,0 +1,37 @@
+{
+  "name": "The Foundation Protocol - Workshop & Testbed",
+  "dockerComposeFile": [
+    "../docker-compose.testbed.yml",
+    "../docker-compose.workshop.yml"
+  ],
+  "service": "tfp-workshop",
+  "workspaceFolder": "/workspace",
+  "shutdownAction": "stopCompose",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/local/bin/python",
+        "python.testing.pytestEnabled": true,
+        "python.testing.pytestArgs": [
+          "tfp-foundation-protocol/tests",
+          "tests"
+        ],
+        "python.testing.unittestEnabled": false,
+        "[python]": {
+          "editor.formatOnSave": true,
+          "editor.defaultFormatter": "charliermarsh.ruff"
+        },
+        "ruff.enable": true,
+        "ruff.organizeImports": true
+      },
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "charliermarsh.ruff",
+        "ms-azuretools.vscode-docker",
+        "tamasfe.even-better-toml"
+      ]
+    }
+  },
+  "remoteUser": "root"
+}

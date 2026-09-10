@@ -60,7 +60,6 @@ services:
       - TFP_IPFS_API_URL=http://tfp-ipfs:5001
       - TFP_REDIS_URL=redis://tfp-redis:6379/0
       - NOSTR_RELAY_URL=ws://tfp-relay:8080
-      - PYTHONUNBUFFERED=1
     deploy:
       resources:
         limits:

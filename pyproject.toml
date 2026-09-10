@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "tfp"
 version = "3.1.1"
 description = "The Foundation Protocol - decentralized content and compute protocol for global information access"
-readme = "IMPLEMENTATION_SUMMARY.md"
+readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "Apache-2.0"}
 authors = [
@@ -25,13 +25,14 @@ classifiers = [
     "Topic :: System :: Distributed Computing",
 ]
 
+# Pure production dependencies ONLY - zero test/dev/fuzz tooling
 dependencies = [
     "fastapi>=0.115.0",
     "uvicorn>=0.30.0",
     "python-ndn>=0.4.0",
     "websockets>=12.0",
-    "prometheus_client>=0.20.0",
     "cryptography>=41.0.0",
+    "prometheus_client>=0.20.0",
     "python-multipart>=0.0.20",
 ]
 
@@ -44,17 +45,27 @@ Changelog = "https://github.com/Bittermun/TheFoundationProtocol/blob/main/CHANGE
 
 [project.optional-dependencies]
 test = [
-    "pytest>=8.0.0",
+    "pytest>=8.3.0",
     "pytest-asyncio>=0.23.0",
-    "httpx>=0.27.0",
+    "pytest-timeout>=2.3.0",
+    "httpx>=0.28.0",
     "fakeredis>=2.2.0",
     "locust>=2.20.0",
-    "pytest-timeout>=2.3.0",
+]
+fuzz = [
+    "hypothesis>=6.100.0",
 ]
 dev = [
-    "black>=24.0.0",
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-timeout>=2.3.0",
+    "httpx>=0.28.0",
+    "hypothesis>=6.100.0",
     "ruff>=0.4.0",
     "mypy>=1.10.0",
+    "bandit>=1.7.0",
+    "black>=24.0.0",
+    "ast-grep-cli",
 ]
 # Heavy optional backends — not needed for the core demo node
 distributed = [
@@ -78,21 +89,30 @@ security = [
     "cryptography>=41.0.0",
 ]
 all = [
-    "tfp[distributed,postgresql,rag,tracing,security]",
+    "tfp[test,fuzz,dev,distributed,postgresql,rag,tracing,security]",
 ]
 
 [tool.setuptools.packages.find]
 include = ["tfp_*", "demo"]
+exclude = ["tests*", "*.tests*", "*.test*", "docs*", "scripts*", "tfp_testbed*", "*_test*"]
+
+[tool.setuptools.exclude-package-data]
+"*" = ["test_*.py", "*_test.py", "*.tests*"]
 
 [project.scripts]
 tfp = "tfp_cli.main:main"
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tfp-foundation-protocol/tests", "tests"]
+pythonpath = [".", "tfp-foundation-protocol", "tfp_core", "tfp_simulator", "tfp_transport", "tfp_security", "tfp_plugins", "tfp_plugin_sdk", "tfp_ui"]
 asyncio_mode = "auto"
 timeout = 30
 markers = [
     "concurrency: tests that exercise thread-safety and concurrent access patterns",
+    "simulation: marks network simulation and fault injection tests",
+    "fuzz: marks adversarial and fuzz tests",
+    "benchmark: marks performance and throughput benchmark tests",
+    "asyncio: marks asyncio coroutine tests",
 ]
 
 [tool.mypy]
@@ -102,4 +122,3 @@ warn_unused_configs = false
 ignore_missing_imports = true
 strict_optional = false
 disable_error_code = ["union-attr", "assignment", "return", "arg-type", "call-arg", "dict-item", "index", "operator", "has-type", "list-item", "misc", "valid-type"]
-# Note: Strict type checking temporarily relaxed to unblock CI. See TODO.md for type annotation improvement plan.

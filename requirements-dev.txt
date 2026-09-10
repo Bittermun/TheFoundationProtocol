@@ -1,0 +1,19 @@
+# The Foundation Protocol - Development & Testing Tooling
+-r requirements.txt
+
+# Testing frameworks
+pytest>=8.3.0
+pytest-asyncio>=0.23.0
+pytest-timeout>=2.3.0
+httpx>=0.28.0
+fakeredis>=2.2.0
+
+# Property & fuzz testing
+hypothesis>=6.100.0
+
+# Static analysis, linting, security & structural guardrails
+ruff>=0.4.0
+mypy>=1.10.0
+bandit>=1.7.0
+ast-grep-cli
+black>=24.0.0

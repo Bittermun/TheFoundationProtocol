@@ -11,7 +11,7 @@ and origin node churn survival.
 import asyncio
 from dataclasses import dataclass
 import hashlib
-import random
+import secrets
 from typing import Dict, List, Optional, Set
 
 from .cdc import ChunkRecipe
@@ -41,6 +41,7 @@ class MeshPeer:
         self.droplet_store: Dict[str, Dict[int, FountainDroplet]] = {}
         self.reconstructed_payloads: Dict[str, bytes] = {}
         self.seen_gossip: Set[str] = set()
+        self._active_tasks: Set[asyncio.Task] = set()
         self.codec = FountainCodec(symbol_size=symbol_size)
         self.is_alive = True
 
@@ -61,7 +62,8 @@ class MeshPeer:
 
     async def broadcast_gossip(self, recipe: ChunkRecipe, merkle_root: str):
         """Broadcast recipe announcement to all connected neighbors."""
-        msg_id = hashlib.sha3_256(f"{self.node_id}:{recipe.root_hash}:{random.random()}".encode()).hexdigest()  # nosec B311
+        token = secrets.token_hex(16)
+        msg_id = hashlib.sha3_256(f"{self.node_id}:{recipe.root_hash}:{token}".encode()).hexdigest()
         msg = GossipMessage(
             msg_id=msg_id,
             sender_id=self.node_id,
@@ -71,7 +73,9 @@ class MeshPeer:
         self.seen_gossip.add(msg_id)
         for neighbor in list(self.neighbors):
             if neighbor.is_alive:
-                asyncio.create_task(neighbor.receive_gossip(msg))
+                task = asyncio.create_task(neighbor.receive_gossip(msg))
+                self._active_tasks.add(task)
+                task.add_done_callback(self._active_tasks.discard)
 
     async def receive_gossip(self, msg: GossipMessage):
         """Handle incoming gossip announcement and forward if not seen."""
@@ -92,7 +96,9 @@ class MeshPeer:
             )
             for neighbor in list(self.neighbors):
                 if neighbor.is_alive and neighbor.node_id != msg.sender_id:
-                    asyncio.create_task(neighbor.receive_gossip(fwd_msg))
+                    task = asyncio.create_task(neighbor.receive_gossip(fwd_msg))
+                    self._active_tasks.add(task)
+                    task.add_done_callback(self._active_tasks.discard)
 
     async def request_droplets(self, root_hash: str, visited: Optional[Set[str]] = None) -> List[FountainDroplet]:
         """Request available droplets from this peer subject to link loss with dynamic rateless synthesis and multi-hop routing."""
@@ -117,7 +123,7 @@ class MeshPeer:
         if root_hash in self.droplet_store and self.droplet_store[root_hash]:
             results = []
             for d in list(self.droplet_store[root_hash].values()):
-                if random.random() >= self.loss_rate:  # nosec B311: Network loss simulator
+                if (secrets.randbelow(1_000_000) / 1_000_000.0) >= self.loss_rate:
                     results.append(d)
             return results
 
@@ -128,7 +134,7 @@ class MeshPeer:
                 if sub_droplets:
                     results = []
                     for d in sub_droplets:
-                        if random.random() >= self.loss_rate:
+                        if (secrets.randbelow(1_000_000) / 1_000_000.0) >= self.loss_rate:
                             results.append(d)
                     return results
 

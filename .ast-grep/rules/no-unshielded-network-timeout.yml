@@ -1,0 +1,20 @@
+id: no-unshielded-network-timeout
+message: "Network/HTTP request without explicit timeout argument. Network calls must specify a timeout."
+severity: error
+language: python
+rule:
+  any:
+    - pattern: requests.get($$$ARGS)
+    - pattern: requests.post($$$ARGS)
+    - pattern: requests.put($$$ARGS)
+    - pattern: requests.delete($$$ARGS)
+    - pattern: requests.request($$$ARGS)
+    - pattern: httpx.get($$$ARGS)
+    - pattern: httpx.post($$$ARGS)
+    - pattern: httpx.put($$$ARGS)
+    - pattern: httpx.delete($$$ARGS)
+    - pattern: httpx.request($$$ARGS)
+    - pattern: urllib.request.urlopen($$$ARGS)
+  not:
+    has:
+      pattern: timeout=$T

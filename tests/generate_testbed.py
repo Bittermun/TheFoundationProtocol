@@ -95,7 +95,7 @@ NODE_TEMPLATE = """  tfp-node-{i}:
 def generate_compose(num_nodes=10):
     nodes_str = ""
     volumes_str = ""
-    base_port = 8000
+    base_port = 9000
 
     for i in range(1, num_nodes + 1):
         port = base_port + i

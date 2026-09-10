@@ -1,0 +1,8 @@
+id: no-unhandled-async-task
+message: "Unhandled asyncio.create_task expression statement. Return value must be stored or tracked in an active task set."
+severity: error
+language: python
+rule:
+  pattern: asyncio.create_task($$$ARGS)
+  inside:
+    kind: expression_statement

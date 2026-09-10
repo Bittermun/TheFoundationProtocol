@@ -136,9 +136,8 @@ class TestContentHeuristics(unittest.TestCase):
     def test_high_entropy_detection(self):
         """Test high entropy data is flagged."""
         # Simulate high entropy (random bytes)
-        import os
-
-        high_entropy_data = os.urandom(2048)
+        # Maximal entropy (equal distribution across all 256 byte values: entropy = 8.0)
+        high_entropy_data = bytes(range(256)) * 8
 
         result, flags, details = self.heuristics.run_all_heuristics(
             high_entropy_data, "application/octet-stream"

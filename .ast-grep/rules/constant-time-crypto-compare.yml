@@ -1,0 +1,15 @@
+id: constant-time-crypto-compare
+message: "Direct comparison (== or !=) used on cryptographic digest/signature/mac/token. Use hmac.compare_digest() to prevent timing side-channels."
+severity: error
+language: python
+rule:
+  any:
+    - pattern: $A == $B
+    - pattern: $A != $B
+constraints:
+  any:
+    - A:
+        regex: (?i)(hash|digest|signature|sig|token|mac|root)
+    - B:
+        regex: (?i)(hash|digest|signature|sig|token|mac|root)
+

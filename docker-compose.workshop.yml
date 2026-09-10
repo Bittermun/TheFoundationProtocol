@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  tfp-workshop:
+    build:
+      context: .
+      dockerfile: Dockerfile.workshop
+      target: workshop-dev
+    container_name: tfp-workshop
+    volumes:
+      - .:/workspace
+    environment:
+      - PYTHONPATH=/workspace:/workspace/tfp-foundation-protocol
+      - TFP_DB_PATH=/workspace/pib.db
+      - TFP_IPFS_API_URL=http://tfp-ipfs:5001
+      - TFP_REDIS_URL=redis://tfp-redis:6379/0
+      - NOSTR_RELAY_URL=ws://tfp-relay:8080
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONUNBUFFERED=1
+    working_dir: /workspace
+    networks:
+      - tfp-network
+    depends_on:
+      - tfp-ipfs
+      - redis
+      - tfp-relay
+    stdin_open: true
+    tty: true
+
+networks:
+  tfp-network:
+    driver: bridge

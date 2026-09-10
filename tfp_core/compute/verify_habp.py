@@ -9,6 +9,7 @@ TEE attestation fallback. Returns verification status and credit weight.
 """
 
 import hashlib
+import hmac
 import time
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -88,7 +89,7 @@ class HABPVerifier:
             conflicting = [
                 p.device_id
                 for p in proofs
-                if p.output_hash != largest_group[0].output_hash
+                if not hmac.compare_digest(p.output_hash, largest_group[0].output_hash)
             ]
 
             confidence = len(largest_group) / len(proofs)
@@ -142,7 +143,7 @@ class HABPVerifier:
         if not is_valid_tee:
             return None
 
-        if proof.output_hash != expected_output_hash:
+        if not hmac.compare_digest(proof.output_hash, expected_output_hash):
             result = ConsensusResult(
                 verified=False,
                 confidence=1.0,

@@ -6,7 +6,11 @@ Pytest integration wrapper for TFP UI interaction flow.
 """
 
 import pytest
-from tfp_ui.test.ui_test_flow import UITestRunner
+
+try:
+    from tests.ui_test_flow import UITestRunner
+except ImportError:
+    from ui_test_flow import UITestRunner
 
 
 @pytest.fixture

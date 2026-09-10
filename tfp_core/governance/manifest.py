@@ -8,6 +8,7 @@ Addresses: "Who maintains this?" question for NGOs, enterprises, and contributor
 """
 
 import hashlib
+import hmac
 import json
 from datetime import datetime
 from typing import Dict, Optional
@@ -20,7 +21,7 @@ class GovernanceManifest:
     """
 
     def __init__(self):
-        self.manifest_version = "3.1.0"
+        self.manifest_version = "3.2.0"
         self.created_at = datetime.utcnow().isoformat() + "Z"
 
         # Maintainer Information (Transparent)
@@ -101,7 +102,7 @@ class GovernanceManifest:
         """Verify manifest hasn't been tampered with."""
         manifest_json = json.dumps(manifest_data, sort_keys=True)
         computed_signature = hashlib.sha3_256(manifest_json.encode()).hexdigest()
-        return computed_signature == expected_signature
+        return hmac.compare_digest(computed_signature, expected_signature)
 
     def save_to_file(self, filepath: str = "GOVERNANCE_MANIFEST.json") -> None:
         """Save manifest to file with signature."""
@@ -151,7 +152,7 @@ def main():
     manifest = GovernanceManifest()
 
     print("=" * 60)
-    print("TFP GOVERNANCE MANIFEST v3.1")
+    print("TFP GOVERNANCE MANIFEST v3.2")
     print("=" * 60)
     print("\n📋 MAINTAINER STATUS:")
     for m in manifest.maintainers:

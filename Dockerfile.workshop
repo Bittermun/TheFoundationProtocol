@@ -1,6 +1,5 @@
 # syntax=docker/dockerfile:1
-# The Foundation Protocol - Demo Node & Workshop Environment
-# Multi-stage build for production and developer workshop deployment
+# The Foundation Protocol - Multi-stage Workshop & Production Environment
 
 # -----------------------------------------------------------------------------
 # Base stage: minimal Python runtime and build tools

@@ -14,7 +14,11 @@ and task execution engines.
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional
-import httpx
+
+try:
+    import httpx
+except ImportError:
+    httpx = None
 
 try:
     from tfp_cli.main import _load_or_create_identity, _make_sig, _ensure_enrolled
