@@ -1,0 +1,57 @@
+{
+  "prepared_on": "2026-09-12",
+  "scope": "Planning-package structural/provenance checks and repeated bounded component probes. Not a protocol release gate, independent external review, full test run, or benchmark result.",
+  "result": "passed",
+  "checks": {
+    "unique_packets": 15,
+    "mission_requirements_mapped": 6,
+    "implementation_gates_present": 14,
+    "dependency_graph_acyclic": true,
+    "initial_ready_packets": [
+      "W00",
+      "W01",
+      "W02"
+    ],
+    "no_implementation_packet_marked_verified": true,
+    "source_paths_resolved": 41,
+    "local_plan_review_links_resolved": 16,
+    "probe_source_fingerprints_match": true,
+    "all_eight_probes_reproduced": true,
+    "all_probes_mapped_to_work": true,
+    "pre_mortem_risks_present": 18,
+    "decision_points_present": 7,
+    "experiment_protocols_present": 5,
+    "inspection_script_parses": true
+  },
+  "requirements_review": [
+    {
+      "requirement": "Preserve the full intended mission",
+      "evidence": "Section 1 maps M1-M6 to packets and gates; Sections 5 and 11 retain wider lexicon/video/federation and older-phase intentions."
+    },
+    {
+      "requirement": "Find non-obvious important issues from authoritative state",
+      "evidence": "Eight reproducible in-memory observations with matching current source hashes; Section 2 separately labels static observations."
+    },
+    {
+      "requirement": "Preempt failures rather than list features",
+      "evidence": "Section 3 design consequences, Section 7 risks with owners, Section 9 decisions, and Section 10 migration/recovery."
+    },
+    {
+      "requirement": "Provide an executable prioritized megaplan",
+      "evidence": "15 packets each have dependency, role, effort, first action, acceptance and stop/replan condition; only W00-W02 are initially ready."
+    },
+    {
+      "requirement": "Plan inside the project and use outside resources purposefully",
+      "evidence": "Resolved source entry points and Section 8 named primary references, adopter/hardware inputs, concrete questions and unavailable-resource fallbacks."
+    },
+    {
+      "requirement": "Keep claims falsifiable and scope honest",
+      "evidence": "A/B/C comparisons, cold/warm full costs, negative controls, frozen thresholds, five experiment protocols, no implementation gates marked passed."
+    }
+  ],
+  "artifact_sha256": {
+    "docs/FOUNDATION_MEGAPLAN.md": "9756a3e11c226f917a0f0ccd2b6b48ef399cf969d11173783b927be61ef76753",
+    "docs/planning/execution-board.json": "6175b46451e9243f9cf7cc63b20d7f64f43b0e79e53028d01f1e18c1effeebed",
+    "docs/planning/source-probes-2026-09-12.json": "902a3d1724715cc30d64647eee08f73ba01d4473cb9a30a860b55b8b4424142d"
+  }
+}

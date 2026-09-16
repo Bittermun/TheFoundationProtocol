@@ -23,11 +23,11 @@ from tfp_client.lib.credit.ledger import MAX_SUPPLY
 from tfp_demo.server import EarnLog, TaskStore
 
 
-def test_supply_gossip_rejects_negative_values():
+def test_supply_gossip_rejects_negative_values(monkeypatch):
     """Gossip with negative total_minted should be rejected."""
     import tfp_demo.server as srv
 
-    srv._gossiped_supply_total = 0
+    monkeypatch.setattr(srv, "_gossiped_supply_total", 0)
 
     event = NostrEvent.create(
         privkey=b"\xaa" * 32,
@@ -40,11 +40,11 @@ def test_supply_gossip_rejects_negative_values():
     assert srv._gossiped_supply_total == 0
 
 
-def test_supply_gossip_rejects_values_exceeding_max_supply():
+def test_supply_gossip_rejects_values_exceeding_max_supply(monkeypatch):
     """Gossip with total_minted > MAX_SUPPLY should be rejected."""
     import tfp_demo.server as srv
 
-    srv._gossiped_supply_total = 0
+    monkeypatch.setattr(srv, "_gossiped_supply_total", 0)
 
     event = NostrEvent.create(
         privkey=b"\xaa" * 32,
@@ -57,7 +57,7 @@ def test_supply_gossip_rejects_values_exceeding_max_supply():
     assert srv._gossiped_supply_total == 0
 
 
-def test_supply_gossip_rejects_implausibly_high_values():
+def test_supply_gossip_rejects_implausibly_high_values(monkeypatch):
     """Gossip with values far beyond local total + buffer should be rejected."""
     import tfp_demo.server as srv
 
@@ -66,9 +66,8 @@ def test_supply_gossip_rejects_implausibly_high_values():
     store = TaskStore(conn, db_lock, clock_skew_tolerance=30)
     store.increment_total_minted(1000)
 
-    original_task_store = srv._task_store
-    srv._task_store = store
-    srv._gossiped_supply_total = 1000
+    monkeypatch.setattr(srv, "_task_store", store)
+    monkeypatch.setattr(srv, "_gossiped_supply_total", 1000)
 
     event = NostrEvent.create(
         privkey=b"\xaa" * 32,
@@ -80,7 +79,7 @@ def test_supply_gossip_rejects_implausibly_high_values():
     srv._handle_supply_gossip_event(event)
     assert srv._gossiped_supply_total == 1000
 
-    srv._task_store = original_task_store
+    conn.close()
 
 
 def test_earnlog_record_duplicate_returns_false():

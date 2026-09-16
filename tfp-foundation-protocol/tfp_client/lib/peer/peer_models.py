@@ -10,7 +10,7 @@ and related P2P networking data structures.
 
 from typing import Optional, Dict, List, Any
 from datetime import datetime
-from pydantic import BaseModel, Field, field_validator, ConfigDict, ConfigDict
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 
 class PeerCapabilities(BaseModel):

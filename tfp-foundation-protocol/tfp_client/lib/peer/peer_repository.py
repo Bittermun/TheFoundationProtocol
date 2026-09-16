@@ -300,9 +300,6 @@ class PeerRepository:
         with self._db_lock:
             current_time = time.time()
             
-            # Convert metrics to JSON for storage
-            metrics_json = json.dumps(metrics.model_dump()) if metrics else None
-            
             self._conn.execute(
                 """
                 INSERT INTO peer_connections 
@@ -588,7 +585,7 @@ class PeerRepository:
             data_shards = sum(1 for r in shard_rows if not r[2])
             parity_shards = total_shards - data_shards
 
-            locations_by_shard = {}
+            locations_by_shard: Dict[int, List[dict]] = {}
             for row in location_rows:
                 shard_idx = row[0]
                 if shard_idx not in locations_by_shard:
@@ -652,7 +649,7 @@ class PeerRepository:
             
             if existing:
                 # Update existing route
-                cursor = self._conn.execute(
+                self._conn.execute(
                     """
                     UPDATE mesh_routes 
                     SET hop_count = ?, latency_ms = ?, route_quality = ?, last_updated = ?
@@ -663,7 +660,7 @@ class PeerRepository:
                 )
             else:
                 # Insert new route
-                cursor = self._conn.execute(
+                self._conn.execute(
                     """
                     INSERT INTO mesh_routes 
                     (destination_peer_id, next_hop_peer_id, hop_count, 

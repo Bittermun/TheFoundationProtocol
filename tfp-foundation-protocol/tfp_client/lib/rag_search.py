@@ -29,6 +29,7 @@ Usage:
 import hashlib
 import logging
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -37,9 +38,9 @@ logger = logging.getLogger(__name__)
 
 # Lazy imports to avoid heavy dependencies until needed
 _chroma = None
-_transformers = None
-_codebert_model = None
-_tokenizer = None
+# microsoft/codebert-base model repository commit, verified 2026-09-15:
+# https://huggingface.co/microsoft/codebert-base/tree/3b0952feddeffad0063f274080e3c23d75e7eb39
+CODEBERT_REVISION = "3b0952feddeffad0063f274080e3c23d75e7eb39"
 
 
 @dataclass
@@ -67,6 +68,7 @@ class RAGGraph:
         embedding_model: str = "microsoft/codebert-base",
         chunk_size: int = 512,
         chunk_overlap: int = 128,
+        embedding_revision: Optional[str] = None,
     ):
         """
         Initialize RAG graph.
@@ -77,10 +79,16 @@ class RAGGraph:
             embedding_model: HuggingFace model for embeddings
             chunk_size: Size of text chunks in tokens
             chunk_overlap: Overlap between consecutive chunks
+            embedding_revision: Immutable model commit; required for custom models
         """
         self.persist_directory = persist_directory
         self.collection_name = collection_name
         self.embedding_model_name = embedding_model
+        if embedding_revision is None and embedding_model == "microsoft/codebert-base":
+            embedding_revision = CODEBERT_REVISION
+        if not isinstance(embedding_revision, str) or not re.fullmatch(r"[0-9a-f]{40}", embedding_revision):
+            raise ValueError("embedding_revision must be an immutable 40-character commit revision")
+        self.embedding_revision = embedding_revision
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
 
@@ -90,30 +98,25 @@ class RAGGraph:
 
     def _load_model(self):
         """Lazy load CodeBERT model and tokenizer."""
-        global _transformers, _codebert_model, _tokenizer
-
-        if _codebert_model is None or _tokenizer is None:
+        if self._model is None or self._tokenizer is None:
             try:
                 from transformers import AutoModel, AutoTokenizer
 
-                _transformers = True
-
                 logger.info(f"Loading {self.embedding_model_name}...")
-                # Pin to specific revision for reproducibility and security
-                _tokenizer = AutoTokenizer.from_pretrained(
-                    self.embedding_model_name, revision="main"
+                # Validated immutable revision; publish both only after loading.
+                tokenizer = AutoTokenizer.from_pretrained(
+                    self.embedding_model_name, revision=self.embedding_revision
                 )
-                _codebert_model = AutoModel.from_pretrained(
-                    self.embedding_model_name, revision="main"
+                model = AutoModel.from_pretrained(
+                    self.embedding_model_name, revision=self.embedding_revision
                 )
-                _codebert_model.eval()
+                model.eval()
+                self._model = model
+                self._tokenizer = tokenizer
                 logger.info("Model loaded successfully")
             except ImportError as e:
                 logger.error(f"transformers library not installed: {e}")
                 raise
-
-        self._model = _codebert_model
-        self._tokenizer = _tokenizer
 
     def _get_embedding(self, text: str) -> List[float]:
         """Generate embedding for text using CodeBERT."""
@@ -148,11 +151,11 @@ class RAGGraph:
 
         Simple token-based chunking (can be enhanced with AST parsing).
         """
-        chunks = []
+        chunks: List[Dict[str, Any]] = []
         lines = content.split("\n")
 
         # Group lines into chunks
-        current_chunk_lines = []
+        current_chunk_lines: List[str] = []
         current_token_count = 0
 
         for i, line in enumerate(lines):

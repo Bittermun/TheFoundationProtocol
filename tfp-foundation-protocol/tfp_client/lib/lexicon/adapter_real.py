@@ -36,7 +36,6 @@ class RealLexiconAdapter:
             hlt: HierarchicalLexiconTree instance. If None, creates a new one.
         """
         self.hlt = hlt or HierarchicalLexiconTree()
-        self._domain_cache = {}  # Cache for domain selection
 
     def reconstruct(
         self, file_bytes: bytes, tags: Optional[list] = None, model=None

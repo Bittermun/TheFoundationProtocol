@@ -12,6 +12,11 @@ import time
 from json import JSONDecodeError
 from pathlib import Path
 
+from tfp_cli.identity import (
+    load_or_create_identity as _load_encrypted_identity,
+    IdentityError,
+)
+
 # Add project root and legacy paths if needed
 _root = Path(__file__).resolve().parent.parent
 _legacy = _root / "tfp-foundation-protocol"
@@ -30,20 +35,9 @@ except ImportError:
 try:
     from tfp_client.lib.compute.task_executor import TaskSpec, execute_task
 except ImportError:
-    class TaskSpec:
-        @classmethod
-        def from_dict(cls, d):
-            return cls()
-    def execute_task(spec, timeout_s):
-        class MockResult:
-            output_hash = "0" * 64
-            execution_time_s = 0.0
-        return MockResult()
+    TaskSpec = None
+    execute_task = None
 
-from tfp_cli.identity import (
-    load_or_create_identity as _load_encrypted_identity,
-    IdentityError,
-)
 
 DEFAULT_API = "http://127.0.0.1:8000"
 
@@ -182,9 +176,11 @@ def cmd_publish(args) -> int:
 
 
 def cmd_get(args) -> int:
+    identity = _load_or_create_identity(args.device_id)
     response = httpx.get(
         f"{args.api}/api/get/{args.root_hash}",
         params={"device_id": args.device_id},
+        headers={"X-Device-Sig": _make_sig(identity["puf_entropy"], f"{args.device_id}:{args.root_hash}")},
         timeout=10,
     )
     if response.status_code >= 400:
@@ -524,7 +520,7 @@ def cmd_ping(args) -> int:
     """
     Measure round-trip latency to the node, verify liveness, and inspect readiness.
     """
-    print(f"[ping] Pinging node at {args.api} …")
+    print(f"[ping] Pinging node at {args.api} ...")
     import time as _time
     try:
         t0 = _time.monotonic()
@@ -534,20 +530,20 @@ def cmd_ping(args) -> int:
             try:
                 data = resp.json()
             except JSONDecodeError:
-                print(f"[ping]   ✗ Reachable but response was not valid JSON: {resp.text[:200]}")
+                print(f"[ping]   ERROR Reachable but response was not valid JSON: {resp.text[:200]}")
                 return 1
             ready_str = "READY" if data.get("ready") else "NOT READY"
-            print("[ping]   ✓ Reachable (Status 200)")
-            print(f"[ping]   ⚡ Latency: {latency_ms:.1f} ms")
-            print(f"[ping]   📋 Node State: {ready_str}")
-            print(f"[ping]   🚀 Startup Stage: '{data.get('startup_stage', 'unknown')}'")
-            print(f"[ping]   📦 Content Items: {data.get('content_items', 0)}")
+            print("[ping]   OK Reachable (Status 200)")
+            print(f"[ping]    Latency: {latency_ms:.1f} ms")
+            print(f"[ping]    Node State: {ready_str}")
+            print(f"[ping]    Startup Stage: '{data.get('startup_stage', 'unknown')}'")
+            print(f"[ping]    Content Items: {data.get('content_items', 0)}")
             return 0
         else:
-            print(f"[ping]   ✗ Reachable but returned status {resp.status_code}: {resp.text[:120]}")
+            print(f"[ping]   ERROR Reachable but returned status {resp.status_code}: {resp.text[:120]}")
             return 1
     except RequestError as exc:
-        print(f"[ping]   ✗ Unreachable: {exc}")
+        print(f"[ping]   ERROR Unreachable: {exc}")
         return 1
 
 
@@ -560,10 +556,19 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="tfp", description="TFP demo CLI")
     parser.add_argument("--api", default=DEFAULT_API, help="TFP demo API base URL")
     parser.add_argument(
-        "--version", "-v", action="version", version="v3.2.0-alpha"
+        "--version", "-v", action="version", version="3.1.1"
     )
 
     sub = parser.add_subparsers(dest="command", required=True)
+
+    from tfp_cli.demo import run_demo
+
+    demo = sub.add_parser("demo", help="Open the local content commons (no external services needed)")
+    demo.add_argument("--port", type=int, choices=range(0, 65536), default=8000, metavar="PORT")
+    demo.add_argument("--ephemeral", action="store_true", help="Discard demo data when the server stops")
+    demo.add_argument("--no-browser", action="store_true", help="Print the URL without opening a browser")
+    demo.add_argument("--data-dir", default=str(Path.home() / ".tfp" / "demo"), help="Directory for persistent demo data")
+    demo.set_defaults(func=run_demo)
 
     publish = sub.add_parser("publish", help="Publish text content")
     publish.add_argument("--title", required=True, help="Content title")
@@ -584,7 +589,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     get.set_defaults(func=cmd_get)
 
-    earn = sub.add_parser("earn", help="Earn credits by submitting compute task")
+    earn = sub.add_parser("earn", help="Request a demo credit allowance (demo mode only; does not execute compute)")
     earn.add_argument(
         "--task-id", required=True, dest="task_id", help="Task recipe identifier"
     )
@@ -686,6 +691,12 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv=None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    if args.command != "demo" and httpx is None:
+        _print_json({"error": "CLI HTTP support is missing. Install it with: python -m pip install '.[cli]'"})
+        return 1
+    if args.command in {"join", "run-task"} and execute_task is None:
+        _print_json({"error": "The compute engine is missing. Reinstall the complete project; no result was submitted."})
+        return 1
     try:
         return args.func(args)
     except RequestError as exc:

@@ -1,0 +1,41 @@
+{
+  "contract_sha256": "7b3f932259f641adc1b5646ed39cb82aee0a7c107fd359a0e4dd359783ccc04e",
+  "candidates": [
+    {
+      "size": 1024,
+      "sha256": "ee50d95ea458f3818d652b804cde029bc1bb7dd5c287f42a9de2b300cbf93fe5",
+      "tune_total_bytes": 16197,
+      "file": "dictionary-1024.zdict",
+      "wall_seconds": 0.0067930000004707836,
+      "cpu_seconds": 0.0,
+      "process_peak_rss_bytes": 33775616
+    },
+    {
+      "size": 4096,
+      "sha256": "c231deaf2f5775c0cbad6950f3c6510f151d23109f5eb7e458da57a81657eaba",
+      "tune_total_bytes": 18119,
+      "file": "dictionary-4096.zdict",
+      "wall_seconds": 0.006727100000716746,
+      "cpu_seconds": 0.0,
+      "process_peak_rss_bytes": 33800192
+    },
+    {
+      "size": 8192,
+      "sha256": "f3dc67e19b136845163b254e0711c593e68125ffb7aec44f009fab8717086b25",
+      "tune_total_bytes": 21442,
+      "file": "dictionary-8192.zdict",
+      "wall_seconds": 0.007461599998350721,
+      "cpu_seconds": 0.0,
+      "process_peak_rss_bytes": 34148352
+    }
+  ],
+  "selected": {
+    "size": 1024,
+    "sha256": "ee50d95ea458f3818d652b804cde029bc1bb7dd5c287f42a9de2b300cbf93fe5",
+    "tune_total_bytes": 16197,
+    "file": "dictionary-1024.zdict",
+    "wall_seconds": 0.0067930000004707836,
+    "cpu_seconds": 0.0,
+    "process_peak_rss_bytes": 33775616
+  }
+}

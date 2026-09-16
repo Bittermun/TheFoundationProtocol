@@ -1,5 +1,7 @@
 # The Foundation Protocol (TFP): Multi-Phase Architecture Master Plan (Phases 1–4)
 
+Historical architecture proposal: its approval/readiness labels and performance descriptions are not evidence of current behavior. The current execution order and evidence gates are in [Foundation execution megaplan](../FOUNDATION_MEGAPLAN.md). Retain the phase intentions below as design inputs and reconcile them with measured requirements before implementation.
+
 **Document Classification:** Publication-Grade Architectural Specification & Master Engineering Blueprint  
 **Document Version:** 4.0.0-PROD-SPEC  
 **Target Platform:** The Foundation Protocol (TFP) Next-Generation Architecture (v3.x Legacy to v4.x Next-Gen)  

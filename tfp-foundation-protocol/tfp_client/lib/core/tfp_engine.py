@@ -43,8 +43,8 @@ class TFPClient:
         self.preprocessor = preprocessor
         self.puf = puf
         self._puf_expected_seed = puf_expected_seed
-        self._spends = []
-        self._earned_receipts = []
+        self._spends: list[Receipt] = []
+        self._earned_receipts: list[Receipt] = []
 
     def spend_for_service(self, credits: int) -> None:
         """Deduct credits from the ledger balance using the oldest available receipt."""
@@ -55,12 +55,15 @@ class TFPClient:
         if self.ledger.balance < credits:
             raise ValueError(f"insufficient balance: {self.ledger.balance} < {credits}")
 
-        receipt = self._earned_receipts.pop(0)
-        self.ledger.spend(credits, receipt)
+        receipt = self._earned_receipts[0]
+        change = self.ledger.spend_with_change(credits, receipt)
+        self._earned_receipts.pop(0)
+        if change is not None:
+            self._earned_receipts.append(change)
         self._spends.append(receipt)
 
     def request_content(
-        self, root_hash: str, zkp_proof=None, recipe: dict = None
+        self, root_hash: str, zkp_proof=None, recipe: dict = None, *, spend_credits: bool = True
     ) -> Content:
         # Security gate: validate recipe before any decode work
         if recipe is not None and self.preprocessor is not None:
@@ -81,7 +84,8 @@ class TFPClient:
         content = self.lexicon.reconstruct(file_bytes)
 
         # Spend 1 credit for content retrieval
-        self.spend_for_service(1)
+        if spend_credits:
+            self.spend_for_service(1)
         return content
 
     def submit_compute_task(self, task_recipe_hash: str) -> Receipt:

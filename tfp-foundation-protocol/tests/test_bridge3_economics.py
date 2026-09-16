@@ -303,16 +303,15 @@ class TestHybridWallet:
 
         # Mint both types
         proof_hash = b"test_proof_hash_32_bytes_long!!"
-        wallet.mint_compute_credits(50, proof_hash)
+        receipt = wallet.mint_compute_credits(50, proof_hash)
         wallet.mint_pinning_credits({"hash1": 50.0})
 
-        # Spend mixed (should use compute first, then pinning)
-        # Note: Current implementation uses compute if receipt provided, else pinning
-        wallet.spend(75.0, credit_type="mixed")
+        # Authorized compute is debited first; pinning pays the remainder.
+        wallet.spend(75.0, credit_type="mixed", receipt=receipt)
 
         balance = wallet.get_balance()
-        # Since no receipt provided, it falls back to pinning
-        assert balance.pinning_credits == 25.0 or balance.compute_credits == 0.0
+        assert balance.pinning_credits == 25.0
+        assert balance.compute_credits == 0.0
 
     def test_track_content_request(self):
         """Test tracking content requests for DWCC."""

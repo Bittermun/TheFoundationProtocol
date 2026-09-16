@@ -1,91 +1,52 @@
-/**
- * TFP Demo Service Worker - Offline-first PWA support.
- *
- * Strategy:
- *   - Static assets (/,  /manifest.json): cache-first
- *   - Content retrieval (/api/get/*): network-first, cache on success for offline playback
- *   - Mutating API calls (/api/publish, /api/earn, /api/enroll): network-only (never cached)
- */
-
-const CACHE_NAME = 'tfp-demo-v1';
-
-const STATIC_ASSETS = ['/', '/manifest.json'];
-
-// ---------------------------------------------------------------------------
-// Install: pre-cache static assets
-// ---------------------------------------------------------------------------
-self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS))
-  );
-  self.skipWaiting();
+/* SPDX-License-Identifier: Apache-2.0 */
+// Only the application shell and successfully retrieved notes are cached.
+// Status, balances, listings, errors, and mutations always use the network.
+const CACHE_NAME = 'tfp-demo-v2';
+const SHELL = ['/', '/manifest.json', '/assets/app.css', '/assets/app.js', '/assets/icon.svg'];
+self.addEventListener('install', event => {
+  event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(SHELL)).then(() => self.skipWaiting()));
 });
-
-// ---------------------------------------------------------------------------
-// Activate: remove stale caches from previous versions
-// ---------------------------------------------------------------------------
-self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches
-      .keys()
-      .then((keys) =>
-        Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
-      )
-  );
-  self.clients.claim();
+self.addEventListener('activate', event => {
+  event.waitUntil(caches.keys().then(keys => Promise.all(
+    keys.filter(key => key.startsWith('tfp-demo-') && key !== CACHE_NAME).map(key => caches.delete(key))
+  )).then(() => self.clients.claim()));
 });
-
-// ---------------------------------------------------------------------------
-// Fetch: route requests to the correct strategy
-// ---------------------------------------------------------------------------
-self.addEventListener('fetch', (event) => {
-  const { pathname } = new URL(event.request.url);
-
-  if (
-    pathname.startsWith('/api/publish') ||
-    pathname.startsWith('/api/earn') ||
-    pathname.startsWith('/api/enroll')
-  ) {
-    // Mutations: always go to the network; never cache responses
-    event.respondWith(fetch(event.request));
-  } else if (pathname.startsWith('/api/get/')) {
-    // Content retrieval: network-first, cache successful responses for offline playback
-    event.respondWith(networkFirstThenCache(event.request));
-  } else {
-    // Static assets and read-only API (/api/content, /health): cache-first
-    event.respondWith(cacheFirstThenNetwork(event.request));
+self.addEventListener('fetch', event => {
+  const url = new URL(event.request.url);
+  if (event.request.method !== 'GET' || url.origin !== self.location.origin) return;
+  if (SHELL.includes(url.pathname)) {
+    event.respondWith(shell(event.request));
+  } else if (url.pathname.startsWith('/api/get/') && !url.searchParams.has('stream')) {
+    event.respondWith(note(event.request));
   }
 });
-
-// ---------------------------------------------------------------------------
-// Strategy helpers
-// ---------------------------------------------------------------------------
-
-async function cacheFirstThenNetwork(request) {
-  const cached = await caches.match(request);
-  if (cached) return cached;
-  const response = await fetch(request);
-  if (response.ok) {
-    const cache = await caches.open(CACHE_NAME);
-    cache.put(request, response.clone());
-  }
-  return response;
-}
-
-async function networkFirstThenCache(request) {
+async function shell(request) {
+  const cache = await caches.open(CACHE_NAME);
   try {
     const response = await fetch(request);
-    if (response.ok) {
-      const cache = await caches.open(CACHE_NAME);
-      cache.put(request, response.clone());
+    if (response.ok) await cache.put(request, response.clone());
+    return response;
+  } catch {
+    return await cache.match(request) || new Response('Offline. Reconnect to load Foundation.', {status: 503});
+  }
+}
+async function note(request) {
+  const cache = await caches.open(CACHE_NAME);
+  try {
+    const response = await fetch(request);
+    if (response.status === 200 && response.headers.get('content-type')?.includes('application/json')) {
+      await cache.put(request, response.clone());
     }
     return response;
   } catch {
-    const cached = await caches.match(request);
-    if (cached) return cached;
-    return new Response(JSON.stringify({ error: 'offline', cached: false }), {
-      status: 503,
-      headers: { 'Content-Type': 'application/json' },
+    const saved = await cache.match(request);
+    if (saved) {
+      const headers = new Headers(saved.headers);
+      headers.set('X-TFP-Offline', '1');
+      return new Response(await saved.arrayBuffer(), {status: 200, headers});
+    }
+    return new Response(JSON.stringify({detail: 'This note is not saved in this browser. Reconnect to retrieve it.'}), {
+      status: 503, headers: {'Content-Type': 'application/json'}
     });
   }
 }

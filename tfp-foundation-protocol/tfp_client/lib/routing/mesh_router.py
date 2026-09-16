@@ -16,7 +16,6 @@ from typing import Dict, List, Optional, Set, Tuple
 from datetime import datetime
 
 from ..peer.peer_repository import PeerRepository
-from ..peer.peer_models import MeshRoute
 
 log = logging.getLogger(__name__)
 
@@ -299,7 +298,6 @@ class MeshRouter:
         Weight = (latency_ms / 1000) * (1.0 - route_quality) + hop_count
         """
         latency = connection.latency_ms or 1000  # Default 1s
-        quality = 1.0  # Connection quality not tracked yet
         hops = 1  # Direct connection
 
         # Normalize latency (0-5s range)

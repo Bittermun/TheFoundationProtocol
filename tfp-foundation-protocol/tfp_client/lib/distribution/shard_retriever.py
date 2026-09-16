@@ -10,10 +10,10 @@ content reconstruction using RaptorQ, and handling of missing shards.
 
 import asyncio
 import hashlib
+import hmac
 import logging
 import time
-from typing import Dict, List, Optional, Set, Tuple
-from datetime import datetime
+from typing import Dict, List, Optional, Set
 
 from ..peer.peer_repository import PeerRepository
 from ..peer.peer_models import ShardLocation
@@ -307,7 +307,7 @@ class ShardRetriever:
             
             received_hmac = shard_data[-32:]
             shard_without_hmac = shard_data[:-32]
-            expected_hmac = hashlib.sha3_256(hmac_key + shard_without_hmac).digest()
+            expected_hmac = hmac.new(hmac_key, shard_without_hmac, hashlib.sha3_256).digest()
             
             if not hmac.compare_digest(received_hmac, expected_hmac):
                 log.warning("Shard HMAC verification failed")

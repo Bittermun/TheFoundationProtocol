@@ -20,6 +20,9 @@ ENV/
 # Testing / coverage
 .pytest_cache/
 .hypothesis/
+.dist_verify/
+.playwright-mcp/
+output/playwright/
 .agents/
 .coverage
 htmlcov/

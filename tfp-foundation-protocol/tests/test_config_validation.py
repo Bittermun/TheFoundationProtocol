@@ -38,11 +38,11 @@ def test_validate_runtime_config_requires_persistent_db_in_production():
         assert "TFP_DB_PATH" in str(exc)
 
 
-def test_validate_runtime_config_production_defaults_publish_disabled():
+def test_validate_runtime_config_production_defaults_publish_disabled(tmp_path):
     cfg = validate_runtime_config(
         {
             "TFP_MODE": "production",
-            "TFP_DB_PATH": "/tmp/tfp.db",
+            "TFP_DB_PATH": str(tmp_path / "tfp.db"),
             "TFP_PEER_SECRET": "peer-secret",
             "TFP_ADMIN_DEVICE_IDS": "admin-1",
         },
@@ -51,12 +51,12 @@ def test_validate_runtime_config_production_defaults_publish_disabled():
     assert cfg.nostr_publish_enabled is False
 
 
-def test_validate_runtime_config_requires_peer_secret_and_admin_allowlist():
+def test_validate_runtime_config_requires_peer_secret_and_admin_allowlist(tmp_path):
     try:
         validate_runtime_config(
             {
                 "TFP_MODE": "production",
-                "TFP_DB_PATH": "/tmp/tfp.db",
+                "TFP_DB_PATH": str(tmp_path / "tfp.db"),
             },
             default_db_path="test-default.db",
         )
@@ -65,12 +65,12 @@ def test_validate_runtime_config_requires_peer_secret_and_admin_allowlist():
         assert "TFP_PEER_SECRET" in str(exc)
 
 
-def test_validate_runtime_config_rejects_invalid_nostr_key_in_production():
+def test_validate_runtime_config_rejects_invalid_nostr_key_in_production(tmp_path):
     try:
         validate_runtime_config(
             {
                 "TFP_MODE": "production",
-                "TFP_DB_PATH": "/tmp/tfp.db",
+                "TFP_DB_PATH": str(tmp_path / "tfp.db"),
                 "TFP_PEER_SECRET": "peer-secret",
                 "TFP_ADMIN_DEVICE_IDS": "admin-1",
                 "NOSTR_PRIVATE_KEY": "invalid-key",

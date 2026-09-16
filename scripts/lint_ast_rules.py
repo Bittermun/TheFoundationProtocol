@@ -22,7 +22,7 @@ from dataclasses import asdict, dataclass
 import json
 from pathlib import Path
 import sys
-from typing import Any, List, Optional, Set
+from typing import List, Set
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 

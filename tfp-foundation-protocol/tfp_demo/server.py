@@ -3,6 +3,7 @@
 
 import asyncio
 import collections
+import copy
 import hashlib
 import hmac as _hmac
 import json
@@ -16,13 +17,14 @@ import time
 from tfp_demo.database import Database, get_database_from_env
 import urllib.parse
 import urllib.request
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterator, List, Optional
 
 from fastapi import Body, FastAPI, Header, HTTPException, Query, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from fastapi.responses import (
     FileResponse,
     HTMLResponse,
@@ -38,15 +40,13 @@ from tfp_client.lib.peer.peer_repository import PeerRepository
 from tfp_client.lib.peer.peer_models import (
     PeerInfo,
     PeerDiscoverRequest,
-    PeerDiscoverResponse,
     PeerHandshakeRequest,
-    PeerHandshakeResponse,
     PeerAnnounceRequest,
     PeerFilters,
 )
 from tfp_client.lib.peer.peer_discovery import PeerDiscovery as PeerDiscoveryService
 from tfp_client.lib.peer.peer_discovery import PeerHandshake as PeerHandshakeService
-from tfp_client.lib.distribution.shard_manager import ShardManager, DistributionPlan, DistributionResult
+from tfp_client.lib.distribution.shard_manager import ShardManager
 from tfp_client.lib.distribution.shard_retriever import ShardRetriever
 from tfp_client.lib.gossip.gossip_protocol import GossipProtocol, GossipConfig
 from tfp_client.lib.routing.mesh_router import MeshRouter, RoutingConfig
@@ -71,12 +71,12 @@ from tfp_client.lib.compute.verify_habp import (
     generate_execution_proof,
 )
 from tfp_client.lib.core.tfp_engine import TFPClient
-from tfp_client.lib.credit.ledger import MAX_SUPPLY, CreditLedger, Receipt
+from tfp_client.lib.credit.ledger import MAX_SUPPLY, CreditLedger, Receipt, SupplyCapError
 from tfp_client.lib.fountain.fountain_real import RealRaptorQAdapter
-from tfp_client.lib.fountain.raptorq_ffi import RaptorQError
 from tfp_client.lib.lexicon.hlt.tree import HierarchicalLexiconTree
 from tfp_client.lib.metadata.tag_index import TagOverlayIndex
 from tfp_client.lib.ndn.adapter import Data, NDNAdapter
+from tfp_client.lib.ndn.ndn_real import RealNDNAdapter
 from tfp_client.lib.reconstruction.template_assembler import (
     Recipe,
     TemplateAssembler,
@@ -126,7 +126,7 @@ _DEVICE_RATE_LIMIT = 1000  # Max chunks per minute per device
 _DEVICE_RATE_WINDOW = 60.0  # Time window in seconds
 
 # Retry queue for failed background processing
-_failed_upload_queue = collections.deque(
+_failed_upload_queue: collections.deque[dict] = collections.deque(
     maxlen=1000
 )  # Max 1000 failed uploads in queue
 _failed_upload_lock = threading.Lock()
@@ -802,14 +802,21 @@ class DeviceRegistry:
             )
             self._conn.commit()
 
-    def enroll(self, device_id: str, puf_entropy: bytes) -> None:
+    def enroll(self, device_id: str, puf_entropy: bytes) -> bool:
+        """Enroll once; retries with the same secret preserve identity and credits."""
         with self._db_lock:
+            existing = self.get_entropy(device_id)
+            if existing is not None:
+                if not _hmac.compare_digest(existing, puf_entropy):
+                    raise ValueError("device_id is already enrolled with a different secret")
+                return False
             self._conn.execute(
-                "INSERT OR REPLACE INTO devices (device_id, puf_entropy, enrolled_at) "
+                "INSERT INTO devices (device_id, puf_entropy, enrolled_at) "
                 "VALUES (?, ?, ?)",
                 (device_id, puf_entropy, time.time()),
             )
             self._conn.commit()
+            return True
 
     def get_entropy(self, device_id: str) -> Optional[bytes]:
         with self._db_lock:
@@ -887,7 +894,7 @@ class EarnLog:
             )
             self._conn.commit()
 
-    def record(self, device_id: str, task_id: str) -> bool:
+    def record(self, device_id: str, task_id: str, *, commit: bool = True) -> bool:
         """Attempt to record an earn event.  Returns True if new, False if duplicate."""
         with self._db_lock:
             try:
@@ -895,7 +902,8 @@ class EarnLog:
                     "INSERT INTO earn_log (device_id, task_id, earned_at) VALUES (?, ?, ?)",
                     (device_id, task_id, time.time()),
                 )
-                self._conn.commit()
+                if commit:
+                    self._conn.commit()
                 return True
             except sqlite3.IntegrityError as exc:
                 # Check if it's a UNIQUE constraint violation (duplicate key)
@@ -903,6 +911,8 @@ class EarnLog:
                     "UNIQUE constraint" in str(exc)
                     or "duplicate key" in str(exc).lower()
                 ):
+                    if commit:
+                        self._conn.rollback()
                     return False
                 # Re-raise other IntegrityErrors (e.g., FK violations)
                 raise
@@ -951,26 +961,38 @@ class CreditStore:
                 )
                 """
             )
+            columns = {row[1] for row in self._conn.execute("PRAGMA table_info(credit_ledger)")}
+            if "spent_receipts_json" not in columns:
+                self._conn.execute("ALTER TABLE credit_ledger ADD COLUMN spent_receipts_json TEXT NOT NULL DEFAULT '[]'")
+            if "total_minted" not in columns:
+                self._conn.execute("ALTER TABLE credit_ledger ADD COLUMN total_minted INTEGER NOT NULL DEFAULT 0")
             self._conn.commit()
 
-    def save(self, device_id: str, client: "TFPClient") -> None:
+    def save(self, device_id: str, client: "TFPClient", *, commit: bool = True) -> None:
         """Persist the client's current ledger + unspent receipts."""
         chain_json = json.dumps([h.hex() for h in client.ledger.chain])
         balance = client.ledger.balance
-        unspent_json = json.dumps([r.chain_hash.hex() for r in client._earned_receipts])
+        unspent_json = json.dumps([
+            {"chain_hash": r.chain_hash.hex(), "credits": r.credits}
+            for r in client._earned_receipts
+        ])
+        spent_json = json.dumps(sorted(h.hex() for h in client.ledger.spent_receipts))
         with self._db_lock:
             self._conn.execute(
                 """
-                INSERT INTO credit_ledger (device_id, balance, chain_json, unspent_receipts_json)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO credit_ledger (device_id, balance, chain_json, unspent_receipts_json, spent_receipts_json, total_minted)
+                VALUES (?, ?, ?, ?, ?, ?)
                 ON CONFLICT(device_id) DO UPDATE SET
                     balance               = excluded.balance,
                     chain_json            = excluded.chain_json,
-                    unspent_receipts_json = excluded.unspent_receipts_json
+                    unspent_receipts_json = excluded.unspent_receipts_json,
+                    spent_receipts_json = excluded.spent_receipts_json,
+                    total_minted = excluded.total_minted
                 """,
-                (device_id, balance, chain_json, unspent_json),
+                (device_id, balance, chain_json, unspent_json, spent_json, client.ledger.total_minted),
             )
-            self._conn.commit()
+            if commit:
+                self._conn.commit()
 
     def load(self, device_id: str) -> Optional["TFPClient"]:
         """
@@ -979,16 +1001,20 @@ class CreditStore:
         """
         with self._db_lock:
             row = self._conn.execute(
-                "SELECT balance, chain_json, unspent_receipts_json FROM credit_ledger WHERE device_id = ?",
+                "SELECT balance, chain_json, unspent_receipts_json, spent_receipts_json, total_minted FROM credit_ledger WHERE device_id = ?",
                 (device_id,),
             ).fetchone()
             if row is None:
                 return None
-            balance, chain_json, unspent_json = row
+            balance, chain_json, unspent_json, spent_json, total_minted = row
             chain = [bytes.fromhex(h) for h in json.loads(chain_json)]
-            ledger = CreditLedger.from_snapshot(chain, balance)
+            ledger = CreditLedger.from_snapshot(
+                chain, balance, total_minted=total_minted,
+                spent_receipts=[bytes.fromhex(h) for h in json.loads(spent_json)],
+            )
             unspent_receipts = [
-                Receipt(chain_hash=bytes.fromhex(h), credits=10)
+                Receipt(chain_hash=bytes.fromhex(h), credits=10) if isinstance(h, str)
+                else Receipt(chain_hash=bytes.fromhex(h["chain_hash"]), credits=h["credits"])
                 for h in json.loads(unspent_json)
             ]
             client = TFPClient(
@@ -1089,11 +1115,30 @@ class TaskStore:
                 total_minted   INTEGER NOT NULL DEFAULT 0
             );
             INSERT OR IGNORE INTO supply_ledger (id, total_minted) VALUES (1, 0);
+            CREATE TABLE IF NOT EXISTS task_rewards (
+                task_id TEXT NOT NULL REFERENCES tasks(task_id) ON DELETE CASCADE,
+                device_id TEXT NOT NULL,
+                output_hash TEXT NOT NULL,
+                credits INTEGER NOT NULL CHECK (credits > 0),
+                settled INTEGER NOT NULL DEFAULT 0 CHECK (settled IN (0, 1)),
+                PRIMARY KEY (task_id, device_id)
+                {devices_fk}
+            );
             """
             )
         self._conn.commit()
         # Rebuild in-memory HABP state from persisted results for tasks still verifying
         self._rebuild_habp_from_db()
+        # A process may have stopped after persisting the quorum's last result
+        # but before recording completion and reward entitlements.
+        for (task_id,) in self._conn.execute("SELECT task_id FROM tasks WHERE status = 'verifying'").fetchall():
+            consensus = self._habp.verify_consensus(task_id)
+            if consensus and consensus.verified:
+                output_hash = self._conn.execute(
+                    "SELECT output_hash FROM task_results WHERE task_id = ? AND device_id = ?",
+                    (task_id, consensus.matching_devices[0]),
+                ).fetchone()[0]
+                self._finish_consensus(self.get_task_row(task_id), output_hash, consensus)
 
     def _rebuild_habp_from_db(self) -> None:
         """Replay persisted proofs into HABPVerifier so consensus survives restarts.
@@ -1162,7 +1207,7 @@ class TaskStore:
             ).fetchone()
             return row[0] if row else 0
 
-    def increment_total_minted(self, amount: int) -> int:
+    def increment_total_minted(self, amount: int, *, commit: bool = True) -> int:
         """Atomically increment and return new total. Raises if cap exceeded.
 
         Uses atomic SQL UPDATE with condition check to prevent race condition
@@ -1204,7 +1249,8 @@ class TaskStore:
                         f"Global supply cap reached: {current}/{MAX_SUPPLY} "
                         f"(effective cap: {effective_cap})"
                     )
-                self._conn.commit()
+                if commit:
+                    self._conn.commit()
                 return self.get_total_minted()
 
     # -- Task lifecycle --------------------------------------------------------
@@ -1360,6 +1406,14 @@ class TaskStore:
                 task_row = self.get_task_row(task_id)
                 if task_row is None:
                     raise HTTPException(status_code=404, detail="task not found")
+                if task_row["status"] == "completed":
+                    reward = self._conn.execute(
+                        "SELECT output_hash FROM task_rewards WHERE task_id = ? AND device_id = ?",
+                        (task_id, device_id),
+                    ).fetchone()
+                    if reward and reward[0] == output_hash:
+                        return {"status": "verified", "verified": True, "credits_earned": 0,
+                                "consensus_needed": 0, "replayed": True}
                 if task_row["status"] in ("completed", "failed"):
                     raise HTTPException(
                         status_code=409, detail="task already finalised"
@@ -1398,6 +1452,14 @@ class TaskStore:
                     ),
                 )
                 if cursor.rowcount == 0:
+                    self._conn.commit()
+                    previous = self._conn.execute(
+                        "SELECT output_hash FROM task_results WHERE task_id = ? AND device_id = ?",
+                        (task_id, device_id),
+                    ).fetchone()
+                    consensus = self._habp.verify_consensus(task_id)
+                    if previous[0] == output_hash and consensus and consensus.verified:
+                        return self._finish_consensus(task_row, output_hash, consensus)
                     raise HTTPException(
                         status_code=409,
                         detail="result already submitted for this device and task",
@@ -1428,32 +1490,7 @@ class TaskStore:
 
                 consensus = self._habp.verify_consensus(task_id)
                 if consensus and consensus.verified:
-                    # Mark completed and compute credits
-                    calc = self._credit_formula.calculate_credits(
-                        difficulty=task_row["difficulty"],
-                        hardware_trust=consensus.credit_weight,
-                        uptime_hours=24.0,
-                        verification_confidence=consensus.confidence,
-                        is_charging=False,
-                    )
-                    credits = calc.final_credits
-                    # Validate state transition before updating
-                    self._validate_state_transition(task_id, "verifying", "completed")
-                    self._conn.execute(
-                        "UPDATE tasks SET status = 'completed' WHERE task_id = ?",
-                        (task_id,),
-                    )
-                    self._conn.commit()
-                    # Clean up HABP in-memory state for completed task
-                    self._habp.clear_task(task_id)
-                    return {
-                        "status": "verified",
-                        "verified": True,
-                        "credits_earned": credits,
-                        "consensus_needed": 0,
-                        "matching_devices": consensus.matching_devices,
-                        "confidence": consensus.confidence,
-                    }
+                    return self._finish_consensus(task_row, output_hash, consensus)
 
                 # Count current proofs
                 proof_count = self._habp.get_proof_count(task_id)
@@ -1465,6 +1502,37 @@ class TaskStore:
                     "consensus_needed": needed,
                     "proofs_received": proof_count,
                 }
+
+    def _finish_consensus(self, task_row: dict, output_hash: str, consensus) -> dict:
+        """Commit completion and every qualifying entitlement as one write unit."""
+        task_id = task_row["task_id"]
+        spec = self.get_spec(task_id)
+        if not spec or not _hmac.compare_digest(output_hash, spec.expected_output_hash):
+            self._conn.execute("UPDATE tasks SET status = 'failed' WHERE task_id = ?", (task_id,))
+            self._conn.commit()
+            self._habp.clear_task(task_id)
+            return {"status": "invalid_result", "verified": False, "credits_earned": 0,
+                    "consensus_needed": 0, "reason": "agreed result does not match task specification"}
+        calc = self._credit_formula.calculate_credits(
+            difficulty=task_row["difficulty"], hardware_trust=consensus.credit_weight,
+            uptime_hours=24.0, verification_confidence=consensus.confidence, is_charging=False,
+        )
+        credits = calc.final_credits
+        self._validate_state_transition(task_id, "verifying", "completed")
+        try:
+            self._conn.execute("UPDATE tasks SET status = 'completed' WHERE task_id = ?", (task_id,))
+            self._conn.executemany(
+                "INSERT INTO task_rewards (task_id, device_id, output_hash, credits) VALUES (?, ?, ?, ?)",
+                [(task_id, device_id, output_hash, credits) for device_id in sorted(set(consensus.matching_devices))],
+            )
+            self._conn.commit()
+        except BaseException:
+            self._conn.rollback()
+            raise
+        self._habp.clear_task(task_id)
+        return {"status": "verified", "verified": True, "credits_earned": credits,
+                "consensus_needed": 0, "matching_devices": consensus.matching_devices,
+                "confidence": consensus.confidence}
 
     def stats(self) -> dict:
         """Return aggregate task statistics."""
@@ -2033,42 +2101,94 @@ class _PeerFallback:
         return None
 
 
-def _make_ndn_adapter() -> NDNAdapter:
+def _make_ndn_adapter() -> NDNAdapter | RealNDNAdapter:
     """Return the real NDN adapter when TFP_REAL_ADAPTERS=1, else the demo store adapter."""
     if os.environ.get("TFP_REAL_ADAPTERS", "").strip() == "1":
-        from tfp_client.lib.ndn.ndn_real import RealNDNAdapter
-
         return RealNDNAdapter(blob_store=_blob_store)
     return DemoNDNAdapter(_content_store, _ipfs_bridge, _blob_store, _peer_fallback)
 
 
 def _client_for(device_id: str) -> TFPClient:
     """Return (and cache) a TFPClient for *device_id*, restoring persisted state if available."""
-    if device_id not in _clients:
-        restored = _credit_store.load(device_id) if _credit_store else None
-        if restored is not None:
-            # Patch the NDN adapter to point at the current store instance
-            restored.ndn = _make_ndn_adapter()
-            _clients[device_id] = restored
-        else:
-            kwargs: dict = {"ndn": _make_ndn_adapter()}
-            # Use DictLexiconAdapter for text/dictionary domains; it expands
-            # well-known TFP/protocol abbreviations for richer semantic output.
-            try:
-                from tfp_client.lib.lexicon.dict_lexicon_adapter import (
-                    DictLexiconAdapter,
-                )
+    with _credit_store._db_lock:
+        if device_id not in _clients:
+            restored = _credit_store.load(device_id) if _credit_store else None
+            if restored is not None:
+                # Patch the NDN adapter to point at the current store instance
+                restored.ndn = _make_ndn_adapter()
+                _clients[device_id] = restored
+            else:
+                kwargs: dict = {"ndn": _make_ndn_adapter()}
+                # Use DictLexiconAdapter for text/dictionary domains; it expands
+                # well-known TFP/protocol abbreviations for richer semantic output.
+                try:
+                    from tfp_client.lib.lexicon.dict_lexicon_adapter import (
+                        DictLexiconAdapter,
+                    )
 
-                kwargs["lexicon"] = DictLexiconAdapter()
-            except Exception as _lex_exc:
-                log.debug("DictLexiconAdapter unavailable, using stub: %s", _lex_exc)
-            if os.environ.get("TFP_REAL_ADAPTERS", "").strip() == "1":
-                from tfp_client.lib.zkp.zkp_real import RealZKPAdapter
+                    kwargs["lexicon"] = DictLexiconAdapter()
+                except Exception as _lex_exc:
+                    log.debug("DictLexiconAdapter unavailable, using stub: %s", _lex_exc)
+                if os.environ.get("TFP_REAL_ADAPTERS", "").strip() == "1":
+                    from tfp_client.lib.zkp.zkp_real import RealZKPAdapter
 
-                kwargs["raptorq"] = RealRaptorQAdapter()
-                kwargs["zkp"] = RealZKPAdapter()
-            _clients[device_id] = TFPClient(**kwargs)
-    return _clients[device_id]
+                    kwargs["raptorq"] = RealRaptorQAdapter()
+                    kwargs["zkp"] = RealZKPAdapter()
+                _clients[device_id] = TFPClient(**kwargs)
+        return _clients[device_id]
+
+
+@contextmanager
+def _credit_transaction(device_ids):
+    """Commit accounting together and publish cached balances only on success.
+
+    Store methods within this scope must use commit=False. Detached ledgers
+    keep failed writes from consuming receipts in the live cache.
+    """
+    with _credit_store._db_lock:
+        working = {}
+        for device_id in sorted(set(device_ids)):
+            original = _client_for(device_id)
+            client = copy.copy(original)
+            client.ledger = copy.deepcopy(original.ledger)
+            client._earned_receipts = list(original._earned_receipts)
+            working[device_id] = client
+        conn = _credit_store._conn
+        try:
+            conn.execute("BEGIN IMMEDIATE")
+            yield working
+            for device_id, client in working.items():
+                _credit_store.save(device_id, client, commit=False)
+            conn.commit()
+        except BaseException:
+            conn.rollback()
+            raise
+        _clients.update(working)
+
+
+def _settle_task_rewards(task_id: str) -> dict:
+    """Apply all pending entitlements atomically; safe on restart or retry."""
+    with _credit_store._db_lock:
+        conn = _credit_store._conn
+        rewards = conn.execute(
+            "SELECT device_id, output_hash, credits FROM task_rewards WHERE task_id = ? AND settled = 0 ORDER BY device_id",
+            (task_id,),
+        ).fetchall()
+        if not rewards:
+            return {}
+        total = sum(row[2] for row in rewards)
+        with _credit_transaction(row[0] for row in rewards) as working:
+            new_supply = _task_store.increment_total_minted(total, commit=False)
+            for device_id, output_hash, credits in rewards:
+                if not _earn_log.record(device_id, f"compute:{task_id}", commit=False):
+                    raise RuntimeError("pending task reward already has a settlement claim")
+                client = working[device_id]
+                client.ledger.set_network_total_minted(new_supply - credits)
+                proof = hashlib.sha3_256(f"{task_id}:{device_id}:{output_hash}".encode()).digest()
+                client._earned_receipts.append(client.ledger.mint(credits, proof))
+            conn.execute("UPDATE task_rewards SET settled = 1 WHERE task_id = ?", (task_id,))
+        _metrics.inc("tfp_credits_minted_total", total)
+        return {device_id: credits for device_id, _, credits in rewards}
 
 
 def _normalize_tags(tags: List[str]) -> List[str]:
@@ -2081,21 +2201,16 @@ def _normalize_tags(tags: List[str]) -> List[str]:
 
 
 def _seed_sample() -> None:
-    sample = (
-        "Welcome to Scholo Radio demo. "
-        "This sample content is seeded on startup so anyone can test retrieval in under 60 seconds."
-    ).encode()
-    result = _broadcaster.seed_content(
-        sample, metadata={"title": "Welcome Sample"}, use_ldm=False
-    )
-    _content_store.put(
-        StoredContent(
-            root_hash=result["root_hash"],
-            title="Welcome Sample",
-            tags=["demo", "welcome", "audio"],
-            data=sample,
+    from tfp_demo.samples import SAMPLE_NOTES
+
+    for title, tags, body in SAMPLE_NOTES:
+        sample = body.encode("utf-8")
+        result = _broadcaster.seed_content(
+            sample, metadata={"title": title, "tags": tags}, use_ldm=False
         )
-    )
+        _content_store.put(
+            StoredContent(root_hash=result["root_hash"], title=title, tags=tags, data=sample)
+        )
 
 
 def _preseed_tasks() -> None:
@@ -2701,7 +2816,6 @@ async def lifespan(_app: FastAPI):
             _chunk_store = None
 
         _metrics = _Metrics()
-        _metrics.seed_from_db(_conn)
         log.info("DB init complete.")
 
         # ── Stage: seed_content ───────────────────────────────────────────
@@ -2728,9 +2842,15 @@ async def lifespan(_app: FastAPI):
                     )
                     _tag_overlay = TagOverlayIndex()
         _clients.clear()
+        for (pending_task,) in _conn.execute("SELECT DISTINCT task_id FROM task_rewards WHERE settled = 0").fetchall():
+            try:
+                _settle_task_rewards(pending_task)
+            except SupplyCapError:
+                log.warning("Task %s retains unpaid rewards: supply cap reached", pending_task)
         if _content_store.count() == 0:
             _seed_sample()
         _preseed_tasks()
+        _metrics.seed_from_db(_conn)
         log.info("Content/task seeding complete.")
 
         # ── Stage: maintenance ────────────────────────────────────────────
@@ -3346,7 +3466,10 @@ async def complete_upload(
 
 @app.get("/")
 def demo_page():
-    return FileResponse(_demo_dir / "index.html")
+    return FileResponse(_demo_dir / "index.html", headers={"Cache-Control": "no-cache"})
+
+
+app.mount("/assets", StaticFiles(directory=_demo_dir / "assets"), name="demo-assets")
 
 
 @app.get("/manifest.json")
@@ -3359,7 +3482,8 @@ def manifest():
 @app.get("/service-worker.js")
 def service_worker():
     return FileResponse(
-        _demo_dir / "service-worker.js", media_type="application/javascript"
+        _demo_dir / "service-worker.js", media_type="application/javascript",
+        headers={"Cache-Control": "no-cache"},
     )
 
 
@@ -3422,8 +3546,14 @@ def enroll(payload: EnrollRequest, request: Request) -> dict:
         raise HTTPException(
             status_code=422, detail="puf_entropy_hex must be valid hex"
         ) from exc
-    _device_registry.enroll(payload.device_id, puf_entropy)
-    _metrics.inc("tfp_devices_enrolled_total")
+    if len(puf_entropy) != 32:
+        raise HTTPException(status_code=422, detail="device secret must be exactly 32 bytes")
+    try:
+        created = _device_registry.enroll(payload.device_id, puf_entropy)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    if created:
+        _metrics.inc("tfp_devices_enrolled_total")
     return {"enrolled": True, "device_id": payload.device_id}
 
 
@@ -3618,6 +3748,13 @@ def earn(
     payload: EarnRequest,
     x_device_sig: str = Header(alias="X-Device-Sig"),
 ) -> dict:
+    # This legacy endpoint grants an allowance without validating execution.
+    # Real compute rewards use /api/task/{task_id}/result instead.
+    if _runtime_mode != "demo":
+        raise HTTPException(
+            status_code=403,
+            detail="demo credit grants are disabled; submit verified compute results instead",
+        )
     message = f"{payload.device_id}:{payload.task_id}"
     if not _verify_device_sig(
         payload.device_id, x_device_sig, message, _device_registry
@@ -3634,31 +3771,30 @@ def earn(
             status_code=429,
             detail=f"rate limit exceeded — max {_EARN_RATE_MAX} earn calls per {_EARN_RATE_WINDOW}s per device",
         )
-    # Deduplication — reject replayed task IDs (normalized format: task:{task_id})
-    if not _earn_log.record(payload.device_id, f"task:{payload.task_id}"):
-        _metrics.inc("tfp_earn_replay_rejected_total")
-        raise HTTPException(
-            status_code=409,
-            detail="task_id already processed — each task may only be submitted once",
-        )
-    # Execution proof / task verification (HIGH-03)
-    if _task_store is not None:
-        task_row = _task_store.get_task_row(payload.task_id)
-        if task_row is not None and task_row.get("status") == "failed":
+    with _credit_transaction([payload.device_id]) as working:
+        # Demo grants and all their accounting effects share one transaction.
+        if not _earn_log.record(payload.device_id, f"task:{payload.task_id}", commit=False):
+            _metrics.inc("tfp_earn_replay_rejected_total")
             raise HTTPException(
-                status_code=400,
-                detail="cannot earn credits on failed or expired task",
+                status_code=409,
+                detail="task_id already processed — each task may only be submitted once",
             )
-    client = _client_for(payload.device_id)
-    # Inject network-wide total so supply cap is enforced
-    client.ledger.set_network_total_minted(
-        _task_store.get_total_minted() if _task_store else 0
-    )
-    receipt = client.submit_compute_task(payload.task_id)
-    if _task_store:
-        _task_store.increment_total_minted(receipt.credits)
-    # Persist updated ledger so credits survive a server restart
-    _credit_store.save(payload.device_id, client)
+        # Execution proof / task verification (HIGH-03)
+        if _task_store is not None:
+            task_row = _task_store.get_task_row(payload.task_id)
+            if task_row is not None and task_row.get("status") == "failed":
+                raise HTTPException(
+                    status_code=400,
+                    detail="cannot earn credits on failed or expired task",
+                )
+        client = working[payload.device_id]
+        # Inject network-wide total so supply cap is enforced
+        client.ledger.set_network_total_minted(
+            _task_store.get_total_minted() if _task_store else 0
+        )
+        receipt = client.submit_compute_task(payload.task_id)
+        if _task_store:
+            _task_store.increment_total_minted(receipt.credits, commit=False)
     _metrics.inc("tfp_credits_minted_total", receipt.credits)
     return {
         "device_id": payload.device_id,
@@ -3674,7 +3810,15 @@ def get_content(
     request: Request,
     stream: bool = Query(False),
     device_id: str = Query(default="web-demo"),
+    x_device_sig: str | None = Header(default=None, alias="X-Device-Sig"),
 ):
+    # Legacy demo clients may omit the signature. Restricted nodes require it;
+    # even in demo mode, never accept a supplied but invalid signature.
+    if _runtime_mode == "production" or x_device_sig is not None:
+        if not x_device_sig or not _verify_device_sig(
+            device_id, x_device_sig, f"{device_id}:{root_hash}", _device_registry
+        ):
+            raise HTTPException(status_code=401, detail="valid device signature required for retrieval")
     client = _client_for(device_id)
     item = _content_store.get(root_hash)
 
@@ -3684,10 +3828,11 @@ def get_content(
     else:
         # If not in local content store, try fetching via NDN (which now checks IPFS)
         try:
-            content = client.request_content(root_hash)
+            # Charge below, after checking the response (including byte ranges).
+            content = client.request_content(root_hash, spend_credits=False)
         except (ValueError, KeyError, LookupError, FileNotFoundError) as exc:
             msg = str(exc).lower()
-            if "no earned credits" in msg or "insufficient credits" in msg:
+            if "no earned credits" in msg or "insufficient" in msg:
                 raise HTTPException(
                     status_code=402, detail="earn credits first via /api/earn"
                 ) from exc
@@ -3702,12 +3847,21 @@ def get_content(
                 status_code=500, detail="Internal error during retrieval"
             ) from exc
 
-    # Check if device has credits for local content retrieval
-    if _credit_store and client.ledger.balance <= 0:
-        raise HTTPException(
-            status_code=402, detail="earn credits first via /api/earn"
-        )
+    data_bytes = content.content if hasattr(content, "content") else content.data
+    range_response = None
+    if stream and request.headers.get("range"):
+        range_response = _build_range_response(data_bytes, request.headers["range"])
+        if range_response is not None and range_response.status_code == 416:
+            return range_response
 
+    # Debit and persist under the same lock: concurrent reads cannot spend
+    # the same balance, and the last available credit still returns content.
+    with _credit_transaction([device_id]) as working:
+        client = working[device_id]
+        try:
+            client.spend_for_service(1)
+        except ValueError as exc:
+            raise HTTPException(status_code=402, detail="earn credits first via /api/earn") from exc
     _metrics.inc("tfp_content_served_total")
     _metrics.inc("tfp_credits_spent_total")
 
@@ -3715,11 +3869,8 @@ def get_content(
         data_bytes = content.content if hasattr(content, "content") else content.data
 
         # ── HTTP Range request (RFC 7233) ─────────────────────────────────
-        range_header = request.headers.get("range")
-        if range_header:
-            range_response = _build_range_response(data_bytes, range_header)
-            if range_response is not None:
-                return range_response
+        if range_response is not None:
+            return range_response
 
         # ── Full streaming response ───────────────────────────────────────
         blob_path = _content_store.get_blob_path(root_hash) if _content_store else None
@@ -3773,13 +3924,22 @@ def _build_range_response(data: bytes, range_header: str) -> Optional[Response]:
     Parse a ``Range: bytes=start-end`` header and return a 206 Partial Content
     Response, or None if the header cannot be parsed.
     """
-    match = re.match(r"bytes=(\d*)-(\d*)", range_header.strip())
+    match = re.fullmatch(r"bytes=(\d*)-(\d*)", range_header.strip())
     if not match:
         return None
     total = len(data)
     start_str, end_str = match.group(1), match.group(2)
-    start = int(start_str) if start_str else 0
-    end = int(end_str) if end_str else total - 1
+    if not start_str and not end_str:
+        return None
+    if not start_str:
+        # A suffix range requests the final N bytes, not bytes zero through N.
+        suffix = int(end_str)
+        start, end = max(0, total - suffix), total - 1
+        if suffix == 0:
+            start = total
+    else:
+        start = int(start_str)
+        end = int(end_str) if end_str else total - 1
     end = min(end, total - 1)
     if start > end or start >= total:
         return Response(
@@ -3917,15 +4077,6 @@ def delegate_proof(
             detail="invalid or missing device signature",
         )
 
-    client = _client_for(payload.device_id)
-    try:
-        # Cost check: 5 credits for delegated ZKP generation
-        client.spend_for_service(5)
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=402, detail=str(exc) + ". Earn credits via /api/earn first."
-        ) from exc
-
     try:
         private_bytes = bytes.fromhex(payload.private_claim_hex)
     except ValueError:
@@ -3933,11 +4084,14 @@ def delegate_proof(
             status_code=400, detail="private_claim_hex must be valid hex"
         )
 
-    # Use client's adapter (could be RealZKPAdapter if TFP_REAL_ADAPTERS=1)
-    proof = client.zkp.generate_proof(circuit=payload.circuit, private=private_bytes)
-
-    # Persist updated ledger balance
-    _credit_store.save(payload.device_id, client)
+    with _credit_transaction([payload.device_id]) as working:
+        client = working[payload.device_id]
+        try:
+            client.spend_for_service(5)
+        except ValueError as exc:
+            raise HTTPException(status_code=402, detail=str(exc) + ". Earn credits via /api/earn first.") from exc
+        # An invalid request, failed adapter or failed save must not debit.
+        proof = client.zkp.generate_proof(circuit=payload.circuit, private=private_bytes)
     _metrics.inc("tfp_credits_spent_total", 5)
 
     return {
@@ -3969,7 +4123,7 @@ def status(
 
     # Public subset — always safe to expose.
     result: dict = {
-        "version": "0.3.0",
+        "version": app.version,
         "content_items": _content_store.count(),
         "supply_cap": MAX_SUPPLY,
     }
@@ -4060,7 +4214,7 @@ class AdminReindexRequest(BaseModel):
 @app.post("/api/search/semantic")
 def semantic_search(
     payload: SemanticSearchRequest,
-    x_device_sig: str = Header(alias="X-Device-Sig"),
+    x_device_sig: str | None = Header(default=None, alias="X-Device-Sig"),
 ) -> dict:
     """
     Semantic similarity search over the local RAG index.
@@ -4128,7 +4282,7 @@ def semantic_search(
 @app.post("/api/admin/rag/reindex")
 def rag_reindex(
     payload: AdminReindexRequest,
-    x_device_sig: str = Header(alias="X-Device-Sig"),
+    x_device_sig: str | None = Header(default=None, alias="X-Device-Sig"),
 ) -> dict:
     """
     Rebuild the local RAG semantic index from a directory.
@@ -4337,9 +4491,9 @@ def submit_task_result(
     The device must be enrolled and provide a valid signature.
     Credits are minted only after HABP consensus (3/5 matching results).
 
-    When credits_earned > 0 the caller should follow up with POST /api/earn
-    (using the task_id as proof) to credit their ledger, or the credits are
-    automatically applied if the device is already tracked server-side.
+    Every qualifying participant receives a durable reward entitlement.
+    Retries settle pending entitlements without minting them twice. /api/earn
+    grants demo allowances and is not part of compute reward settlement.
     """
     message = f"{payload.device_id}:{task_id}"
     if x_device_sig is None:
@@ -4376,50 +4530,14 @@ def submit_task_result(
     _metrics.inc("tfp_results_submitted_total")
 
     if verification["verified"]:
-        _metrics.inc("tfp_tasks_completed_total")
-        credits = verification["credits_earned"]
-        # Auto-apply credits to the device's ledger if consensus is reached
-        # (normalized format: task:{task_id} to prevent double-mint with /api/earn)
-        if credits > 0 and not _earn_log.record(payload.device_id, f"task:{task_id}"):
-            # Already applied (idempotent guard)
-            pass
-        elif credits > 0:
-            client = _client_for(payload.device_id)
-            client.ledger.set_network_total_minted(_task_store.get_total_minted())
-            try:
-                proof_material = f"{task_id}:{payload.output_hash}".encode()
-                proof_hash = hashlib.sha3_256(proof_material).digest()
-                receipt = client.ledger.mint(credits, proof_hash)
-                client._earned_receipts.append(receipt)
-                _task_store.increment_total_minted(credits)
-                _credit_store.save(payload.device_id, client)
-                _metrics.inc("tfp_credits_minted_total", credits)
-            except Exception as exc:
-                # Re-raise non-supply-cap errors to avoid silent failures
-                from tfp_client.lib.credit.ledger import SupplyCapError
-
-                if isinstance(exc, SupplyCapError):
-                    # Supply cap reached - return 503 to client
-                    log.error(
-                        "Supply cap reached during auto-mint for device=%s task=%s credits=%d",
-                        payload.device_id,
-                        task_id,
-                        credits,
-                    )
-                    raise HTTPException(
-                        status_code=503,
-                        detail=f"Supply cap reached: cannot mint {credits} credits",
-                    ) from exc
-                else:
-                    # Re-raise other exceptions for visibility
-                    log.error(
-                        "Auto-mint failed for device=%s task=%s credits=%d: %s",
-                        payload.device_id,
-                        task_id,
-                        credits,
-                        exc,
-                    )
-                    raise
+        if not verification.get("replayed"):
+            _metrics.inc("tfp_tasks_completed_total")
+        try:
+            settled = _settle_task_rewards(task_id)
+        except SupplyCapError as exc:
+            raise HTTPException(status_code=503, detail="Supply cap reached; task rewards remain pending") from exc
+        verification["credits_earned"] = settled.get(payload.device_id, 0)
+        verification["settled_rewards"] = settled
 
         # Replenish task pool
         try:

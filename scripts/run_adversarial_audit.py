@@ -26,9 +26,52 @@ import json
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 from typing import Any, Dict, List
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+MUTANT_TIMEOUT_SECONDS = 30
+BASELINE_TIMEOUT_SECONDS = 120
+
+# Observe real pytest reports instead of trusting text printed by a crashed child.
+# The snippets are trusted local audit code; this is not an untrusted-code sandbox.
+_OBSERVED_RUNNER = r'''
+import json, sys
+from pathlib import Path
+sys.path[:0] = [str(Path.cwd()), str(Path.cwd() / "tfp-foundation-protocol")]
+import pytest
+
+report_path = Path(sys.argv[2])
+state = {"collected": 0, "failures": [], "session_exit": None}
+
+def is_assertion(exc):
+    if isinstance(exc, AssertionError):
+        return True
+    children = getattr(exc, "exceptions", ())
+    return bool(children) and all(is_assertion(child) for child in children)
+
+class Observer:
+    @pytest.hookimpl(hookwrapper=True)
+    def pytest_runtest_makereport(self, item, call):
+        outcome = yield
+        report = outcome.get_result()
+        if report.failed:
+            state["failures"].append({
+                "nodeid": report.nodeid, "phase": report.when,
+                "assertion": call.excinfo is not None and is_assertion(call.excinfo.value),
+            })
+
+    def pytest_sessionfinish(self, session, exitstatus):
+        state["collected"] = session.testscollected
+        state["session_exit"] = int(exitstatus)
+        report_path.write_text(json.dumps(state), encoding="utf-8")
+
+original_main = pytest.main
+def observed_main(args=None, plugins=None):
+    return original_main(args, plugins=list(plugins or []) + [Observer()])
+pytest.main = observed_main
+exec(compile(sys.argv[1], "<audit-mutation>", "exec"))
+'''
 
 MUTANT_SPECS = [
     {
@@ -129,21 +172,30 @@ def extract_failure_reason(output: str) -> str:
     return "Test failed with non-zero exit code"
 
 
-def run_mutant(spec: Dict[str, Any]) -> Dict[str, Any]:
+def run_mutant(spec: Dict[str, Any], *, timeout: float = MUTANT_TIMEOUT_SECONDS) -> Dict[str, Any]:
     """Execute a single mutation test in an isolated subprocess."""
-    cmd = [sys.executable, "-c", spec["snippet"]]
-    res = subprocess.run(
-        cmd,
-        cwd=str(REPO_ROOT),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
+    with tempfile.TemporaryDirectory(prefix="tfp-audit-") as directory:
+        report_path = Path(directory) / "pytest-outcome.json"
+        cmd = [sys.executable, "-c", _OBSERVED_RUNNER, spec["snippet"], str(report_path)]
+        try:
+            res = subprocess.run(cmd, cwd=str(REPO_ROOT), capture_output=True, text=True, timeout=timeout)
+        except subprocess.TimeoutExpired:
+            return {
+                **{key: spec[key] for key in ("id", "name", "target", "description")},
+                "detected": False, "exit_code": None, "timed_out": True,
+                "reason": f"EXECUTION TIMEOUT: child exceeded {timeout}s; no mutation detection established",
+            }
+        try:
+            observed = json.loads(report_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            observed = {}
     combined = (res.stdout or "") + "\n" + (res.stderr or "")
-    # Negative proof is satisfied if pytest specifically failed with exit code 1
-    # and produced genuine failure diagnostics ("FAILED " or "error"), rejecting exit code 5 (no tests collected).
-    has_failure_diag = ("FAILED " in combined) or ("FAILED" in combined) or ("error" in combined.lower())
-    detected = (res.returncode == 1) and has_failure_diag
+    failures = observed.get("failures", [])
+    has_invariant_failure = bool(failures) and all(
+        failure["phase"] == "call" and failure["assertion"] for failure in failures
+    )
+    detected = (res.returncode == 1 and observed.get("session_exit") == 1
+                and observed.get("collected", 0) > 0 and has_invariant_failure)
 
     if res.returncode == 0:
         reason = "UNEXPECTED PASS: Mutant was not caught by test gate"
@@ -151,8 +203,8 @@ def run_mutant(spec: Dict[str, Any]) -> Dict[str, Any]:
         reason = "TEST COLLECTION FAILURE: Pytest exited with code 5 (no tests collected)"
     elif res.returncode != 1:
         reason = f"EXECUTION ERROR: Pytest exited with code {res.returncode} instead of code 1"
-    elif not has_failure_diag:
-        reason = f"MISSING FAILURE DIAGNOSTICS: Exit code 1 but neither 'FAILED' nor 'error' found in output"
+    elif not detected:
+        reason = f"NO INVARIANT FAILURE: {extract_failure_reason(combined)}"
     else:
         reason = extract_failure_reason(combined)
 
@@ -163,11 +215,13 @@ def run_mutant(spec: Dict[str, Any]) -> Dict[str, Any]:
         "description": spec["description"],
         "detected": detected,
         "exit_code": res.returncode,
+        "timed_out": False,
+        "pytest_outcome": observed,
         "reason": reason,
     }
 
 
-def run_clean_baseline(quick: bool = False) -> Dict[str, Any]:
+def run_clean_baseline(quick: bool = False, *, timeout: float = BASELINE_TIMEOUT_SECONDS) -> Dict[str, Any]:
     """Execute test suite on unmutated clean code (Positive Proof)."""
     test_files = [
         "tests/fuzz/test_fastcdc_hypothesis.py",
@@ -178,18 +232,20 @@ def run_clean_baseline(quick: bool = False) -> Dict[str, Any]:
     cmd = [sys.executable, "-m", "pytest"]
     cmd.extend(test_files)
     cmd.extend(["-q"])
+    if quick:
+        names = [spec["target"].split(" -k ", 1)[1] for spec in MUTANT_SPECS]
+        cmd.extend(["-k", " or ".join(names)])
 
-    res = subprocess.run(
-        cmd,
-        cwd=str(REPO_ROOT),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
+    try:
+        res = subprocess.run(cmd, cwd=str(REPO_ROOT), capture_output=True, text=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        return {"passed": False, "exit_code": None, "timed_out": True,
+                "suites": test_files, "summary": f"Baseline exceeded {timeout}s"}
     passed = (res.returncode == 0)
     return {
         "passed": passed,
         "exit_code": res.returncode,
+        "timed_out": False,
         "suites": test_files,
         "summary": (res.stdout.strip().splitlines()[-1] if res.stdout.strip() else "Completed"),
     }
@@ -276,20 +332,24 @@ def main() -> int:
         report_path = REPO_ROOT / args.report_file
         report_path.write_text(json.dumps(report_data, indent=2), encoding="utf-8")
         if not args.json:
-            print(f"[+] Audit Report written to: {report_path.relative_to(REPO_ROOT)}")
+            print(f"[+] Audit Report written to: {report_path}")
     except Exception as exc:
+        overall_status = "REJECTED"
+        report_data["overall_status"] = overall_status
+        report_data["report_error"] = str(exc)
         if not args.json:
-            print(f"[!] Warning: Failed to write report file: {exc}", file=sys.stderr)
+            print(f"[!] Failed to write required audit report: {exc}", file=sys.stderr)
 
     if args.json:
         print(json.dumps(report_data, indent=2))
+        return 0 if overall_status == "CERTIFIED" else 1
     else:
         if overall_status == "CERTIFIED":
-            print(f"[SUCCESS] Adversarial Audit CERTIFIED: 5/5 Mutants Caught + Clean Baseline PASSED.")
+            print(f"[SUCCESS] Adversarial Audit CERTIFIED: {len(mutant_results)}/{len(MUTANT_SPECS)} Mutants Caught + Clean Baseline PASSED.")
             print("=" * 75)
             return 0
         else:
-            print(f"[FAILURE] Adversarial Audit REJECTED: One or more audit gates failed.")
+            print("[FAILURE] Adversarial Audit REJECTED: One or more audit gates failed.")
             print("=" * 75)
             return 1
 

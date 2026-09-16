@@ -118,6 +118,26 @@ class CreditLedger:
     def verify_spend(self, receipt: Receipt) -> bool:
         return receipt.chain_hash in self._chain and receipt.chain_hash not in self._spent_receipts
 
+    def spend_with_change(self, credits: int, receipt: Receipt) -> Receipt | None:
+        """Spend once and issue a continuation for the remaining account balance.
+
+        Receipts authorize this local ledger, not transferable coins. A spend
+        nullifies its receipt; its successor keeps the remaining balance usable
+        without minting new credits or reusing a nullified receipt.
+        """
+        self.spend(credits, receipt)
+        if not self._balance:
+            return None
+        block = hashlib.sha3_256(
+            b"tfp:change:v1:"
+            + self._chain[-1]
+            + receipt.chain_hash
+            + credits.to_bytes(8, "big")
+            + self._balance.to_bytes(8, "big")
+        ).digest()
+        self._chain.append(block)
+        return Receipt(chain_hash=block, credits=self._balance)
+
     def export_merkle_root(self) -> bytes:
         """Build a binary Merkle tree over the chain blocks and return the root hash."""
         if not self._chain:

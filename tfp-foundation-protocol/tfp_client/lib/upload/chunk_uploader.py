@@ -124,7 +124,7 @@ class ChunkUploader:
             # Handle exceptions
             final_ids = []
             for i, result in enumerate(chunk_ids):
-                if isinstance(result, Exception):
+                if isinstance(result, BaseException):
                     logger.error("Chunk %d upload failed: %s", i, result)
                     raise result
                 final_ids.append(result)
@@ -204,7 +204,7 @@ class ChunkUploader:
 
             final_ids = []
             for i, result in enumerate(chunk_ids):
-                if isinstance(result, Exception):
+                if isinstance(result, BaseException):
                     logger.error("Chunk %d upload failed: %s", i, result)
                     raise result
                 final_ids.append(result)

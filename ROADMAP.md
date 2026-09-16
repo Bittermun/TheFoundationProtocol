@@ -1,5 +1,7 @@
 # TFP Roadmap
 
+Current planning entry point: [Foundation execution megaplan](docs/FOUNDATION_MEGAPLAN.md), with its [implementation board](docs/planning/execution-board.json). It preserves the wider compute/lexicon/video/federation mission and ties progress to evidence. The dated milestone estimates below are historical planning context, not current commitments or completed capabilities.
+
 ## v3.2 (Planned)
 
 | Milestone | Target | Deliverable | Good First Issue |

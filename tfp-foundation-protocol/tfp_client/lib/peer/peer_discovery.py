@@ -8,20 +8,16 @@ This module provides the core logic for peer discovery, capability exchange,
 and secure handshake establishment using existing TFP security mechanisms.
 """
 
-import asyncio
 import hashlib
 import hmac as _hmac
-import json
 import logging
 import secrets
 import time
-from typing import Optional, List, Dict, Any
-from datetime import datetime
+from typing import List, Dict, Any
 
 from .peer_models import (
     Peer,
     PeerInfo,
-    PeerConnection,
     PeerCapabilities,
     ConnectionMetrics,
     PeerDiscoverRequest,
@@ -78,7 +74,6 @@ class PeerDiscovery:
                 )
         
         # Build filters from request
-        from .peer_models import PeerFilters
         filters = PeerFilters(
             status="active",
             min_reputation=50,
@@ -402,7 +397,6 @@ class CapabilityExchange:
         Returns:
             List of optimal peers
         """
-        from .peer_models import PeerFilters
         
         filters = PeerFilters(
             status="active",

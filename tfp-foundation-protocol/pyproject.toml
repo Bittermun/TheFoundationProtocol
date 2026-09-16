@@ -84,6 +84,12 @@ all = [
 [tool.setuptools.packages.find]
 include = ["tfp_*", "demo"]
 
+[tool.setuptools.package-data]
+demo = ["*.html", "*.json", "*.js", "assets/*.css", "assets/*.js", "assets/*.svg"]
+
+[tool.setuptools]
+include-package-data = false
+
 [project.scripts]
 tfp = "tfp_cli.main:main"
 

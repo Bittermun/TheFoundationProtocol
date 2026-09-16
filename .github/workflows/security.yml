@@ -35,11 +35,13 @@ jobs:
             pip-quick-${{ runner.os }}-
 
       - name: Install dependencies
-        run: pip install pre-commit ruff mypy bandit
+        run: pip install ruff bandit
 
-      - name: Run pre-commit hooks
-        working-directory: tfp-foundation-protocol
-        run: pre-commit run --all-files
+      - name: Read-only protocol lint
+        run: ruff check tfp-foundation-protocol
+
+      - name: Security scan
+        run: bandit -r tfp_core/ tfp_security/ tfp_transport/ tfp-foundation-protocol/tfp_client/lib/security/ tfp-foundation-protocol/tfp_demo/ -c bandit.ini --severity-level=medium
 
   full-security:
     name: Full Security Scan
@@ -89,9 +91,8 @@ jobs:
           python-version: '3.11'
       - name: Install dependencies
         run: |
-          pip install -e tfp-foundation-protocol[test]
+          pip install ".[test,fuzz]"
           pip install prometheus_client pytest-xdist
       - name: Run concurrency tests
-        working-directory: tfp-foundation-protocol
         run: |
-          TFP_DB_PATH=:memory: PYTHONPATH=. pytest -m "concurrency" --maxfail=3 -q
+          TFP_DB_PATH=:memory: pytest -m "concurrency" --maxfail=3 -q

@@ -11,8 +11,10 @@ Implements the hybrid economic model for Bridge 3:
 Wallets track both credit types separately and allow combined spending.
 """
 
+import copy
 import dataclasses
 import hashlib
+import math
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional, Tuple
 
@@ -94,6 +96,7 @@ class HybridWallet:
         """
         self.wallet_id = wallet_id
         self._compute_ledger = CreditLedger()
+        self._compute_receipts: list[Receipt] = []
         self._pinning_balance: float = 0.0
         self._transactions: list[TransactionRecord] = []
         self._dwcc_tracker = DWCCCalculator()
@@ -110,6 +113,7 @@ class HybridWallet:
             Receipt for the minting operation
         """
         receipt = self._compute_ledger.mint(credits, proof_hash)
+        self._compute_receipts.append(receipt)
 
         # Record transaction
         self._record_transaction(
@@ -126,7 +130,7 @@ class HybridWallet:
         Mint pinning credits from DWCC rewards.
 
         Args:
-            dwcc_rewards: Dict mapping content_hash → reward amount
+            dwcc_rewards: Dict mapping content_hash â†’ reward amount
 
         Returns:
             Total pinning credits minted
@@ -165,39 +169,40 @@ class HybridWallet:
         Raises:
             ValueError: If insufficient balance or invalid parameters
         """
-        if amount <= 0:
-            raise ValueError("Amount must be positive")
+        if not math.isfinite(amount) or amount <= 0:
+            raise ValueError("Amount must be positive and finite")
 
+        compute_debit = 0
+        pinning_debit = 0.0
         if credit_type == "compute":
             if receipt is None:
                 raise ValueError("Receipt required for compute credit spend")
-            self._compute_ledger.spend(int(amount), receipt)
+            if amount != int(amount):
+                raise ValueError("Compute credits must be whole units")
+            compute_debit = int(amount)
         elif credit_type == "pinning":
-            if self._pinning_balance < amount:
-                raise ValueError("Insufficient pinning credits")
-            self._pinning_balance -= amount
+            pinning_debit = amount
         elif credit_type == "mixed":
-            # Try to spend from compute first, then pinning
-            compute_available = self._compute_ledger.balance
-            if compute_available >= amount:
-                # Need a receipt for full amount
-                if receipt:
-                    self._compute_ledger.spend(int(amount), receipt)
-                else:
-                    # Fall back to pinning if no receipt
-                    if self._pinning_balance < amount:
-                        raise ValueError("Insufficient mixed credits")
-                    self._pinning_balance -= amount
-            else:
-                # Spend all compute, rest from pinning
-                if receipt:
-                    self._compute_ledger.spend(compute_available, receipt)
-                remaining = amount - compute_available
-                if self._pinning_balance < remaining:
-                    raise ValueError("Insufficient mixed credits")
-                self._pinning_balance -= remaining
+            # Without a receipt, only pinning credits are authorized.
+            if receipt is not None:
+                compute_debit = min(self._compute_ledger.balance, int(amount))
+            pinning_debit = amount - compute_debit
         else:
             raise ValueError(f"Invalid credit type: {credit_type}")
+
+        if self._pinning_balance < pinning_debit:
+            raise ValueError(f"Insufficient {credit_type} credits")
+        # Validate and spend on detached state. A failed receipt or insufficient
+        # balance must leave both source balances unchanged.
+        ledger = copy.deepcopy(self._compute_ledger)
+        change = None
+        if compute_debit:
+            change = ledger.spend_with_change(compute_debit, receipt)
+        self._compute_ledger = ledger
+        self._compute_receipts = [r for r in self._compute_receipts if ledger.verify_spend(r)]
+        if change is not None:
+            self._compute_receipts.append(change)
+        self._pinning_balance -= pinning_debit
 
         self._record_transaction(
             tx_type="spend",
@@ -209,38 +214,45 @@ class HybridWallet:
         return True
 
     def transfer(
-        self, recipient_id: str, amount: float, credit_type: str = "mixed"
+        self, recipient_id: str, amount: float, credit_type: str = "mixed",
+        receipt: Optional[Receipt] = None,
     ) -> Tuple["HybridWallet", TransactionRecord]:
+        """Simulate a local transfer and return the recipient and sender record.
+
+        Compute spending requires a valid receipt. Each credited balance equals
+        the corresponding source debit; no conversion or new value is created.
+        This creates a new wallet, not a durable transfer to an existing peer.
+        It does not provide signatures or distributed consensus.
         """
-        Transfer credits to another wallet.
-
-        Note: In production, this would require cryptographic signatures
-        and blockchain-style consensus. This is a simplified simulation.
-
-        Args:
-            recipient_id: ID of recipient wallet
-            amount: Amount to transfer
-            credit_type: Type of credits to transfer
-
-        Returns:
-            Tuple of (new_recipient_wallet, transaction_record)
-        """
-        # Spend from this wallet
-        self.spend(amount, credit_type)
-
-        # Create recipient wallet with transferred amount
+        if not recipient_id or recipient_id == self.wallet_id:
+            raise ValueError("Recipient must identify a different wallet")
+        staged = copy.deepcopy(self)
+        before = staged.get_balance()
+        staged.spend(amount, credit_type, receipt)
+        after = staged.get_balance()
         recipient = HybridWallet(recipient_id)
+        compute_amount = int(before.compute_credits - after.compute_credits)
+        pinning_amount = before.pinning_credits - after.pinning_credits
+        if compute_amount:
+            simulation_proof = hashlib.sha3_256(
+                f"local-transfer:{self.wallet_id}:{recipient_id}:{compute_amount}".encode()
+            ).digest()
+            recipient.mint_compute_credits(compute_amount, simulation_proof)
+        if pinning_amount:
+            recipient.mint_pinning_credits({"local-transfer": pinning_amount})
+        staged._record_transaction(
+            tx_type="transfer", amount=amount, credit_type=credit_type,
+            metadata={"recipient_id": recipient_id, "local_simulation": True},
+        )
+        self._compute_ledger = staged._compute_ledger
+        self._compute_receipts = staged._compute_receipts
+        self._pinning_balance = staged._pinning_balance
+        self._transactions = staged._transactions
+        return recipient, self._transactions[-1]
 
-        if credit_type in ("compute", "mixed"):
-            # Simulate compute credit transfer
-            fake_proof = hashlib.sha3_256(f"transfer_{amount}".encode()).digest()
-            recipient.mint_compute_credits(int(amount * 0.5), fake_proof)
-
-        if credit_type in ("pinning", "mixed"):
-            # Simulate pinning credit transfer
-            recipient._pinning_balance += amount * 0.5
-
-        return recipient
+    def get_compute_receipts(self) -> list[Receipt]:
+        """Return usable local authorizations, including partial-spend change."""
+        return [r for r in self._compute_receipts if self._compute_ledger.verify_spend(r)]
 
     def get_balance(self) -> WalletBalance:
         """Get current wallet balance."""

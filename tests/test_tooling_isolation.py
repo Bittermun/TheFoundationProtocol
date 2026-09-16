@@ -149,34 +149,20 @@ class TestToolingIsolation:
         for tool in required_tools:
             assert tool in content, f"Required dev/test tool '{tool}' missing from requirements-dev.txt"
 
-    def test_packaging_manifest_excludes_test_suites(self):
-        """Verify packaging build manifest does not leak test suites into production wheel metadata."""
-        pyproject_path = REPO_ROOT / "pyproject.toml"
-        with open(pyproject_path, "rb") as f:
-            data = tomllib.load(f)
+    def test_packaging_manifest_excludes_test_suites(self, monkeypatch):
+        """Check actual discovered packages, independent of configuration syntax."""
+        import runpy
+        from unittest.mock import patch
 
-        find_cfg = (
-            data.get("tool", {})
-            .get("setuptools", {})
-            .get("packages", {})
-            .get("find", {})
-        )
-        assert find_cfg, "pyproject.toml must configure [tool.setuptools.packages.find]"
-
-        include_patterns = find_cfg.get("include", [])
-        exclude_patterns = find_cfg.get("exclude", [])
-
-        # Ensure tests are NOT in include
-        for inc in include_patterns:
-            assert not inc.startswith("test"), f"Packaging include pattern '{inc}' should not match test folders!"
-
-        # Ensure tfp packages are included
-        assert any("tfp_" in inc for inc in include_patterns), "Must include tfp_* packages in discovery"
-
-        # Ensure comprehensive exclude rules exist for all test patterns and testbeds
-        required_excludes = ["tests*", "*.tests*", "*.test*", "docs*", "scripts*", "tfp_testbed*", "*_test*"]
-        for req in required_excludes:
-            assert req in exclude_patterns, f"Missing required exclusion pattern '{req}' in [tool.setuptools.packages.find]"
+        monkeypatch.chdir(REPO_ROOT)
+        with patch("setuptools.setup") as setup:
+            runpy.run_path(str(REPO_ROOT / "setup.py"))
+        packages = setup.call_args.kwargs["packages"]
+        assert {"tfp_cli", "tfp_demo", "tfp_client", "tfp_core_v4", "demo"} <= set(packages)
+        for package in packages:
+            assert not any(part.startswith("test") or part.endswith("_test") for part in package.split(".")), package
+            assert not package.startswith(("docs", "scripts", "tfp_testbed")), package
+        assert setup.call_args.kwargs["package_dir"]["tfp_cli"] == "./tfp_cli"
 
     def test_dockerfile_multi_stage_targets(self):
         """Verify Dockerfile and Dockerfile.workshop define clean production and workshop-dev targets."""
@@ -338,4 +324,3 @@ class TestToolingIsolation:
         assert any("**/tests/**" in line for line in lines), ".dockerignore must exclude **/tests/**"
         assert any("**/test/**" in line for line in lines), ".dockerignore must exclude **/test/**"
         assert any("test_*.py" in line for line in lines), ".dockerignore must exclude test_*.py"
-

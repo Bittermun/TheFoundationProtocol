@@ -44,6 +44,11 @@ def main():
     subparsers.add_parser("verify", help="Run automated protocol verification suite")
 
     args = parser.parse_args()
+    if args.command in {"fetch", "inspect"}:
+        parser.error(
+            f"{args.command} is not implemented in this stateless research CLI; "
+            "no data was fetched or inspected. Use tfp_cli.main for the running node."
+        )
     node = TFPNode()
 
     if args.command == "publish":
@@ -57,7 +62,7 @@ def main():
 
         title = args.title or path.name
         recipe = node.publish(data, metadata={"title": title, "filename": path.name})
-        print("[TFP] Published successfully!")
+        print("[TFP] Encoded locally in memory; data is not persisted or sent to peers.")
         print(f"  Root Hash   : {recipe.root_hash}")
         print(f"  Total Size  : {recipe.total_size} bytes")
         print(f"  Chunks Count: {len(recipe.chunk_hashes)}")
@@ -69,8 +74,10 @@ def main():
         sample_data = b"THE FOUNDATION PROTOCOL v4.0 TEST PAYLOAD: " * 50
         recipe = node.publish(sample_data, metadata={"test": True})
         recovered = node.fetch(recipe.root_hash, simulated_loss=0.30)
-        assert recovered == sample_data  # nosec B101: Self-verification command
-        print("[TFP] SUCCESS: 100% Bit-exact recovery verified under 30% loss!")
+        if recovered != sample_data:
+            raise RuntimeError("Local reconstruction differs from original bytes")
+        print("[TFP] Local reconstruction matched the original bytes.")
+        print("[TFP] Simulated drops may be repaired from the original local pool; this is not a network-loss benchmark.")
 
 
 if __name__ == "__main__":

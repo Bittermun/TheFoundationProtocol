@@ -18,22 +18,7 @@ from collections import OrderedDict
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional
 
-# Import BloomFilter from metadata module
-try:
-    from tfp_client.lib.metadata.bloom_filter import BloomFilter
-except ImportError:
-    # Fallback if bloom_filter not available
-    class BloomFilter:
-        """Minimal fallback Bloom filter."""
-
-        def __init__(self, *args, **kwargs):
-            self._items = set()
-
-        def add(self, item):
-            self._items.add(hash(item))
-
-        def __contains__(self, item):
-            return hash(item) in self._items
+from tfp_client.lib.metadata.bloom_filter import BloomFilter
 
 
 @dataclass
@@ -58,6 +43,10 @@ class ChunkCacheEntry:
     access_count: int = 0
     last_access_time: float = field(default_factory=time.time)
     pinned: bool = False
+
+    @property
+    def size_bytes(self) -> int:
+        return len(self.data)
 
     def to_dict(self) -> Dict[str, Any]:
         """Serialize entry to dictionary."""
@@ -481,11 +470,3 @@ class ChunkStore:
                     self._eviction_callback(chunk_id, entry)
                 except Exception:
                     pass  # Don't let callback errors break eviction
-
-
-# Add property for size_bytes on entry
-def _entry_size_bytes(self) -> int:
-    return len(self.data)
-
-
-ChunkCacheEntry.size_bytes = property(_entry_size_bytes)

@@ -12,8 +12,7 @@ import json
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Set
-from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 from ..peer.peer_repository import PeerRepository
 from ..bridges.nostr_bridge import NostrBridge, NostrEvent
@@ -345,7 +344,7 @@ class GossipProtocol:
             List of unprocessed gossip messages
         """
         db_messages = await self._peer_repo.get_unprocessed_gossip_messages(limit)
-        return [GossipMessage.from_dict(msg.to_dict()) for msg in db_messages]
+        return [GossipMessage.from_dict(msg.model_dump()) for msg in db_messages]
 
     def _compute_message_id(self, message: GossipMessage) -> str:
         """Compute a unique ID for deduplication."""

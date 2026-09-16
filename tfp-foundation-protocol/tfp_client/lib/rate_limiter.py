@@ -373,7 +373,7 @@ class _RedisBackedRateLimiter:
     in a Lua script via DistributedRateLimiter.
     """
 
-    def __init__(self, redis_client: object) -> None:
+    def __init__(self, redis_client: "Redis") -> None:
         self._redis = redis_client
 
     def is_allowed(self, key: str, max_calls: int, window_seconds: int) -> bool:
@@ -399,7 +399,7 @@ class _RedisBackedRateLimiter:
         return True
 
 
-def get_rate_limiter(backend: str = "memory", redis_client: object = None):
+def get_rate_limiter(backend: str = "memory", redis_client: "Redis" = None):
     """Factory: return a MemoryRateLimiter or Redis-backed limiter.
 
     Args:

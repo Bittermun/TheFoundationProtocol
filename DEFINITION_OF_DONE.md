@@ -1,5 +1,7 @@
 # TFP — Definition of Done
 
+Reconciliation notice (2026-09-12): the [execution megaplan](docs/FOUNDATION_MEGAPLAN.md) identifies mismatches between several requirements below, current test coverage, and current root-package installation. W00 must map or repair these requirements explicitly; this notice neither declares them passed nor waives them. Use the megaplan's additional mission gates for shared-resource, modest-device, video, and federation claims.
+
 > **Version:** 1.0 (April 2026)
 > **Status:** Active — all PRs and releases are measured against this document.
 

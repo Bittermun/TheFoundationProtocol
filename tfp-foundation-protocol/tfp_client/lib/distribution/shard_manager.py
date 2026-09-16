@@ -8,19 +8,15 @@ This module handles optimal shard distribution across peers,
 considering bandwidth, storage, reputation, and latency.
 """
 
-import asyncio
 import hashlib
-import hmac as _hmac
-import json
 import logging
-import random
 import time
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Set, Tuple
 from datetime import datetime
 
 from ..peer.peer_repository import PeerRepository
-from ..peer.peer_models import Peer, PeerCapabilities, PeerFilters
+from ..peer.peer_models import Peer, PeerFilters
 from ..fountain.raptorq_ffi import RealRaptorQAdapter, RaptorQError
 
 log = logging.getLogger(__name__)
@@ -104,7 +100,6 @@ class ShardManager:
                 return cached_plan
         
         # Get available peers with storage capability
-        from ..peer.peer_models import PeerFilters
         filters = PeerFilters(
             status="active",
             has_storage=True,

@@ -86,7 +86,7 @@ class LexiconSynchronizer:
 
         # For now, assume all domains need checking
         # In production, this would use a more sophisticated diff algorithm
-        missing_domains = []
+        missing_domains: list[str] = []
         outdated_domains = []
 
         for domain_name in self.local_hlt.domain_names.keys():

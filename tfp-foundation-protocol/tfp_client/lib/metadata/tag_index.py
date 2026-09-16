@@ -263,7 +263,7 @@ class TagOverlayIndex:
 
     def get_merkle_proof(
         self, dag: TagIndexDAG, tag: str, content_hash: bytes
-    ) -> Optional[List[bytes]]:
+    ) -> Optional[List[Tuple[str, bytes]]]:
         """
         Generate a Merkle proof for a specific tag+hash entry.
 

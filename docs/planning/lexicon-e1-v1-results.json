@@ -1,0 +1,127 @@
+{
+  "contract_id": "E1-exploratory-v1",
+  "contract_sha256": "7b3f932259f641adc1b5646ed39cb82aee0a7c107fd359a0e4dd359783ccc04e",
+  "corpus_sha256": "359d6a285aa92f3b48ba160773a77aa45e27dfb0434a1160214d8fa66c290b68",
+  "script_sha256": "a4362507c3953c5eb67bac6ce4d9c8bed67b2d16c5bfc4f980e608b98c1e9d85",
+  "python": "3.11.1 (tags/v3.11.1:a7a450f, Dec  6 2022, 19:58:39) [MSC v.1934 64 bit (AMD64)]",
+  "platform": "Windows-10-10.0.26200-SP0",
+  "zstandard": "0.25.0",
+  "zstd_library": [
+    1,
+    5,
+    7
+  ],
+  "training_input_bytes": 170341,
+  "selected": {
+    "size": 1024,
+    "sha256": "ee50d95ea458f3818d652b804cde029bc1bb7dd5c287f42a9de2b300cbf93fe5",
+    "tune_total_bytes": 16197,
+    "file": "dictionary-1024.zdict",
+    "wall_seconds": 0.0067930000004707836,
+    "cpu_seconds": 0.0,
+    "process_peak_rss_bytes": 33775616
+  },
+  "test_records": 217,
+  "scenarios": [
+    {
+      "unique_records": 1,
+      "baseline_bytes": 124,
+      "shared_payload_bytes": 122,
+      "dictionary_delivery_bytes": 1065,
+      "shared_cold_bytes": 1187,
+      "shared_cold_savings_fraction": -8.57258064516129,
+      "shared_with_cached_dictionary_bytes": 122,
+      "shared_plus_one_redelivery_bytes": 2252,
+      "shared_plus_training_input_acquisition_bytes": 171528,
+      "batch_baseline_bytes": 128,
+      "exact_content_repeat_incremental_bytes_both": 0
+    },
+    {
+      "unique_records": 5,
+      "baseline_bytes": 1605,
+      "shared_payload_bytes": 1496,
+      "dictionary_delivery_bytes": 1065,
+      "shared_cold_bytes": 2561,
+      "shared_cold_savings_fraction": -0.5956386292834892,
+      "shared_with_cached_dictionary_bytes": 1496,
+      "shared_plus_one_redelivery_bytes": 3626,
+      "shared_plus_training_input_acquisition_bytes": 172902,
+      "batch_baseline_bytes": 1315,
+      "exact_content_repeat_incremental_bytes_both": 0
+    },
+    {
+      "unique_records": 20,
+      "baseline_bytes": 7122,
+      "shared_payload_bytes": 6522,
+      "dictionary_delivery_bytes": 1065,
+      "shared_cold_bytes": 7587,
+      "shared_cold_savings_fraction": -0.0652906486941871,
+      "shared_with_cached_dictionary_bytes": 6522,
+      "shared_plus_one_redelivery_bytes": 8652,
+      "shared_plus_training_input_acquisition_bytes": 177928,
+      "batch_baseline_bytes": 5039,
+      "exact_content_repeat_incremental_bytes_both": 0
+    },
+    {
+      "unique_records": 100,
+      "baseline_bytes": 31542,
+      "shared_payload_bytes": 28566,
+      "dictionary_delivery_bytes": 1065,
+      "shared_cold_bytes": 29631,
+      "shared_cold_savings_fraction": 0.06058588548601862,
+      "shared_with_cached_dictionary_bytes": 28566,
+      "shared_plus_one_redelivery_bytes": 30696,
+      "shared_plus_training_input_acquisition_bytes": 199972,
+      "batch_baseline_bytes": 17713,
+      "exact_content_repeat_incremental_bytes_both": 0
+    },
+    {
+      "unique_records": 217,
+      "baseline_bytes": 67699,
+      "shared_payload_bytes": 61037,
+      "dictionary_delivery_bytes": 1065,
+      "shared_cold_bytes": 62102,
+      "shared_cold_savings_fraction": 0.0826747810159677,
+      "shared_with_cached_dictionary_bytes": 61037,
+      "shared_plus_one_redelivery_bytes": 63167,
+      "shared_plus_training_input_acquisition_bytes": 232443,
+      "batch_baseline_bytes": 34452,
+      "exact_content_repeat_incremental_bytes_both": 0
+    }
+  ],
+  "decode_p95_microseconds": {
+    "ordinary": 4.8,
+    "shared": 4.4
+  },
+  "controls": {
+    "pseudorandom": {
+      "exact": true,
+      "ordinary_bytes": 101547,
+      "shared_cold_bytes": 101547,
+      "dictionary_encoded_records": 0
+    },
+    "already_compressed": {
+      "exact": true,
+      "ordinary_bytes": 67917,
+      "shared_cold_bytes": 68936,
+      "dictionary_encoded_records": 9
+    },
+    "wrong_dictionary_rejected": true,
+    "missing_dictionary_fallback_exact": true
+  },
+  "exploratory_gates": {
+    "cold_savings_100": false,
+    "decode_p95": true,
+    "training_time": true,
+    "training_memory": true
+  },
+  "exploratory_pass": false,
+  "claim_level": "L1 exploratory local comparison; no network/pooling/deployment quality claim",
+  "limitations": [
+    "Project docs are a proxy; no observed reuse/update trace",
+    "Source-separated split removes exact duplicates but may contain related/near-duplicate documentation",
+    "Development host only",
+    "No deployment or generative-lexicon quality claim",
+    "Full G4 requires additional network, update, eviction, and independent-consumer evidence"
+  ]
+}

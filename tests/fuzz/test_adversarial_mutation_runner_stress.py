@@ -22,12 +22,17 @@ import sys
 import pytest
 
 from scripts.run_adversarial_audit import (
+    BASELINE_TIMEOUT_SECONDS,
+    MUTANT_TIMEOUT_SECONDS,
     MUTANT_SPECS,
     REPO_ROOT,
     extract_failure_reason,
     run_clean_baseline,
     run_mutant,
 )
+
+# This module runs up to five bounded children plus a baseline in one test.
+pytestmark = pytest.mark.timeout(len(MUTANT_SPECS) * MUTANT_TIMEOUT_SECONDS + BASELINE_TIMEOUT_SECONDS + 30)
 
 
 class TestAdversarialAuditRunnerStress:
@@ -67,6 +72,7 @@ class TestAdversarialAuditRunnerStress:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
+                timeout=MUTANT_TIMEOUT_SECONDS,
             )
 
             # Exit code must be 1 (pytest test failure), NOT 2, 3, 4, 5
@@ -130,7 +136,7 @@ class TestAdversarialAuditRunnerStress:
         # Note: current implementation checks `detected = (res.returncode != 0)`,
         # which treats exit code 4 as detected!
         # This test documents the exact behavior for the adversarial challenge finding.
-        is_improperly_detected = (res["exit_code"] == 4 and res["detected"] is True)
+        assert res["detected"] is False
         assert res["exit_code"] == 4, f"Expected pytest exit code 4 (usage error), got {res['exit_code']}"
 
     def test_edge_case_zero_tests_collected_behavior(self):
@@ -152,6 +158,7 @@ class TestAdversarialAuditRunnerStress:
         res = run_mutant(no_match_spec)
         # In pytest, zero tests collected returns exit code 5.
         assert res["exit_code"] == 5, f"Expected pytest exit code 5 (no tests collected), got {res['exit_code']}"
+        assert res["detected"] is False
 
     def test_edge_case_snippet_runtime_crash_behavior(self):
         """
@@ -169,6 +176,7 @@ class TestAdversarialAuditRunnerStress:
         # Python raises RuntimeError and exits with code 1
         assert res["exit_code"] == 1
         assert "Simulated unhandled runner crash" in res["reason"]
+        assert res["detected"] is False
 
     def test_clean_baseline_execution(self):
         """Verify run_clean_baseline executes and passes all 4 suites."""
@@ -188,7 +196,8 @@ class TestAdversarialAuditRunnerStress:
             str(report_file),
             "--json",
         ]
-        proc = subprocess.run(cmd, cwd=str(REPO_ROOT), capture_output=True, text=True)
+        proc = subprocess.run(cmd, cwd=str(REPO_ROOT), capture_output=True, text=True,
+                              timeout=len(MUTANT_SPECS) * MUTANT_TIMEOUT_SECONDS + BASELINE_TIMEOUT_SECONDS + 10)
         assert proc.returncode == 0, f"Runner failed with code {proc.returncode}:\n{proc.stderr}"
 
         # stdout must be valid JSON

@@ -11,7 +11,6 @@ connections, and related P2P networking tables.
 import sqlite3
 import threading
 import logging
-from typing import Optional
 
 log = logging.getLogger(__name__)
 

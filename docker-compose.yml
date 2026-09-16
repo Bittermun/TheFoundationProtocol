@@ -1,17 +1,20 @@
 services:
   tfp-demo:
     build:
-      context: ./tfp-foundation-protocol
-      dockerfile: Dockerfile.demo
+      context: .
+      dockerfile: Dockerfile
+      target: production
     container_name: tfp-demo-node
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     restart: unless-stopped
     volumes:
       - tfp_data:/data
     environment:
       - TFP_DB_PATH=/data/pib.db
-      - NOSTR_RELAY=${NOSTR_RELAY:-}
+      - TFP_MODE=demo
+      - TFP_ENABLE_NOSTR=0
+      - TFP_ENABLE_IPFS=0
       - TFP_EARN_RATE_MAX=${TFP_EARN_RATE_MAX:-10}
       - TFP_EARN_RATE_WINDOW=${TFP_EARN_RATE_WINDOW:-60}
     healthcheck:
