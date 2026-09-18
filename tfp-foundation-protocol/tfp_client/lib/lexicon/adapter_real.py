@@ -13,7 +13,8 @@ import hashlib
 import logging
 import re
 from collections import Counter
-from typing import Any, Dict, List, Optional, Set
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 try:
     import zstandard as zstd
@@ -80,11 +81,28 @@ class RealLexiconAdapter:
         self._search_index: Dict[str, Dict[str, Any]] = {}
 
         if zstd is not None:
-            for domain_name, seed_bytes in DOMAIN_SEEDS.items():
+            for domain_name in list(DOMAIN_SEEDS.keys()) + ["disaster_relief"]:
+                self._load_domain_dict(domain_name)
+
+    def _load_domain_dict(self, domain: str) -> Optional[Any]:
+        """Load dictionary from disk if available, otherwise fallback to domain seeds."""
+        if zstd is None:
+            return None
+        for base_dir in (Path("lexicons"), Path(__file__).resolve().parents[4] / "lexicons"):
+            candidate = base_dir / f"{domain}.zdict"
+            if candidate.exists():
                 try:
-                    self._dict_cache[domain_name] = zstd.ZstdCompressionDict(seed_bytes)
+                    self._dict_cache[domain] = zstd.ZstdCompressionDict(candidate.read_bytes())
+                    return self._dict_cache[domain]
                 except Exception as exc:
-                    log.warning("Could not initialize zstd dict for %s: %s", domain_name, exc)
+                    log.debug("Failed loading disk dict %s: %s", candidate, exc)
+
+        seed = DOMAIN_SEEDS.get(domain, DOMAIN_SEEDS["technical"])
+        try:
+            self._dict_cache[domain] = zstd.ZstdCompressionDict(seed)
+            return self._dict_cache[domain]
+        except Exception:
+            return None
 
     def _get_zstd_dict(self, domain: str) -> Optional[Any]:
         """Retrieve or construct Zstandard dictionary for domain."""
@@ -92,12 +110,14 @@ class RealLexiconAdapter:
             return None
         if domain in self._dict_cache:
             return self._dict_cache[domain]
-        seed = DOMAIN_SEEDS.get(domain, DOMAIN_SEEDS["technical"])
-        try:
-            self._dict_cache[domain] = zstd.ZstdCompressionDict(seed)
-            return self._dict_cache[domain]
-        except Exception:
-            return None
+        return self._load_domain_dict(domain)
+
+    def decompress(
+        self, file_bytes: bytes, tags: Optional[list] = None
+    ) -> Tuple[bytes, dict]:
+        """Convenience method returning (decompressed_bytes, metadata_dict)."""
+        content = self.reconstruct(file_bytes, tags=tags)
+        return content.data, content.metadata
 
     def compress(self, file_bytes: bytes, tags: Optional[list] = None) -> bytes:
         """
@@ -136,6 +156,9 @@ class RealLexiconAdapter:
             "emergency": "emergency",
             "weather": "emergency",
             "alert": "emergency",
+            "disaster_relief": "disaster_relief",
+            "relief": "disaster_relief",
+            "disaster": "disaster_relief",
         }
 
         for tag in tags:
