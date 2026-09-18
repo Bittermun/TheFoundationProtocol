@@ -14,7 +14,7 @@ import logging
 import re
 from collections import Counter
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 try:
     import zstandard as zstd
@@ -69,14 +69,20 @@ class RealLexiconAdapter:
     3. Indexing content keywords for live semantic/lexical discovery
     """
 
-    def __init__(self, hlt: Optional[HierarchicalLexiconTree] = None):
+    def __init__(
+        self,
+        hlt: Optional[HierarchicalLexiconTree] = None,
+        lexicon_dir: Optional[str] = None,
+    ):
         """
         Initialize Lexicon adapter.
 
         Args:
             hlt: HierarchicalLexiconTree instance. If None, creates a new one.
+            lexicon_dir: Optional explicit directory path to look for .zdict files.
         """
         self.hlt = hlt or HierarchicalLexiconTree()
+        self.lexicon_dir = Path(lexicon_dir) if lexicon_dir else None
         self._dict_cache: Dict[str, Any] = {}
         self._search_index: Dict[str, Dict[str, Any]] = {}
 
@@ -88,7 +94,11 @@ class RealLexiconAdapter:
         """Load dictionary from disk if available, otherwise fallback to domain seeds."""
         if zstd is None:
             return None
-        for base_dir in (Path("lexicons"), Path(__file__).resolve().parents[4] / "lexicons"):
+        search_dirs = [Path("lexicons"), Path(__file__).resolve().parents[4] / "lexicons"]
+        if self.lexicon_dir:
+            search_dirs.insert(0, self.lexicon_dir)
+
+        for base_dir in search_dirs:
             candidate = base_dir / f"{domain}.zdict"
             if candidate.exists():
                 try:
@@ -113,16 +123,30 @@ class RealLexiconAdapter:
         return self._load_domain_dict(domain)
 
     def decompress(
-        self, file_bytes: bytes, tags: Optional[list] = None
-    ) -> Tuple[bytes, dict]:
-        """Convenience method returning (decompressed_bytes, metadata_dict)."""
+        self, file_bytes: Union[bytes, Content], tags: Optional[list] = None
+    ) -> Union[Tuple[bytes, dict], bytes]:
+        """Convenience method returning (decompressed_bytes, metadata_dict) or decompressed bytes."""
+        if isinstance(file_bytes, Content):
+            data = file_bytes.data
+            content_tags = tags or file_bytes.metadata.get("tags", [])
+            content = self.reconstruct(data, tags=content_tags)
+            return content.data
+
         content = self.reconstruct(file_bytes, tags=tags)
         return content.data, content.metadata
 
-    def compress(self, file_bytes: bytes, tags: Optional[list] = None) -> bytes:
+    def compress(
+        self, file_bytes: Union[bytes, Content], tags: Optional[list] = None
+    ) -> Union[bytes, Content]:
         """
-        Compress file bytes using the domain-specific Lexicon dictionary.
+        Compress file bytes or Content object using the domain-specific Lexicon dictionary.
         """
+        if isinstance(file_bytes, Content):
+            content_obj = file_bytes
+            content_tags = tags or content_obj.metadata.get("tags", [])
+            comp_data = self.compress(content_obj.data, tags=content_tags)
+            return Content(root_hash=content_obj.root_hash, data=comp_data, metadata=content_obj.metadata)
+
         if zstd is None:
             return file_bytes
         domain = self._select_domain(tags or [])
