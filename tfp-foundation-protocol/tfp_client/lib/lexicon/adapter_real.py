@@ -8,6 +8,7 @@ Uses HierarchicalLexiconTree for domain-aware reconstruction and
 semantic search capabilities.
 """
 
+import dataclasses
 import hashlib
 import logging
 import re
@@ -19,8 +20,15 @@ try:
 except ImportError:
     zstd = None
 
-from .adapter import Content
 from ..lexicon.hlt.tree import HierarchicalLexiconTree
+
+
+@dataclasses.dataclass
+class Content:
+    root_hash: str
+    data: bytes
+    metadata: dict
+
 
 log = logging.getLogger(__name__)
 

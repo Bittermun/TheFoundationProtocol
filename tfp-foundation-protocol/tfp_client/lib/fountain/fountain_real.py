@@ -271,9 +271,10 @@ class RealRaptorQAdapter:
             if len(shard) < 16:
                 continue
             o_len, sk, idx = struct.unpack(">QII", shard[:16])
-            if orig_len is None:
-                orig_len, src_k = o_len, sk
-            parsed.append((idx, shard[16:]))
+            if 0 < sk <= 100000 and 0 <= idx < sk * 4 and o_len < 100 * 1024 * 1024 * 1024:
+                if orig_len is None:
+                    orig_len, src_k = o_len, sk
+                parsed.append((idx, shard[16:]))
 
         if orig_len is None or src_k is None:
             if hmac_key is not None and hmac_failed_count > 0:

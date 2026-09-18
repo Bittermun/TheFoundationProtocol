@@ -1,27 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 The Foundation Protocol Contributors
 
-import dataclasses
+from .ndn_real import Data, Interest, RealNDNAdapter
 
 
-@dataclasses.dataclass
-class Interest:
-    name: str
-
-
-@dataclasses.dataclass
-class Data:
-    name: str
-    content: bytes
-
-
-class NDNAdapter:
-    """Mock NDN adapter — swap internals for ndn-cxx/python-ndn bindings."""
-
-    def create_interest(self, root_hash: str) -> Interest:
-        return Interest(name=f"/tfp/content/{root_hash}")
-
-    def express_interest(self, interest: Interest) -> Data:
-        return Data(
-            name=interest.name, content=b"mock_shard_data_" + interest.name.encode()
-        )
+class NDNAdapter(RealNDNAdapter):
+    """Production Named Data Networking (NDN) adapter backed by blob store and async transport."""
+    pass
