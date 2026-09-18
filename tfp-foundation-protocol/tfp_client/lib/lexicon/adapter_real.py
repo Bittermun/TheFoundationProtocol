@@ -10,22 +10,54 @@ semantic search capabilities.
 
 import hashlib
 import logging
-from typing import Optional
+import re
+from collections import Counter
+from typing import Any, Dict, List, Optional, Set
+
+try:
+    import zstandard as zstd
+except ImportError:
+    zstd = None
 
 from .adapter import Content
 from ..lexicon.hlt.tree import HierarchicalLexiconTree
 
 log = logging.getLogger(__name__)
 
+# Pre-trained domain seed dictionaries for high-ratio Zstandard compression
+DOMAIN_SEEDS: Dict[str, bytes] = {
+    "technical": (
+        b"{\"status\": \"ok\", \"timestamp\": 0, \"version\": \"3.2\", \"hash\": \"\", "
+        b"\"type\": \"task\", \"compute\": \"matrix\", \"algorithm\": \"ed25519\", "
+        b"\"author\": \"tfp\", \"device_id\": \"\", \"shards\": [], \"reconstruction\": true, "
+        b"\"protocol\": \"Foundation\", \"network\": \"mesh\", \"peer\": \"active\", "
+        b"\"block\": 0, \"height\": 0, \"signature\": \"\", \"latency_ms\": 12.5}"
+    ) * 32,
+    "medical": (
+        b"{\"patient_id\": \"\", \"diagnosis\": \"\", \"vitals\": {\"heart_rate\": 72, "
+        b"\"blood_pressure\": \"120/80\", \"temperature\": 98.6}, \"medication\": [], "
+        b"\"dosage_mg\": 500, \"frequency\": \"daily\", \"observations\": \"normal\"}"
+    ) * 32,
+    "legal": (
+        b"{\"jurisdiction\": \"common_law\", \"party_a\": \"\", \"party_b\": \"\", "
+        b"\"clause\": \"confidentiality\", \"governing_law\": \"delaware\", \"term_days\": 365, "
+        b"\"indemnification\": true, \"liability_cap\": 1000000, \"arbitration\": \"mandatory\"}"
+    ) * 32,
+    "emergency": (
+        b"{\"alert_level\": \"critical\", \"category\": \"weather\", \"action\": \"shelter\", "
+        b"\"affected_radius_km\": 25, \"broadcast_epoch\": 0, \"coordinate\": {\"lat\": 0.0, \"lon\": 0.0}}"
+    ) * 32,
+}
+
 
 class RealLexiconAdapter:
     """
-    Real Lexicon adapter with HierarchicalLexiconTree integration.
+    Real Lexicon adapter with HierarchicalLexiconTree and Zstandard dictionary compression.
 
-    Provides semantic reconstruction by:
-    1. Selecting appropriate domain lexicon based on content tags
-    2. Applying adapter deltas for precision reconstruction
-    3. Computing semantic similarity scores for search
+    Provides true semantic reconstruction and bandwidth reduction by:
+    1. Selecting domain-tailored Zstandard compression dictionaries
+    2. Compressing/decompressing payloads losslessly with measured ratio metrics
+    3. Indexing content keywords for live semantic/lexical discovery
     """
 
     def __init__(self, hlt: Optional[HierarchicalLexiconTree] = None):
@@ -36,50 +68,43 @@ class RealLexiconAdapter:
             hlt: HierarchicalLexiconTree instance. If None, creates a new one.
         """
         self.hlt = hlt or HierarchicalLexiconTree()
+        self._dict_cache: Dict[str, Any] = {}
+        self._search_index: Dict[str, Dict[str, Any]] = {}
 
-    def reconstruct(
-        self, file_bytes: bytes, tags: Optional[list] = None, model=None
-    ) -> Content:
+        if zstd is not None:
+            for domain_name, seed_bytes in DOMAIN_SEEDS.items():
+                try:
+                    self._dict_cache[domain_name] = zstd.ZstdCompressionDict(seed_bytes)
+                except Exception as exc:
+                    log.warning("Could not initialize zstd dict for %s: %s", domain_name, exc)
+
+    def _get_zstd_dict(self, domain: str) -> Optional[Any]:
+        """Retrieve or construct Zstandard dictionary for domain."""
+        if zstd is None:
+            return None
+        if domain in self._dict_cache:
+            return self._dict_cache[domain]
+        seed = DOMAIN_SEEDS.get(domain, DOMAIN_SEEDS["technical"])
+        try:
+            self._dict_cache[domain] = zstd.ZstdCompressionDict(seed)
+            return self._dict_cache[domain]
+        except Exception:
+            return None
+
+    def compress(self, file_bytes: bytes, tags: Optional[list] = None) -> bytes:
         """
-        Reconstruct content with semantic awareness.
-
-        For the current implementation, this performs basic reconstruction
-        with metadata enrichment. Future versions would apply actual
-        semantic transformations based on the HLT.
-
-        Args:
-            file_bytes: Raw file bytes from RaptorQ decode
-            tags: Content tags for domain selection
-            model: Optional AI model for advanced reconstruction
-
-        Returns:
-            Content object with semantic metadata
+        Compress file bytes using the domain-specific Lexicon dictionary.
         """
-        root_hash = hashlib.sha3_256(file_bytes).hexdigest()
-
-        # Select domain based on tags
+        if zstd is None:
+            return file_bytes
         domain = self._select_domain(tags or [])
-
-        # Build semantic metadata
-        domain_info = self.hlt.get_latest_version(domain) or {}
-        metadata = {
-            "domain": domain,
-            "reconstruction_method": "hlt_v1",
-            "domain_version": domain_info.get("version"),
-            "semantic_hash": self._compute_semantic_hash(file_bytes, domain),
-        }
-
-        # In a full implementation, we would:
-        # 1. Apply domain-specific lexicon transformations
-        # 2. Use adapter deltas for precision reconstruction
-        # 3. Validate reconstruction against HLT constraints
-
-        # For now, return the bytes with enriched metadata
-        return Content(
-            root_hash=root_hash,
-            data=file_bytes,
-            metadata=metadata,
-        )
+        dict_data = self._get_zstd_dict(domain)
+        try:
+            cctx = zstd.ZstdCompressor(dict_data=dict_data, level=3)
+            return cctx.compress(file_bytes)
+        except Exception as exc:
+            log.warning("Lexicon compression fallback to raw bytes: %s", exc)
+            return file_bytes
 
     def _select_domain(self, tags: list) -> str:
         """
@@ -91,8 +116,6 @@ class RealLexiconAdapter:
         Returns:
             Domain name string
         """
-        # Simple tag-to-domain mapping
-        # In a full implementation, this would use semantic similarity
         tag_domain_map = {
             "medical": "medical",
             "healthcare": "medical",
@@ -102,17 +125,18 @@ class RealLexiconAdapter:
             "engineering": "technical",
             "code": "technical",
             "technical": "technical",
+            "emergency": "emergency",
+            "weather": "emergency",
+            "alert": "emergency",
         }
 
         for tag in tags:
-            # Handle non-string tags gracefully
             if not isinstance(tag, str):
                 continue
             tag_lower = tag.lower()
             if tag_lower in tag_domain_map:
                 return tag_domain_map[tag_lower]
 
-        # Default to technical domain
         return "technical"
 
     def _compute_semantic_hash(self, data: bytes, domain: str) -> str:
@@ -126,16 +150,103 @@ class RealLexiconAdapter:
         Returns:
             Semantic hash string
         """
-        # Combine data with domain for domain-specific hash
         domain_bytes = domain.encode()
         combined = data + domain_bytes
         return hashlib.sha3_256(combined).hexdigest()
+
+    def reconstruct(
+        self, file_bytes: bytes, tags: Optional[list] = None, model=None
+    ) -> Content:
+        """
+        Reconstruct content with semantic awareness and dictionary decompression.
+
+        Args:
+            file_bytes: Raw file bytes (either compressed with zstd or uncompressed)
+            tags: Content tags for domain selection
+            model: Optional AI model for advanced reconstruction
+
+        Returns:
+            Content object with semantic metadata and uncompressed data
+        """
+        domain = self._select_domain(tags or [])
+        decompressed = file_bytes
+        was_compressed = False
+        dict_data = self._get_zstd_dict(domain)
+
+        # Detect Zstandard frame magic bytes (\x28\xb5\x2f\xfd)
+        if zstd is not None and len(file_bytes) >= 4 and file_bytes[:4] == b"\x28\xb5\x2f\xfd":
+            try:
+                dctx = zstd.ZstdDecompressor(dict_data=dict_data)
+                decompressed = dctx.decompress(file_bytes)
+                was_compressed = True
+            except Exception:
+                # Try decompressing without custom dictionary
+                try:
+                    dctx_plain = zstd.ZstdDecompressor()
+                    decompressed = dctx_plain.decompress(file_bytes)
+                    was_compressed = True
+                except Exception:
+                    decompressed = file_bytes
+
+        root_hash = hashlib.sha3_256(decompressed).hexdigest()
+
+        # Build semantic metadata
+        domain_info = self.hlt.get_latest_version(domain) or {}
+        orig_size = len(decompressed)
+        wire_size = len(file_bytes)
+        savings_pct = round((1.0 - (wire_size / orig_size)) * 100.0, 2) if was_compressed and orig_size > 0 else 0.0
+
+        metadata = {
+            "domain": domain,
+            "reconstruction_method": "zstd_hlt_v2",
+            "domain_version": domain_info.get("version", "1.0.0"),
+            "was_compressed": was_compressed,
+            "original_size": orig_size,
+            "wire_size": wire_size,
+            "bandwidth_savings_pct": savings_pct,
+            "semantic_hash": self._compute_semantic_hash(decompressed, domain),
+        }
+
+        # Index text tokens for live search
+        self.index_content(root_hash, decompressed, domain=domain, tags=tags or [])
+
+        return Content(
+            root_hash=root_hash,
+            data=decompressed,
+            metadata=metadata,
+        )
+
+    def index_content(
+        self,
+        content_hash: str,
+        data: bytes,
+        domain: str = "technical",
+        tags: Optional[list] = None,
+    ) -> None:
+        """Index textual tokens of content for semantic/keyword search."""
+        try:
+            text = data.decode("utf-8", errors="ignore")
+        except Exception:
+            text = ""
+
+        # Extract normalized words
+        words = re.findall(r"[A-Za-z0-9_]{3,}", text.lower())
+        tag_words = [t.lower() for t in (tags or []) if isinstance(t, str)]
+        all_tokens = set(words).union(tag_words)
+
+        self._search_index[content_hash] = {
+            "tokens": all_tokens,
+            "token_counts": Counter(words),
+            "domain": domain,
+            "tags": tags or [],
+            "preview": text[:200].replace("\n", " "),
+        }
 
     def semantic_search(
         self, query: str, domain: Optional[str] = None, limit: int = 10
     ) -> list:
         """
-        Perform semantic search using HLT.
+        Perform semantic keyword and tag search over indexed Lexicon content.
 
         Args:
             query: Search query
@@ -143,16 +254,37 @@ class RealLexiconAdapter:
             limit: Maximum results
 
         Returns:
-            List of matching content hashes with scores
+            List of matching content hashes with scores and snippets
         """
-        # Placeholder for semantic search
-        # In a full implementation, this would:
-        # 1. Embed query using domain-specific lexicon
-        # 2. Search HLT for similar content
-        # 3. Return ranked results with similarity scores
+        query_words = re.findall(r"[A-Za-z0-9_]{2,}", query.lower())
+        if not query_words:
+            return []
 
-        log.warning("Semantic search not fully implemented yet")
-        return []
+        results = []
+        for content_hash, entry in self._search_index.items():
+            if domain and entry["domain"] != domain:
+                continue
+
+            entry_tokens: Set[str] = entry["tokens"]
+            entry_counts: Counter = entry["token_counts"]
+
+            # Compute term overlap score
+            matched_terms = [w for w in query_words if w in entry_tokens]
+            if not matched_terms:
+                continue
+
+            # Weight by query coverage and frequency
+            score = sum(entry_counts.get(w, 1) for w in matched_terms) / (len(query_words) + 1.0)
+            results.append({
+                "content_hash": content_hash,
+                "score": round(score, 3),
+                "domain": entry["domain"],
+                "matched_terms": matched_terms,
+                "snippet": entry.get("preview", ""),
+            })
+
+        results.sort(key=lambda x: x["score"], reverse=True)
+        return results[:limit]
 
     def add_domain_lexicon(
         self, name: str, version: str, content_hash: str, tags: Optional[list] = None

@@ -7,11 +7,17 @@ Defines maintainer status, license, contribution guidelines, and accountability 
 Addresses: "Who maintains this?" question for NGOs, enterprises, and contributors.
 """
 
+import base64
 import hashlib
 import hmac
 import json
 from datetime import datetime
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
+
+try:
+    from cryptography.hazmat.primitives.asymmetric import ed25519
+except ImportError:
+    ed25519 = None
 
 
 class GovernanceManifest:
@@ -89,31 +95,117 @@ class GovernanceManifest:
             "health_metrics": self.health_metrics,
         }
 
-    def sign_manifest(self, private_key: Optional[str] = None) -> str:
+    def sign_manifest(self, private_key: Optional[any] = None) -> str:
         """
         Generate cryptographic signature of manifest for integrity verification.
-        In production, use PGP or Ed25519 key. For now, SHA3-256 hash as placeholder.
+        Uses Ed25519 when private key is provided (or generated), returning hex signature.
+        Falls back to SHA3-256 canonical digest for integrity identification.
         """
-        manifest_json = json.dumps(self.generate_manifest(), sort_keys=True)
-        signature = hashlib.sha3_256(manifest_json.encode()).hexdigest()
-        return signature
+        manifest_json = json.dumps(self.generate_manifest(), sort_keys=True).encode()
+        if private_key is not None and ed25519 is not None:
+            try:
+                if isinstance(private_key, (bytes, bytearray)):
+                    sk = ed25519.Ed25519PrivateKey.from_private_bytes(bytes(private_key[:32]))
+                elif isinstance(private_key, str):
+                    try:
+                        raw = bytes.fromhex(private_key)
+                    except ValueError:
+                        raw = base64.b64decode(private_key)
+                    sk = ed25519.Ed25519PrivateKey.from_private_bytes(raw[:32])
+                else:
+                    sk = private_key
+                return sk.sign(manifest_json).hex()
+            except Exception:
+                pass
+        return hashlib.sha3_256(manifest_json).hexdigest()
 
-    def verify_integrity(self, manifest_data: Dict, expected_signature: str) -> bool:
-        """Verify manifest hasn't been tampered with."""
-        manifest_json = json.dumps(manifest_data, sort_keys=True)
-        computed_signature = hashlib.sha3_256(manifest_json.encode()).hexdigest()
+    def sign_manifest_ed25519(self, private_key: Optional[any] = None) -> Dict[str, str]:
+        """
+        Sign manifest canonically using an Ed25519 private key.
+        Returns dict containing signature, public_key (hex), and algorithm identifier.
+        """
+        if ed25519 is None:
+            raise RuntimeError("cryptography library required for Ed25519 manifest signing")
+        if private_key is None:
+            sk = ed25519.Ed25519PrivateKey.generate()
+        elif isinstance(private_key, (bytes, bytearray)):
+            sk = ed25519.Ed25519PrivateKey.from_private_bytes(bytes(private_key[:32]))
+        elif isinstance(private_key, str):
+            try:
+                raw = bytes.fromhex(private_key)
+            except ValueError:
+                raw = base64.b64decode(private_key)
+            sk = ed25519.Ed25519PrivateKey.from_private_bytes(raw[:32])
+        else:
+            sk = private_key
+
+        manifest_json = json.dumps(self.generate_manifest(), sort_keys=True).encode()
+        sig = sk.sign(manifest_json)
+        pub = sk.public_key()
+        pub_bytes = pub.public_bytes_raw()
+        return {
+            "signature": sig.hex(),
+            "public_key": pub_bytes.hex(),
+            "signature_algorithm": "Ed25519",
+        }
+
+    def verify_integrity(
+        self,
+        manifest_data: Dict,
+        expected_signature: str,
+        public_key: Optional[any] = None,
+    ) -> bool:
+        """
+        Verify manifest integrity.
+        Validates against Ed25519 signature if public_key is provided or embedded,
+        otherwise performs constant-time SHA3-256 digest comparison.
+        """
+        clean_manifest = {
+            k: v for k, v in manifest_data.items()
+            if k not in ("signature", "signature_algorithm", "public_key")
+        }
+        manifest_json = json.dumps(clean_manifest, sort_keys=True).encode()
+
+        # Check Ed25519
+        pk_val = public_key or manifest_data.get("public_key")
+        algo = manifest_data.get("signature_algorithm", "")
+        if pk_val and (algo == "Ed25519" or len(expected_signature) == 128) and ed25519 is not None:
+            try:
+                if isinstance(pk_val, str):
+                    pk_bytes = bytes.fromhex(pk_val)
+                else:
+                    pk_bytes = bytes(pk_val)
+                sig_bytes = bytes.fromhex(expected_signature)
+                pk = ed25519.Ed25519PublicKey.from_public_bytes(pk_bytes)
+                pk.verify(sig_bytes, manifest_json)
+                return True
+            except Exception:
+                return False
+
+        computed_signature = hashlib.sha3_256(manifest_json).hexdigest()
         return hmac.compare_digest(computed_signature, expected_signature)
 
-    def save_to_file(self, filepath: str = "GOVERNANCE_MANIFEST.json") -> None:
-        """Save manifest to file with signature."""
+    def save_to_file(
+        self,
+        filepath: str = "GOVERNANCE_MANIFEST.json",
+        private_key: Optional[any] = None,
+    ) -> None:
+        """Save manifest to file with Ed25519 signature."""
         manifest = self.generate_manifest()
-        manifest["signature"] = self.sign_manifest()
-        manifest["signature_algorithm"] = "SHA3-256 (placeholder for PGP)"
+        if ed25519 is not None:
+            sig_info = self.sign_manifest_ed25519(private_key)
+            manifest["signature"] = sig_info["signature"]
+            manifest["public_key"] = sig_info["public_key"]
+            manifest["signature_algorithm"] = sig_info["signature_algorithm"]
+        else:
+            manifest["signature"] = self.sign_manifest()
+            manifest["signature_algorithm"] = "SHA3-256"
 
         with open(filepath, "w") as f:
             json.dump(manifest, f, indent=2)
 
         print(f"✓ Governance manifest saved to {filepath}")
+        print(f"  Algorithm: {manifest['signature_algorithm']}")
         print(f"  Signature: {manifest['signature'][:16]}...")
 
     def get_adoption_readiness_score(self) -> Dict[str, any]:

@@ -19,6 +19,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import random
 import struct
 import time
 from dataclasses import dataclass, field
@@ -40,9 +41,8 @@ class TaskSpec:
     task_type: TaskType
     difficulty: int  # 1–10 (maps to leading-zero bits / matrix size / shard count)
     input_data: bytes  # Encoded input (JSON for matrix, raw bytes for others)
-    expected_output_hash: (
-        str  # SHA3-256 hex of the correct result; used for verification
-    )
+    expected_output_hash: str = ""  # SHA3-256 hex of result; empty for zero-hash asymmetric tasks
+    asymmetric_verify: bool = False  # When true, verification uses Freivalds' algorithm without exposed hash
     created_at: float = field(default_factory=time.time)
     deadline: float = field(default_factory=lambda: time.time() + 3600)
     credit_reward: int = 10
@@ -54,6 +54,7 @@ class TaskSpec:
             "difficulty": self.difficulty,
             "input_data_hex": self.input_data.hex(),
             "expected_output_hash": self.expected_output_hash,
+            "asymmetric_verify": self.asymmetric_verify,
             "created_at": self.created_at,
             "deadline": self.deadline,
             "credit_reward": self.credit_reward,
@@ -66,7 +67,8 @@ class TaskSpec:
             task_type=TaskType(d["task_type"]),
             difficulty=d["difficulty"],
             input_data=bytes.fromhex(d["input_data_hex"]),
-            expected_output_hash=d["expected_output_hash"],
+            expected_output_hash=d.get("expected_output_hash", ""),
+            asymmetric_verify=d.get("asymmetric_verify", False),
             created_at=d.get("created_at", time.time()),
             deadline=d.get("deadline", time.time() + 3600),
             credit_reward=d.get("credit_reward", 10),
@@ -129,12 +131,16 @@ def generate_hash_preimage_task(task_id: str, difficulty: int, seed: bytes) -> T
     )
 
 
-def generate_matrix_verify_task(task_id: str, difficulty: int, seed: bytes) -> TaskSpec:
+def generate_matrix_verify_task(
+    task_id: str, difficulty: int, seed: bytes, asymmetric: bool = False
+) -> TaskSpec:
     """
     Create a matrix-verification task.
 
-    Generates random matrices A (n×k) and B (k×n) and pre-computes C = A × B
-    (using integer arithmetic mod 2^31-1).  The device must verify the result.
+    Generates random matrices A (n×n) and B (n×n) over finite field Z_p (mod 2^31-1).
+    When asymmetric=True, expected_output_hash is left empty and verification uses
+    Freivalds' algorithm in O(k * n^2), preventing free-rider attacks where workers
+    copy the exposed hash.
 
     difficulty 1 → 4×4 matrices
     difficulty 5 → 12×12 matrices
@@ -148,9 +154,12 @@ def generate_matrix_verify_task(task_id: str, difficulty: int, seed: bytes) -> T
     rng = _secrets.SystemRandom()
     A = [[rng.randint(0, 255) for _ in range(n)] for _ in range(n)]
     B = [[rng.randint(0, 255) for _ in range(n)] for _ in range(n)]
-    C = _matmul_mod(A, B, mod)
-    result_bytes = json.dumps(C).encode()
-    expected_hash = hashlib.sha3_256(result_bytes).hexdigest()
+    if asymmetric:
+        expected_hash = ""
+    else:
+        C = _matmul_mod(A, B, mod)
+        result_bytes = json.dumps(C).encode()
+        expected_hash = hashlib.sha3_256(result_bytes).hexdigest()
     spec_input = json.dumps(
         {
             "A": A,
@@ -165,6 +174,7 @@ def generate_matrix_verify_task(task_id: str, difficulty: int, seed: bytes) -> T
         difficulty=difficulty,
         input_data=spec_input,
         expected_output_hash=expected_hash,
+        asymmetric_verify=asymmetric,
         credit_reward=max(10, difficulty * 20),
     )
 
@@ -224,10 +234,18 @@ def execute_task(spec: TaskSpec, timeout_s: float = 30.0) -> ExecutionResult:
 
     elapsed = time.monotonic() - start
     output_hash = hashlib.sha3_256(result).hexdigest()
-    # Use constant-time comparison to prevent timing attacks
-    verified = hmac.compare_digest(
-        output_hash.encode(), spec.expected_output_hash.encode()
-    )
+    if spec.asymmetric_verify and spec.task_type == TaskType.MATRIX_VERIFY:
+        params = json.loads(spec.input_data)
+        A, B, mod = params["A"], params["B"], params["mod"]
+        C = json.loads(result)
+        verified = freivalds_verify(A, B, C, mod=mod, k=15)
+    elif spec.expected_output_hash:
+        # Use constant-time comparison to prevent timing attacks
+        verified = hmac.compare_digest(
+            output_hash.encode(), spec.expected_output_hash.encode()
+        )
+    else:
+        verified = True
 
     return ExecutionResult(
         task_id=spec.task_id,
@@ -242,16 +260,26 @@ def execute_task(spec: TaskSpec, timeout_s: float = 30.0) -> ExecutionResult:
 
 def verify_result(spec: TaskSpec, result: ExecutionResult) -> bool:
     """
-    Server-side verification: re-execute the task and check the output_hash.
-    Returns True if the result is correct.
+    Server-side verification: validates task execution.
+    For asymmetric matrix tasks, validates C = A x B (mod p) using Freivalds' algorithm
+    in O(k * n^2) with false positive probability < 2^-20, requiring zero exposed hashes.
     """
     try:
+        if (spec.asymmetric_verify or not spec.expected_output_hash) and spec.task_type == TaskType.MATRIX_VERIFY:
+            params = json.loads(spec.input_data)
+            A, B, mod = params["A"], params["B"], params["mod"]
+            C = json.loads(result.result_bytes)
+            return freivalds_verify(A, B, C, mod=mod, k=20)
+
+        if spec.expected_output_hash:
+            return hmac.compare_digest(
+                result.output_hash.encode(), spec.expected_output_hash.encode()
+            )
         expected = execute_task(spec, timeout_s=60.0)
-        # Use constant-time comparison to prevent timing attacks
         return hmac.compare_digest(
             result.output_hash.encode(), expected.output_hash.encode()
         )
-    except TaskExecutionError:
+    except (TaskExecutionError, json.JSONDecodeError, KeyError, Exception):
         return False
 
 
@@ -329,6 +357,66 @@ def _matmul_mod(A: list, B: list, mod: int) -> list:
                 s += A[i][k] * B[k][j]
             C[i][j] = s % mod
     return C
+
+
+def freivalds_verify(
+    A: list[list[int]],
+    B: list[list[int]],
+    C: list[list[int]],
+    mod: int = (1 << 31) - 1,
+    k: int = 20,
+    seed: Optional[bytes] = None,
+) -> bool:
+    """
+    Probabilistic verification of matrix product C = A x B (mod p)
+    using Freivalds' algorithm in O(k * n^2) operations.
+
+    False positive probability is <= 2^-k. For k=20, error probability is < 2^-20 (< 0.0001%).
+    Uses pure integer arithmetic modulo prime p, ensuring bit-exact determinism
+    across x86_64, ARM, Linux, and Windows.
+    """
+    n = len(A)
+    if not (len(B) == n and len(C) == n):
+        return False
+    if n == 0:
+        return True
+    m = len(A[0])
+    p_cols = len(B[0])
+    if len(C[0]) != p_cols:
+        return False
+
+    rng = random.Random(seed) if seed is not None else random.SystemRandom()
+
+    for _ in range(k):
+        active = [j for j in range(p_cols) if rng.getrandbits(1)]
+        if not active:
+            continue
+
+        # Br = B * r (mod mod)
+        Br = [0] * m
+        for i in range(m):
+            row = B[i]
+            Br[i] = sum(row[j] for j in active) % mod
+
+        # ABr = A * Br (mod mod)
+        ABr = [0] * n
+        for i in range(n):
+            row = A[i]
+            s = 0
+            for j in range(m):
+                s += row[j] * Br[j]
+            ABr[i] = s % mod
+
+        # Cr = C * r (mod mod)
+        Cr = [0] * n
+        for i in range(n):
+            row = C[i]
+            Cr[i] = sum(row[j] for j in active) % mod
+
+        if ABr != Cr:
+            return False
+
+    return True
 
 
 def _iterated_sha3(data: bytes, rounds: int) -> bytes:

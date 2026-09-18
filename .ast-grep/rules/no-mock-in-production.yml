@@ -1,0 +1,14 @@
+id: no-identity-mock-in-real-adapter
+message: "Method in class labeled 'Real*' returns input parameter unchanged without transformation. Implement real transformation or explicitly mark adapter as mock."
+severity: warning
+language: python
+rule:
+  pattern: |
+    def $FUNC(self, $ARG, $$$REST):
+      return $ARG
+  inside:
+    pattern: |
+      class $CLASS:
+        $$$BODY
+    regex:
+      CLASS: "^Real"

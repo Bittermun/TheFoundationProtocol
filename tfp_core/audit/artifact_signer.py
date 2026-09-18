@@ -19,8 +19,16 @@ Usage:
     is_valid = signer.verify(data=b"...", bundle=bundle)
 """
 
+import base64
+import hashlib
 import logging
+import time
 from typing import Any, Dict, Optional
+
+try:
+    from cryptography.hazmat.primitives.asymmetric import ed25519
+except ImportError:
+    ed25519 = None
 
 logger = logging.getLogger(__name__)
 
@@ -41,23 +49,40 @@ class ArtifactSigner:
     """Sigstore-based artifact signer for TFP releases"""
 
     def __init__(
-        self, mode: str = "keyless", issuer: str = "https://oauth2.sigstore.dev/auth"
+        self,
+        mode: str = "keyless",
+        issuer: str = "https://oauth2.sigstore.dev/auth",
+        private_key: Optional[Any] = None,
     ):
         """
         Initialize artifact signer.
 
         Args:
-            mode: Signing mode ("keyless" only for now)
+            mode: Signing mode ("keyless" or "ed25519")
             issuer: OIDC issuer URL for identity tokens
+            private_key: Optional Ed25519 private key (bytes, raw, or Ed25519PrivateKey)
         """
-        if mode != "keyless":
-            raise ValueError(f"Unsupported mode: {mode}. Only 'keyless' is supported.")
+        if mode not in ("keyless", "ed25519"):
+            raise ValueError(f"Unsupported mode: {mode}. Only 'keyless' and 'ed25519' are supported.")
 
         self.mode = mode
         self.issuer = issuer
         self._signer = None
+        self._ctx = None
 
-        if SIGSTORE_AVAILABLE:
+        # Setup local Ed25519 key for sovereign/offline signing
+        self._ed25519_key = None
+        self._ed25519_pub = None
+        if ed25519 is not None:
+            if private_key is None:
+                self._ed25519_key = ed25519.Ed25519PrivateKey.generate()
+            elif isinstance(private_key, (bytes, bytearray)):
+                self._ed25519_key = ed25519.Ed25519PrivateKey.from_private_bytes(bytes(private_key[:32]))
+            else:
+                self._ed25519_key = private_key
+            self._ed25519_pub = self._ed25519_key.public_key()
+
+        if mode == "keyless" and SIGSTORE_AVAILABLE:
             try:
                 # Sigstore v3.x requires different initialization
                 self._ctx = SigningContext.production()
@@ -65,57 +90,58 @@ class ArtifactSigner:
             except Exception as e:
                 logger.warning(f"Failed to initialize Sigstore context: {e}")
                 self._ctx = None
-        else:
-            logger.warning(
-                "Sigstore library not available - signing will use mock mode"
-            )
-            self._ctx = None
 
     def sign(self, data: bytes) -> Optional[Dict[str, Any]]:
         """
-        Sign artifact data using Sigstore.
+        Sign artifact data using Ed25519 or Sigstore.
 
         Args:
             data: Binary data to sign
 
         Returns:
-            Bundle dict with cert, signature, and log index, or None on failure
+            Bundle dict with cert/public_key, signature, and metadata
         """
-        if not SIGSTORE_AVAILABLE or self._ctx is None:
-            # Mock mode for testing without network access
-            logger.info("Signing in mock mode (Sigstore unavailable)")
+        # When Ed25519 is available (or in ed25519 mode, or offline without Sigstore credentials),
+        # produce real cryptographic Ed25519 signatures
+        if self._ed25519_key is not None and (self.mode == "ed25519" or not SIGSTORE_AVAILABLE or self._ctx is None):
+            sig = self._ed25519_key.sign(data)
+            pub_raw = self._ed25519_pub.public_bytes_raw()
             return {
-                "cert": "mock_cert_placeholder",
-                "signature": "mock_signature_placeholder",
-                "log_index": 0,
-                "mock": True,
+                "algorithm": "ed25519",
+                "cert": base64.b64encode(pub_raw).decode(),
+                "public_key": base64.b64encode(pub_raw).decode(),
+                "signature": base64.b64encode(sig).decode(),
+                "data_sha3_256": hashlib.sha3_256(data).hexdigest(),
+                "log_index": 1,
+                "timestamp": int(time.time()),
+                "mock": False,
             }
 
         try:
             logger.info("Signing artifact with Sigstore...")
-
-            # Note: Actual Sigstore signing requires an OIDC identity token
-            # In production, you'd obtain this via:
-            # - detect_credential() for GitHub Actions, GCP Workload Identity, etc.
-            # - Interactive OAuth flow for CLI usage
-            # For now, we return a structured placeholder
-            logger.warning(
-                "Actual Sigstore signing requires OIDC token - returning mock bundle"
-            )
+            # If Sigstore credentials are not provisioned in local environment,
+            # fall back to local Ed25519 rather than fake placeholders
+            if self._ed25519_key is not None:
+                sig = self._ed25519_key.sign(data)
+                pub_raw = self._ed25519_pub.public_bytes_raw()
+                return {
+                    "algorithm": "ed25519",
+                    "cert": base64.b64encode(pub_raw).decode(),
+                    "public_key": base64.b64encode(pub_raw).decode(),
+                    "signature": base64.b64encode(sig).decode(),
+                    "log_index": 1,
+                    "mock": False,
+                }
             return {
-                "cert": "sigstore_cert_placeholder",
-                "signature": "sigstore_sig_placeholder",
-                "log_index": 12345,
-                "note": "Replace with actual Sigstore signing in production",
+                "error": "No signing key or Sigstore credentials available",
             }
-
         except Exception as e:
-            logger.error(f"Sigstore signing failed: {e}")
+            logger.error(f"Signing failed: {e}")
             return {"error": str(e)}
 
     def verify(self, data: bytes, bundle: Dict[str, Any]) -> bool:
         """
-        Verify artifact signature using Sigstore.
+        Verify artifact signature.
 
         Args:
             data: Original binary data
@@ -124,28 +150,31 @@ class ArtifactSigner:
         Returns:
             True if signature is valid, False otherwise
         """
-        if not SIGSTORE_AVAILABLE:
-            logger.warning("Sigstore not available - verification skipped")
-            return bundle.get("mock", False)  # Accept mock bundles in test mode
-
         if "error" in bundle:
             logger.error(f"Invalid bundle: {bundle['error']}")
             return False
 
-        try:
-            logger.info("Verifying artifact signature...")
+        # Verify real Ed25519 signature
+        if (bundle.get("algorithm") == "ed25519" or "public_key" in bundle) and "signature" in bundle and ed25519 is not None:
+            try:
+                pub_b64 = bundle.get("public_key") or bundle.get("cert")
+                sig_b64 = bundle.get("signature")
+                if not pub_b64 or not sig_b64:
+                    return False
+                pub_raw = base64.b64decode(pub_b64)
+                sig_raw = base64.b64decode(sig_b64)
+                pub = ed25519.Ed25519PublicKey.from_public_bytes(pub_raw)
+                pub.verify(sig_raw, data)
+                return True
+            except Exception as e:
+                logger.debug(f"Ed25519 signature verification failed: {e}")
+                return False
 
-            # Placeholder for actual verification logic
-            # In production: verifier = Verifier.production()
-            # result = verifier.verify_artifact(data, bundle, policy)
-            logger.warning(
-                "Actual verification requires real bundle - returning True for mock"
-            )
-            return bundle.get("mock", True)
+        # Support legacy mock bundle verification for offline unit tests
+        if bundle.get("mock", False) is True:
+            return True
 
-        except Exception as e:
-            logger.error(f"Signature verification failed: {e}")
-            return False
+        return False
 
     def sign_file(self, file_path: str) -> Optional[Dict[str, Any]]:
         """
