@@ -10,7 +10,7 @@ from .article_packager import ArticlePackager
 
 __all__ = [
     "ArticleIngester",
+    "ArticlePackager",
     "ArticleSection",
     "ExtractedArticle",
-    "ArticlePackager",
 ]

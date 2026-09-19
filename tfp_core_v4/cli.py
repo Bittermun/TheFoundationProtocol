@@ -17,13 +17,13 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import hashlib
 import json
-from pathlib import Path
-import random
+import secrets
 import sys
 import time
 import urllib.parse
+from pathlib import Path
+from typing import Any
 
 _repo_root = Path(__file__).resolve().parent.parent
 if str(_repo_root) not in sys.path:
@@ -33,17 +33,205 @@ _tfp_root = _repo_root / "tfp-foundation-protocol"
 if str(_tfp_root) not in sys.path:
     sys.path.insert(0, str(_tfp_root))
 
-from tfp_core_v4.node import TFPNode
-from tfp_client.lib.media.stream_packager import MediaStreamPackager
-from tfp_client.lib.media.fountain_streamer import FountainStreamer
-from tfp_client.lib.media.receiver import FountainStreamReceiver
-from tfp_client.lib.radio.framing import RadioFramePacker, RadioFrameReassembler
-from tfp_client.lib.search.hybrid_search import HybridSearchEngine
+from tfp_client.lib.audio.afsk_demodulator import AFSKDemodulator
+from tfp_client.lib.audio.afsk_modulator import AFSKModulator
 from tfp_client.lib.ingest.article_ingester import ArticleIngester
 from tfp_client.lib.ingest.article_packager import ArticlePackager
-from tfp_client.lib.audio.afsk_modulator import AFSKModulator
-from tfp_client.lib.audio.afsk_demodulator import AFSKDemodulator
+from tfp_client.lib.media.fountain_streamer import FountainStreamer
+from tfp_client.lib.media.receiver import FountainStreamReceiver
+from tfp_client.lib.media.stream_packager import MediaStreamPackager
 from tfp_client.lib.media.template_engine import TemplateParser
+from tfp_client.lib.radio.framing import RadioFramePacker, RadioFrameReassembler
+from tfp_client.lib.search.hybrid_search import HybridSearchEngine
+
+from tfp_core_v4.node import TFPNode
+
+
+def create_visualizer_server(port: int = 8080) -> tuple[Any, int]:
+    """Creates a configured TCPServer instance for the visualizer dashboard."""
+    import http.server
+    import socketserver
+
+    static_dir = _tfp_root / "tfp_demo" / "static"
+    html_file = static_dir / "visualizer.html"
+    if not html_file.exists():
+        raise FileNotFoundError(f"Visualizer HTML not found at {html_file}")
+
+    def generate_live_protocol_telemetry() -> dict[str, Any]:
+        md = """# Severe Hypothermia Field Triage & Resuscitation
+> Immediate field emergency medical protocol.
+
+## Vital Signs & Core Rewarming
+Initiate active core rewarming with warmed IV saline at 39 degrees C.
+- Administer oral rehydration solution: 6 tsp sugar + 0.5 tsp salt per 1L boiled water.
+- Continuous ECG monitoring for ventricular fibrillation prevention.
+
+## Field Sanitation & Safe Water
+- Boil vigorously for 1 minute before consumption.
+- Use 2 drops household bleach per 1L water if fuel is scarce.
+"""
+        manifest = TemplateParser.from_markdown(md, title="Severe Hypothermia Field Triage")
+        packager = MediaStreamPackager(min_chunk_size=128, target_chunk_size=256, max_chunk_size=512)
+        media_manifest, chunks, merkle = packager.package(md.encode("utf-8"), media_type="text/markdown")
+
+        streamer = FountainStreamer(symbol_size=64)
+        droplets = []
+        for i in range(25):
+            pkt = streamer.generate_packet(chunks[0], chunk_index=0, session_id=42, seed=i)
+            droplets.append({
+                "seed": pkt.seed,
+                "k": pkt.k,
+                "symbol_size": pkt.symbol_size,
+                "is_repair": pkt.seed >= pkt.k,
+            })
+
+        merkle_levels = []
+        for lvl in merkle.levels:
+            merkle_levels.append([h.hex() if isinstance(h, bytes) else str(h) for h in lvl])
+
+        slides_data = []
+        domain_name = getattr(manifest, "domain", "medical")
+        for s in manifest.slides:
+            bullets = []
+            narration = "Initiate active core rewarming immediately. Prepare warmed saline."
+            for e in s.elements:
+                if e.element_type == "bullet_list":
+                    if isinstance(e.content, list):
+                        bullets.extend(e.content)
+                    else:
+                        bullets.append(str(e.content))
+                elif e.element_type == "narration":
+                    narration = str(e.content)
+            if not bullets:
+                bullets = [
+                    "Patient vitals: Pulse 118 bpm, BP 85/50 mmHg, SpO2 91%.",
+                    "Initiate immediate active core rewarming with warmed IV saline (39°C).",
+                    "Administer oral rehydration solution: 6 tsp sugar + 0.5 tsp salt per 1L boiled water.",
+                ]
+
+            slides_data.append({
+                "badge": f"TRIAGE ALERT [{domain_name.upper()}]",
+                "badgeClass": "badge-red" if domain_name == "medical" else "badge-green",
+                "title": s.title,
+                "bullets": bullets,
+                "narration": narration,
+            })
+
+        return {
+            "status": "ok",
+            "engine": "The Foundation Protocol v4.0",
+            "merkle_root": media_manifest.merkle_root,
+            "chunk_count": len(chunks),
+            "chunk_sizes": [len(c) for c in chunks],
+            "chunk_hashes": media_manifest.chunk_hashes,
+            "merkle_levels": merkle_levels,
+            "droplets": droplets,
+            "k": droplets[0]["k"] if droplets else 4,
+            "slides": slides_data,
+            "raw_size": len(md),
+            "dedup_ratio": "11.9x",
+        }
+
+    active_loss_rate = [0.25]
+
+    class VisualizerHandler(http.server.SimpleHTTPRequestHandler):
+        def __init__(self, *a, **kw):
+            super().__init__(*a, directory=str(static_dir), **kw)
+
+        def do_GET(self):
+            if self.path.startswith("/api/set-loss"):
+                query = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+                if "rate" in query:
+                    try:
+                        active_loss_rate[0] = max(0.0, min(0.9, float(query["rate"][0])))
+                    except (ValueError, IndexError, KeyError):
+                        pass
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+                self.wfile.write(json.dumps({"ok": True, "rate": active_loss_rate[0]}).encode("utf-8"))
+                return
+
+            if self.path == "/api/protocol-state":
+                data = generate_live_protocol_telemetry()
+                data["active_loss_rate"] = active_loss_rate[0]
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                payload = json.dumps(data).encode("utf-8")
+                self.send_header("Content-Length", str(len(payload)))
+                self.end_headers()
+                self.wfile.write(payload)
+                return
+
+            if self.path.startswith("/api/stream-events"):
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream")
+                self.send_header("Cache-Control", "no-cache")
+                self.send_header("Connection", "keep-alive")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.end_headers()
+
+                try:
+                    self._stream_events()
+                except (BrokenPipeError, ConnectionResetError):
+                    pass
+                return
+
+            if self.path in ("/", "/visualizer", "/index.html"):
+                self.path = "/visualizer.html"
+            return super().do_GET()
+
+        def _stream_events(self):
+            k = 7
+            for _ in range(5):  # Run 5 continuous transmission cycles
+                for cut in [14, 32, 48]:
+                    self._send_sse("cdc_cut", {"cut": cut})
+                    time.sleep(0.08)
+
+                self._send_sse("merkle_step", {"status": "verified", "root": "487cf572a41a..."})
+                time.sleep(0.12)
+
+                rank = 0
+                sys_rng = secrets.SystemRandom()
+                for seed in range(30):
+                    is_lost = sys_rng.random() < active_loss_rate[0]
+                    if is_lost:
+                        self._send_sse("droplet_drop", {"seed": seed, "k": k})
+                    else:
+                        rank = min(k, rank + 1)
+                        self._send_sse("droplet_recv", {"seed": seed, "k": k, "rank": rank})
+                        self._send_sse("matrix_pivot", {"rank": rank, "k": k})
+
+                    time.sleep(0.07)
+                    if rank >= k:
+                        self._send_sse("slide_ready", {
+                            "title": "Severe Hypothermia Field Triage & Resuscitation",
+                            "badge": "TRIAGE ALERT [MEDICAL]",
+                            "badgeClass": "badge-red",
+                            "bullets": [
+                                "Administer oral rehydration solution: 6 tsp sugar + 0.5 tsp salt per 1L boiled water.",
+                                "Continuous ECG monitoring for ventricular fibrillation prevention.",
+                                "Boil vigorously for 1 minute before consumption."
+                            ],
+                            "narration": "Initiate active core rewarming immediately. Prepare warmed saline."
+                        })
+                        time.sleep(1.2)
+                        break
+
+        def _send_sse(self, event: str, data: dict):
+            msg = f"event: {event}\ndata: {json.dumps(data)}\n\n".encode()
+            self.wfile.write(msg)
+            self.wfile.flush()
+
+        def log_message(self, format, *args):
+            pass
+
+    socketserver.TCPServer.allow_reuse_address = True
+    server = socketserver.TCPServer(("127.0.0.1", port), VisualizerHandler)
+    actual_port = server.server_address[1]
+    return server, actual_port
 
 
 def main():
@@ -112,7 +300,7 @@ def main():
 
         data = path.read_bytes()
         packager = MediaStreamPackager(min_chunk_size=2048, target_chunk_size=8192, max_chunk_size=16384)
-        manifest, chunks, merkle = packager.package(data, metadata={"filename": path.name})
+        manifest, chunks, _merkle = packager.package(data, metadata={"filename": path.name})
 
         print("=" * 60)
         print("  [TFP] File Packaged Successfully")
@@ -139,9 +327,11 @@ def main():
         for pkt in packets:
             receiver.ingest_packet(pkt)
 
-        assert receiver.is_complete(manifest)
+        if not receiver.is_complete(manifest):
+            raise RuntimeError("Stream reconstruction failed: receiver incomplete.")
         reconstructed = receiver.assemble(manifest)
-        assert reconstructed == data
+        if reconstructed != data:
+            raise RuntimeError("Stream reconstruction failed: bit-exact mismatch.")
 
         print(f"[TFP STREAM] Streamed {len(packets)} rateless packets across {manifest.chunk_count} chunks.")
         print(f"[TFP STREAM] Reconstructed {len(reconstructed):,} bytes: 100% BIT-EXACT MATCH.")
@@ -161,7 +351,7 @@ def main():
             reassembler.ingest_bytes(p.to_bytes())
 
         print(f"[TFP RADIO] Fragmented {len(data):,} bytes into {len(packets)} frames (MTU={args.mtu}B).")
-        print(f"[TFP RADIO] CRC16 verified; reassembly succeeded: 100% MATCH.")
+        print("[TFP RADIO] CRC16 verified; reassembly succeeded: 100% MATCH.")
 
     elif args.command == "search":
         engine = HybridSearchEngine()
@@ -179,202 +369,29 @@ def main():
         asyncio.run(run_simulation())
 
     elif args.command == "visualize":
-        import http.server
-        import socketserver
         import webbrowser
 
-        static_dir = _tfp_root / "tfp_demo" / "static"
-        html_file = static_dir / "visualizer.html"
-        if not html_file.exists():
-            print(f"Error: Visualizer HTML not found at {html_file}", file=sys.stderr)
+        port = args.port
+        try:
+            httpd, actual_port = create_visualizer_server(port)
+        except FileNotFoundError as e:
+            print(f"Error: {e}", file=sys.stderr)
             sys.exit(1)
 
-        def generate_live_protocol_telemetry() -> Dict[str, Any]:
-            md = """# Severe Hypothermia Field Triage & Resuscitation
-> Immediate field emergency medical protocol.
-
-## Vital Signs & Core Rewarming
-Initiate active core rewarming with warmed IV saline at 39 degrees C.
-- Administer oral rehydration solution: 6 tsp sugar + 0.5 tsp salt per 1L boiled water.
-- Continuous ECG monitoring for ventricular fibrillation prevention.
-
-## Field Sanitation & Safe Water
-- Boil vigorously for 1 minute before consumption.
-- Use 2 drops household bleach per 1L water if fuel is scarce.
-"""
-            manifest = TemplateParser.from_markdown(md, title="Severe Hypothermia Field Triage")
-            packager = MediaStreamPackager(min_chunk_size=128, target_chunk_size=256, max_chunk_size=512)
-            media_manifest, chunks, merkle = packager.package(md.encode("utf-8"), media_type="text/markdown")
-
-            streamer = FountainStreamer(symbol_size=64)
-            droplets = []
-            for i in range(25):
-                pkt = streamer.generate_packet(chunks[0], chunk_index=0, session_id=42, seed=i)
-                droplets.append({
-                    "seed": pkt.seed,
-                    "k": pkt.k,
-                    "symbol_size": pkt.symbol_size,
-                    "is_repair": pkt.seed >= pkt.k,
-                })
-
-            merkle_levels = []
-            for lvl in merkle.levels:
-                merkle_levels.append([h.hex() if isinstance(h, bytes) else str(h) for h in lvl])
-
-            slides_data = []
-            domain_name = getattr(manifest, "domain", "medical")
-            for s in manifest.slides:
-                bullets = []
-                narration = "Initiate active core rewarming immediately. Prepare warmed saline."
-                for e in s.elements:
-                    if e.element_type == "bullet_list":
-                        if isinstance(e.content, list):
-                            bullets.extend(e.content)
-                        else:
-                            bullets.append(str(e.content))
-                    elif e.element_type == "narration":
-                        narration = str(e.content)
-                if not bullets:
-                    bullets = [
-                        "Patient vitals: Pulse 118 bpm, BP 85/50 mmHg, SpO2 91%.",
-                        "Initiate immediate active core rewarming with warmed IV saline (39°C).",
-                        "Administer oral rehydration solution: 6 tsp sugar + 0.5 tsp salt per 1L boiled water.",
-                    ]
-
-                slides_data.append({
-                    "badge": f"TRIAGE ALERT [{domain_name.upper()}]",
-                    "badgeClass": "badge-red" if domain_name == "medical" else "badge-green",
-                    "title": s.title,
-                    "bullets": bullets,
-                    "narration": narration,
-                })
-
-            return {
-                "status": "ok",
-                "engine": "The Foundation Protocol v4.0",
-                "merkle_root": media_manifest.merkle_root,
-                "chunk_count": len(chunks),
-                "chunk_sizes": [len(c) for c in chunks],
-                "chunk_hashes": media_manifest.chunk_hashes,
-                "merkle_levels": merkle_levels,
-                "droplets": droplets,
-                "k": droplets[0]["k"] if droplets else 4,
-                "slides": slides_data,
-                "raw_size": len(md),
-                "dedup_ratio": "11.9x",
-            }
-
-        active_loss_rate = [0.25]
-
-        class VisualizerHandler(http.server.SimpleHTTPRequestHandler):
-            def __init__(self, *a, **kw):
-                super().__init__(*a, directory=str(static_dir), **kw)
-
-            def do_GET(self):
-                if self.path.startswith("/api/set-loss"):
-                    query = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
-                    if "rate" in query:
-                        try:
-                            active_loss_rate[0] = max(0.0, min(0.9, float(query["rate"][0])))
-                        except Exception:
-                            pass
-                    self.send_response(200)
-                    self.send_header("Content-Type", "application/json")
-                    self.send_header("Access-Control-Allow-Origin", "*")
-                    self.end_headers()
-                    self.wfile.write(json.dumps({"ok": True, "rate": active_loss_rate[0]}).encode("utf-8"))
-                    return
-
-                if self.path == "/api/protocol-state":
-                    data = generate_live_protocol_telemetry()
-                    data["active_loss_rate"] = active_loss_rate[0]
-                    self.send_response(200)
-                    self.send_header("Content-Type", "application/json")
-                    self.send_header("Access-Control-Allow-Origin", "*")
-                    payload = json.dumps(data).encode("utf-8")
-                    self.send_header("Content-Length", str(len(payload)))
-                    self.end_headers()
-                    self.wfile.write(payload)
-                    return
-
-                if self.path.startswith("/api/stream-events"):
-                    self.send_response(200)
-                    self.send_header("Content-Type", "text/event-stream")
-                    self.send_header("Cache-Control", "no-cache")
-                    self.send_header("Connection", "keep-alive")
-                    self.send_header("Access-Control-Allow-Origin", "*")
-                    self.end_headers()
-
-                    try:
-                        self._stream_events()
-                    except (BrokenPipeError, ConnectionResetError):
-                        pass
-                    return
-
-                if self.path in ("/", "/visualizer", "/index.html"):
-                    self.path = "/visualizer.html"
-                return super().do_GET()
-
-            def _stream_events(self):
-                k = 7
-                for _ in range(5):  # Run 5 continuous transmission cycles
-                    for cut in [14, 32, 48]:
-                        self._send_sse("cdc_cut", {"cut": cut})
-                        time.sleep(0.08)
-
-                    self._send_sse("merkle_step", {"status": "verified", "root": "487cf572a41a..."})
-                    time.sleep(0.12)
-
-                    rank = 0
-                    for seed in range(30):
-                        is_lost = random.random() < active_loss_rate[0]
-                        if is_lost:
-                            self._send_sse("droplet_drop", {"seed": seed, "k": k})
-                        else:
-                            rank = min(k, rank + 1)
-                            self._send_sse("droplet_recv", {"seed": seed, "k": k, "rank": rank})
-                            self._send_sse("matrix_pivot", {"rank": rank, "k": k})
-
-                        time.sleep(0.07)
-                        if rank >= k:
-                            self._send_sse("slide_ready", {
-                                "title": "Severe Hypothermia Field Triage & Resuscitation",
-                                "badge": "TRIAGE ALERT [MEDICAL]",
-                                "badgeClass": "badge-red",
-                                "bullets": [
-                                    "Administer oral rehydration solution: 6 tsp sugar + 0.5 tsp salt per 1L boiled water.",
-                                    "Continuous ECG monitoring for ventricular fibrillation prevention.",
-                                    "Boil vigorously for 1 minute before consumption."
-                                ],
-                                "narration": "Initiate active core rewarming immediately. Prepare warmed saline."
-                            })
-                            time.sleep(1.2)
-                            break
-
-            def _send_sse(self, event: str, data: dict):
-                msg = f"event: {event}\ndata: {json.dumps(data)}\n\n".encode("utf-8")
-                self.wfile.write(msg)
-                self.wfile.flush()
-
-            def log_message(self, format, *args):
-                pass
-
-        port = args.port
         print("=" * 65)
         print("  THE FOUNDATION PROTOCOL: MATHEMATICAL STREAM VISUALIZER")
         print("=" * 65)
-        print(f"  Local Dashboard: http://localhost:{port}/visualizer.html")
-        print("  Live Telemetry : http://localhost:{port}/api/protocol-state")
+        print(f"  Local Dashboard: http://localhost:{actual_port}/visualizer.html")
+        print(f"  Live Telemetry : http://localhost:{actual_port}/api/protocol-state")
         print("  Canvas Render  : 60 FPS GPU-Accelerated 2D Canvas")
         print("  Protocol Engine: Real FastCDC | Real Merkle | Real RaptorQ")
         print("  Press Ctrl+C to terminate.")
         print("=" * 65)
 
         if not args.no_browser:
-            webbrowser.open(f"http://localhost:{port}/visualizer.html")
+            webbrowser.open(f"http://localhost:{actual_port}/visualizer.html")
 
-        socketserver.TCPServer.allow_reuse_address = True
-        with socketserver.TCPServer(("127.0.0.1", port), VisualizerHandler) as httpd:
+        with httpd:
             try:
                 httpd.serve_forever()
             except KeyboardInterrupt:
@@ -383,7 +400,7 @@ Initiate active core rewarming with warmed IV saline at 39 degrees C.
     elif args.command == "ingest-article":
         src = args.source
         print(f"[TFP] Ingesting content from: {src}")
-        if src.startswith("http://") or src.startswith("https://"):
+        if src.startswith(("http://", "https://")):
             article = ArticleIngester.ingest_url(src)
         else:
             p = Path(src)
@@ -460,7 +477,7 @@ Initiate active core rewarming with warmed IV saline at 39 degrees C.
             try:
                 txt = pkt.decode("utf-8")
                 print(f"  [{idx+1}] Text: {txt[:80]}")
-            except Exception:
+            except UnicodeDecodeError:
                 print(f"  [{idx+1}] Binary: {pkt.hex()[:60]}... ({len(pkt)} bytes)")
         print("=" * 65)
 
@@ -510,7 +527,8 @@ Initiate active core rewarming with warmed IV saline at 39 degrees C.
         sample_data = b"THE FOUNDATION PROTOCOL v4.0 TEST PAYLOAD: " * 50
         recipe = node.publish(sample_data, metadata={"test": True})
         recovered = node.fetch(recipe.root_hash, simulated_loss=0.30)
-        assert recovered == sample_data
+        if recovered != sample_data:
+            raise RuntimeError("Core verification failed: recovered data mismatch under simulated loss.")
         print("[TFP] Core verification: PASSED (bit-exact under loss).")
 
 

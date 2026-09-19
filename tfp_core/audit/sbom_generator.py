@@ -23,7 +23,7 @@ Usage:
 import hashlib
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List
 
 logger = logging.getLogger(__name__)
@@ -61,7 +61,7 @@ class SBOMGenerator:
         Returns:
             SBOM dictionary in CycloneDX format
         """
-        timestamp = datetime.utcnow().isoformat() + "Z"
+        timestamp = datetime.now(timezone.utc).isoformat()
 
         # Detect dependencies
         components = self._detect_dependencies()

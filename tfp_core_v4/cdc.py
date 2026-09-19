@@ -8,10 +8,10 @@ Implements 64-bit random gear matrix rolling hashing with dual-mask normalizatio
 as specified in USENIX ATC '16 to maximize deduplication efficiency.
 """
 
-from dataclasses import asdict, dataclass
 import hashlib
 import hmac
-from typing import Any, Dict, List, Tuple
+from dataclasses import asdict, dataclass
+from typing import Any
 
 # 256-entry 64-bit random gear matrix for FastCDC
 _GEAR_MATRIX_64 = [
@@ -88,15 +88,15 @@ class ChunkRecipe:
 
     root_hash: str
     total_size: int
-    chunk_hashes: List[str]
-    chunk_sizes: List[int]
-    metadata: Dict[str, Any]
+    chunk_hashes: list[str]
+    chunk_sizes: list[int]
+    metadata: dict[str, Any]
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "ChunkRecipe":
+    def from_dict(cls, data: dict[str, Any]) -> "ChunkRecipe":
         return cls(
             root_hash=data["root_hash"],
             total_size=data["total_size"],
@@ -122,7 +122,7 @@ class ContentDefinedChunker:
         self.target_size = target_size
 
         # Compute dual bitmasks for normalization
-        bits = max(1, int(round(self._log2(target_size))))
+        bits = max(1, round(self._log2(target_size)))
         self.mask_s = (1 << (bits + 1)) - 1
         self.mask_l = (1 << (bits - 1)) - 1
 
@@ -131,7 +131,7 @@ class ContentDefinedChunker:
         import math
         return math.log2(n)
 
-    def chunk(self, data: bytes) -> List[bytes]:
+    def chunk(self, data: bytes) -> list[bytes]:
         """Partition arbitrary binary payload into FastCDC chunks."""
         if not data:
             return []
@@ -190,7 +190,7 @@ class ContentDefinedChunker:
 
         return chunks
 
-    def create_recipe(self, data: bytes, metadata: Dict[str, Any] = None) -> Tuple[ChunkRecipe, List[bytes]]:
+    def create_recipe(self, data: bytes, metadata: dict[str, Any] | None = None) -> tuple[ChunkRecipe, list[bytes]]:
         """Chunk payload, hash components with SHA3-256, and produce Recipe."""
         chunks = self.chunk(data)
         chunk_hashes = [hashlib.sha3_256(c).hexdigest() for c in chunks]
@@ -212,7 +212,7 @@ class ContentDefinedChunker:
         return recipe, chunks
 
     @staticmethod
-    def assemble(recipe: ChunkRecipe, chunk_map: Dict[str, bytes]) -> bytes:
+    def assemble(recipe: ChunkRecipe, chunk_map: dict[str, bytes]) -> bytes:
         """Bit-exact assembly of chunks according to recipe."""
         assembled = bytearray()
         for expected_hash, size in zip(recipe.chunk_hashes, recipe.chunk_sizes):

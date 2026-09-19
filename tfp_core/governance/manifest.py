@@ -11,7 +11,7 @@ import base64
 import hashlib
 import hmac
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 try:
@@ -28,7 +28,7 @@ class GovernanceManifest:
 
     def __init__(self):
         self.manifest_version = "3.2.0"
-        self.created_at = datetime.utcnow().isoformat() + "Z"
+        self.created_at = datetime.now(timezone.utc).isoformat()
 
         # Maintainer Information (Transparent)
         self.maintainers = [

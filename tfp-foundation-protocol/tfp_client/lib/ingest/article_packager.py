@@ -10,13 +10,12 @@ and self-contained in a zero-dependency offline HTML mobile reader.
 """
 
 from dataclasses import dataclass
-import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from tfp_client.lib.fountain.cdc import ContentDefinedChunker
 from tfp_client.lib.lexicon.adapter_real import RealLexiconAdapter
 from tfp_client.lib.media.stream_packager import MediaStreamPackager
+
 from .article_ingester import ExtractedArticle
 
 
@@ -30,9 +29,9 @@ class PackagedArticleBundle:
     savings_pct: float
     chunk_count: int
     standalone_html: str
-    metadata: Dict[str, Any]
+    metadata: dict[str, Any]
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "title": self.title,
             "category": self.category,
@@ -48,7 +47,7 @@ class PackagedArticleBundle:
 class ArticlePackager:
     """Packages structured articles for distribution over constrained wireless links."""
 
-    def __init__(self, lexicons_dir: Optional[Path] = None):
+    def __init__(self, lexicons_dir: Path | None = None):
         if lexicons_dir is None:
             # Default to repo root / lexicons
             root = Path(__file__).resolve().parent.parent.parent.parent.parent
@@ -75,7 +74,7 @@ class ArticlePackager:
         savings_pct = (1.0 - (compressed_size / max(1, raw_size))) * 100.0
 
         # Run FastCDC chunking and build Merkle tree over the compressed payload
-        manifest, chunks, merkle = self.packager.package(
+        manifest, chunks, _merkle = self.packager.package(
             media_data=compressed_bytes,
             media_type="application/tfp-article-bundle",
             metadata={"title": article.title[:32]},
@@ -242,10 +241,12 @@ function toggleAudioNarration() {{
   }}
 }}
 
-// Automatically cache article locally in localStorage
+// Automatically cache article locally in localStorage with quota safety guard
 try {{
   localStorage.setItem('tfp_article_' + encodeURIComponent("{cls._escape_html(article.title[:24])}"), document.documentElement.outerHTML);
-}} catch(e) {{}}
+}} catch(e) {{
+  console.warn('TFP Offline Storage: quota exceeded or storage unavailable.', e);
+}}
 </script>
 </body>
 </html>"""

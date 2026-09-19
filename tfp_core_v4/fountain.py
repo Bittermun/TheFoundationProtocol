@@ -11,13 +11,12 @@ Implements:
 - High-performance LubyTransformCodec / FountainEncoder / FountainDecoder
 """
 
-from dataclasses import dataclass
 import hashlib
 import hmac
 import math
 import random
 import struct
-from typing import Dict, List, Optional, Tuple, Union
+from dataclasses import dataclass
 
 
 def _sample_soliton_degree(k: int, rng: random.Random) -> int:
@@ -37,11 +36,11 @@ def _sample_soliton_degree(k: int, rng: random.Random) -> int:
 
 
 def derive_repair_seed_schedule(
-    root_hash: Union[str, bytes],
-    session_nonce: Union[str, bytes] = b"",
+    root_hash: str | bytes,
+    session_nonce: str | bytes = b"",
     total_source_blocks: int = 1,
     repair_count: int = 1,
-) -> List[int]:
+) -> list[int]:
     """
     Derive deterministic list of repair droplet seeds (seed >= K) bound to
     manifest RootHash and session nonce using HMAC-SHA3-256.
@@ -68,7 +67,7 @@ def derive_repair_seed_schedule(
     k = max(1, total_source_blocks)
     prk = hmac.new(root_hash_bytes, b"TFP-V4-FOUNTAIN-SEED-SCHEDULE:" + nonce_bytes, hashlib.sha3_256).digest()
 
-    seeds: List[int] = []
+    seeds: list[int] = []
     max_uint32 = 0xFFFFFFFF
     for seq in range(repair_count):
         seq_idx = k + seq
@@ -82,11 +81,11 @@ def derive_repair_seed_schedule(
 
 def verify_droplet_seed_authenticity(
     droplet_seed: int,
-    root_hash: Union[str, bytes] = b"",
-    session_nonce: Union[str, bytes] = b"",
+    root_hash: str | bytes = b"",
+    session_nonce: str | bytes = b"",
     total_source_blocks: int = 1,
-    degree: Optional[int] = None,
-    indices: Optional[List[int]] = None,
+    degree: int | None = None,
+    indices: list[int] | None = None,
     symbol_size: int = 256,
 ) -> bool:
     """
@@ -113,9 +112,7 @@ def verify_droplet_seed_authenticity(
     if droplet_seed < k:
         if degree is not None and degree != 1:
             return False
-        if indices is not None and indices != [droplet_seed]:
-            return False
-        return True
+        return not (indices is not None and indices != [droplet_seed])
 
     # Repair droplet: seed >= k
     if degree is not None or indices is not None:
@@ -137,10 +134,10 @@ class FountainDroplet:
 
     seed: int
     degree: int
-    indices: List[int]
+    indices: list[int]
     payload: bytes
-    root_hash: Optional[bytes] = None
-    session_nonce: Optional[bytes] = None
+    root_hash: bytes | None = None
+    session_nonce: bytes | None = None
 
     def serialize(self) -> bytes:
         """Serialize droplet to compact binary wire format."""
@@ -165,8 +162,8 @@ class FountainEncoder:
     def __init__(
         self,
         symbol_size: int = 256,
-        root_hash: Optional[Union[str, bytes]] = None,
-        session_nonce: Optional[Union[str, bytes]] = None,
+        root_hash: str | bytes | None = None,
+        session_nonce: str | bytes | None = None,
     ):
         if symbol_size < 16:
             raise ValueError(f"Symbol size must be at least 16 bytes: {symbol_size}")
@@ -178,9 +175,9 @@ class FountainEncoder:
         self,
         data: bytes,
         redundancy: float = 0.50,
-        root_hash: Optional[Union[str, bytes]] = None,
-        session_nonce: Optional[Union[str, bytes]] = None,
-    ) -> Tuple[List[FountainDroplet], int, int]:
+        root_hash: str | bytes | None = None,
+        session_nonce: str | bytes | None = None,
+    ) -> tuple[list[FountainDroplet], int, int]:
         """
         Encode data into rateless fountain droplets using deterministic seed schedules.
         Returns: (droplets, K_source_symbols, original_length)
@@ -205,7 +202,7 @@ class FountainEncoder:
         effective_nonce = session_nonce if session_nonce is not None else self.session_nonce
 
         # Systematic droplets
-        droplets: List[FountainDroplet] = []
+        droplets: list[FountainDroplet] = []
         for i in range(k):
             droplets.append(
                 FountainDroplet(
@@ -256,8 +253,8 @@ class FountainDecoder:
     def __init__(
         self,
         symbol_size: int = 256,
-        root_hash: Optional[Union[str, bytes]] = None,
-        session_nonce: Optional[Union[str, bytes]] = None,
+        root_hash: str | bytes | None = None,
+        session_nonce: str | bytes | None = None,
         pre_validate: bool = True,
     ):
         if symbol_size < 16:
@@ -269,10 +266,10 @@ class FountainDecoder:
 
     def decode(
         self,
-        droplets: List[FountainDroplet],
+        droplets: list[FountainDroplet],
         k: int,
         orig_len: int,
-        pre_validate: Optional[bool] = None,
+        pre_validate: bool | None = None,
     ) -> bytes:
         """
         Decode original payload using vectorized Gaussian elimination over GF(2).
@@ -281,7 +278,7 @@ class FountainDecoder:
         do_validate = self.pre_validate if pre_validate is None else pre_validate
 
         # Filter valid droplets
-        valid_droplets: List[FountainDroplet] = []
+        valid_droplets: list[FountainDroplet] = []
         for d in droplets:
             if len(d.payload) != self.symbol_size:
                 continue
@@ -305,8 +302,8 @@ class FountainDecoder:
             )
 
         # Build generator matrix and payload table
-        matrix: List[bytearray] = []
-        payloads: List[int] = [int.from_bytes(d.payload, "big") for d in valid_droplets]
+        matrix: list[bytearray] = []
+        payloads: list[int] = [int.from_bytes(d.payload, "big") for d in valid_droplets]
 
         for d in valid_droplets:
             row = bytearray(k)
@@ -316,7 +313,7 @@ class FountainDecoder:
             matrix.append(row)
 
         num_rows = len(matrix)
-        pivots: Dict[int, int] = {}  # col -> row
+        pivots: dict[int, int] = {}  # col -> row
 
         # Forward elimination to reduced row echelon form over GF(2)
         current_row = 0
@@ -369,8 +366,8 @@ class FountainCodec(FountainEncoder, FountainDecoder):
     def __init__(
         self,
         symbol_size: int = 256,
-        root_hash: Optional[Union[str, bytes]] = None,
-        session_nonce: Optional[Union[str, bytes]] = None,
+        root_hash: str | bytes | None = None,
+        session_nonce: str | bytes | None = None,
         pre_validate: bool = True,
     ):
         FountainEncoder.__init__(

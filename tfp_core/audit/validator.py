@@ -10,7 +10,7 @@ Addresses: "Credibility signal problem" - provides verifiable technical assessme
 import hashlib
 import json
 import subprocess
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict
 
@@ -24,7 +24,7 @@ class AuditValidator:
     def __init__(self, repo_path: str = "/workspace"):
         self.repo_path = Path(repo_path)
         self.audit_version = "3.1.0"
-        self.timestamp = datetime.utcnow().isoformat() + "Z"
+        self.timestamp = datetime.now(timezone.utc).isoformat()
 
     def run_code_coverage(self) -> Dict[str, Any]:
         """
@@ -78,7 +78,7 @@ class AuditValidator:
                     "total_coverage": total_coverage,
                     "target_coverage": 90.0,
                     "meets_target": total_coverage >= 90.0,
-                    "timestamp": datetime.utcnow().isoformat() + "Z",
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
             else:
                 # Fallback: estimate from test count
@@ -217,7 +217,7 @@ class AuditValidator:
             "issues": issues_found[:20],  # Limit to first 20
             "zero_critical_high": vulnerabilities["critical"] == 0
             and vulnerabilities["high"] == 0,
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     def analyze_architecture(self) -> Dict[str, Any]:
@@ -247,7 +247,7 @@ class AuditValidator:
             "total_loc": total_loc,
             "modular_design_score": "high" if len(modules) >= 5 else "medium",
             "maintainability_index": "high" if total_loc < 30000 else "medium",
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     def generate_audit_report(self) -> Dict[str, Any]:

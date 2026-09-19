@@ -5,12 +5,12 @@
 Voice & Radio Audio Bridge Package.
 """
 
-from .afsk_modulator import AFSKModulator, crc16_ccitt
 from .afsk_demodulator import AFSKDemodulator, GoertzelDetector
+from .afsk_modulator import AFSKModulator, crc16_ccitt
 
 __all__ = [
-    "AFSKModulator",
     "AFSKDemodulator",
+    "AFSKModulator",
     "GoertzelDetector",
     "crc16_ccitt",
 ]

@@ -12,6 +12,7 @@ Provides tag-based content discovery without central indexers by:
 
 import dataclasses
 import hashlib
+import hmac
 import json
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Tuple
@@ -282,7 +283,7 @@ class TagOverlayIndex:
         target_entry = None
         target_idx = -1
         for i, entry in enumerate(dag.entries):
-            if entry.tag == tag and entry.content_hash == content_hash:
+            if entry.tag == tag and hmac.compare_digest(entry.content_hash, content_hash):
                 target_entry = entry
                 target_idx = i
                 break
@@ -350,7 +351,7 @@ class TagOverlayIndex:
             else:  # right
                 current_hash = hashlib.sha3_256(current_hash + sibling).digest()
 
-        return current_hash == merkle_root
+        return hmac.compare_digest(current_hash, merkle_root)
 
     def get_entries_by_tag(self, dag: TagIndexDAG, tag: str) -> List[TagEntry]:
         """

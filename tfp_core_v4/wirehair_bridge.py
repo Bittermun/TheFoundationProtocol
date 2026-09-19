@@ -18,10 +18,9 @@ import ctypes.util
 import logging
 import math
 import os
-from pathlib import Path
 import platform
 import random
-from typing import Dict, List, Optional, Tuple, Union
+from pathlib import Path
 
 from .fountain import (
     FountainCodec,
@@ -35,11 +34,11 @@ log = logging.getLogger("tfp.wirehair")
 WIREHAIR_RESULT_SUCCESS = 0
 WIREHAIR_RESULT_MORE_INPUT_NEEDED = 1
 
-_LIB_WIREHAIR: Optional[ctypes.CDLL] = None
+_LIB_WIREHAIR: ctypes.CDLL | None = None
 _INIT_ATTEMPTED: bool = False
 
 
-def _find_wirehair_lib() -> Optional[str]:
+def _find_wirehair_lib() -> str | None:
     """Search for the wirehair shared library across environment, repo, and system paths."""
     # 1. Check explicit environment override
     env_path = os.environ.get("TFP_WIREHAIR_LIB")
@@ -108,7 +107,7 @@ def init_wirehair() -> bool:
         else:
             log.warning("wirehair_init() failed with code %d", result)
             return False
-    except Exception as exc:
+    except (OSError, AttributeError, RuntimeError) as exc:
         log.warning("Failed to load native wirehair library: %s", exc)
         return False
 
@@ -167,8 +166,8 @@ class AcceleratedFountainCodec:
     def __init__(
         self,
         symbol_size: int = 512,
-        root_hash: Optional[Union[str, bytes]] = None,
-        session_nonce: Optional[Union[str, bytes]] = None,
+        root_hash: str | bytes | None = None,
+        session_nonce: str | bytes | None = None,
         prefer_native: bool = True,
     ):
         self.symbol_size = symbol_size
@@ -190,9 +189,9 @@ class AcceleratedFountainCodec:
         self,
         data: bytes,
         redundancy: float = 0.50,
-        root_hash: Optional[Union[str, bytes]] = None,
-        session_nonce: Optional[Union[str, bytes]] = None,
-    ) -> Tuple[List[FountainDroplet], int, int]:
+        root_hash: str | bytes | None = None,
+        session_nonce: str | bytes | None = None,
+    ) -> tuple[list[FountainDroplet], int, int]:
         """
         Encode payload into fountain droplets.
         Delegates to native SIMD Wirehair if loaded, or pure-Python codec.
@@ -204,7 +203,7 @@ class AcceleratedFountainCodec:
         if self.is_accelerated and _LIB_WIREHAIR is not None:
             try:
                 return self._encode_native(data, redundancy)
-            except Exception as e:
+            except (OSError, RuntimeError, ValueError) as e:
                 log.warning("Native Wirehair encode failed (%s); falling back to Python.", e)
 
         return self._python_codec.encode(
@@ -218,7 +217,7 @@ class AcceleratedFountainCodec:
         self,
         data: bytes,
         redundancy: float,
-    ) -> Tuple[List[FountainDroplet], int, int]:
+    ) -> tuple[list[FountainDroplet], int, int]:
         """Internal native encoder via C ctypes bridge."""
         lib = _LIB_WIREHAIR
         orig_len = len(data)
@@ -269,10 +268,10 @@ class AcceleratedFountainCodec:
 
     def decode(
         self,
-        droplets: List[FountainDroplet],
+        droplets: list[FountainDroplet],
         k: int,
         orig_len: int,
-        pre_validate: Optional[bool] = None,
+        pre_validate: bool | None = None,
     ) -> bytes:
         """
         Decode original payload from received droplets.
@@ -281,7 +280,7 @@ class AcceleratedFountainCodec:
         if self.is_accelerated and _LIB_WIREHAIR is not None:
             try:
                 return self._decode_native(droplets, k, orig_len)
-            except Exception as e:
+            except (OSError, RuntimeError, ValueError) as e:
                 log.warning("Native Wirehair decode failed (%s); falling back to Python.", e)
 
         return self._python_codec.decode(
@@ -293,7 +292,7 @@ class AcceleratedFountainCodec:
 
     def _decode_native(
         self,
-        droplets: List[FountainDroplet],
+        droplets: list[FountainDroplet],
         k: int,
         orig_len: int,
     ) -> bytes:

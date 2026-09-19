@@ -11,7 +11,7 @@ across decentralized mesh topologies.
 import hashlib
 import hmac
 import secrets
-from typing import Any, Dict, List
+from typing import Any
 
 from .cdc import ChunkRecipe, ContentDefinedChunker
 from .fountain import FountainCodec, FountainDroplet
@@ -34,10 +34,10 @@ class TFPNode:
             target_size=target_chunk_size,
         )
         self.codec = FountainCodec(symbol_size=symbol_size)
-        self.chunk_store: Dict[str, bytes] = {}
-        self.recipes: Dict[str, ChunkRecipe] = {}
-        self.droplet_store: Dict[str, List[FountainDroplet]] = {}
-        self.merkle_trees: Dict[str, MerkleTree] = {}
+        self.chunk_store: dict[str, bytes] = {}
+        self.recipes: dict[str, ChunkRecipe] = {}
+        self.droplet_store: dict[str, list[FountainDroplet]] = {}
+        self.merkle_trees: dict[str, MerkleTree] = {}
         self.telemetry = {
             "total_bytes_published": 0,
             "total_chunks_stored": 0,
@@ -46,7 +46,7 @@ class TFPNode:
             "successful_reconstructions": 0,
         }
 
-    def publish(self, data: bytes, metadata: Dict[str, Any] = None) -> ChunkRecipe:
+    def publish(self, data: bytes, metadata: dict[str, Any] | None = None) -> ChunkRecipe:
         """
         Publish binary data into the node:
         1. FastCDC 64-bit content chunking & deduplication
@@ -66,7 +66,7 @@ class TFPNode:
         self.recipes[root_hash] = recipe
 
         # Encode with 50% fountain redundancy
-        droplets, k, orig_len = self.codec.encode(data, redundancy=0.50)
+        droplets, _k, _orig_len = self.codec.encode(data, redundancy=0.50)
         self.droplet_store[root_hash] = droplets
 
         # Build Merkle tree over droplet serialized payloads
@@ -111,7 +111,7 @@ class TFPNode:
                     orig_len=recipe.total_size,
                 )
                 break
-            except Exception:
+            except (ValueError, RuntimeError):
                 if d not in surviving:
                     surviving.append(d)
 
@@ -131,7 +131,7 @@ class TFPNode:
         self.telemetry["successful_reconstructions"] += 1
         return reconstructed
 
-    def inspect_recipe(self, root_hash: str) -> Dict[str, Any]:
+    def inspect_recipe(self, root_hash: str) -> dict[str, Any]:
         """Inspect deterministic recipe and chunk hierarchy."""
         if root_hash not in self.recipes:
             raise KeyError(f"Root hash {root_hash} not found")
@@ -147,6 +147,6 @@ class TFPNode:
             "metadata": recipe.metadata,
         }
 
-    def get_telemetry(self) -> Dict[str, Any]:
+    def get_telemetry(self) -> dict[str, Any]:
         """Return real deduplication and throughput metrics."""
         return dict(self.telemetry)

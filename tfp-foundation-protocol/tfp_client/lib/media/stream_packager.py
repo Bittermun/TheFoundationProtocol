@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 import hashlib
+import hmac
 import json
 from pathlib import Path
 import sys
@@ -141,7 +142,7 @@ class MediaStreamPackager:
 
         expected_hash = manifest.chunk_hashes[chunk_index]
         actual_hash = hashlib.sha3_256(chunk).hexdigest()
-        if actual_hash != expected_hash:
+        if not hmac.compare_digest(actual_hash, expected_hash):
             return False
 
         if merkle_tree is not None:
@@ -161,7 +162,7 @@ class MediaStreamPackager:
         for idx in range(manifest.chunk_count):
             chunk = chunk_map[idx]
             expected_hash = manifest.chunk_hashes[idx]
-            if hashlib.sha3_256(chunk).hexdigest() != expected_hash:
+            if not hmac.compare_digest(hashlib.sha3_256(chunk).hexdigest(), expected_hash):
                 raise ValueError(f"Chunk {idx} corrupted during assembly")
             assembled.extend(chunk)
 

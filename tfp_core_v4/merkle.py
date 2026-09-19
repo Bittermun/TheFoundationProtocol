@@ -9,7 +9,6 @@ Guarantees data integrity and prevents Byzantine poisoning attacks.
 
 import hashlib
 import hmac
-from typing import List, Tuple
 
 
 def sha3_256(data: bytes) -> bytes:
@@ -20,7 +19,7 @@ def sha3_256(data: bytes) -> bytes:
 class MerkleTree:
     """Complete binary Merkle tree with SHA3-256 hashing."""
 
-    def __init__(self, leaves: List[bytes]):
+    def __init__(self, leaves: list[bytes]):
         if not leaves:
             raise ValueError("Cannot build Merkle tree from empty leaf list")
         self.leaf_data = list(leaves)
@@ -50,7 +49,7 @@ class MerkleTree:
         """Hex-encoded root hash."""
         return self.root.hex()
 
-    def get_proof(self, leaf_index: int) -> List[Tuple[bytes, str]]:
+    def get_proof(self, leaf_index: int) -> list[tuple[bytes, str]]:
         """Generate audit proof path for a specific leaf index."""
         if not (0 <= leaf_index < len(self.leaf_hashes)):
             raise IndexError(f"Leaf index out of range: {leaf_index}")
@@ -68,7 +67,7 @@ class MerkleTree:
 
 def verify_merkle_proof(
     leaf_data: bytes,
-    proof: List[Tuple[bytes, str]],
+    proof: list[tuple[bytes, str]],
     expected_root: bytes,
 ) -> bool:
     """

@@ -315,7 +315,7 @@ class ShardRetriever:
         """
         # Verify SHA-256 hash
         actual_hash = hashlib.sha256(shard_data).hexdigest()
-        if actual_hash != expected_hash:
+        if not hmac.compare_digest(actual_hash, expected_hash):
             log.warning("Shard hash mismatch: expected %s, got %s", expected_hash, actual_hash)
             return False
         

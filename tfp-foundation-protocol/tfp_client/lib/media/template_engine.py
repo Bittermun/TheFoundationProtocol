@@ -123,7 +123,8 @@ class PresentationManifest:
         """Compress serialized presentation using specialized domain Zstandard lexicon."""
         adapter = adapter or RealLexiconAdapter()
         raw_bytes = self.to_json().encode("utf-8")
-        return adapter.compress(raw_bytes, tags=[self.domain])
+        res = adapter.compress(raw_bytes, tags=[self.domain])
+        return res if isinstance(res, bytes) else bytes(res.data)
 
     @classmethod
     def decompress_with_lexicon(

@@ -15,13 +15,13 @@ from .node import TFPNode
 
 __version__ = "4.0.0"
 __all__ = [
-    "ContentDefinedChunker",
     "ChunkRecipe",
+    "ContentDefinedChunker",
     "FountainCodec",
     "FountainDroplet",
     "MerkleTree",
-    "verify_merkle_proof",
     "MeshPeer",
     "SwarmNetwork",
     "TFPNode",
+    "verify_merkle_proof",
 ]

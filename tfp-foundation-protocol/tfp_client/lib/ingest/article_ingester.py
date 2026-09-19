@@ -10,22 +10,22 @@ from arbitrary web URLs, Wikipedia articles, or emergency bulletins
 without requiring Chromium, Puppeteer, or heavy dependencies.
 """
 
-from dataclasses import asdict, dataclass, field
-from html.parser import HTMLParser
 import re
 import urllib.error
 import urllib.parse
 import urllib.request
-from typing import Any, Dict, List, Optional
+from dataclasses import asdict, dataclass, field
+from html.parser import HTMLParser
+from typing import Any, ClassVar
 
 
 @dataclass
 class ArticleSection:
     heading: str
-    paragraphs: List[str] = field(default_factory=list)
-    bullets: List[str] = field(default_factory=list)
+    paragraphs: list[str] = field(default_factory=list)
+    bullets: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
@@ -33,13 +33,13 @@ class ArticleSection:
 class ExtractedArticle:
     title: str
     summary: str
-    sections: List[ArticleSection]
+    sections: list[ArticleSection]
     category: str
     reading_time_minutes: int
     word_count: int
     source_url: str = ""
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "title": self.title,
             "summary": self.summary,
@@ -73,12 +73,12 @@ class ExtractedArticle:
 class _HTMLSanitizerParser(HTMLParser):
     """Internal HTML parser that strips boilerplate and extracts structure."""
 
-    SKIP_TAGS = {
+    SKIP_TAGS: ClassVar[set[str]] = {
         "script", "style", "noscript", "nav", "footer", "header",
         "aside", "iframe", "svg", "form", "button", "menu"
     }
 
-    HEADING_TAGS = {"h1", "h2", "h3", "h4", "h5", "h6"}
+    HEADING_TAGS: ClassVar[set[str]] = {"h1", "h2", "h3", "h4", "h5", "h6"}
 
     def __init__(self):
         super().__init__()
@@ -89,13 +89,13 @@ class _HTMLSanitizerParser(HTMLParser):
         self.current_tag = None
         self.current_text = []
 
-        self.sections: List[ArticleSection] = []
+        self.sections: list[ArticleSection] = []
         self._curr_section = ArticleSection(heading="Overview")
         self.in_list_item = False
 
     SKIP_CLASS_KEYWORDS = ("ad-", "ad ", "ads ", "banner", "promo", "sponsor", "sidebar", "cookie", "social-share")
 
-    def handle_starttag(self, tag: str, attrs: List[tuple]):
+    def handle_starttag(self, tag: str, attrs: list[tuple]):
         tag_lower = tag.lower()
         attr_dict = {k.lower(): (v or "").lower() for k, v in attrs}
         class_or_id = f"{attr_dict.get('class', '')} {attr_dict.get('id', '')}"
@@ -179,7 +179,7 @@ class _HTMLSanitizerParser(HTMLParser):
 class ArticleIngester:
     """Ingests raw HTML, Markdown, or web URLs into clean structured articles."""
 
-    CATEGORY_KEYWORDS = {
+    CATEGORY_KEYWORDS: ClassVar[dict[str, list[str]]] = {
         "medical": ["symptom", "disease", "treatment", "patient", "dose", "clinical", "virus", "infection", "vaccine", "health", "triage"],
         "disaster": ["flood", "earthquake", "cyclone", "evacuation", "shelter", "rescue", "emergency", "hazard", "relief", "warning"],
         "technical": ["protocol", "network", "packet", "algorithm", "software", "radio", "server", "hardware", "encryption", "interface"],
@@ -231,7 +231,7 @@ class ArticleIngester:
         """Parses structured Markdown into an ExtractedArticle."""
         lines = md_str.splitlines()
         title = "Untitled Document"
-        sections: List[ArticleSection] = []
+        sections: list[ArticleSection] = []
         curr_section = ArticleSection(heading="Overview")
 
         for line in lines:
@@ -241,12 +241,12 @@ class ArticleIngester:
 
             if stripped.startswith("# ") and title == "Untitled Document":
                 title = stripped[2:].strip()
-            elif stripped.startswith("## ") or stripped.startswith("### "):
+            elif stripped.startswith(("## ", "### ")):
                 if curr_section.paragraphs or curr_section.bullets:
                     sections.append(curr_section)
                 heading = stripped.lstrip("#").strip()
                 curr_section = ArticleSection(heading=heading)
-            elif stripped.startswith("- ") or stripped.startswith("* "):
+            elif stripped.startswith(("- ", "* ")):
                 curr_section.bullets.append(stripped[2:].strip())
             elif not stripped.startswith("#"):
                 curr_section.paragraphs.append(stripped)
@@ -279,6 +279,12 @@ class ArticleIngester:
     @classmethod
     def ingest_url(cls, url: str, timeout: float = 10.0) -> ExtractedArticle:
         """Fetches and cleans a web article over HTTP/HTTPS with proper headers."""
+        parsed = urllib.parse.urlparse(url)
+        if parsed.scheme.lower() not in {"http", "https"}:
+            raise ValueError(
+                f"Disallowed URL scheme '{parsed.scheme}'. Only 'http' and 'https' are permitted."
+            )
+
         req = urllib.request.Request(
             url,
             headers={
@@ -287,7 +293,7 @@ class ArticleIngester:
             },
         )
         try:
-            with urllib.request.urlopen(req, timeout=timeout) as resp:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:  # nosec B310
                 charset = resp.headers.get_content_charset() or "utf-8"
                 html_data = resp.read().decode(charset, errors="replace")
             return cls.ingest_html(html_data, source_url=url)
@@ -295,7 +301,7 @@ class ArticleIngester:
             return ExtractedArticle(
                 title=f"Offline Cached Stub for {url}",
                 summary=f"Ingestion notice: network source unreachable ({e}).",
-                sections=[ArticleSection(heading="Notice", paragraphs=[f"Source URL: {url}"] )],
+                sections=[ArticleSection(heading="Notice", paragraphs=[f"Source URL: {url}"])],
                 category="technical",
                 reading_time_minutes=1,
                 word_count=10,

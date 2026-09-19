@@ -14,7 +14,6 @@ import io
 import math
 import struct
 import wave
-from typing import List, Optional, Union
 
 
 def crc16_ccitt(data: bytes, initial: int = 0xFFFF) -> int:
@@ -77,7 +76,7 @@ class AFSKModulator:
 
         return preamble + length_bytes + payload + crc_bytes + postamble
 
-    def modulate_bits(self, bits: List[int], amplitude: float = 0.8) -> bytes:
+    def modulate_bits(self, bits: list[int], amplitude: float = 0.8) -> bytes:
         """
         Synthesizes Continuous-Phase FSK 16-bit PCM mono audio samples.
         Preserves phase across bit boundaries to eliminate high-frequency clicks.
@@ -92,8 +91,8 @@ class AFSKModulator:
         for bit_idx, bit in enumerate(bits):
             freq = self.mark_freq if bit == 1 else self.space_freq
             angular_freq = two_pi * freq
-            start_sample = int(round(bit_idx * self.samples_per_bit))
-            end_sample = int(round((bit_idx + 1) * self.samples_per_bit))
+            start_sample = round(bit_idx * self.samples_per_bit)
+            end_sample = round((bit_idx + 1) * self.samples_per_bit)
             n_samples = end_sample - start_sample
 
             for _ in range(n_samples):

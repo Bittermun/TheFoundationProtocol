@@ -15,6 +15,7 @@ networks and distributed information synchronization.
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 from dataclasses import asdict, dataclass
 from typing import Any, Dict, List, Tuple
@@ -271,7 +272,7 @@ class ContentDefinedChunker:
 
         reconstructed = b"".join(assembled_parts)
         actual_hash = hashlib.sha3_256(reconstructed).hexdigest()
-        if actual_hash != recipe.root_hash:
+        if not hmac.compare_digest(actual_hash, recipe.root_hash):
             raise ValueError(
                 f"Integrity check failed on assembly: expected {recipe.root_hash}, got {actual_hash}"
             )

@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass, field
+import hashlib
+import hmac
 import logging
 from pathlib import Path
 import socket
@@ -154,8 +156,7 @@ class FountainStreamReceiver:
         for idx in range(manifest.chunk_count):
             chunk = self.reconstructed_chunks[idx]
             expected_hash = manifest.chunk_hashes[idx]
-            import hashlib
-            if hashlib.sha3_256(chunk).hexdigest() != expected_hash:
+            if not hmac.compare_digest(hashlib.sha3_256(chunk).hexdigest(), expected_hash):
                 raise ValueError(f"Integrity check failed on chunk {idx}")
             assembled.extend(chunk)
 

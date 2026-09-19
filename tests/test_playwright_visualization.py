@@ -12,19 +12,44 @@ Validates that:
 5. Captures an artifact screenshot for visual inspection.
 """
 
+import threading
 import time
+import urllib.request
 from pathlib import Path
+
 import pytest
 from playwright.sync_api import sync_playwright
 
+from tfp_core_v4.cli import create_visualizer_server
 
-def test_visualizer_live_protocol_and_interaction():
+
+@pytest.fixture(scope="module")
+def live_visualizer_server():
+    """Spawns an isolated visualizer server on an ephemeral OS port for tests."""
+    server, port = create_visualizer_server(port=0)
+    server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+    server_thread.start()
+
+    url = f"http://127.0.0.1:{port}/visualizer.html"
+    for _ in range(50):
+        try:
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/protocol-state", timeout=0.2):
+                break
+        except Exception:
+            time.sleep(0.05)
+
+    yield url
+    server.shutdown()
+    server.server_close()
+
+
+def test_visualizer_live_protocol_and_interaction(live_visualizer_server):
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page(viewport={"width": 1280, "height": 800})
 
-        # Navigate to visualizer
-        page.goto("http://127.0.0.1:8089/visualizer.html", wait_until="networkidle")
+        # Navigate to visualizer on ephemeral test server
+        page.goto(live_visualizer_server, wait_until="networkidle")
 
         # 1. Verify Page Title
         assert "The Foundation Protocol" in page.title()

@@ -10,6 +10,7 @@ to prevent semantic drift and ensure consistent content reconstruction.
 
 from datetime import datetime, timezone
 from enum import Enum
+import hmac
 from typing import Dict, List, Optional
 
 from .delta import DeltaType, LexiconDelta
@@ -76,7 +77,7 @@ class LexiconSynchronizer:
         """
         local_merkle = self.local_hlt.compute_merkle_root()
 
-        if local_merkle == remote_merkle_root:
+        if hmac.compare_digest(local_merkle, remote_merkle_root):
             return {
                 "missing_domains": [],
                 "outdated_domains": [],
@@ -146,7 +147,7 @@ class LexiconSynchronizer:
             # Verify merkle root matches
             computed_root = self.local_hlt.compute_merkle_root()
 
-            if computed_root != new_merkle_root:
+            if not hmac.compare_digest(computed_root, new_merkle_root):
                 # Roots don't match - might be expected due to timing
                 # In production, would retry or request full tree
                 pass
@@ -195,7 +196,7 @@ class LexiconSynchronizer:
         local_node = self.local_hlt.get_node(domain_id)
 
         # Compare content hashes
-        return local_node.content_hash != remote_content_hash
+        return not hmac.compare_digest(local_node.content_hash, remote_content_hash)
 
     def get_sync_status(self) -> Dict:
         """Get current synchronization status."""

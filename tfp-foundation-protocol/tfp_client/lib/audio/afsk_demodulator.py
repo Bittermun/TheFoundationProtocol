@@ -13,9 +13,8 @@ import io
 import math
 import struct
 import wave
-from typing import List, Optional, Tuple
 
-from .afsk_modulator import SYNC_FLAG, crc16_ccitt
+from .afsk_modulator import crc16_ccitt
 
 
 class GoertzelDetector:
@@ -29,7 +28,7 @@ class GoertzelDetector:
         omega = (2.0 * math.pi * k) / block_size
         self.coeff = 2.0 * math.cos(omega)
 
-    def compute_energy(self, samples: List[float]) -> float:
+    def compute_energy(self, samples: list[float]) -> float:
         s_prev = 0.0
         s_prev2 = 0.0
         for x in samples:
@@ -57,18 +56,18 @@ class AFSKDemodulator:
         self.mark_freq = mark_freq
         self.space_freq = space_freq
         self.samples_per_bit = sample_rate / baud_rate
-        self.block_size = int(round(self.samples_per_bit))
+        self.block_size = round(self.samples_per_bit)
 
         self.goertzel_mark = GoertzelDetector(mark_freq, sample_rate, self.block_size)
         self.goertzel_space = GoertzelDetector(space_freq, sample_rate, self.block_size)
 
-    def decode_wav(self, wav_bytes: bytes) -> List[bytes]:
+    def decode_wav(self, wav_bytes: bytes) -> list[bytes]:
         """Reads a WAV file buffer and extracts all valid packets."""
         buf = io.BytesIO(wav_bytes)
         with wave.open(buf, "rb") as w:
             sr = w.getframerate()
             n_channels = w.getnchannels()
-            samp_width = w.getsampwidth()
+            _samp_width = w.getsampwidth()
             n_frames = w.getnframes()
             raw_frames = w.readframes(n_frames)
 
@@ -76,7 +75,7 @@ class AFSKDemodulator:
             # Adjust sample rate detectors if necessary
             self.sample_rate = sr
             self.samples_per_bit = sr / self.baud_rate
-            self.block_size = int(round(self.samples_per_bit))
+            self.block_size = round(self.samples_per_bit)
             self.goertzel_mark = GoertzelDetector(self.mark_freq, sr, self.block_size)
             self.goertzel_space = GoertzelDetector(self.space_freq, sr, self.block_size)
 
@@ -89,20 +88,20 @@ class AFSKDemodulator:
 
         return self.demodulate_samples(samples)
 
-    def demodulate_samples(self, samples: List[float]) -> List[bytes]:
+    def demodulate_samples(self, samples: list[float]) -> list[bytes]:
         """
         Processes normalized floating-point samples through exact quadrature
         correlation, scans sub-symbol phase offsets, and extracts CRC-verified packets.
         """
         step = self.samples_per_bit
         n_samples = len(samples)
-        step_int = max(1, int(round(step)))
+        step_int = max(1, round(step))
         dt = 1.0 / self.sample_rate
         two_pi = 2.0 * math.pi
         w_mark = two_pi * self.mark_freq
         w_space = two_pi * self.space_freq
 
-        packets: List[bytes] = []
+        packets: list[bytes] = []
 
         # Search across sub-symbol sample phase offsets to lock clock
         for offset in range(step_int):
@@ -112,8 +111,8 @@ class AFSKDemodulator:
 
             bits = []
             for i in range(total_bits):
-                start = offset + int(round(i * step))
-                end = offset + int(round((i + 1) * step))
+                start = offset + round(i * step)
+                end = offset + round((i + 1) * step)
                 chunk = samples[start:end]
                 if len(chunk) < 2:
                     continue
@@ -138,9 +137,9 @@ class AFSKDemodulator:
 
         return packets
 
-    def _extract_packets_from_bits(self, bits: List[int]) -> List[bytes]:
+    def _extract_packets_from_bits(self, bits: list[int]) -> list[bytes]:
         """Reconstructs bytes from bitstream and parses packets."""
-        packets: List[bytes] = []
+        packets: list[bytes] = []
         n_bits = len(bits)
         if n_bits < 40:
             return packets
@@ -154,7 +153,7 @@ class AFSKDemodulator:
 
         return packets
 
-    def _scan_bytes_at_offset(self, bits: List[int]) -> List[bytes]:
+    def _scan_bytes_at_offset(self, bits: list[int]) -> list[bytes]:
         raw_bytes = bytearray()
         n_full_bytes = len(bits) // 8
         for i in range(n_full_bytes):

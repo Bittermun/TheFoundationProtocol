@@ -9,10 +9,9 @@ and origin node churn survival.
 """
 
 import asyncio
-from dataclasses import dataclass
 import hashlib
 import secrets
-from typing import Dict, List, Optional, Set
+from dataclasses import dataclass
 
 from .cdc import ChunkRecipe
 from .fountain import FountainCodec, FountainDroplet
@@ -35,13 +34,13 @@ class MeshPeer:
     def __init__(self, node_id: str, loss_rate: float = 0.0, symbol_size: int = 256):
         self.node_id = node_id
         self.loss_rate = loss_rate
-        self.neighbors: Set["MeshPeer"] = set()
-        self.known_recipes: Dict[str, ChunkRecipe] = {}
-        self.merkle_roots: Dict[str, str] = {}
-        self.droplet_store: Dict[str, Dict[int, FountainDroplet]] = {}
-        self.reconstructed_payloads: Dict[str, bytes] = {}
-        self.seen_gossip: Set[str] = set()
-        self._active_tasks: Set[asyncio.Task] = set()
+        self.neighbors: set[MeshPeer] = set()
+        self.known_recipes: dict[str, ChunkRecipe] = {}
+        self.merkle_roots: dict[str, str] = {}
+        self.droplet_store: dict[str, dict[int, FountainDroplet]] = {}
+        self.reconstructed_payloads: dict[str, bytes] = {}
+        self.seen_gossip: set[str] = set()
+        self._active_tasks: set[asyncio.Task] = set()
         self.codec = FountainCodec(symbol_size=symbol_size)
         self.is_alive = True
 
@@ -50,7 +49,7 @@ class MeshPeer:
         self.neighbors.add(peer)
         peer.neighbors.add(self)
 
-    def store_content(self, recipe: ChunkRecipe, droplets: List[FountainDroplet], merkle_root: str):
+    def store_content(self, recipe: ChunkRecipe, droplets: list[FountainDroplet], merkle_root: str):
         """Store locally published or received content."""
         root = recipe.root_hash
         self.known_recipes[root] = recipe
@@ -100,7 +99,7 @@ class MeshPeer:
                     self._active_tasks.add(task)
                     task.add_done_callback(self._active_tasks.discard)
 
-    async def request_droplets(self, root_hash: str, visited: Optional[Set[str]] = None) -> List[FountainDroplet]:
+    async def request_droplets(self, root_hash: str, visited: set[str] | None = None) -> list[FountainDroplet]:
         """Request available droplets from this peer subject to link loss with dynamic rateless synthesis and multi-hop routing."""
         if not self.is_alive:
             return []
@@ -120,7 +119,7 @@ class MeshPeer:
             for d in synth_droplets:
                 self.droplet_store[root_hash][d.seed] = d
 
-        if root_hash in self.droplet_store and self.droplet_store[root_hash]:
+        if self.droplet_store.get(root_hash):
             results = []
             for d in list(self.droplet_store[root_hash].values()):
                 if (secrets.randbelow(1_000_000) / 1_000_000.0) >= self.loss_rate:
@@ -140,7 +139,7 @@ class MeshPeer:
 
         return []
 
-    async def swarm_fetch(self, root_hash: str) -> Optional[bytes]:
+    async def swarm_fetch(self, root_hash: str) -> bytes | None:
         """Gather fountain droplets from all reachable peers and reconstruct payload."""
         if not self.is_alive:
             return None
@@ -152,7 +151,7 @@ class MeshPeer:
         recipe = self.known_recipes[root_hash]
         k = (recipe.total_size + self.codec.symbol_size - 1) // self.codec.symbol_size
 
-        gathered_droplets: Dict[int, FountainDroplet] = {}
+        gathered_droplets: dict[int, FountainDroplet] = {}
         if root_hash in self.droplet_store:
             gathered_droplets.update(self.droplet_store[root_hash])
 
@@ -174,7 +173,7 @@ class MeshPeer:
                             self.reconstructed_payloads[root_hash] = recovered
                             self.droplet_store[root_hash] = gathered_droplets
                             return recovered
-                        except Exception:  # nosec B112: Try decoding on each incoming droplet
+                        except (ValueError, RuntimeError):  # Try decoding on each incoming droplet
                             continue
             if len(gathered_droplets) >= k:
                 try:
@@ -186,7 +185,7 @@ class MeshPeer:
                     self.reconstructed_payloads[root_hash] = recovered
                     self.droplet_store[root_hash] = gathered_droplets
                     return recovered
-                except Exception:
+                except (ValueError, RuntimeError):
                     pass
 
         # Final decode attempt if rank was achieved
@@ -199,8 +198,8 @@ class MeshPeer:
                 )
                 self.reconstructed_payloads[root_hash] = recovered
                 return recovered
-            except Exception as e:
-                raise RuntimeError(f"Swarm decoding failed: {e}")
+            except (ValueError, RuntimeError) as e:
+                raise RuntimeError(f"Swarm decoding failed: {e}") from e
 
         raise RuntimeError(f"Insufficient droplets gathered: {len(gathered_droplets)} < {k}")
 
@@ -209,7 +208,7 @@ class SwarmNetwork:
     """Manages multi-node virtual mesh topologies for verification and simulation."""
 
     def __init__(self):
-        self.peers: Dict[str, MeshPeer] = {}
+        self.peers: dict[str, MeshPeer] = {}
 
     def add_peer(self, node_id: str, loss_rate: float = 0.0, symbol_size: int = 256) -> MeshPeer:
         peer = MeshPeer(node_id, loss_rate=loss_rate, symbol_size=symbol_size)
