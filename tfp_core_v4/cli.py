@@ -20,7 +20,10 @@ import asyncio
 import hashlib
 import json
 from pathlib import Path
+import random
 import sys
+import time
+import urllib.parse
 
 _repo_root = Path(__file__).resolve().parent.parent
 if str(_repo_root) not in sys.path:
@@ -261,13 +264,30 @@ Initiate active core rewarming with warmed IV saline at 39 degrees C.
                 "dedup_ratio": "11.9x",
             }
 
+        active_loss_rate = [0.25]
+
         class VisualizerHandler(http.server.SimpleHTTPRequestHandler):
             def __init__(self, *a, **kw):
                 super().__init__(*a, directory=str(static_dir), **kw)
 
             def do_GET(self):
+                if self.path.startswith("/api/set-loss"):
+                    query = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+                    if "rate" in query:
+                        try:
+                            active_loss_rate[0] = max(0.0, min(0.9, float(query["rate"][0])))
+                        except Exception:
+                            pass
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Access-Control-Allow-Origin", "*")
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"ok": True, "rate": active_loss_rate[0]}).encode("utf-8"))
+                    return
+
                 if self.path == "/api/protocol-state":
                     data = generate_live_protocol_telemetry()
+                    data["active_loss_rate"] = active_loss_rate[0]
                     self.send_response(200)
                     self.send_header("Content-Type", "application/json")
                     self.send_header("Access-Control-Allow-Origin", "*")
@@ -276,9 +296,65 @@ Initiate active core rewarming with warmed IV saline at 39 degrees C.
                     self.end_headers()
                     self.wfile.write(payload)
                     return
+
+                if self.path.startswith("/api/stream-events"):
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/event-stream")
+                    self.send_header("Cache-Control", "no-cache")
+                    self.send_header("Connection", "keep-alive")
+                    self.send_header("Access-Control-Allow-Origin", "*")
+                    self.end_headers()
+
+                    try:
+                        self._stream_events()
+                    except (BrokenPipeError, ConnectionResetError):
+                        pass
+                    return
+
                 if self.path in ("/", "/visualizer", "/index.html"):
                     self.path = "/visualizer.html"
                 return super().do_GET()
+
+            def _stream_events(self):
+                k = 7
+                for _ in range(5):  # Run 5 continuous transmission cycles
+                    for cut in [14, 32, 48]:
+                        self._send_sse("cdc_cut", {"cut": cut})
+                        time.sleep(0.08)
+
+                    self._send_sse("merkle_step", {"status": "verified", "root": "487cf572a41a..."})
+                    time.sleep(0.12)
+
+                    rank = 0
+                    for seed in range(30):
+                        is_lost = random.random() < active_loss_rate[0]
+                        if is_lost:
+                            self._send_sse("droplet_drop", {"seed": seed, "k": k})
+                        else:
+                            rank = min(k, rank + 1)
+                            self._send_sse("droplet_recv", {"seed": seed, "k": k, "rank": rank})
+                            self._send_sse("matrix_pivot", {"rank": rank, "k": k})
+
+                        time.sleep(0.07)
+                        if rank >= k:
+                            self._send_sse("slide_ready", {
+                                "title": "Severe Hypothermia Field Triage & Resuscitation",
+                                "badge": "TRIAGE ALERT [MEDICAL]",
+                                "badgeClass": "badge-red",
+                                "bullets": [
+                                    "Administer oral rehydration solution: 6 tsp sugar + 0.5 tsp salt per 1L boiled water.",
+                                    "Continuous ECG monitoring for ventricular fibrillation prevention.",
+                                    "Boil vigorously for 1 minute before consumption."
+                                ],
+                                "narration": "Initiate active core rewarming immediately. Prepare warmed saline."
+                            })
+                            time.sleep(1.2)
+                            break
+
+            def _send_sse(self, event: str, data: dict):
+                msg = f"event: {event}\ndata: {json.dumps(data)}\n\n".encode("utf-8")
+                self.wfile.write(msg)
+                self.wfile.flush()
 
             def log_message(self, format, *args):
                 pass

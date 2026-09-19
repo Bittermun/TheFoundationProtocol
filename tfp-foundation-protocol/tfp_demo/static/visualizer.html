@@ -849,6 +849,74 @@
           badge.innerText = "PROTOCOL ENGINE: LIVE";
           badge.style.background = "linear-gradient(135deg, #00ffa3, #00f0ff)";
         }
+
+        // Connect to Live Server-Sent Events stream from Python Protocol Engine
+        if ("EventSource" in window) {
+          const evtSource = new EventSource("/api/stream-events");
+
+          evtSource.addEventListener("cdc_cut", (e) => {
+            const d = JSON.parse(e.data);
+            state.cdcOffset = d.cut;
+          });
+
+          evtSource.addEventListener("merkle_step", (e) => {
+            const merklePill = document.getElementById("merkleStatus");
+            if (merklePill) {
+              merklePill.innerText = "LIVE AUDIT PROOF OK";
+              merklePill.style.color = "var(--accent-emerald)";
+            }
+          });
+
+          evtSource.addEventListener("droplet_drop", (e) => {
+            const d = JSON.parse(e.data);
+            state.packetsSent++;
+            state.packetsLost++;
+            state.droplets.push({
+              x: Math.random() * (fountainCanvas.width / (window.devicePixelRatio || 1) - 40) + 20,
+              y: 20,
+              vy: 2.8,
+              isLost: true,
+              seed: d.seed,
+              alpha: 1.0,
+            });
+          });
+
+          evtSource.addEventListener("droplet_recv", (e) => {
+            const d = JSON.parse(e.data);
+            state.packetsSent++;
+            state.packetsSurvived++;
+            state.rank = d.rank || state.rank;
+            state.droplets.push({
+              x: Math.random() * (fountainCanvas.width / (window.devicePixelRatio || 1) - 40) + 20,
+              y: 20,
+              vy: 2.8,
+              isLost: false,
+              seed: d.seed,
+              alpha: 1.0,
+            });
+          });
+
+          evtSource.addEventListener("matrix_pivot", (e) => {
+            const d = JSON.parse(e.data);
+            state.rank = d.rank;
+            document.getElementById("rankNumber").innerText = `${state.rank}/${state.k}`;
+            const matrixStatus = document.getElementById("matrixStatus");
+            if (d.rank >= d.k) {
+              matrixStatus.innerText = "FULL RANK K (SOLVED)";
+              matrixStatus.style.color = "var(--accent-emerald)";
+            } else {
+              matrixStatus.innerText = `PIVOTING (${state.rank}/${state.k})`;
+              matrixStatus.style.color = "var(--accent-cyan)";
+            }
+          });
+
+          evtSource.addEventListener("slide_ready", (e) => {
+            const s = JSON.parse(e.data);
+            document.getElementById("slideHeading").innerText = s.title;
+            document.getElementById("slideBullets").innerHTML = s.bullets.map(b => `<li>${b}</li>`).join("");
+            document.getElementById("narrationText").innerText = `"${s.narration}"`;
+          });
+        }
       } catch (err) {
         console.log("[TFP] Running with embedded protocol snapshot");
       }
