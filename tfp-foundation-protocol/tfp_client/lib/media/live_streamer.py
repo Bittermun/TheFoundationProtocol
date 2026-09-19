@@ -12,11 +12,14 @@ real-time telemetry events directly to web visualizers, dashboards, and network 
 from __future__ import annotations
 
 import base64
+import math
 import mimetypes
 import secrets
+import struct
 import sys
 import time
 from collections.abc import Callable
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
@@ -33,6 +36,21 @@ from tfp_client.lib.media.fountain_streamer import FountainStreamer
 from tfp_client.lib.media.receiver import FountainStreamReceiver
 from tfp_client.lib.media.stream_packager import MediaManifest, MediaStreamPackager
 from tfp_client.lib.media.telemetry_events import TelemetryEventBus
+
+
+@dataclass(frozen=True)
+class ScholasticCodexEntry:
+    """Represents a hands-free, voice-first educational and emergency triage codex."""
+
+    title: str
+    sector: str
+    triage_tier: str
+    epigraph: str
+    steps: list[dict[str, Any]]
+    earcon_cues: dict[str, list[float]]
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
 
 
 class LiveTransmissionEngine:
@@ -292,12 +310,97 @@ class LiveTransmissionEngine:
         return reconstruction_summary
 
     @classmethod
+    def generate_earcon_pcm(cls, earcon_type: str, sample_rate: int = 16000) -> bytes:
+        """
+        Synthesizes a pure 16-bit PCM mono WAV earcon for audio navigation.
+        Earcon types:
+          - 'verified': Rising major triad (D4 -> F#4 -> A4)
+          - 'prompt': Double woodblock tap (880 Hz, 1200 Hz)
+          - 'alert': Golden gong harmonic (220 Hz + 330 Hz + 440 Hz)
+          - 'step_done': Crisp xylophone chime (587.33 Hz, 880 Hz)
+        """
+        samples: list[float] = []
+
+        if earcon_type == "verified":
+            notes = [(293.66, 0.08), (369.99, 0.08), (440.00, 0.16)]
+            for freq, dur in notes:
+                n_samples = int(sample_rate * dur)
+                for i in range(n_samples):
+                    t = i / sample_rate
+                    decay = math.exp(-3.5 * (i / n_samples))
+                    val = math.sin(2.0 * math.pi * freq * t) * decay * 0.4
+                    samples.append(val)
+
+        elif earcon_type == "prompt":
+            for freq in (880.0, 1174.66):
+                dur = 0.06
+                n_samples = int(sample_rate * dur)
+                for i in range(n_samples):
+                    t = i / sample_rate
+                    decay = math.exp(-12.0 * (i / n_samples))
+                    val = math.sin(2.0 * math.pi * freq * t) * decay * 0.35
+                    samples.append(val)
+                samples.extend([0.0] * int(sample_rate * 0.03))
+
+        elif earcon_type == "alert":
+            dur = 0.45
+            n_samples = int(sample_rate * dur)
+            for i in range(n_samples):
+                t = i / sample_rate
+                decay = math.exp(-4.0 * (i / n_samples))
+                val = (
+                    0.45 * math.sin(2.0 * math.pi * 220.0 * t)
+                    + 0.25 * math.sin(2.0 * math.pi * 330.0 * t)
+                    + 0.15 * math.sin(2.0 * math.pi * 440.0 * t)
+                ) * decay
+                samples.append(val)
+
+        else:  # 'step_done'
+            notes = [(587.33, 0.09), (880.00, 0.16)]
+            for freq, dur in notes:
+                n_samples = int(sample_rate * dur)
+                for i in range(n_samples):
+                    t = i / sample_rate
+                    decay = math.exp(-6.0 * (i / n_samples))
+                    val = math.sin(2.0 * math.pi * freq * t) * decay * 0.4
+                    samples.append(val)
+
+        raw_pcm = bytearray()
+        for s in samples:
+            clamped = max(-1.0, min(1.0, s))
+            sample_val = int(clamped * 32767.0)
+            raw_pcm.extend(struct.pack("<h", sample_val))
+
+        num_channels = 1
+        bytes_per_sample = 2
+        block_align = num_channels * bytes_per_sample
+        byte_rate = sample_rate * block_align
+        data_size = len(raw_pcm)
+
+        header = bytearray()
+        header.extend(b"RIFF")
+        header.extend(struct.pack("<I", 36 + data_size))
+        header.extend(b"WAVEfmt ")
+        header.extend(struct.pack("<I", 16))
+        header.extend(struct.pack("<H", 1))  # PCM
+        header.extend(struct.pack("<H", num_channels))
+        header.extend(struct.pack("<I", sample_rate))
+        header.extend(struct.pack("<I", byte_rate))
+        header.extend(struct.pack("<H", block_align))
+        header.extend(struct.pack("<H", bytes_per_sample * 8))
+        header.extend(b"data")
+        header.extend(struct.pack("<I", data_size))
+
+        return bytes(header + raw_pcm)
+
+    @classmethod
     def generate_sample_short(cls) -> tuple[bytes, str, str]:
         """
         Generates a standalone, educational multimedia 'Short' featuring:
-        1. Emergency pediatric resuscitation & hypothermia triage steps.
-        2. Vector SVG illustrations with animated canvas triggers.
-        3. Web Audio synthesis accompaniment chime notes.
+        1. Encarta & Utopian Scholastic aesthetic styling (manuscript gold, deep indigo).
+        2. Scalable single-stroke vector SVG anatomy diagram.
+        3. Zero-touch offline voice navigation (SpeechRecognition / SpeechSynthesis).
+        4. Web Audio procedural earcons and ambient Pythagorean harmonics.
         Returns: (payload_bytes, filename, media_type)
         """
         html_short = """<!DOCTYPE html>
@@ -305,111 +408,331 @@ class LiveTransmissionEngine:
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Severe Hypothermia Field Triage — TFP Short</title>
+<title>Severe Hypothermia Triage &mdash; The Scholastic Codex</title>
 <style>
+  :root {
+    --bg-codex: #060913;
+    --gold-frame: #d4af37;
+    --gold-glow: rgba(212, 175, 55, 0.4);
+    --gold-subtle: rgba(212, 175, 55, 0.15);
+    --ink-parchment: #f4f1ea;
+    --ink-muted: #9da8ba;
+    --ruby-alert: #ff3366;
+    --cyan-salve: #00f0ff;
+    --emerald-safe: #00ffa3;
+    --font-serif: "Cinzel", "Baskerville", "Palatino Linotype", "Georgia", serif;
+    --font-mono: "SF Mono", "Fira Code", "Consolas", monospace;
+  }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: #090d16;
-    color: #f8fafc;
-    padding: 16px;
+    font-family: var(--font-serif);
+    background: var(--bg-codex);
+    color: var(--ink-parchment);
+    padding: 12px;
     display: flex;
     justify-content: center;
+    align-items: center;
+    min-height: 100vh;
   }
-  .short-card {
-    max-width: 420px;
+  .scholastic-frame {
+    max-width: 440px;
     width: 100%;
-    background: #131b2e;
-    border: 1px solid #233554;
-    border-radius: 16px;
-    overflow: hidden;
-    box-shadow: 0 20px 40px rgba(0,0,0,0.6);
-  }
-  .hero-banner {
-    background: linear-gradient(135deg, #ff3366, #b55fe6);
-    padding: 24px 20px;
-    text-align: center;
-  }
-  .badge {
-    background: #ffffff;
-    color: #090d16;
-    font-size: 11px;
-    font-weight: 800;
-    padding: 4px 8px;
+    background: radial-gradient(circle at 50% 10%, #0d1527 0%, #060913 100%);
+    border: 2px solid var(--gold-frame);
     border-radius: 12px;
+    padding: 18px 20px;
+    box-shadow: 0 16px 48px rgba(0,0,0,0.8), inset 0 0 24px rgba(212,175,55,0.08);
+    position: relative;
+    overflow: hidden;
+  }
+  .scholastic-frame::before {
+    content: "";
+    position: absolute;
+    top: 3px; left: 3px; right: 3px; bottom: 3px;
+    border: 1px dashed rgba(212, 175, 55, 0.35);
+    border-radius: 8px;
+    pointer-events: none;
+  }
+  .codex-header {
+    text-align: center;
+    border-bottom: 1px solid var(--gold-subtle);
+    padding-bottom: 14px;
+    margin-bottom: 14px;
+  }
+  .codex-seal {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--gold-frame);
     text-transform: uppercase;
-    letter-spacing: 1px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
   }
-  h1 { font-size: 20px; margin-top: 10px; line-height: 1.3; }
-  .content { padding: 20px; font-size: 15px; line-height: 1.6; }
-  .step-box {
-    background: #1a253c;
-    border-left: 4px solid #00f0ff;
-    padding: 12px;
+  .codex-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: 0.5px;
+    line-height: 1.3;
+    margin-bottom: 6px;
+  }
+  .codex-epigraph {
+    font-size: 11px;
+    font-style: italic;
+    color: var(--ink-muted);
+    font-family: Georgia, serif;
+  }
+  .atlas-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 10px 0;
+    position: relative;
+  }
+  .atlas-svg {
+    width: 140px;
+    height: 190px;
+    filter: drop-shadow(0 0 8px rgba(0, 240, 255, 0.3));
+  }
+  .pulse-core {
+    animation: corePulse 2s ease-in-out infinite;
+  }
+  @keyframes corePulse {
+    0%, 100% { fill: #00f0ff; r: 6; opacity: 0.8; }
+    50% { fill: #ffcc00; r: 9; opacity: 1.0; filter: drop-shadow(0 0 6px #ffcc00); }
+  }
+  .voice-step-card {
+    background: rgba(13, 21, 39, 0.7);
+    border-left: 3px solid var(--gold-frame);
+    padding: 12px 14px;
     border-radius: 0 8px 8px 0;
-    margin-bottom: 12px;
+    margin-bottom: 14px;
+    min-height: 84px;
   }
-  .step-num { font-weight: 700; color: #00f0ff; margin-bottom: 4px; font-size: 12px; }
-  .audio-ctl {
-    padding: 16px;
-    background: #0d1322;
-    border-top: 1px solid #233554;
+  .step-marker {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--gold-frame);
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+    display: flex;
+    justify-content: space-between;
+  }
+  .step-text {
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--ink-parchment);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  .zero-touch-bar {
     display: flex;
     justify-content: space-between;
     align-items: center;
-  }
-  .play-btn {
-    background: #00ffa3;
-    color: #090d16;
-    border: none;
-    padding: 10px 20px;
+    background: rgba(4, 7, 13, 0.85);
+    border: 1px solid var(--gold-subtle);
     border-radius: 24px;
+    padding: 8px 14px;
+  }
+  .voice-btn {
+    background: linear-gradient(135deg, #d4af37, #9b7e22);
+    color: #060913;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 18px;
     font-weight: 700;
+    font-size: 12px;
     cursor: pointer;
-    font-size: 14px;
+    font-family: var(--font-mono);
+    letter-spacing: 0.5px;
+    transition: all 0.2s;
+  }
+  .voice-btn:hover {
+    box-shadow: 0 0 12px var(--gold-glow);
+  }
+  .ear-status {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--cyan-salve);
+    display: flex;
+    align-items: center;
+    gap: 6px;
   }
 </style>
 </head>
 <body>
-<div class="short-card">
-  <div class="hero-banner">
-    <span class="badge">Emergency Relief Short &bull; Offline Verified</span>
-    <h1>Severe Hypothermia Triage & Resuscitation</h1>
+<div class="scholastic-frame" id="codexFrame" onclick="advanceStep()">
+  <div class="codex-header">
+    <div class="codex-seal">&diams; THE SCHOLASTIC CODEX &bull; ENTRY IV-87 &diams;</div>
+    <h1 class="codex-title">Severe Hypothermia Triage & Resuscitation</h1>
+    <p class="codex-epigraph">&ldquo;Life is preserved in the core; blood follows warmth.&rdquo;</p>
   </div>
-  <div class="content">
-    <div class="step-box">
-      <div class="step-num">STEP 1: RAPID ASSESSMENT</div>
-      <p>Check carotid pulse for a full 60 seconds before initiating CPR. Core temperature below 30&deg;C causes severe bradycardia.</p>
-    </div>
-    <div class="step-box">
-      <div class="step-num">STEP 2: ACTIVE CORE REWARMING</div>
-      <p>Apply heated packs (39-42&deg;C) to the neck, axillae, and groin. Never rub frozen extremities.</p>
-    </div>
-    <div class="step-box">
-      <div class="step-num">STEP 3: ORAL HYDRATION</div>
-      <p>Administer 6 tsp sugar + 0.5 tsp salt dissolved in 1L clean boiled water once conscious.</p>
-    </div>
+
+  <div class="atlas-container">
+    <svg class="atlas-svg" viewBox="0 0 100 140" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <!-- Human silhouette wireframe -->
+      <circle cx="50" cy="18" r="11" stroke="#4a5d78" stroke-width="1.5" />
+      <path d="M50 29 L50 78 M32 42 L68 42 M32 42 L22 75 M68 42 L78 75 M50 78 L34 126 M50 78 L66 126" stroke="#4a5d78" stroke-width="1.8" stroke-linecap="round" />
+      <!-- Active warming core zones -->
+      <!-- Carotid (Neck) -->
+      <circle class="pulse-core" id="pulseCarotid" cx="50" cy="30" r="6" />
+      <!-- Left & Right Axillae (Armpits) -->
+      <circle class="pulse-core" id="pulseAxillaeL" cx="37" cy="45" r="5" />
+      <circle class="pulse-core" id="pulseAxillaeR" cx="63" cy="45" r="5" />
+      <!-- Inguinal (Groin) -->
+      <circle class="pulse-core" id="pulseGroin" cx="50" cy="78" r="6" />
+    </svg>
   </div>
-  <div class="audio-ctl">
-    <button class="play-btn" onclick="playShortAudio()">&#9658; Play Audio Narration</button>
-    <span style="font-size: 12px; color: #64748b;">TFP Verified &bull; 0 KB Bandwidth</span>
+
+  <div class="voice-step-card">
+    <div class="step-marker">
+      <span id="stepLabel">STEP 1 OF 3</span>
+      <span style="color: var(--cyan-salve);">&bull; ZERO-TOUCH ACTIVE</span>
+    </div>
+    <p class="step-text" id="stepInstruction">Check carotid pulse for a full 60 seconds before CPR. Core temperature below 30&deg;C induces severe bradycardia.</p>
+  </div>
+
+  <div class="zero-touch-bar">
+    <button class="voice-btn" id="btnAudioAction" onclick="toggleVoiceDialog(event)">&#9658; SPEAK STEPS</button>
+    <div class="ear-status" id="voiceStatus">&bull; TAP OR SAY &lsquo;NEXT&rsquo;</div>
   </div>
 </div>
+
 <script>
-function playShortAudio() {
-  if ('speechSynthesis' in window) {
-    window.speechSynthesis.cancel();
-    const utter = new SpeechSynthesisUtterance(
-      "Severe Hypothermia Protocol. Step 1: Check carotid pulse for 60 seconds. " +
-      "Step 2: Apply heated packs to neck and groin. " +
-      "Step 3: Administer warm oral rehydration solution once conscious."
-    );
-    utter.rate = 0.95;
-    window.speechSynthesis.speak(utter);
+const codexSteps = [
+  {
+    num: "STEP 1 OF 3: RAPID CAROTID ASSESSMENT",
+    text: "Check carotid pulse for a full 60 seconds before CPR. Core temperature below 30 degrees induces severe bradycardia.",
+    speech: "Step one: Check carotid pulse for a full sixty seconds before initiating CPR. Core temperature below thirty degrees induces severe bradycardia. Say 'Next' or tap screen to continue.",
+    focus: "pulseCarotid"
+  },
+  {
+    num: "STEP 2 OF 3: ACTIVE CORE REWARMING",
+    text: "Apply heated packs (39-42&deg;C) to the neck, axillae, and groin. Never rub frozen extremities.",
+    speech: "Step two: Apply heated packs to the neck, armpits, and groin. Never rub frozen extremities, as cold acidotic blood will cause cardiac fibrillation. Say 'Next' to proceed.",
+    focus: "pulseAxillaeL"
+  },
+  {
+    num: "STEP 3 OF 3: ORAL HYDRATION RECOVERY",
+    text: "Administer warm oral rehydration solution (6 tsp sugar + 0.5 tsp salt per 1L clean water) once conscious.",
+    speech: "Step three: Once patient regains consciousness, administer warm oral rehydration solution: six teaspoons sugar and half teaspoon salt per one liter clean water. Protocol complete.",
+    focus: "pulseGroin"
+  }
+];
+
+let activeStep = 0;
+let isSpeaking = false;
+let speechRecognizer = null;
+
+function renderStep(idx) {
+  activeStep = Math.max(0, Math.min(idx, codexSteps.length - 1));
+  const s = codexSteps[activeStep];
+  document.getElementById("stepLabel").innerText = `STEP ${activeStep + 1} OF ${codexSteps.length}`;
+  document.getElementById("stepInstruction").innerHTML = s.text;
+  playScholasticChime(activeStep === codexSteps.length - 1 ? "step_done" : "prompt");
+}
+
+function advanceStep() {
+  if (activeStep < codexSteps.length - 1) {
+    renderStep(activeStep + 1);
   } else {
-    alert("Speech synthesis not supported on this browser.");
+    renderStep(0);
+  }
+  speakActiveStep();
+}
+
+function playScholasticChime(type) {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    
+    if (type === "step_done") {
+      osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(880.0, ctx.currentTime + 0.15);
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.35);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.35);
+    } else {
+      osc.frequency.setValueAtTime(880.0, ctx.currentTime);
+      gain.gain.setValueAtTime(0.2, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.12);
+    }
+  } catch(e) {}
+}
+
+function speakActiveStep() {
+  if (!('speechSynthesis' in window)) return;
+  window.speechSynthesis.cancel();
+  const utter = new SpeechSynthesisUtterance(codexSteps[activeStep].speech);
+  utter.rate = 0.92;
+  utter.onstart = () => {
+    isSpeaking = true;
+    document.getElementById("btnAudioAction").innerText = "&#9632; PAUSE";
+    document.getElementById("voiceStatus").innerText = "&bull; NARRATING...";
+  };
+  utter.onend = () => {
+    isSpeaking = false;
+    document.getElementById("btnAudioAction").innerText = "&#9658; REPEAT";
+    document.getElementById("voiceStatus").innerText = "&bull; SAY 'NEXT' / 'REPEAT'";
+  };
+  window.speechSynthesis.speak(utter);
+}
+
+function toggleVoiceDialog(e) {
+  if (e) e.stopPropagation();
+  if (isSpeaking) {
+    window.speechSynthesis.cancel();
+    isSpeaking = false;
+    document.getElementById("btnAudioAction").innerText = "&#9658; RESUME";
+  } else {
+    speakActiveStep();
+    startVoiceListener();
   }
 }
+
+function startVoiceListener() {
+  const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRec || speechRecognizer) return;
+  try {
+    speechRecognizer = new SpeechRec();
+    speechRecognizer.continuous = true;
+    speechRecognizer.interimResults = false;
+    speechRecognizer.lang = "en-US";
+    speechRecognizer.onresult = (evt) => {
+      const last = evt.results[evt.results.length - 1][0].transcript.toLowerCase().trim();
+      console.log("[Voice Command]", last);
+      if (last.includes("next") || last.includes("forward")) {
+        advanceStep();
+      } else if (last.includes("repeat") || last.includes("again")) {
+        speakActiveStep();
+      } else if (last.includes("back") || last.includes("previous")) {
+        renderStep(Math.max(0, activeStep - 1));
+        speakActiveStep();
+      }
+    };
+    speechRecognizer.start();
+  } catch(err) {
+    console.log("[Voice Listener Unavailable]", err);
+  }
+}
+
+// Inline headphone / spacebar click listener
+window.addEventListener("keydown", (e) => {
+  if (e.code === "Space") {
+    e.preventDefault();
+    advanceStep();
+  }
+});
 </script>
 </body>
 </html>"""

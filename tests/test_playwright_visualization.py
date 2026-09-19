@@ -97,13 +97,39 @@ def test_visualizer_live_protocol_and_interaction(live_visualizer_server):
         ambient_btn.click()
         assert "HARMONY: ON" in ambient_btn.inner_text()
 
-        # 9. Verify Live Reconstructed Media Player Card exists
+        # 9. Verify Encarta Utopian Scholastic Theme & Switcher
+        body_has_scholastic = page.locator("body").evaluate("el => el.classList.contains('theme-scholastic')")
+        assert body_has_scholastic is True
+
+        theme_btn = page.locator("#btnThemeToggle")
+        assert theme_btn.is_visible()
+        assert "SCHOLASTIC" in theme_btn.inner_text()
+        theme_btn.click()
+        assert "CYBER" in theme_btn.inner_text()
+        theme_btn.click()
+        assert "SCHOLASTIC" in theme_btn.inner_text()
+
+        # 10. Verify Zero-Touch Voice Controller & Roman Numeral Cards
+        voice_btn = page.locator("#btnVoiceToggle")
+        assert voice_btn.is_visible()
+        assert "VOICE: ON" in voice_btn.inner_text()
+
+        card_titles = page.locator(".card-title").all_inner_texts()
+        assert any("I." in t for t in card_titles)
+        assert any("VI." in t for t in card_titles)
+
+        # Trigger simulated hands-free voice command
+        page.evaluate("voiceController.handleCommand('stream short')")
+        toast_text = page.inner_text("#voiceToastText")
+        assert "STREAM" in toast_text
+
+        # 11. Verify Live Reconstructed Media Player Card exists
         media_card = page.locator("#reconstructedMediaCard")
         assert media_card.is_visible()
         status_pill = page.locator("#mediaReconstructedStatus")
         assert status_pill.is_visible()
 
-        # 10. Trigger Real Stream Short Transmission
+        # 12. Trigger Real Stream Short Transmission
         stream_short_btn = page.locator("#btnStreamShort")
         assert stream_short_btn.is_visible()
         stream_short_btn.click()
@@ -128,7 +154,7 @@ def test_visualizer_live_protocol_and_interaction(live_visualizer_server):
         heading_text = page.inner_text("#slideHeading")
         assert len(heading_text) > 10
 
-        # 11. Capture Artifact Screenshot with full page
+        # 13. Capture Artifact Screenshot with full page showing Encarta Scholastic design
         artifact_dir = Path("C:/Users/msunw/.gemini/antigravity-ide/brain/9439d999-cc0c-40cc-b695-03d8d48e2dce")
         screenshot_path = artifact_dir / "visualizer_live_screenshot.png"
         page.screenshot(path=str(screenshot_path), full_page=True)

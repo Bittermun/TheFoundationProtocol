@@ -304,15 +304,23 @@ Initiate active core rewarming with warmed IV saline at 39 degrees C.
                         ev = client_queue.get(timeout=1.0)
                         self._send_sse(ev.event_type, ev.data)
                     except queue.Empty:
-                        self.wfile.write(b": keepalive\n\n")
-                        self.wfile.flush()
+                        try:
+                            self.wfile.write(b": keepalive\n\n")
+                            self.wfile.flush()
+                        except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError, OSError):
+                            break
+                    except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError, OSError):
+                        break
             finally:
                 event_bus.unsubscribe(listener)
 
         def _send_sse(self, event: str, data: dict):
-            msg = f"event: {event}\ndata: {json.dumps(data)}\n\n".encode()
-            self.wfile.write(msg)
-            self.wfile.flush()
+            try:
+                msg = f"event: {event}\ndata: {json.dumps(data)}\n\n".encode()
+                self.wfile.write(msg)
+                self.wfile.flush()
+            except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError, OSError):
+                pass
 
         def log_message(self, format, *args):
             pass
@@ -375,6 +383,12 @@ def main():
     ac_p = subparsers.add_parser("acoustic-receiver", help="Serve zero-install acoustic microphone receiver for phones")
     ac_p.add_argument("--port", type=int, default=8080, help="Port to serve acoustic receiver (default: 8080)")
     ac_p.add_argument("--no-browser", action="store_true", help="Do not auto-open browser")
+
+    # Audio Scholar (Screenless zero-touch appliance)
+    asch_p = subparsers.add_parser("audio-scholar", help="Run screenless zero-touch Audio Scholar daemon for low-literacy triage")
+    asch_p.add_argument("--port", type=int, default=9999, help="UDP listening port (default: 9999)")
+    asch_p.add_argument("--symbol-size", type=int, default=256, help="Fountain symbol size in bytes (default: 256)")
+    asch_p.add_argument("--speech-rate", type=int, default=140, help="Speech rate in WPM (default: 140)")
 
     # Verify
     subparsers.add_parser("verify", help="Run automated self-verification test battery")
@@ -609,6 +623,26 @@ def main():
                 httpd.serve_forever()
             except KeyboardInterrupt:
                 print("\n[TFP] Acoustic receiver server stopped.")
+
+    elif args.command == "audio-scholar":
+        from tfp_core_v4.audio_scholar import AudioScholarDaemon
+
+        daemon = AudioScholarDaemon(port=args.port, symbol_size=args.symbol_size, speech_rate=args.speech_rate)
+        print("=" * 65)
+        print("  THE FOUNDATION PROTOCOL: AUDIO SCHOLAR HEADLESS APPLIANCE")
+        print("=" * 65)
+        print(f"  Listening Port : UDP {args.port}")
+        print(f"  Symbol Size    : {args.symbol_size} bytes")
+        print(f"  Speech Rate    : {args.speech_rate} WPM")
+        print("  Target Devices : Screenless radios, Raspberry Pi, solar speakers, broken-screen phones")
+        print("  Mode           : Zero-touch, hands-free acoustic triage")
+        print("  Press Ctrl+C to terminate.")
+        print("=" * 65)
+        try:
+            daemon.start_sync()
+        except KeyboardInterrupt:
+            print("\n[TFP Audio Scholar] Daemon stopped.")
+            daemon.stop()
 
     elif args.command == "verify":
         print("[TFP] Running self-verification across core protocol primitives...")

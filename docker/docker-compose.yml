@@ -39,6 +39,19 @@ services:
         ipv4_address: 172.28.0.20
     restart: unless-stopped
 
+  tfp-scholar:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.scholar
+    container_name: tfp-scholar
+    hostname: tfp-scholar
+    cap_add:
+      - NET_ADMIN
+    networks:
+      tfp-mesh-net:
+        ipv4_address: 172.28.0.30
+    restart: unless-stopped
+
 networks:
   tfp-mesh-net:
     name: tfp-mesh-net
