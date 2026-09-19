@@ -353,8 +353,11 @@ Initiate active core rewarming with warmed IV saline at 39 degrees C.
         def log_message(self, format, *args):
             pass
 
-    socketserver.TCPServer.allow_reuse_address = True
-    server = socketserver.TCPServer(("127.0.0.1", port), VisualizerHandler)
+    class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
+        daemon_threads = True
+        allow_reuse_address = True
+
+    server = ThreadedTCPServer(("127.0.0.1", port), VisualizerHandler)
     actual_port = server.server_address[1]
     return server, actual_port
 

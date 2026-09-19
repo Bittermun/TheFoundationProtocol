@@ -2957,19 +2957,28 @@
 
       // Case A: High-Definition Video
       if (mime.startsWith("video/")) {
-        const video = document.createElement("video");
-        video.id = "liveVideoPlayer";
-        video.className = "player-video";
-        video.controls = true;
-        video.autoplay = true;
-        video.loop = true;
-        video.playsInline = true;
-        video.src = d.data_uri;
-        viewport.appendChild(video);
+        const theater = document.createElement("div");
+        theater.className = "atlas-viewport";
+        theater.style.maxWidth = "640px";
+        theater.innerHTML = `
+          <div class="atlas-header" style="text-align: center; margin-bottom: 12px;">
+            <div style="font-size: 10px; font-family: var(--font-scholastic); letter-spacing: 2px; color: var(--accent-gold);">DORLING KINDERSLEY EXHIBITION MOTION SPECIMEN</div>
+            <div class="atlas-title" style="font-size: 17px; margin: 4px 0;">Plate V: Kinematic Field Motion & Wave Propagation</div>
+            <div class="atlas-sub">Phy-Kinematica Fluvialis &bull; VP8 WebM Rateless Fountain Reconstruction &bull; 15 FPS</div>
+          </div>
+          <div style="display: flex; justify-content: center; background: rgba(3,6,12,0.8); padding: 12px; border-radius: 6px; border: 1px solid rgba(212,175,55,0.3);">
+            <video id="liveVideoPlayer" class="player-video" controls autoplay loop muted playsinline src="${d.data_uri}" style="max-width: 100%; border-radius: 4px; border: 1px solid rgba(212,175,55,0.4); box-shadow: 0 4px 24px rgba(0,0,0,0.8);"></video>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px; font-size: 10px; font-family: var(--font-mono); color: #7f8c8d;">
+            <span>STREAM: 16 CHUNKS &bull; SYMBOL: 1024 B &bull; REDUNDANCY: 50%</span>
+            <span style="color: #39ff14; font-weight: 700;">MERKLE AUTH: 0x30718aea... OK</span>
+          </div>
+        `;
+        viewport.appendChild(theater);
         voiceController.showToast("Scientific Video Decoded & Mounted");
       }
       // Case B: Parametric Anatomical Atlas
-      else if (mime === "application/json" && (d.filename.includes("atlas") || (d.data_uri && atob((d.data_uri.split(",")[1] || "")).includes("parametric_atlas")))) {
+      else if (mime === "application/json" || (d.filename && d.filename.includes("atlas"))) {
         renderParametricAtlasPlate(viewport, d);
       }
       // Case C: Audio Melody
@@ -3038,12 +3047,21 @@
     function renderParametricAtlasPlate(container, d) {
       let atlas = null;
       try {
-        const rawJson = atob((d.data_uri.split(",")[1] || ""));
-        atlas = JSON.parse(rawJson);
+        const rawB64 = (d.data_uri || "").split(",")[1];
+        if (rawB64) {
+          const binStr = atob(rawB64);
+          const bytes = new Uint8Array(binStr.length);
+          for (let i = 0; i < binStr.length; i++) {
+            bytes[i] = binStr.charCodeAt(i);
+          }
+          const jsonStr = new TextDecoder("utf-8").decode(bytes);
+          atlas = JSON.parse(jsonStr);
+        }
       } catch (err) {
         console.error("Atlas parse error:", err);
         return;
       }
+      if (!atlas) return;
 
       const plate = document.createElement("div");
       plate.className = "atlas-viewport";

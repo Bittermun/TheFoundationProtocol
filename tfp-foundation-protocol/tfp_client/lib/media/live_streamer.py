@@ -758,6 +758,11 @@ window.addEventListener("keydown", (e) => {
         """
         import zlib
 
+        # Try loading pre-rendered cinematic specimen WebM from static dir
+        static_webm = Path(__file__).resolve().parent.parent.parent.parent / "tfp_demo" / "static" / "sample_motion.webm"
+        if static_webm.exists():
+            return static_webm.read_bytes(), "field_wave_demo.webm", "video/webm"
+
         # Standard VP8 WebM test stream compressed with zlib (10,880 bytes decompressed)
         b64_comp = (
             "eNrt2ltIU3EcwPHfmXMXgjaXU5Ngs5fQxEsSSUUdp1GRw2BD96Yrlw3dxW2WXdk5Ojs9RL6aXawZ"
