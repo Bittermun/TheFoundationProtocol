@@ -61,10 +61,13 @@ def main():
     # Radio Frame
     radio_p = subparsers.add_parser("radio-frame", help="Fragment file into physical radio MTU frames")
     radio_p.add_argument("file_path", help="Path to file to fragment")
-    radio_p.add_argument("--mtu", type=int, default=200, help="Physical radio MTU (default: 200)")
-
     # Mesh Sim
     subparsers.add_parser("mesh-sim", help="Run offline community Wi-Fi mesh simulation")
+
+    # Visualize
+    vis_p = subparsers.add_parser("visualize", help="Launch interactive protocol visualizer in browser")
+    vis_p.add_argument("--port", type=int, default=8080, help="Port to serve visualizer (default: 8080)")
+    vis_p.add_argument("--no-browser", action="store_true", help="Do not auto-open browser")
 
     # Verify
     subparsers.add_parser("verify", help="Run automated self-verification test battery")
@@ -144,6 +147,49 @@ def main():
     elif args.command == "mesh-sim":
         from scripts.run_mesh_simulation import run_simulation
         asyncio.run(run_simulation())
+
+    elif args.command == "visualize":
+        import http.server
+        import socketserver
+        import webbrowser
+
+        static_dir = _tfp_root / "tfp_demo" / "static"
+        html_file = static_dir / "visualizer.html"
+        if not html_file.exists():
+            print(f"Error: Visualizer HTML not found at {html_file}", file=sys.stderr)
+            sys.exit(1)
+
+        class VisualizerHandler(http.server.SimpleHTTPRequestHandler):
+            def __init__(self, *a, **kw):
+                super().__init__(*a, directory=str(static_dir), **kw)
+
+            def do_GET(self):
+                if self.path in ("/", "/visualizer", "/index.html"):
+                    self.path = "/visualizer.html"
+                return super().do_GET()
+
+            def log_message(self, format, *args):
+                pass
+
+        port = args.port
+        print("=" * 65)
+        print("  THE FOUNDATION PROTOCOL: MATHEMATICAL STREAM VISUALIZER")
+        print("=" * 65)
+        print(f"  Local Dashboard: http://localhost:{port}/visualizer.html")
+        print("  Canvas Render  : 60 FPS GPU-Accelerated 2D Canvas")
+        print("  Simulation     : FastCDC | Merkle Tree | RaptorQ GF(2) | Slides")
+        print("  Press Ctrl+C to terminate.")
+        print("=" * 65)
+
+        if not args.no_browser:
+            webbrowser.open(f"http://localhost:{port}/visualizer.html")
+
+        socketserver.TCPServer.allow_reuse_address = True
+        with socketserver.TCPServer(("127.0.0.1", port), VisualizerHandler) as httpd:
+            try:
+                httpd.serve_forever()
+            except KeyboardInterrupt:
+                print("\n[TFP] Visualizer server stopped.")
 
     elif args.command == "verify":
         print("[TFP] Running self-verification across core protocol primitives...")

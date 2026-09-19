@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Foundation Protocol — Mathematical Stream Visualizer</title>
+  <style>
+    :root {
+      --bg-dark: #090d16;
+      --bg-card: rgba(18, 24, 38, 0.85);
+      --border-color: rgba(64, 86, 128, 0.35);
+      --accent-cyan: #00f0ff;
+      --accent-emerald: #00ffa3;
+      --accent-red: #ff3366;
+      --accent-yellow: #ffcc00;
+      --accent-purple: #b55fe6;
+      --text-main: #f0f4fc;
+      --text-muted: #8a9bb8;
+      --font-mono: "SF Mono", "Fira Code", "Consolas", monospace;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+      background-image: 
+        radial-gradient(circle at 15% 20%, rgba(0, 240, 255, 0.05) 0%, transparent 40%),
+        radial-gradient(circle at 85% 80%, rgba(181, 95, 230, 0.05) 0%, transparent 40%);
+    }
+
+    header {
+      padding: 16px 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border-color);
+      background: rgba(9, 13, 22, 0.9);
+      backdrop-filter: blur(12px);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-badge {
+      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+      color: #000;
+      font-weight: 800;
+      font-family: var(--font-mono);
+      font-size: 14px;
+      padding: 6px 10px;
+      border-radius: 6px;
+      letter-spacing: 1px;
+    }
+
+    .brand h1 {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+
+    .brand span {
+      color: var(--text-muted);
+      font-size: 13px;
+      margin-left: 6px;
+      font-weight: 400;
+    }
+
+    .controls-bar {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .ctrl-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .ctrl-group label {
+      font-family: var(--font-mono);
+      font-size: 12px;
+    }
+
+    input[type="range"] {
+      appearance: none;
+      background: rgba(255, 255, 255, 0.1);
+      height: 6px;
+      border-radius: 3px;
+      outline: none;
+      width: 130px;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--accent-cyan);
+      cursor: pointer;
+      box-shadow: 0 0 10px var(--accent-cyan);
+    }
+
+    .btn {
+      background: rgba(0, 240, 255, 0.15);
+      border: 1px solid var(--accent-cyan);
+      color: var(--accent-cyan);
+      padding: 7px 16px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-family: var(--font-mono);
+    }
+
+    .btn:hover {
+      background: var(--accent-cyan);
+      color: #000;
+      box-shadow: 0 0 14px rgba(0, 240, 255, 0.4);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.15);
+      color: #fff;
+      box-shadow: none;
+    }
+
+    main {
+      padding: 24px 28px;
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: auto auto;
+      gap: 20px;
+      max-width: 1600px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 20px;
+      backdrop-filter: blur(16px);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      padding-bottom: 12px;
+    }
+
+    .card-title {
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      color: var(--accent-cyan);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--font-mono);
+    }
+
+    .status-pill {
+      font-size: 11px;
+      font-family: var(--font-mono);
+      padding: 3px 8px;
+      border-radius: 12px;
+      background: rgba(0, 255, 163, 0.15);
+      color: var(--accent-emerald);
+      border: 1px solid rgba(0, 255, 163, 0.3);
+    }
+
+    canvas {
+      width: 100%;
+      height: 230px;
+      background: rgba(6, 10, 18, 0.6);
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.04);
+      display: block;
+    }
+
+    /* FastCDC Panel */
+    .cdc-metrics {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      font-family: var(--font-mono);
+      color: var(--text-muted);
+    }
+
+    .cdc-metrics span b {
+      color: var(--text-main);
+    }
+
+    /* Matrix Solver Panel */
+    .solver-grid {
+      display: flex;
+      gap: 16px;
+      align-items: stretch;
+      flex: 1;
+    }
+
+    .rank-display {
+      width: 140px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      padding: 12px;
+      text-align: center;
+    }
+
+    .rank-number {
+      font-family: var(--font-mono);
+      font-size: 32px;
+      font-weight: 800;
+      color: var(--accent-emerald);
+    }
+
+    .rank-label {
+      font-size: 11px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-top: 4px;
+    }
+
+    /* Presentation Screen Canvas */
+    .presentation-card {
+      grid-column: 1 / -1;
+      min-height: 280px;
+    }
+
+    .slide-viewport {
+      background: linear-gradient(135deg, rgba(14, 20, 32, 0.95), rgba(8, 12, 20, 0.95));
+      border: 1px solid rgba(0, 240, 255, 0.2);
+      border-radius: 10px;
+      padding: 24px 32px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 240px;
+      position: relative;
+    }
+
+    .slide-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 4px;
+      font-weight: 800;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      letter-spacing: 1px;
+      width: fit-content;
+      margin-bottom: 12px;
+    }
+
+    .badge-red {
+      background: rgba(255, 51, 102, 0.2);
+      border: 1px solid var(--accent-red);
+      color: var(--accent-red);
+    }
+
+    .badge-green {
+      background: rgba(0, 255, 163, 0.2);
+      border: 1px solid var(--accent-emerald);
+      color: var(--accent-emerald);
+    }
+
+    .slide-heading {
+      font-size: 22px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 12px;
+    }
+
+    .slide-bullets {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      font-size: 14px;
+      color: var(--text-main);
+    }
+
+    .slide-bullets li::before {
+      content: "▹";
+      color: var(--accent-cyan);
+      font-weight: bold;
+      display: inline-block;
+      width: 1.2em;
+    }
+
+    .narration-box {
+      margin-top: 16px;
+      padding: 10px 14px;
+      background: rgba(0, 240, 255, 0.06);
+      border-left: 3px solid var(--accent-cyan);
+      border-radius: 0 6px 6px 0;
+      font-size: 13px;
+      font-style: italic;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .narration-icon {
+      color: var(--accent-cyan);
+      font-style: normal;
+      font-weight: bold;
+    }
+
+    footer {
+      padding: 14px 28px;
+      font-size: 12px;
+      color: var(--text-muted);
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: var(--font-mono);
+    }
+
+    @media (max-width: 1024px) {
+      main {
+        grid-template-columns: 1fr;
+      }
+      .presentation-card {
+        grid-column: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <div class="logo-badge">TFP v4.0</div>
+      <h1>The Foundation Protocol <span>Mathematical Stream Visualizer</span></h1>
+    </div>
+    <div class="controls-bar">
+      <div class="ctrl-group">
+        <label for="lossSlider">LOSS RATE: <span id="lossValue">25%</span></label>
+        <input type="range" id="lossSlider" min="0" max="50" value="25" step="5">
+      </div>
+      <div class="ctrl-group">
+        <button id="btnPlayPause" class="btn">PAUSE</button>
+        <button id="btnReset" class="btn btn-secondary">RESET</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+
+    <!-- Panel 1: FastCDC Rolling Hash Ribbon -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title"><span>01</span> FASTCDC 64-BIT NORMALIZED CHUNKING</div>
+        <div class="status-pill" id="cdcChunksFound">4 CHUNKS</div>
+      </div>
+      <canvas id="cdcCanvas"></canvas>
+      <div class="cdc-metrics">
+        <span>Min: <b>128B</b> | Target: <b>256B</b> | Max: <b>512B</b></span>
+        <span>Deduplication Ratio: <b id="dedupRatio">11.9x</b></span>
+      </div>
+    </div>
+
+    <!-- Panel 2: Merkle Cryptographic Proof DAG -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title"><span>02</span> SHA3-256 SOVEREIGN MERKLE TREE</div>
+        <div class="status-pill" id="merkleStatus">ROOT VERIFIED</div>
+      </div>
+      <canvas id="merkleCanvas"></canvas>
+      <div class="cdc-metrics">
+        <span>Root Hash: <b id="rootHashText">0x8f4c...3e1a</b></span>
+        <span>Audit Path: <b style="color:var(--accent-emerald);">Constant-Time</b></span>
+      </div>
+    </div>
+
+    <!-- Panel 3: Fountain Droplet Rain & Loss Channel -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title"><span>03</span> RATELESS FOUNTAIN LOSS CHANNEL (LUBY/RAPTORQ)</div>
+        <div class="status-pill" id="lossMetricText">DROPPED: 0 / 0</div>
+      </div>
+      <canvas id="fountainCanvas"></canvas>
+      <div class="cdc-metrics">
+        <span>Transmitted: <b id="packetsSent">0</b></span>
+        <span>Survived: <b id="packetsSurvived" style="color:var(--accent-cyan);">0</b></span>
+        <span>Lost: <b id="packetsLost" style="color:var(--accent-red);">0</b></span>
+      </div>
+    </div>
+
+    <!-- Panel 4: GF(2) Matrix Solver -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title"><span>04</span> GALOIS FIELD GF(2) GAUSSIAN ELIMINATION</div>
+        <div class="status-pill" id="matrixStatus">ACCUMULATING</div>
+      </div>
+      <div class="solver-grid">
+        <canvas id="matrixCanvas" style="flex:1;"></canvas>
+        <div class="rank-display">
+          <div class="rank-number" id="rankNumber">0/20</div>
+          <div class="rank-label">Matrix Rank K</div>
+        </div>
+      </div>
+      <div class="cdc-metrics">
+        <span>Soliton Distribution: <b style="color:var(--accent-purple);">Robust</b></span>
+        <span>Byzantine Rejection: <b style="color:var(--accent-emerald);">O(1) HMAC Active</b></span>
+      </div>
+    </div>
+
+    <!-- Panel 5: Semantic Lexicon Template Presentation Screen -->
+    <div class="card presentation-card">
+      <div class="card-header">
+        <div class="card-title"><span>05</span> LOCAL SEMANTIC RECONSTRUCTION (1.5 KB AIR STREAM)</div>
+        <div class="status-pill" id="slideStatus">SYNCHRONIZED</div>
+      </div>
+      <div class="slide-viewport" id="slideViewport">
+        <div>
+          <div class="slide-badge badge-red" id="slideBadge">TRIAGE ALERT: IMMEDIATE [RED]</div>
+          <h2 class="slide-heading" id="slideHeading">Severe Hypothermia Secondary to Water Immersion</h2>
+          <ul class="slide-bullets" id="slideBullets">
+            <li>Patient vitals: Pulse 118 bpm, BP 85/50 mmHg, SpO2 91%.</li>
+            <li>Initiate immediate active core rewarming with warmed IV saline (39°C).</li>
+            <li>Administer oral rehydration solution: 6 tsp sugar + 0.5 tsp salt per 1L boiled water.</li>
+            <li>Monitor core temperature continuous ECG for ventricular arrhythmias.</li>
+          </ul>
+        </div>
+        <div class="narration-box" id="slideNarration">
+          <span class="narration-icon">🔊 VOICE:</span>
+          <span id="narrationText">"Initiate active core rewarming immediately. Prepare warmed saline and monitor vitals closely."</span>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <footer>
+    <span>The Foundation Protocol v4.0 — Autonomous Local Distribution Engine</span>
+    <span>Zero External Dependencies | Pure Immediate-Mode Canvas</span>
+  </footer>
+
+  <script>
+    // ==========================================
+    // Interactive State & Mathematical Engine
+    // ==========================================
+    const state = {
+      isPlaying: true,
+      lossRate: 0.25,
+      packetsSent: 0,
+      packetsSurvived: 0,
+      packetsLost: 0,
+      k: 20,
+      rank: 0,
+      matrixRows: [],
+      droplets: [],
+      cdcOffset: 0,
+      currentSlideIdx: 0,
+    };
+
+    // Presentation Slides Data (Simulating decompressed PresentationManifest)
+    const presentationSlides = [
+      {
+        badge: "TRIAGE ALERT: IMMEDIATE [RED]",
+        badgeClass: "badge-red",
+        title: "Severe Hypothermia Secondary to Water Immersion",
+        bullets: [
+          "Patient vitals: Pulse 118 bpm, BP 85/50 mmHg, SpO2 91%.",
+          "Initiate immediate active core rewarming with warmed IV saline (39°C).",
+          "Administer oral rehydration solution: 6 tsp sugar + 0.5 tsp salt per 1L boiled water.",
+          "Continuous ECG monitoring for ventricular fibrillation prevention."
+        ],
+        narration: "Initiate active core rewarming immediately. Prepare warmed saline and monitor vitals closely."
+      },
+      {
+        badge: "EMERGENCY PROTOCOL: SANITATION [GREEN]",
+        badgeClass: "badge-green",
+        title: "Field Water Purification & Disinfection",
+        bullets: [
+          "Boil rolling boil: 1 full minute at sea level, 3 minutes above 2000m.",
+          "Chemical disinfection: 2 drops 5% unscented household bleach per liter.",
+          "Flocculation: Allow turbidity to settle 30 minutes before filtering.",
+          "Clean storage: Store purified water in covered narrow-mouth containers."
+        ],
+        narration: "For water purification, maintain a vigorous rolling boil for one minute before cooling."
+      }
+    ];
+
+    // ==========================================
+    // Canvas Renderers
+    // ==========================================
+    const cdcCanvas = document.getElementById("cdcCanvas");
+    const merkleCanvas = document.getElementById("merkleCanvas");
+    const fountainCanvas = document.getElementById("fountainCanvas");
+    const matrixCanvas = document.getElementById("matrixCanvas");
+
+    function resizeCanvas(c) {
+      const rect = c.getBoundingClientRect();
+      c.width = rect.width * window.devicePixelRatio;
+      c.height = rect.height * window.devicePixelRatio;
+      const ctx = c.getContext("2d");
+      ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+      return { ctx, w: rect.width, h: rect.height };
+    }
+
+    // 1. Draw FastCDC Byte Ribbon
+    function renderCDC() {
+      const { ctx, w, h } = resizeCanvas(cdcCanvas);
+      ctx.fillStyle = "#060a12";
+      ctx.fillRect(0, 0, w, h);
+
+      const blockWidth = 6;
+      const totalBlocks = Math.floor((w - 40) / (blockWidth + 2));
+      const cuts = [14, 32, 48, 62];
+
+      state.cdcOffset = (state.cdcOffset + 0.5) % totalBlocks;
+
+      for (let i = 0; i < totalBlocks; i++) {
+        const x = 20 + i * (blockWidth + 2);
+        const isCut = cuts.includes(i);
+
+        if (isCut) {
+          ctx.fillStyle = "rgba(0, 240, 255, 0.9)";
+          ctx.fillRect(x - 1, 30, blockWidth + 2, h - 60);
+          ctx.fillStyle = "#00ffa3";
+          ctx.font = "10px monospace";
+          ctx.fillText(`CUT`, x - 6, 22);
+        } else {
+          const brightness = Math.sin((i + state.cdcOffset) * 0.3) * 0.3 + 0.5;
+          ctx.fillStyle = `rgba(0, 150, 255, ${brightness * 0.4})`;
+          ctx.fillRect(x, 40, blockWidth, h - 80);
+        }
+      }
+
+      // Rolling Gear Hash Indicator
+      ctx.strokeStyle = "rgba(255, 204, 0, 0.7)";
+      ctx.lineWidth = 2;
+      const scanX = 20 + ((state.cdcOffset * 4) % (w - 40));
+      ctx.beginPath();
+      ctx.moveTo(scanX, 28);
+      ctx.lineTo(scanX, h - 28);
+      ctx.stroke();
+    }
+
+    // 2. Draw Merkle Cryptographic Tree
+    function renderMerkle() {
+      const { ctx, w, h } = resizeCanvas(merkleCanvas);
+      ctx.fillStyle = "#060a12";
+      ctx.fillRect(0, 0, w, h);
+
+      // Simple 3-level binary tree
+      const levels = [
+        [{ x: w / 2, y: 35, verified: true, text: "ROOT" }],
+        [
+          { x: w / 4, y: 100, verified: true, text: "H(0..1)" },
+          { x: (3 * w) / 4, y: 100, verified: true, text: "H(2..3)" }
+        ],
+        [
+          { x: w / 8, y: 175, verified: true, text: "C0" },
+          { x: (3 * w) / 8, y: 175, verified: true, text: "C1" },
+          { x: (5 * w) / 8, y: 175, verified: true, text: "C2" },
+          { x: (7 * w) / 8, y: 175, verified: true, text: "C3" }
+        ]
+      ];
+
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = "rgba(0, 255, 163, 0.4)";
+
+      // Draw branch connections
+      for (let l = 0; l < levels.length - 1; l++) {
+        for (let i = 0; i < levels[l].length; i++) {
+          const parent = levels[l][i];
+          const leftChild = levels[l + 1][i * 2];
+          const rightChild = levels[l + 1][i * 2 + 1];
+
+          ctx.beginPath();
+          ctx.moveTo(parent.x, parent.y);
+          ctx.lineTo(leftChild.x, leftChild.y);
+          ctx.stroke();
+
+          ctx.beginPath();
+          ctx.moveTo(parent.x, parent.y);
+          ctx.lineTo(rightChild.x, rightChild.y);
+          ctx.stroke();
+        }
+      }
+
+      // Draw nodes
+      for (const level of levels) {
+        for (const node of level) {
+          ctx.fillStyle = "rgba(0, 255, 163, 0.2)";
+          ctx.strokeStyle = "#00ffa3";
+          ctx.beginPath();
+          ctx.arc(node.x, node.y, 16, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+
+          ctx.fillStyle = "#fff";
+          ctx.font = "9px monospace";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(node.text, node.x, node.y);
+        }
+      }
+    }
+
+    // 3. Draw Fountain Droplet Rain & Loss Channel
+    function updateAndRenderFountain() {
+      const { ctx, w, h } = resizeCanvas(fountainCanvas);
+      ctx.fillStyle = "#060a12";
+      ctx.fillRect(0, 0, w, h);
+
+      // Emit new droplet periodically
+      if (state.isPlaying && Math.random() < 0.35) {
+        state.packetsSent++;
+        const isDropped = Math.random() < state.lossRate;
+        if (isDropped) {
+          state.packetsLost++;
+        } else {
+          state.packetsSurvived++;
+          if (state.rank < state.k) {
+            state.rank++;
+            // Add matrix row
+            const row = [];
+            for (let c = 0; c < state.k; c++) {
+              row.push(Math.random() < 0.3 ? 1 : 0);
+            }
+            state.matrixRows.push(row);
+          }
+        }
+
+        state.droplets.push({
+          x: 20,
+          y: Math.random() * (h - 40) + 20,
+          vx: Math.random() * 2 + 3,
+          isDropped,
+          seed: state.packetsSent,
+          progress: 0,
+        });
+      }
+
+      // Update and draw droplets
+      for (let i = state.droplets.length - 1; i >= 0; i--) {
+        const d = state.droplets[i];
+        d.x += d.vx;
+
+        // Visual distinction between surviving and dropped
+        if (d.isDropped && d.x > w * 0.5) {
+          ctx.fillStyle = "rgba(255, 51, 102, 0.8)";
+          ctx.font = "12px monospace";
+          ctx.fillText("✕", d.x, d.y);
+        } else {
+          ctx.fillStyle = d.isDropped ? "rgba(255, 51, 102, 0.5)" : "rgba(0, 240, 255, 0.9)";
+          ctx.beginPath();
+          ctx.arc(d.x, d.y, 4, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        if (d.x > w) {
+          state.droplets.splice(i, 1);
+        }
+      }
+
+      // Update DOM Counters
+      document.getElementById("packetsSent").innerText = state.packetsSent;
+      document.getElementById("packetsSurvived").innerText = state.packetsSurvived;
+      document.getElementById("packetsLost").innerText = state.packetsLost;
+      document.getElementById("lossMetricText").innerText = 
+        `DROPPED: ${state.packetsLost} / ${state.packetsSent}`;
+    }
+
+    // 4. Draw GF(2) Matrix Solver
+    function renderMatrix() {
+      const { ctx, w, h } = resizeCanvas(matrixCanvas);
+      ctx.fillStyle = "#060a12";
+      ctx.fillRect(0, 0, w, h);
+
+      const rows = state.matrixRows.slice(-15);
+      const cols = state.k;
+      const cellW = (w - 20) / cols;
+      const cellH = (h - 20) / 15;
+
+      for (let r = 0; r < rows.length; r++) {
+        for (let c = 0; c < cols; c++) {
+          const val = rows[r][c];
+          const x = 10 + c * cellW;
+          const y = 10 + r * cellH;
+
+          if (val === 1) {
+            ctx.fillStyle = (r === c) ? "#00ffa3" : "rgba(0, 240, 255, 0.6)";
+          } else {
+            ctx.fillStyle = "rgba(255, 255, 255, 0.05)";
+          }
+          ctx.fillRect(x, y, cellW - 1, cellH - 1);
+        }
+      }
+
+      // Update Rank
+      document.getElementById("rankNumber").innerText = `${state.rank}/${state.k}`;
+      const statusEl = document.getElementById("matrixStatus");
+      if (state.rank >= state.k) {
+        statusEl.innerText = "RANK K REACHED (SOLVED)";
+        statusEl.style.color = "var(--accent-emerald)";
+      } else {
+        statusEl.innerText = "ELIMINATING GF(2)";
+        statusEl.style.color = "var(--accent-cyan)";
+      }
+    }
+
+    // Slide Swapping when rank reached
+    function checkSlideProgression() {
+      if (state.rank >= state.k) {
+        // Switch slide after reaching full rank
+        state.rank = 0;
+        state.matrixRows = [];
+        state.currentSlideIdx = (state.currentSlideIdx + 1) % presentationSlides.length;
+        const s = presentationSlides[state.currentSlideIdx];
+
+        const badgeEl = document.getElementById("slideBadge");
+        badgeEl.className = `slide-badge ${s.badgeClass}`;
+        badgeEl.innerText = s.badge;
+
+        document.getElementById("slideHeading").innerText = s.title;
+
+        const bulletsEl = document.getElementById("slideBullets");
+        bulletsEl.innerHTML = s.bullets.map(b => `<li>${b}</li>`).join("");
+
+        document.getElementById("narrationText").innerText = `"${s.narration}"`;
+      }
+    }
+
+    // Main 60 FPS Animation Loop
+    function animate() {
+      renderCDC();
+      renderMerkle();
+      updateAndRenderFountain();
+      renderMatrix();
+      checkSlideProgression();
+      requestAnimationFrame(animate);
+    }
+
+    // Controls
+    const lossSlider = document.getElementById("lossSlider");
+    const lossValue = document.getElementById("lossValue");
+    lossSlider.addEventListener("input", (e) => {
+      state.lossRate = parseInt(e.target.value) / 100.0;
+      lossValue.innerText = `${e.target.value}%`;
+    });
+
+    const btnPlayPause = document.getElementById("btnPlayPause");
+    btnPlayPause.addEventListener("click", () => {
+      state.isPlaying = !state.isPlaying;
+      btnPlayPause.innerText = state.isPlaying ? "PAUSE" : "RESUME";
+    });
+
+    const btnReset = document.getElementById("btnReset");
+    btnReset.addEventListener("click", () => {
+      state.packetsSent = 0;
+      state.packetsSurvived = 0;
+      state.packetsLost = 0;
+      state.rank = 0;
+      state.matrixRows = [];
+      state.droplets = [];
+    });
+
+    // Start 60fps loop
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>
