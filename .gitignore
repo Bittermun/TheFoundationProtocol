@@ -28,6 +28,7 @@ output/playwright/
 htmlcov/
 *.pytest_results.xml
 .tox/
+scratch/
 
 # Editor / IDE
 .vscode/
