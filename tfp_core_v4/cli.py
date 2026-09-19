@@ -236,6 +236,34 @@ Initiate active core rewarming with warmed IV saline at 39 degrees C.
                 self._send_json({"ok": True, "status": "streaming_sample_audio"})
                 return
 
+            if self.path == "/api/sample-video":
+                def run_video():
+                    data, fname, mtype = live_engine.generate_sample_video()
+                    live_engine.transmit_file_bytes(
+                        data,
+                        filename=fname,
+                        media_type=mtype,
+                        loss_rate=active_loss_rate[0],
+                        pace_delay=0.02,
+                    )
+                threading.Thread(target=run_video, daemon=True).start()
+                self._send_json({"ok": True, "status": "streaming_sample_video"})
+                return
+
+            if self.path == "/api/sample-atlas":
+                def run_atlas():
+                    data, fname, mtype = live_engine.generate_parametric_atlas_payload()
+                    live_engine.transmit_file_bytes(
+                        data,
+                        filename=fname,
+                        media_type=mtype,
+                        loss_rate=active_loss_rate[0],
+                        pace_delay=0.02,
+                    )
+                threading.Thread(target=run_atlas, daemon=True).start()
+                self._send_json({"ok": True, "status": "streaming_sample_atlas"})
+                return
+
             if self.path == "/api/transmit-file":
                 content_length = int(self.headers.get("Content-Length", 0))
                 if content_length <= 0:

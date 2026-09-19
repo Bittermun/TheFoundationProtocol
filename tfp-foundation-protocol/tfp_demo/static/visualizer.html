@@ -6,43 +6,49 @@
   <title>The Foundation Protocol — Mathematical Stream Visualizer & Scholastic Codex</title>
   <style>
     :root {
-      /* Default Cyber-Mesh Tokens */
-      --bg-dark: #090d16;
-      --bg-card: rgba(18, 24, 38, 0.85);
-      --border-color: rgba(64, 86, 128, 0.35);
+      /* Encarta & Utopian Scholastic Tokens */
+      --bg-dark: #060913;
+      --bg-card: rgba(11, 16, 28, 0.94);
+      --border-color: rgba(212, 175, 55, 0.42);
       --accent-cyan: #00f0ff;
+      --accent-gold: #d4af37;
+      --accent-burnished: #f3c248;
       --accent-emerald: #00ffa3;
       --accent-red: #ff3366;
       --accent-yellow: #ffcc00;
       --accent-purple: #b55fe6;
-      --text-main: #f0f4fc;
-      --text-muted: #8a9bb8;
-      --font-mono: "SF Mono", "Fira Code", "Consolas", monospace;
-      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      --font-scholastic: "Cinzel", "Baskerville", "Palatino Linotype", "Georgia", serif;
-      --font-body: "Palatino", "Book Antiqua", "Georgia", serif;
-      --gold-manuscript: #d4af37;
-      --gold-burnished: #f3c248;
-    }
-
-    /* Encarta Utopian Scholastic Mode */
-    body.theme-scholastic {
-      --bg-dark: #060913;
-      --bg-card: rgba(11, 16, 28, 0.94);
-      --border-color: rgba(212, 175, 55, 0.42);
-      --accent-cyan: #d4af37;
-      --accent-emerald: #00ffa3;
-      --accent-red: #e0475b;
-      --accent-yellow: #f3c248;
-      --accent-purple: #9b72cf;
       --text-main: #f6f1df;
       --text-muted: #a89f8b;
-      --font-sans: var(--font-body);
-      background-color: var(--bg-dark);
-      background-image:
-        radial-gradient(circle at 12% 16%, rgba(212, 175, 55, 0.09) 0%, transparent 45%),
-        radial-gradient(circle at 88% 84%, rgba(0, 240, 255, 0.05) 0%, transparent 45%),
-        radial-gradient(circle at 50% 50%, rgba(155, 114, 207, 0.04) 0%, transparent 60%);
+      --font-mono: "SF Mono", "Fira Code", "Consolas", monospace;
+      --font-sans: "Palatino", "Book Antiqua", "Georgia", serif;
+      --font-scholastic: "Cinzel", "Baskerville", "Palatino Linotype", "Georgia", serif;
+      --font-blueprint: "SF Mono", "Fira Code", "Consolas", monospace;
+    }
+
+    /* Cyber-Mesh Theme */
+    body.theme-cyber {
+      --bg-dark: #090d16;
+      --bg-card: rgba(18, 24, 38, 0.88);
+      --border-color: rgba(64, 86, 128, 0.35);
+      --accent-gold: #00f0ff;
+      --accent-burnished: #00ffa3;
+      --text-main: #f0f4fc;
+      --text-muted: #8a9bb8;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    /* X-Ray Blueprint Mode Overlay */
+    body.mode-xray {
+      --bg-dark: #030b17;
+      --bg-card: rgba(5, 18, 36, 0.94);
+      --border-color: rgba(0, 240, 255, 0.55);
+      --text-main: #b8f2ff;
+      --text-muted: #5e8da8;
+      background-color: #030b17 !important;
+      background-image: 
+        linear-gradient(rgba(0, 240, 255, 0.08) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 240, 255, 0.08) 1px, transparent 1px) !important;
+      background-size: 24px 24px !important;
     }
 
     * {
@@ -60,27 +66,23 @@
       display: flex;
       flex-direction: column;
       overflow-x: hidden;
-      background-image: 
-        radial-gradient(circle at 15% 20%, rgba(0, 240, 255, 0.05) 0%, transparent 40%),
-        radial-gradient(circle at 85% 80%, rgba(181, 95, 230, 0.05) 0%, transparent 40%);
+      background-image:
+        radial-gradient(circle at 12% 16%, rgba(212, 175, 55, 0.09) 0%, transparent 45%),
+        radial-gradient(circle at 88% 84%, rgba(0, 240, 255, 0.05) 0%, transparent 45%),
+        radial-gradient(circle at 50% 50%, rgba(155, 114, 207, 0.04) 0%, transparent 60%);
     }
 
     header {
-      padding: 16px 28px;
+      padding: 14px 24px;
       display: flex;
       align-items: center;
       justify-content: space-between;
       border-bottom: 1px solid var(--border-color);
-      background: rgba(9, 13, 22, 0.92);
+      background: rgba(6, 9, 19, 0.95);
       backdrop-filter: blur(12px);
       position: sticky;
       top: 0;
       z-index: 100;
-    }
-
-    body.theme-scholastic header {
-      background: rgba(6, 9, 19, 0.95);
-      border-bottom: 1px solid rgba(212, 175, 55, 0.45);
       box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
     }
 
@@ -91,41 +93,42 @@
     }
 
     .logo-badge {
-      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
-      color: #000;
-      font-weight: 800;
-      font-family: var(--font-mono);
-      font-size: 14px;
-      padding: 6px 10px;
-      border-radius: 6px;
-      letter-spacing: 1px;
-    }
-
-    body.theme-scholastic .logo-badge {
       background: linear-gradient(135deg, #d4af37, #f3c248);
       color: #060913;
       font-family: var(--font-scholastic);
       font-weight: 800;
       letter-spacing: 1.5px;
+      font-size: 13px;
+      padding: 6px 12px;
+      border-radius: 4px;
       border: 1px solid #ffe885;
       box-shadow: 0 0 12px rgba(212, 175, 55, 0.4);
     }
 
-    .brand h1 {
-      font-size: 18px;
-      font-weight: 700;
-      letter-spacing: 0.5px;
+    body.mode-xray .logo-badge {
+      background: linear-gradient(135deg, #00f0ff, #0088ff);
+      color: #030b17;
+      border: 1px solid #7defff;
+      box-shadow: 0 0 16px rgba(0, 240, 255, 0.6);
+      font-family: var(--font-mono);
     }
 
-    body.theme-scholastic .brand h1 {
-      font-family: var(--font-scholastic);
+    .brand h1 {
+      font-size: 17px;
+      font-weight: 700;
       letter-spacing: 1px;
+      font-family: var(--font-scholastic);
       color: #f7e7b4;
+    }
+
+    body.mode-xray .brand h1 {
+      color: #00f0ff;
+      font-family: var(--font-mono);
     }
 
     .brand span {
       color: var(--text-muted);
-      font-size: 13px;
+      font-size: 12px;
       margin-left: 6px;
       font-weight: 400;
     }
@@ -133,30 +136,31 @@
     .controls-bar {
       display: flex;
       align-items: center;
-      gap: 16px;
+      gap: 10px;
       flex-wrap: wrap;
     }
 
     .ctrl-group {
       display: flex;
       align-items: center;
-      gap: 10px;
-      font-size: 13px;
+      gap: 8px;
+      font-size: 12px;
       color: var(--text-muted);
     }
 
     .ctrl-group label {
-      font-family: var(--font-mono);
-      font-size: 12px;
+      font-family: var(--font-scholastic);
+      font-size: 11px;
+      letter-spacing: 0.5px;
     }
 
     input[type="range"] {
       appearance: none;
-      background: rgba(255, 255, 255, 0.1);
+      background: rgba(255, 255, 255, 0.12);
       height: 6px;
       border-radius: 3px;
       outline: none;
-      width: 120px;
+      width: 100px;
     }
 
     input[type="range"]::-webkit-slider-thumb {
@@ -164,80 +168,85 @@
       width: 16px;
       height: 16px;
       border-radius: 50%;
-      background: var(--accent-cyan);
+      background: var(--accent-gold);
       cursor: pointer;
-      box-shadow: 0 0 10px var(--accent-cyan);
+      box-shadow: 0 0 10px var(--accent-gold);
     }
 
     .btn {
-      background: rgba(0, 240, 255, 0.15);
-      border: 1px solid var(--accent-cyan);
-      color: var(--accent-cyan);
-      padding: 7px 15px;
-      border-radius: 6px;
-      font-size: 12px;
+      background: rgba(212, 175, 55, 0.1);
+      border: 1px solid rgba(212, 175, 55, 0.55);
+      color: #d4af37;
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-size: 11px;
       font-weight: 600;
       cursor: pointer;
       transition: all 0.2s ease;
-      font-family: var(--font-mono);
+      font-family: var(--font-scholastic);
+      letter-spacing: 0.5px;
       display: inline-flex;
       align-items: center;
-      gap: 6px;
+      gap: 5px;
       user-select: none;
     }
 
     .btn:hover {
-      background: var(--accent-cyan);
-      color: #000;
-      box-shadow: 0 0 14px rgba(0, 240, 255, 0.4);
-    }
-
-    body.theme-scholastic .btn {
-      font-family: var(--font-scholastic);
-      letter-spacing: 0.5px;
-      border-color: rgba(212, 175, 55, 0.55);
-      color: #d4af37;
-      background: rgba(212, 175, 55, 0.1);
-      border-radius: 4px;
-    }
-
-    body.theme-scholastic .btn:hover {
       background: #d4af37;
       color: #060913;
       box-shadow: 0 0 16px rgba(212, 175, 55, 0.5);
     }
 
+    body.mode-xray .btn {
+      border-color: rgba(0, 240, 255, 0.6);
+      color: #00f0ff;
+      background: rgba(0, 240, 255, 0.1);
+      font-family: var(--font-mono);
+    }
+
+    body.mode-xray .btn:hover {
+      background: #00f0ff;
+      color: #030b17;
+      box-shadow: 0 0 16px rgba(0, 240, 255, 0.6);
+    }
+
     .btn-secondary {
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid var(--border-color);
-      color: var(--text-main);
-    }
-
-    .btn-secondary:hover {
-      background: rgba(255, 255, 255, 0.15);
-      color: #fff;
-      box-shadow: none;
-    }
-
-    body.theme-scholastic .btn-secondary {
       background: rgba(212, 175, 55, 0.06);
       border: 1px solid rgba(212, 175, 55, 0.3);
       color: #e8deb8;
     }
 
-    body.theme-scholastic .btn-secondary:hover {
+    .btn-secondary:hover {
       background: rgba(212, 175, 55, 0.2);
       color: #fff;
     }
 
+    .btn-action {
+      background: linear-gradient(135deg, rgba(212, 175, 55, 0.35), rgba(243, 194, 72, 0.25));
+      border: 1px solid #d4af37;
+      color: #ffeeb3;
+    }
+
+    .btn-action:hover {
+      background: linear-gradient(135deg, #d4af37, #f3c248);
+      color: #060913;
+      box-shadow: 0 0 18px rgba(212, 175, 55, 0.6);
+    }
+
+    .btn-blueprint-active {
+      background: #00f0ff !important;
+      color: #030b17 !important;
+      box-shadow: 0 0 20px rgba(0, 240, 255, 0.8) !important;
+      font-weight: 800;
+    }
+
     main {
-      padding: 24px 28px;
+      padding: 20px 24px;
       flex: 1;
       display: grid;
       grid-template-columns: 1fr 1fr;
-      grid-template-rows: auto auto;
-      gap: 20px;
-      max-width: 1600px;
+      gap: 18px;
+      max-width: 1650px;
       margin: 0 auto;
       width: 100%;
     }
@@ -245,24 +254,18 @@
     .card {
       background: var(--bg-card);
       border: 1px solid var(--border-color);
-      border-radius: 12px;
-      padding: 20px;
+      border-radius: 6px;
+      padding: 18px;
       backdrop-filter: blur(16px);
       display: flex;
       flex-direction: column;
-      gap: 14px;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+      gap: 12px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), inset 0 0 15px rgba(212, 175, 55, 0.03);
       position: relative;
       overflow: hidden;
     }
 
-    body.theme-scholastic .card {
-      border: 1px solid rgba(212, 175, 55, 0.45);
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), inset 0 0 15px rgba(212, 175, 55, 0.03);
-      border-radius: 6px;
-    }
-
-    body.theme-scholastic .card::before {
+    .card::before {
       content: "";
       position: absolute;
       top: 3px; left: 3px; right: 3px; bottom: 3px;
@@ -271,128 +274,156 @@
       border-radius: 4px;
     }
 
+    body.mode-xray .card {
+      border: 1px solid rgba(0, 240, 255, 0.45);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8), inset 0 0 20px rgba(0, 240, 255, 0.05);
+    }
+
+    body.mode-xray .card::before {
+      border: 1px dashed rgba(0, 240, 255, 0.25);
+    }
+
+    /* Hero Apparatus Viewport */
+    .apparatus-card {
+      grid-column: 1 / -1;
+      min-height: 480px;
+      border: 2px solid var(--accent-gold);
+      background: radial-gradient(circle at 50% 20%, #0d1527 0%, #050811 100%);
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.8), inset 0 0 30px rgba(212, 175, 55, 0.08);
+    }
+
+    body.mode-xray .apparatus-card {
+      border: 2px solid #00f0ff;
+      background: radial-gradient(circle at 50% 20%, #041830 0%, #020712 100%);
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.9), inset 0 0 30px rgba(0, 240, 255, 0.12);
+    }
+
+    .apparatus-canvas {
+      width: 100%;
+      height: 430px;
+      border-radius: 4px;
+      background: #03060c;
+      border: 1px solid rgba(212, 175, 55, 0.3);
+      display: block;
+      cursor: crosshair;
+    }
+
+    body.mode-xray .apparatus-canvas {
+      border: 1px solid rgba(0, 240, 255, 0.5);
+      background: #020814;
+    }
+
     .card-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-      padding-bottom: 12px;
+      border-bottom: 1px solid rgba(212, 175, 55, 0.2);
+      padding-bottom: 10px;
     }
 
-    body.theme-scholastic .card-header {
-      border-bottom: 1px solid rgba(212, 175, 55, 0.2);
+    body.mode-xray .card-header {
+      border-bottom: 1px solid rgba(0, 240, 255, 0.3);
     }
 
     .card-title {
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 700;
-      letter-spacing: 0.5px;
-      color: var(--accent-cyan);
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-family: var(--font-mono);
-    }
-
-    body.theme-scholastic .card-title {
-      font-family: var(--font-scholastic);
       letter-spacing: 1px;
       color: #d4af37;
       text-transform: uppercase;
-      font-size: 13px;
+      font-family: var(--font-scholastic);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    body.mode-xray .card-title {
+      color: #00f0ff;
+      font-family: var(--font-mono);
     }
 
     .status-pill {
       font-size: 11px;
-      font-family: var(--font-mono);
+      font-family: var(--font-scholastic);
+      letter-spacing: 0.5px;
       padding: 3px 8px;
-      border-radius: 12px;
+      border-radius: 4px;
       background: rgba(0, 255, 163, 0.15);
       color: var(--accent-emerald);
       border: 1px solid rgba(0, 255, 163, 0.3);
     }
 
-    body.theme-scholastic .status-pill {
-      font-family: var(--font-scholastic);
-      letter-spacing: 0.5px;
-      border-radius: 4px;
-    }
-
     canvas {
       width: 100%;
-      height: 230px;
-      background: rgba(6, 10, 18, 0.6);
-      border-radius: 8px;
-      border: 1px solid rgba(255, 255, 255, 0.04);
+      height: 220px;
+      background: rgba(4, 7, 15, 0.85);
+      border-radius: 4px;
+      border: 1px solid rgba(212, 175, 55, 0.25);
       display: block;
     }
 
-    body.theme-scholastic canvas {
-      background: rgba(4, 7, 15, 0.85);
-      border: 1px solid rgba(212, 175, 55, 0.25);
-      border-radius: 4px;
+    body.mode-xray canvas {
+      border: 1px solid rgba(0, 240, 255, 0.35);
+      background: rgba(2, 8, 20, 0.9);
     }
 
-    /* FastCDC Panel */
     .cdc-metrics {
       display: flex;
       justify-content: space-between;
-      font-size: 12px;
-      font-family: var(--font-mono);
+      font-size: 11px;
+      font-family: var(--font-scholastic);
+      letter-spacing: 0.5px;
       color: var(--text-muted);
     }
 
-    body.theme-scholastic .cdc-metrics {
-      font-family: var(--font-scholastic);
-      letter-spacing: 0.5px;
-      font-size: 11px;
+    body.mode-xray .cdc-metrics {
+      font-family: var(--font-mono);
+      color: #7ab2cf;
     }
 
     .cdc-metrics span b {
       color: var(--text-main);
     }
 
-    /* Matrix Solver Panel */
     .solver-grid {
       display: flex;
-      gap: 16px;
+      gap: 14px;
       align-items: stretch;
       flex: 1;
     }
 
     .rank-display {
-      width: 140px;
+      width: 130px;
       display: flex;
       flex-direction: column;
       justify-content: center;
       align-items: center;
-      background: rgba(0, 0, 0, 0.3);
-      border-radius: 8px;
-      border: 1px solid rgba(255, 255, 255, 0.05);
-      padding: 12px;
+      background: rgba(0, 0, 0, 0.4);
+      border-radius: 4px;
+      border: 1px solid rgba(212, 175, 55, 0.3);
+      padding: 10px;
       text-align: center;
     }
 
-    body.theme-scholastic .rank-display {
-      border: 1px solid rgba(212, 175, 55, 0.3);
-      background: rgba(0, 0, 0, 0.4);
-      border-radius: 4px;
+    body.mode-xray .rank-display {
+      border: 1px solid rgba(0, 240, 255, 0.4);
+      background: rgba(0, 20, 40, 0.5);
     }
 
     .rank-number {
-      font-family: var(--font-mono);
-      font-size: 32px;
-      font-weight: 800;
-      color: var(--accent-emerald);
-    }
-
-    body.theme-scholastic .rank-number {
       font-family: var(--font-scholastic);
+      font-size: 30px;
+      font-weight: 800;
       color: #00ffa3;
     }
 
+    body.mode-xray .rank-number {
+      font-family: var(--font-mono);
+      color: #00f0ff;
+    }
+
     .rank-label {
-      font-size: 11px;
+      font-size: 10px;
       color: var(--text-muted);
       text-transform: uppercase;
       letter-spacing: 1px;
@@ -402,26 +433,26 @@
     /* Presentation Screen Canvas */
     .presentation-card {
       grid-column: 1 / -1;
-      min-height: 280px;
+      min-height: 260px;
     }
 
     .slide-viewport {
-      background: linear-gradient(135deg, rgba(14, 20, 32, 0.95), rgba(8, 12, 20, 0.95));
-      border: 1px solid rgba(0, 240, 255, 0.2);
-      border-radius: 10px;
-      padding: 24px 32px;
+      background: linear-gradient(145deg, #0a0f1d, #05070d);
+      border: 2px double rgba(212, 175, 55, 0.55);
+      border-radius: 6px;
+      padding: 22px 28px;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
-      min-height: 240px;
+      min-height: 220px;
       position: relative;
+      box-shadow: inset 0 0 30px rgba(212, 175, 55, 0.04);
     }
 
-    body.theme-scholastic .slide-viewport {
-      border: 2px double rgba(212, 175, 55, 0.55);
-      background: linear-gradient(145deg, #0a0f1d, #05070d);
-      box-shadow: inset 0 0 30px rgba(212, 175, 55, 0.04);
-      border-radius: 6px;
+    body.mode-xray .slide-viewport {
+      border: 2px double rgba(0, 240, 255, 0.5);
+      background: linear-gradient(145deg, #051428, #020712);
+      box-shadow: inset 0 0 30px rgba(0, 240, 255, 0.06);
     }
 
     .slide-badge {
@@ -431,16 +462,11 @@
       padding: 4px 12px;
       border-radius: 4px;
       font-weight: 800;
-      font-family: var(--font-mono);
-      font-size: 12px;
-      letter-spacing: 1px;
-      width: fit-content;
-      margin-bottom: 12px;
-    }
-
-    body.theme-scholastic .slide-badge {
       font-family: var(--font-scholastic);
+      font-size: 12px;
       letter-spacing: 1.5px;
+      width: fit-content;
+      margin-bottom: 10px;
     }
 
     .badge-red {
@@ -456,16 +482,17 @@
     }
 
     .slide-heading {
-      font-size: 22px;
+      font-size: 21px;
       font-weight: 700;
-      color: #fff;
-      margin-bottom: 12px;
+      color: #f7e7b4;
+      font-family: var(--font-scholastic);
+      letter-spacing: 0.5px;
+      margin-bottom: 10px;
     }
 
-    body.theme-scholastic .slide-heading {
-      font-family: var(--font-scholastic);
-      color: #f7e7b4;
-      letter-spacing: 0.5px;
+    body.mode-xray .slide-heading {
+      color: #00f0ff;
+      font-family: var(--font-mono);
     }
 
     .slide-bullets {
@@ -473,204 +500,171 @@
       display: flex;
       flex-direction: column;
       gap: 8px;
-      font-size: 14px;
+      font-size: 13.5px;
       color: var(--text-main);
     }
 
     .slide-bullets li::before {
-      content: "▹";
-      color: var(--accent-cyan);
+      content: "❖";
+      color: #d4af37;
       font-weight: bold;
       display: inline-block;
       width: 1.2em;
     }
 
-    body.theme-scholastic .slide-bullets li::before {
-      content: "❖";
-      color: #d4af37;
+    body.mode-xray .slide-bullets li::before {
+      content: "▹";
+      color: #00f0ff;
     }
 
     .narration-box {
-      margin-top: 16px;
-      padding: 12px 16px;
-      background: rgba(0, 240, 255, 0.06);
-      border-left: 3px solid var(--accent-cyan);
+      margin-top: 14px;
+      padding: 10px 16px;
+      background: rgba(212, 175, 55, 0.07);
+      border-left: 3px solid #d4af37;
       border-radius: 0 6px 6px 0;
-      font-size: 13px;
+      font-size: 12.5px;
       font-style: italic;
-      color: var(--text-muted);
+      color: #d6ccb2;
       display: flex;
       align-items: center;
       gap: 10px;
-    }
-
-    body.theme-scholastic .narration-box {
-      background: rgba(212, 175, 55, 0.07);
-      border-left: 3px solid #d4af37;
-      color: #d6ccb2;
-      font-family: var(--font-body);
-    }
-
-    .narration-icon {
-      color: var(--accent-cyan);
-      font-style: normal;
-      font-weight: bold;
       cursor: pointer;
     }
 
-    body.theme-scholastic .narration-icon {
-      color: #d4af37;
-    }
-
-    footer {
-      padding: 14px 28px;
-      font-size: 12px;
-      color: var(--text-muted);
-      border-top: 1px solid var(--border-color);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+    body.mode-xray .narration-box {
+      background: rgba(0, 240, 255, 0.08);
+      border-left: 3px solid #00f0ff;
+      color: #b8eaff;
       font-family: var(--font-mono);
     }
 
-    body.theme-scholastic footer {
-      border-top: 1px solid rgba(212, 175, 55, 0.3);
-      font-family: var(--font-scholastic);
-      color: #9e937d;
+    .narration-icon {
+      color: #d4af37;
+      font-style: normal;
+      font-weight: bold;
     }
 
-    /* File Dropzone & Live Media Section */
-    .btn-action {
-      background: linear-gradient(135deg, rgba(0, 240, 255, 0.25), rgba(181, 95, 230, 0.25));
-      border: 1px solid var(--accent-cyan);
-      color: #fff;
-    }
-    .btn-action:hover {
-      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
-      color: #000;
-      box-shadow: 0 0 16px rgba(0, 240, 255, 0.5);
-    }
-    body.theme-scholastic .btn-action {
-      background: linear-gradient(135deg, rgba(212, 175, 55, 0.35), rgba(243, 194, 72, 0.25));
-      border: 1px solid #d4af37;
-      color: #ffeeb3;
-    }
-    body.theme-scholastic .btn-action:hover {
-      background: linear-gradient(135deg, #d4af37, #f3c248);
-      color: #060913;
-      box-shadow: 0 0 18px rgba(212, 175, 55, 0.6);
+    body.mode-xray .narration-icon {
+      color: #00f0ff;
     }
 
-    .dropzone-highlight {
-      outline: 2px dashed var(--accent-emerald) !important;
-      background: rgba(0, 255, 163, 0.08) !important;
-    }
+    /* Live Reconstructed Media Plate */
     .media-card {
       grid-column: 1 / -1;
-      border: 1px solid rgba(0, 255, 163, 0.35);
-      background: linear-gradient(180deg, rgba(14, 22, 38, 0.95), rgba(9, 13, 22, 0.95));
-      border-radius: 12px;
-      padding: 20px;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-    body.theme-scholastic .media-card {
       border: 1px solid rgba(212, 175, 55, 0.5);
       background: linear-gradient(180deg, rgba(12, 18, 30, 0.95), rgba(6, 9, 18, 0.95));
       border-radius: 6px;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
     }
+
+    body.mode-xray .media-card {
+      border: 1px solid rgba(0, 240, 255, 0.5);
+      background: linear-gradient(180deg, rgba(5, 18, 36, 0.95), rgba(2, 8, 20, 0.95));
+    }
+
     .media-meta-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-      gap: 12px;
-      padding: 12px 16px;
-      background: rgba(0, 0, 0, 0.3);
-      border-radius: 8px;
-      border: 1px solid rgba(255, 255, 255, 0.05);
-      font-family: var(--font-mono);
-      font-size: 12px;
-    }
-    body.theme-scholastic .media-meta-grid {
+      gap: 10px;
+      padding: 10px 14px;
+      background: rgba(0, 0, 0, 0.35);
+      border-radius: 4px;
       border: 1px solid rgba(212, 175, 55, 0.25);
       font-family: var(--font-scholastic);
       font-size: 11px;
     }
+
+    body.mode-xray .media-meta-grid {
+      border: 1px solid rgba(0, 240, 255, 0.3);
+      font-family: var(--font-mono);
+    }
+
     .media-meta-item {
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 3px;
     }
+
     .media-meta-label {
       color: var(--text-muted);
       font-size: 10px;
       text-transform: uppercase;
       letter-spacing: 0.5px;
     }
+
     .media-meta-val {
-      color: var(--accent-cyan);
+      color: var(--accent-gold);
       font-weight: 700;
     }
+
+    body.mode-xray .media-meta-val {
+      color: #00f0ff;
+    }
+
     .media-viewport-container {
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       min-height: 280px;
-      border-radius: 10px;
-      background: rgba(6, 10, 18, 0.85);
-      border: 1px solid rgba(255, 255, 255, 0.06);
-      padding: 20px;
+      border-radius: 6px;
+      background: rgba(4, 7, 14, 0.9);
+      border: 1px solid rgba(212, 175, 55, 0.3);
+      padding: 18px;
       position: relative;
     }
-    body.theme-scholastic .media-viewport-container {
-      border: 1px solid rgba(212, 175, 55, 0.3);
-      background: rgba(4, 7, 14, 0.9);
-      border-radius: 6px;
+
+    body.mode-xray .media-viewport-container {
+      border: 1px solid rgba(0, 240, 255, 0.35);
+      background: rgba(2, 7, 18, 0.92);
     }
+
     .player-video {
-      max-width: 720px;
+      max-width: 640px;
       width: 100%;
-      max-height: 440px;
-      border-radius: 8px;
+      border-radius: 6px;
       box-shadow: 0 10px 30px rgba(0,0,0,0.8);
-      border: 1px solid var(--border-color);
+      border: 1px solid var(--accent-gold);
     }
+
     .player-audio-wrapper {
       width: 100%;
-      max-width: 680px;
+      max-width: 640px;
       display: flex;
       flex-direction: column;
-      gap: 14px;
+      gap: 12px;
       align-items: center;
     }
+
     .player-audio-wrapper audio {
       width: 100%;
-      border-radius: 24px;
+      border-radius: 20px;
     }
+
     .audio-freq-canvas {
       width: 100%;
-      height: 90px;
+      height: 80px;
       background: rgba(4, 7, 13, 0.9);
-      border-radius: 8px;
-      border: 1px solid rgba(0, 240, 255, 0.2);
+      border-radius: 6px;
+      border: 1px solid rgba(212, 175, 55, 0.3);
     }
+
     .player-mobile-bezel {
-      max-width: 460px;
+      max-width: 440px;
       width: 100%;
-      height: 520px;
-      border-radius: 16px;
-      border: 4px solid #233554;
-      background: #000;
+      height: 480px;
+      border-radius: 8px;
+      border: 4px double #d4af37;
+      background: #060913;
       overflow: hidden;
-      box-shadow: 0 20px 50px rgba(0,0,0,0.8);
+      box-shadow: 0 20px 50px rgba(0,0,0,0.9), 0 0 24px rgba(212, 175, 55, 0.35);
       position: relative;
     }
-    body.theme-scholastic .player-mobile-bezel {
-      border: 4px double #d4af37;
-      box-shadow: 0 20px 50px rgba(0,0,0,0.9), 0 0 24px rgba(212, 175, 55, 0.35);
-      border-radius: 8px;
-    }
+
     .player-mobile-bezel iframe {
       width: 100%;
       height: 100%;
@@ -678,18 +672,256 @@
       background: #060913;
     }
 
-    /* Zero-Touch Voice Toast & Floating Controls */
+    /* Parametric Anatomical Atlas Viewport */
+    .atlas-viewport {
+      width: 100%;
+      max-width: 820px;
+      background: radial-gradient(circle at 50% 20%, #0e172a 0%, #050811 100%);
+      border: 2px solid var(--accent-gold);
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 12px 36px rgba(0,0,0,0.8);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .atlas-header {
+      text-align: center;
+      border-bottom: 1px solid rgba(212, 175, 55, 0.3);
+      padding-bottom: 8px;
+    }
+
+    .atlas-title {
+      font-family: var(--font-scholastic);
+      font-size: 16px;
+      color: #f7e7b4;
+      font-weight: 700;
+      letter-spacing: 1px;
+    }
+
+    .atlas-sub {
+      font-family: var(--font-sans);
+      font-size: 11.5px;
+      color: #d4af37;
+      font-style: italic;
+    }
+
+    .atlas-body-grid {
+      display: flex;
+      gap: 20px;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .atlas-svg-container {
+      width: 320px;
+      height: 400px;
+      position: relative;
+    }
+
+    .atlas-callout-list {
+      flex: 1;
+      min-width: 260px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .atlas-callout-card {
+      background: rgba(13, 21, 39, 0.8);
+      border-left: 3px solid var(--accent-gold);
+      padding: 10px 12px;
+      border-radius: 0 6px 6px 0;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .atlas-callout-card:hover {
+      background: rgba(212, 175, 55, 0.15);
+      transform: translateX(4px);
+    }
+
+    .atlas-pin-label {
+      font-family: var(--font-scholastic);
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--accent-gold);
+    }
+
+    .atlas-pin-latin {
+      font-size: 10px;
+      font-style: italic;
+      color: #9cb2cc;
+    }
+
+    .atlas-pin-desc {
+      font-size: 11px;
+      line-height: 1.4;
+      color: #f0f4fc;
+      margin-top: 3px;
+    }
+
+    /* Specimen Inspection Modal (Encarta / DK Eyewitness) */
+    .specimen-modal {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(3, 6, 12, 0.85);
+      backdrop-filter: blur(8px);
+      z-index: 2000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .specimen-modal.show {
+      display: flex;
+    }
+
+    .specimen-card {
+      max-width: 580px;
+      width: 100%;
+      background: linear-gradient(145deg, #0e172a, #060913);
+      border: 2px solid var(--accent-gold);
+      border-radius: 8px;
+      padding: 24px;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.9), inset 0 0 20px rgba(212, 175, 55, 0.08);
+      position: relative;
+    }
+
+    .specimen-card::before {
+      content: "";
+      position: absolute;
+      top: 3px; left: 3px; right: 3px; bottom: 3px;
+      border: 1px dashed rgba(212, 175, 55, 0.35);
+      border-radius: 6px;
+      pointer-events: none;
+    }
+
+    .specimen-close-btn {
+      position: absolute;
+      top: 14px;
+      right: 16px;
+      background: none;
+      border: none;
+      color: var(--accent-gold);
+      font-size: 20px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    .specimen-fig-tag {
+      font-family: var(--font-scholastic);
+      font-size: 11px;
+      letter-spacing: 1.5px;
+      color: var(--accent-gold);
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    .specimen-title {
+      font-family: var(--font-scholastic);
+      font-size: 18px;
+      font-weight: 700;
+      color: #f7e7b4;
+      margin-bottom: 2px;
+    }
+
+    .specimen-latin {
+      font-size: 12px;
+      font-style: italic;
+      color: #9cb2cc;
+      margin-bottom: 14px;
+    }
+
+    .specimen-body {
+      font-size: 13px;
+      line-height: 1.6;
+      color: #e4eaf5;
+      margin-bottom: 14px;
+    }
+
+    .specimen-formula-box {
+      background: rgba(0, 0, 0, 0.5);
+      border: 1px solid rgba(212, 175, 55, 0.4);
+      padding: 10px 14px;
+      border-radius: 4px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: #00f0ff;
+      margin-bottom: 12px;
+    }
+
+    /* Telemetry Slide-out Drawer */
+    .telemetry-drawer {
+      position: fixed;
+      top: 0;
+      right: -420px;
+      width: 400px;
+      height: 100vh;
+      background: rgba(4, 7, 14, 0.97);
+      border-left: 2px solid var(--accent-gold);
+      z-index: 1500;
+      box-shadow: -8px 0 30px rgba(0,0,0,0.8);
+      transition: right 0.3s ease;
+      display: flex;
+      flex-direction: column;
+      padding: 18px;
+    }
+
+    .telemetry-drawer.open {
+      right: 0;
+    }
+
+    .telemetry-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(212, 175, 55, 0.3);
+      padding-bottom: 10px;
+      margin-bottom: 12px;
+    }
+
+    .telemetry-log-list {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+    }
+
+    .telemetry-entry {
+      background: rgba(13, 21, 39, 0.6);
+      border-left: 2px solid var(--accent-gold);
+      padding: 6px 10px;
+      border-radius: 0 4px 4px 0;
+    }
+
+    .telemetry-entry.drop {
+      border-left-color: var(--accent-red);
+    }
+
+    .telemetry-entry.pivot {
+      border-left-color: var(--accent-cyan);
+    }
+
+    /* Zero-Touch Voice Toast */
     .voice-feedback-toast {
       position: fixed;
       bottom: 24px;
       right: 24px;
       background: rgba(6, 9, 19, 0.95);
-      border: 1px solid var(--accent-cyan);
-      box-shadow: 0 0 24px rgba(0, 240, 255, 0.3);
+      border: 1px solid #d4af37;
+      box-shadow: 0 0 24px rgba(212, 175, 55, 0.4);
       padding: 10px 18px;
       border-radius: 20px;
-      font-family: var(--font-mono);
-      font-size: 13px;
+      font-family: var(--font-scholastic);
+      color: #f7e7b4;
+      font-size: 12px;
       display: flex;
       align-items: center;
       gap: 10px;
@@ -699,16 +931,12 @@
       transition: opacity 0.3s ease, transform 0.3s ease;
       transform: translateY(12px);
     }
-    body.theme-scholastic .voice-feedback-toast {
-      border: 1px solid #d4af37;
-      box-shadow: 0 0 24px rgba(212, 175, 55, 0.4);
-      font-family: var(--font-scholastic);
-      color: #f7e7b4;
-    }
+
     .voice-feedback-toast.show {
       opacity: 1;
       transform: translateY(0);
     }
+
     .voice-listening-indicator {
       width: 10px;
       height: 10px;
@@ -717,17 +945,29 @@
       box-shadow: 0 0 8px var(--accent-emerald);
       animation: pulse-mic 1.5s infinite;
     }
+
     @keyframes pulse-mic {
       0% { transform: scale(0.9); opacity: 0.7; }
       50% { transform: scale(1.3); opacity: 1; box-shadow: 0 0 14px var(--accent-emerald); }
       100% { transform: scale(0.9); opacity: 0.7; }
     }
 
-    @media (max-width: 1024px) {
+    footer {
+      padding: 14px 28px;
+      font-size: 11.5px;
+      color: var(--text-muted);
+      border-top: 1px solid rgba(212, 175, 55, 0.3);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: var(--font-scholastic);
+    }
+
+    @media (max-width: 1100px) {
       main {
         grid-template-columns: 1fr;
       }
-      .presentation-card, .media-card {
+      .presentation-card, .media-card, .apparatus-card {
         grid-column: auto;
       }
     }
@@ -747,14 +987,19 @@
       </div>
       <div class="ctrl-group">
         <button id="btnStreamShort" class="btn btn-action" title="Transmit Real Emergency Scholastic Codex over UDP">⚡ STREAM SHORT</button>
+        <button id="btnStreamVideo" class="btn btn-action" title="Stream High-Definition Scientific Motion Video">🎬 VIDEO</button>
+        <button id="btnStreamAtlas" class="btn btn-action" title="Transmit 98% Compressed Parametric Anatomical Atlas">🗺️ ATLAS</button>
         <button id="btnStreamAudio" class="btn btn-secondary" title="Transmit AFSK Acoustic Chime">🎵 CHIME</button>
         <label for="fileUploadInput" class="btn btn-secondary" style="cursor:pointer;" title="Transmit Any Physical File">
           📂 DROP FILE
         </label>
         <input type="file" id="fileUploadInput" style="display:none;" accept="*/*">
-        <button id="btnAmbientToggle" class="btn btn-secondary" title="Toggle 432 Hz Pythagorean Ambient Bed">🔔 HARMONY: OFF</button>
       </div>
       <div class="ctrl-group">
+        <button id="btnWaveModeToggle" class="btn btn-secondary" title="Switch Wavefield Physics: RF Electromagnetic vs Acoustic Sonar">📻 WAVE: RF</button>
+        <button id="btnXrayToggle" class="btn btn-secondary" title="Toggle Macaulay Architectural X-Ray Blueprint Overlay (Key X)">🔬 BLUEPRINT: OFF</button>
+        <button id="btnTelemetryToggle" class="btn btn-secondary" title="Open Real-Time Telemetry Event Drawer">📋 LOGS</button>
+        <button id="btnAmbientToggle" class="btn btn-secondary" title="Toggle 432 Hz Pythagorean Ambient Bed">🔔 HARMONY: OFF</button>
         <button id="btnVoiceToggle" class="btn btn-secondary" title="Zero-Touch Hands-Free Voice Control">🎙️ VOICE: ON</button>
         <button id="btnThemeToggle" class="btn btn-secondary" title="Switch Theme: Encarta Scholastic vs Cyber-Mesh">🏛️ THEME: SCHOLASTIC</button>
       </div>
@@ -766,6 +1011,23 @@
   </header>
 
   <main>
+
+    <!-- Hero Section: David Macaulay Mechanical Cutaway Apparatus & PhET Wavefield -->
+    <div class="card apparatus-card">
+      <div class="card-header">
+        <div class="card-title">
+          <span>🏛️ GRAND SCIENTIFIC APPARATUS</span> &mdash;
+          MACHINE A (SOLAR BEACON) &bull; 2D WAVEFIELD PROPAGATION &bull; MACHINE B (FIELD SCHOLAR APPLIANCE)
+        </div>
+        <div class="status-pill" id="apparatusModePill">PHYSICAL SIMULATION: 60 FPS</div>
+      </div>
+      <canvas id="apparatusCanvas" class="apparatus-canvas"></canvas>
+      <div class="cdc-metrics">
+        <span>Machine A: <b>Byte Conveyor &bull; FastCDC Guillotine &bull; Merkle Forge &bull; Soliton Orrery</b></span>
+        <span>Terrain Channel: <b id="waveChannelLabel">RF Electromagnetic &bull; Diffraction &bull; Path Loss</b></span>
+        <span>Machine B: <b>Parabolic Dish &bull; O(1) Sieve &bull; Analytical Drum &bull; Rank Odometer</b></span>
+      </div>
+    </div>
 
     <!-- Panel 1: FastCDC Rolling Hash Ribbon -->
     <div class="card">
@@ -879,8 +1141,8 @@
         </div>
       </div>
       <div class="media-viewport-container" id="mediaViewport">
-        <div id="mediaPlaceholder" style="color: var(--text-muted); font-size: 13px; font-family: var(--font-mono); text-align: center;">
-          <div style="font-size: 28px; margin-bottom: 8px;">🏛️</div>
+        <div id="mediaPlaceholder" style="color: var(--text-muted); font-size: 13px; font-family: var(--font-scholastic); text-align: center;">
+          <div style="font-size: 32px; margin-bottom: 8px;">🏛️</div>
           Streaming droplets over rateless fountain code.<br>
           Scholastic Codex media player mounts automatically upon achieving Rank K.
         </div>
@@ -889,6 +1151,38 @@
 
   </main>
 
+  <!-- Encarta & DK Eyewitness Specimen Detail Modal -->
+  <div id="specimenModal" class="specimen-modal">
+    <div class="specimen-card">
+      <button class="specimen-close-btn" onclick="closeSpecimenModal()">&times;</button>
+      <div class="specimen-fig-tag" id="specimenFigTag">FIG. 1.1 &bull; SPECIMEN ANATOMY</div>
+      <h3 class="specimen-title" id="specimenTitle">FastCDC Rolling-Gear Guillotine</h3>
+      <div class="specimen-latin" id="specimenLatin">Scalprum Hashium FastCDC v4</div>
+      <p class="specimen-body" id="specimenBody">
+        A mechanical content-defined chunking mechanism utilizing meshed cogs to compute a rolling polynomial hash.
+        When the low bits match zero modulo M, the guillotine blade drops, carving a chunk boundary resistant to byte shifts.
+      </p>
+      <div class="specimen-formula-box" id="specimenFormula">
+        &Delta; &equiv; 0 (mod M), &nbsp; H_FP = &sum; c_i &middot; p^{w-i} (mod 2^{64})
+      </div>
+      <button class="btn btn-action" onclick="closeSpecimenModal()" style="width: 100%; justify-content: center;">RETURN TO APPARATUS</button>
+    </div>
+  </div>
+
+  <!-- Telemetry Slide-out Drawer -->
+  <div id="telemetryDrawer" class="telemetry-drawer">
+    <div class="telemetry-header">
+      <span style="font-family: var(--font-scholastic); font-weight: 700; color: var(--accent-gold);">📋 LIVE TELEMETRY BUS</span>
+      <button class="btn btn-secondary" onclick="toggleTelemetryDrawer()" style="padding: 2px 8px;">CLOSE</button>
+    </div>
+    <div style="font-size: 10px; color: var(--text-muted); margin-bottom: 8px; font-family: var(--font-mono);">
+      Micro-events from /api/stream-events:
+    </div>
+    <div class="telemetry-log-list" id="telemetryList">
+      <div class="telemetry-entry">System initialized. Listening on SSE stream...</div>
+    </div>
+  </div>
+
   <!-- Live Zero-Touch Voice Command Toast -->
   <div id="voiceFeedbackToast" class="voice-feedback-toast">
     <span class="voice-listening-indicator"></span>
@@ -896,8 +1190,8 @@
   </div>
 
   <footer>
-    <span>The Foundation Protocol v4.0 — Autonomous Local Distribution Engine & Scholastic Codex</span>
-    <span>Zero External Dependencies | Pure Immediate-Mode Canvas | Zero-Touch Acoustic Appliance</span>
+    <span>The Foundation Protocol v4.0 &mdash; Scientific Apparatus & Scholastic Codex</span>
+    <span>PhET Wave Simulation &bull; David Macaulay Cutaways &bull; Zero-Touch Acoustic Interface</span>
   </footer>
 
   <script>
@@ -916,9 +1210,101 @@
       droplets: [],
       cdcOffset: 0,
       currentSlideIdx: 0,
+      waveMode: "rf",        // "rf" or "acoustic"
+      isXray: false,          // X-Ray Blueprint Inspector
+      mechPhase: 0,           // Unified mechanical drivetrain phase
+      guillotineDrop: 0,      // Blade drop height animation
+      byzantineDrop: null,    // Active forged droplet dumped in slag chute
+      sparks: [],             // Physical spark/ember particle system
+      waveGridW: 96,
+      waveGridH: 64,
+      uCurr: null,
+      uPrev: null,
+      uNext: null,
+      terrain: null,
+      apparatusDroplets: [],
+      lastSseEventTime: Date.now(),
     };
 
-    // Presentation Slides Data (Simulating decompressed PresentationManifest)
+    // Initialize 2D Wavefield Discrete Grid
+    function initWaveGrid() {
+      const W = state.waveGridW;
+      const H = state.waveGridH;
+      state.uCurr = new Float32Array(W * H);
+      state.uPrev = new Float32Array(W * H);
+      state.uNext = new Float32Array(W * H);
+      state.terrain = new Float32Array(W * H);
+
+      // Create physical terrain elevation profile: bedrock ridge in the center
+      for (let y = 0; y < H; y++) {
+        for (let x = 0; x < W; x++) {
+          const idx = y * W + x;
+          const nx = x / W;
+          const ny = y / H;
+          // Hill in bottom-middle terrain
+          const hill = Math.exp(-((nx - 0.52) ** 2 + (ny - 0.75) ** 2) / 0.04) * 0.7;
+          // Ridge obstacle
+          const ridge = (nx > 0.48 && nx < 0.54 && ny > 0.35 && ny < 0.75) ? 0.85 : 0;
+          state.terrain[idx] = Math.max(hill, ridge);
+        }
+      }
+    }
+    initWaveGrid();
+
+    // Step the 2D Wave Equation: PhET Wave Interference Model
+    function stepWavefield() {
+      const W = state.waveGridW;
+      const H = state.waveGridH;
+      const c2 = state.waveMode === "rf" ? 0.36 : 0.22; // Wave propagation speed squared
+      const damping = state.waveMode === "rf" ? 0.992 : 0.982; // Acoustic absorbs more
+
+      const uC = state.uCurr;
+      const uP = state.uPrev;
+      const uN = state.uNext;
+      const terr = state.terrain;
+
+      // Exciter source at left horn: (x=6, y=H/2)
+      if (state.isPlaying) {
+        const srcX = 6;
+        const srcY = Math.floor(H / 2);
+        const freq = state.waveMode === "rf" ? 0.45 : 0.28;
+        uC[srcY * W + srcX] += Math.sin(state.mechPhase * freq) * (state.waveMode === "rf" ? 1.8 : 2.5);
+      }
+
+      // Discrete 2D wave equation with absorbing boundaries & obstacle reflection
+      for (let y = 1; y < H - 1; y++) {
+        const row = y * W;
+        for (let x = 1; x < W - 1; x++) {
+          const idx = row + x;
+          const obstacle = terr[idx];
+          if (obstacle > 0.5) {
+            uN[idx] = 0; // Solid boundary reflection
+            continue;
+          }
+
+          const laplacian = uC[idx - 1] + uC[idx + 1] + uC[idx - W] + uC[idx + W] - 4 * uC[idx];
+          let val = 2 * uC[idx] - uP[idx] + c2 * laplacian;
+          val *= damping;
+          uN[idx] = val;
+        }
+      }
+
+      // Boundary damping
+      for (let x = 0; x < W; x++) {
+        uN[x] = 0;
+        uN[(H - 1) * W + x] = 0;
+      }
+      for (let y = 0; y < H; y++) {
+        uN[y * W] = 0;
+        uN[y * W + (W - 1)] = 0;
+      }
+
+      // Rotate buffers
+      state.uPrev.set(uC);
+      state.uCurr.set(uN);
+    }
+
+    // Presentation Slides Data
     const presentationSlides = [
       {
         badge: "TRIAGE ALERT: IMMEDIATE [RED]",
@@ -947,33 +1333,774 @@
     ];
 
     // ==========================================
-    // Canvas Renderers
+    // Specimen Callouts Taxonomy & Database
+    // ==========================================
+    const specimenDatabase = {
+      1: {
+        fig: "FIG. 1.1",
+        title: "FastCDC Rolling-Gear Guillotine",
+        latin: "Scalprum Hashium FastCDC v4",
+        body: "A content-defined chunking mechanism utilizing meshed cogs to compute a 64-bit rolling gear polynomial hash. When the low bits match zero modulo M, the guillotine blade drops, establishing chunk cuts immune to byte shifts.",
+        formula: "\u0394 \u2261 0 (mod M),   H_FP(B) = \u2211 c_i \u00b7 p^{w-i} (mod 2^{64})",
+      },
+      2: {
+        fig: "FIG. 2.1",
+        title: "Sovereign Merkle Crucible",
+        latin: "Cribrum Cryptographicum SHA3-256",
+        body: "A molten cryptographic forge with twin mechanical balance scales. Chunks are weighed and paired into leaf hashes, forging a binary DAG that produces a 32-byte sovereign root seal for constant-time audit proofs.",
+        formula: "H_{root} = SHA3-256(H_L || H_R),   Proof Size = O(log N)",
+      },
+      3: {
+        fig: "FIG. 3.1",
+        title: "Soliton Degree Orrery",
+        latin: "Orrery Luby-Soliton Rotator",
+        body: "A brass planetary gear mechanism that samples degree d from the Robust Soliton distribution. Satellite gears pick chunk symbols and execute XOR combination flashes to generate rateless fountain droplets.",
+        formula: "\u03c1(1) = 1/K,   \u03c1(d) = 1 / (d(d-1))   (2 \u2264 d \u2264 K)",
+      },
+      4: {
+        fig: "FIG. 4.1",
+        title: "PhET Scalar Wavefield Terrain Channel",
+        latin: "Aether & Terra Undulator",
+        body: "Real-time 2D scalar wavefield propagation across physical terrain between the two machines. Features RF electromagnetic and acoustic modes, showing constructive wave interference, hill diffraction, and atmospheric path loss.",
+        formula: "\u2207^2 \u03c8 - (1/v^2) \u2202^2\u03c8/\u2202t^2 = 0,   L_{path} = 20 log_{10}(4\u03c0d/\u03bb)",
+      },
+      5: {
+        fig: "FIG. 5.1",
+        title: "O(1) Byzantine Sorting Sieve Gate",
+        latin: "Porta Byzantina & Fornax Slag",
+        body: "A spring-loaded mechanical triage gate. Droplets with valid HMAC signatures tilt the gate into the matrix hoppers. Corrupted or forged Byzantine droplets trip a rejection trapdoor into a slag incinerator chute.",
+        formula: "\u03c4 = HMAC_{K_s}(seed || y),   \u0394t_{reject} < 0.05 ms",
+      },
+      6: {
+        fig: "FIG. 6.1",
+        title: "GF(2) Analytical Difference Cylinder",
+        latin: "Cylindrus Analyticalis Babbage",
+        body: "A mechanical analytical drum with rotating brass tumbler pins representing the binary matrix G \u00b7 x = y. Rotating pins shift laterally to eliminate lower triangular bits until Rank K is achieved.",
+        formula: "G \u00b7 x = y (mod 2),   Rank = \u2211 pivot_i",
+      },
+      7: {
+        fig: "FIG. 7.1",
+        title: "Mechanical Odometer Register",
+        latin: "Odometer Numericum",
+        body: "A vintage three-wheel brass mechanical roller register rolling from 0 to K (20) as linearly independent pivots are established in the GF(2) drum.",
+        formula: "Rank Progress: r \u2192 K,   Solvability = 100%",
+      }
+    };
+
+    function openSpecimenModal(id) {
+      playEarcon("woodblock");
+      const s = specimenDatabase[id];
+      if (!s) return;
+      document.getElementById("specimenFigTag").innerText = `${s.fig} \u2022 SPECIMEN TAXONOMY`;
+      document.getElementById("specimenTitle").innerText = s.title;
+      document.getElementById("specimenLatin").innerText = s.latin;
+      document.getElementById("specimenBody").innerText = s.body;
+      document.getElementById("specimenFormula").innerText = s.formula;
+      document.getElementById("specimenModal").classList.add("show");
+    }
+
+    function closeSpecimenModal() {
+      playParchmentClick();
+      document.getElementById("specimenModal").classList.remove("show");
+    }
+
+    // Toggle Telemetry Drawer
+    function toggleTelemetryDrawer() {
+      playParchmentClick();
+      const d = document.getElementById("telemetryDrawer");
+      d.classList.toggle("open");
+    }
+    document.getElementById("btnTelemetryToggle").addEventListener("click", toggleTelemetryDrawer);
+
+    function logTelemetry(type, data) {
+      const list = document.getElementById("telemetryList");
+      if (!list) return;
+      const entry = document.createElement("div");
+      entry.className = `telemetry-entry ${type.includes("drop") ? "drop" : (type.includes("pivot") ? "pivot" : "")}`;
+      const timeStr = new Date().toTimeString().split(" ")[0];
+      entry.innerText = `[${timeStr}] ${type.toUpperCase()}: ${JSON.stringify(data).slice(0, 75)}`;
+      list.prepend(entry);
+      if (list.children.length > 80) list.removeChild(list.lastChild);
+    }
+
+    // ==========================================
+    // Canvas Sizing Utility
+    // ==========================================
+    function resizeCanvas(c) {
+      const rect = c.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      if (c.width !== Math.floor(rect.width * dpr) || c.height !== Math.floor(rect.height * dpr)) {
+        c.width = rect.width * dpr;
+        c.height = rect.height * dpr;
+      }
+      const ctx = c.getContext("2d");
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.scale(dpr, dpr);
+      return { ctx, w: rect.width, h: rect.height };
+    }
+
+    // ==========================================
+    // Grand Apparatus Renderer (PhET Wavefield + Macaulay Cutaways)
+    // ==========================================
+    const apparatusCanvas = document.getElementById("apparatusCanvas");
+
+    function renderApparatus() {
+      const { ctx, w, h } = resizeCanvas(apparatusCanvas);
+      const isXray = state.isXray;
+      const t = state.mechPhase;
+
+      // 1. Backdrop
+      if (isXray) {
+        ctx.fillStyle = "#030b17";
+        ctx.fillRect(0, 0, w, h);
+        // Architectural cyan blueprint grid
+        ctx.strokeStyle = "rgba(0, 240, 255, 0.08)";
+        ctx.lineWidth = 1;
+        for (let x = 0; x < w; x += 20) {
+          ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+        }
+        for (let y = 0; y < h; y += 20) {
+          ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+        }
+      } else {
+        // Deep parchment & obsidian gradient
+        const bgGrad = ctx.createLinearGradient(0, 0, 0, h);
+        bgGrad.addColorStop(0, "#080e1c");
+        bgGrad.addColorStop(1, "#030509");
+        ctx.fillStyle = bgGrad;
+        ctx.fillRect(0, 0, w, h);
+      }
+
+      // Three physical sector divisions:
+      // Machine A: [0, w * 0.32]
+      // Wavefield: [w * 0.32, w * 0.68]
+      // Machine B: [w * 0.68, w]
+      const mA_w = w * 0.32;
+      const wave_x = mA_w;
+      const wave_w = w * 0.36;
+      const mB_x = wave_x + wave_w;
+      const mB_w = w - mB_x;
+
+      // ----------------------------------------
+      // Render Wavefield (Center Terrain)
+      // ----------------------------------------
+      stepWavefield();
+      renderWavefieldSector(ctx, wave_x, 15, wave_w, h - 30, isXray);
+
+      // ----------------------------------------
+      // Render Machine A: The Solar Beacon (Left Cutaway)
+      // ----------------------------------------
+      renderMachineACutaway(ctx, 15, 15, mA_w - 25, h - 30, isXray, t);
+
+      // ----------------------------------------
+      // Render Machine B: The Field Scholar Appliance (Right Cutaway)
+      // ----------------------------------------
+      renderMachineBCutaway(ctx, mB_x + 10, 15, mB_w - 25, h - 30, isXray, t);
+
+      // ----------------------------------------
+      // Render Droplets In Transit & Spark Particles
+      // ----------------------------------------
+      renderTransitDropletsAndSparks(ctx, w, h, wave_x, wave_w);
+
+      // Update mechanical phase
+      if (state.isPlaying) {
+        state.mechPhase += 0.05;
+      }
+    }
+
+    // Sector 1: 2D Wavefield Propagation Renderer
+    function renderWavefieldSector(ctx, x, y, w, h, isXray) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x, y, w, h);
+      ctx.clip();
+
+      // Terrain backdrop
+      ctx.fillStyle = isXray ? "#020712" : "#050914";
+      ctx.fillRect(x, y, w, h);
+
+      // Draw Discrete Wave Grid
+      const gw = state.waveGridW;
+      const gh = state.waveGridH;
+      const uC = state.uCurr;
+      const terr = state.terrain;
+      const cellW = w / gw;
+      const cellH = h / gh;
+
+      const isRf = state.waveMode === "rf";
+
+      // Render scalar wave height field
+      for (let gy = 0; gy < gh; gy += 2) {
+        for (let gx = 0; gx < gw; gx += 2) {
+          const idx = gy * gw + gx;
+          const val = uC[idx];
+          const obstacle = terr[idx];
+
+          if (obstacle > 0.5) {
+            // Granite ridge obstacle
+            ctx.fillStyle = isXray ? "rgba(0, 240, 255, 0.25)" : "rgba(74, 58, 42, 0.7)";
+            ctx.fillRect(x + gx * cellW, y + gy * cellH, cellW * 2, cellH * 2);
+          } else if (Math.abs(val) > 0.04) {
+            const alpha = Math.min(1.0, Math.abs(val) * 0.9);
+            if (isXray) {
+              ctx.fillStyle = val > 0 ? `rgba(0, 240, 255, ${alpha * 0.7})` : `rgba(0, 120, 255, ${alpha * 0.5})`;
+            } else if (isRf) {
+              // Electric cyan / violet electromagnetic ripples
+              ctx.fillStyle = val > 0 ? `rgba(0, 240, 255, ${alpha * 0.8})` : `rgba(181, 95, 230, ${alpha * 0.6})`;
+            } else {
+              // Warm amber / golden acoustic compression rings
+              ctx.fillStyle = val > 0 ? `rgba(243, 194, 72, ${alpha * 0.85})` : `rgba(212, 175, 55, ${alpha * 0.5})`;
+            }
+            ctx.fillRect(x + gx * cellW, y + gy * cellH, cellW * 2, cellH * 2);
+          }
+        }
+      }
+
+      // Terrain contour line (ground bedrock)
+      ctx.strokeStyle = isXray ? "rgba(0, 240, 255, 0.4)" : "rgba(212, 175, 55, 0.4)";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(x, y + h * 0.88);
+      ctx.quadraticCurveTo(x + w * 0.35, y + h * 0.78, x + w * 0.52, y + h * 0.65);
+      ctx.quadraticCurveTo(x + w * 0.68, y + h * 0.82, x + w, y + h * 0.90);
+      ctx.stroke();
+
+      // Atmospheric fog & path loss notation
+      ctx.fillStyle = isXray ? "#00f0ff" : "#f3c248";
+      ctx.font = isXray ? "10px monospace" : "bold 10px serif";
+      ctx.fillText(isRf ? "\u223f RF ELECTROMAGNETIC WAVEFIELD (2.4 GHz)" : "\u223f ACOUSTIC AFSK SONAR CHANNEL (1200 BAUD)", x + 12, y + 20);
+
+      // Specimen Callout ④: PhET Wavefield
+      renderSpecimenPin(ctx, x + w * 0.48, y + h * 0.35, 4, isXray);
+
+      if (isXray) {
+        ctx.fillStyle = "rgba(0, 240, 255, 0.85)";
+        ctx.font = "9px monospace";
+        ctx.fillText("\u2207\u00b2\u03c8 + k\u00b2\u03c8 = 0 | Path Loss: 20 log\u2081\u2080(4\u03c0d/\u03bb)", x + 12, y + h - 14);
+      }
+
+      ctx.restore();
+    }
+
+    // Sector 2: Machine A (The Solar Beacon) Macaulay Mechanical Cutaway
+    function renderMachineACutaway(ctx, x, y, w, h, isXray, t) {
+      ctx.save();
+
+      // Brass outer casing cutaway
+      ctx.strokeStyle = isXray ? "rgba(0, 240, 255, 0.8)" : "rgba(212, 175, 55, 0.85)";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x, y, w, h);
+
+      // Rivets along the perimeter
+      ctx.fillStyle = isXray ? "#00f0ff" : "#f3c248";
+      for (let ry = y + 10; ry < y + h; ry += 24) {
+        ctx.beginPath(); ctx.arc(x + 4, ry, 1.8, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(x + w - 4, ry, 1.8, 0, Math.PI * 2); ctx.fill();
+      }
+
+      // Machine Title Header
+      ctx.fillStyle = isXray ? "#00f0ff" : "#f7e7b4";
+      ctx.font = isXray ? "bold 11px monospace" : "bold 11px serif";
+      ctx.fillText("MACHINE A: THE SOLAR BEACON", x + 10, y + 18);
+
+      // 1. Byte Ribbon Conveyor (Top)
+      const convY = y + 36;
+      ctx.strokeStyle = isXray ? "rgba(0, 240, 255, 0.5)" : "rgba(212, 175, 55, 0.6)";
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(x + 10, convY, w - 20, 24);
+
+      // Moving teeth on conveyor belt
+      const offset = (t * 24) % 16;
+      ctx.fillStyle = isXray ? "rgba(0, 240, 255, 0.3)" : "rgba(212, 175, 55, 0.25)";
+      for (let bx = x + 10 + offset; bx < x + w - 10; bx += 16) {
+        ctx.fillRect(bx, convY + 2, 8, 20);
+        ctx.fillStyle = isXray ? "#b8f2ff" : "#ffeeb3";
+        ctx.font = "8px monospace";
+        ctx.fillText("0x" + Math.floor((bx * 7) % 89).toString(16), bx - 1, convY + 15);
+      }
+
+      // 2. FastCDC Rolling Gear Guillotine (Mid-Left)
+      const gearX = x + 45;
+      const gearY = y + 120;
+      drawMeshedGears(ctx, gearX, gearY, 24, t * 1.5, isXray);
+      drawMeshedGears(ctx, gearX + 38, gearY, 18, -t * 2.0, isXray);
+
+      // Guillotine Blade Drop
+      state.guillotineDrop = Math.max(0, state.guillotineDrop - 0.08);
+      if (Math.random() < 0.04 && state.isPlaying) {
+        state.guillotineDrop = 1.0;
+        playEarcon("gear");
+      }
+      const bladeY = gearY - 30 + state.guillotineDrop * 26;
+      ctx.fillStyle = isXray ? "#00f0ff" : "#e0e6ed";
+      ctx.fillRect(gearX + 20, bladeY, 6, 32);
+      ctx.fillStyle = isXray ? "#7defff" : "#ffcc00";
+      ctx.font = isXray ? "8px monospace" : "9px serif";
+      ctx.fillText(state.guillotineDrop > 0.5 ? "CUT!" : "HASH", gearX + 10, gearY - 34);
+
+      // Specimen Callout ①: FastCDC Guillotine
+      renderSpecimenPin(ctx, gearX + 22, gearY - 10, 1, isXray);
+
+      if (isXray) {
+        ctx.fillStyle = "#00f0ff";
+        ctx.font = "8.5px monospace";
+        ctx.fillText("\u0394\u22610(mod M) | Dedup 11.9x", x + 10, gearY + 38);
+      }
+
+      // 3. Merkle Hashing Crucible / Forge (Mid-Right)
+      const crucX = x + w - 75;
+      const crucY = y + 125;
+      // Crucible pot
+      ctx.strokeStyle = isXray ? "rgba(0, 240, 255, 0.7)" : "rgba(212, 175, 55, 0.75)";
+      ctx.fillStyle = isXray ? "rgba(0, 240, 255, 0.15)" : "rgba(255, 170, 0, 0.18)";
+      ctx.beginPath();
+      ctx.arc(crucX, crucY + 10, 26, 0, Math.PI);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Molten hash glow in crucible
+      const glow = Math.sin(t * 3) * 0.25 + 0.75;
+      ctx.fillStyle = isXray ? `rgba(0, 240, 255, ${glow})` : `rgba(255, 204, 0, ${glow})`;
+      ctx.beginPath();
+      ctx.arc(crucX, crucY + 10, 18, 0, Math.PI);
+      ctx.fill();
+
+      // Balance scale arms over crucible
+      const armTilt = Math.sin(t * 1.8) * 6;
+      ctx.strokeStyle = isXray ? "#00f0ff" : "#d4af37";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(crucX - 22, crucY - 14 + armTilt);
+      ctx.lineTo(crucX + 22, crucY - 14 - armTilt);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(crucX, crucY - 24);
+      ctx.lineTo(crucX, crucY - 4);
+      ctx.stroke();
+
+      // Specimen Callout ②: Merkle Crucible
+      renderSpecimenPin(ctx, crucX, crucY - 6, 2, isXray);
+
+      if (isXray) {
+        ctx.fillStyle = "#00f0ff";
+        ctx.font = "8.5px monospace";
+        ctx.fillText("H_root = SHA3(L||R)", crucX - 38, crucY + 38);
+      }
+
+      // 4. Soliton Mixing Orrery (Bottom Left)
+      const orreryX = x + 65;
+      const orreryY = y + h - 85;
+      drawSolitonOrrery(ctx, orreryX, orreryY, 34, t, isXray);
+
+      // Specimen Callout ③: Soliton Orrery
+      renderSpecimenPin(ctx, orreryX, orreryY, 3, isXray);
+
+      if (isXray) {
+        ctx.fillStyle = "#00f0ff";
+        ctx.font = "8.5px monospace";
+        ctx.fillText("\u03c1(d)=1/(d(d-1)) | Deg d=2", x + 10, orreryY + 46);
+      }
+
+      // 5. Radiating Exciter Horn (Bottom Right emitting into wavefield)
+      const hornX = x + w - 10;
+      const hornY = y + h * 0.52;
+      ctx.strokeStyle = isXray ? "#00f0ff" : "#d4af37";
+      ctx.fillStyle = isXray ? "rgba(0, 240, 255, 0.2)" : "rgba(212, 175, 55, 0.25)";
+      ctx.beginPath();
+      ctx.moveTo(hornX - 35, hornY - 12);
+      ctx.lineTo(hornX, hornY - 28);
+      ctx.lineTo(hornX, hornY + 28);
+      ctx.lineTo(hornX - 35, hornY + 12);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Radiating wavefront arcs from horn
+      const arcPulse = (t * 8) % 24;
+      ctx.strokeStyle = isXray ? `rgba(0, 240, 255, ${1 - arcPulse / 24})` : `rgba(243, 194, 72, ${1 - arcPulse / 24})`;
+      ctx.beginPath();
+      ctx.arc(hornX, hornY, 10 + arcPulse, -Math.PI * 0.35, Math.PI * 0.35);
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
+    // Sector 3: Machine B (The Field Scholar Appliance) Macaulay Cutaway
+    function renderMachineBCutaway(ctx, x, y, w, h, isXray, t) {
+      ctx.save();
+
+      // Brass outer casing
+      ctx.strokeStyle = isXray ? "rgba(0, 240, 255, 0.8)" : "rgba(212, 175, 55, 0.85)";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x, y, w, h);
+
+      // Rivets
+      ctx.fillStyle = isXray ? "#00f0ff" : "#f3c248";
+      for (let ry = y + 10; ry < y + h; ry += 24) {
+        ctx.beginPath(); ctx.arc(x + 4, ry, 1.8, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(x + w - 4, ry, 1.8, 0, Math.PI * 2); ctx.fill();
+      }
+
+      // Title
+      ctx.fillStyle = isXray ? "#00f0ff" : "#f7e7b4";
+      ctx.font = isXray ? "bold 11px monospace" : "bold 11px serif";
+      ctx.fillText("MACHINE B: FIELD SCHOLAR APPLIANCE", x + 10, y + 18);
+
+      // 1. Parabolic Receiver Dish (Left facing wavefield)
+      const dishX = x + 12;
+      const dishY = y + h * 0.48;
+      ctx.strokeStyle = isXray ? "#00f0ff" : "#d4af37";
+      ctx.fillStyle = isXray ? "rgba(0, 240, 255, 0.15)" : "rgba(212, 175, 55, 0.2)";
+      ctx.beginPath();
+      ctx.arc(dishX + 22, dishY, 34, Math.PI * 0.6, Math.PI * 1.4);
+      ctx.stroke();
+
+      // Dish focus feed horn & galvanometer
+      ctx.beginPath();
+      ctx.moveTo(dishX + 22, dishY);
+      ctx.lineTo(dishX + 46, dishY);
+      ctx.stroke();
+
+      // Galvanometer VU Meter
+      const meterX = x + 70;
+      const meterY = y + 54;
+      ctx.strokeStyle = isXray ? "rgba(0, 240, 255, 0.6)" : "rgba(212, 175, 55, 0.6)";
+      ctx.strokeRect(meterX, meterY, 55, 32);
+      ctx.fillStyle = isXray ? "rgba(0, 20, 40, 0.5)" : "rgba(0, 0, 0, 0.4)";
+      ctx.fillRect(meterX, meterY, 55, 32);
+
+      // Galvanometer needle
+      const needleAngle = Math.sin(t * 3.5) * 0.45 - 0.2;
+      ctx.strokeStyle = isXray ? "#00ffa3" : "#ff3366";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(meterX + 27, meterY + 28);
+      ctx.lineTo(meterX + 27 + Math.sin(needleAngle) * 22, meterY + 28 - Math.cos(needleAngle) * 22);
+      ctx.stroke();
+      ctx.fillStyle = isXray ? "#00f0ff" : "#d4af37";
+      ctx.font = "7.5px monospace";
+      ctx.fillText("SNR: 28dB", meterX + 6, meterY + 12);
+
+      // 2. O(1) Byzantine Sorting Sieve Gate & Slag Chute (Center Top)
+      const gateX = x + 155;
+      const gateY = y + 75;
+      // Slag Chute incinerator (below gate)
+      const slagY = gateY + 45;
+      ctx.fillStyle = isXray ? "rgba(255, 51, 102, 0.2)" : "rgba(255, 60, 0, 0.25)";
+      ctx.strokeStyle = isXray ? "#ff3366" : "#e0475b";
+      ctx.strokeRect(gateX - 15, slagY, 40, 35);
+      ctx.fillRect(gateX - 15, slagY, 40, 35);
+
+      // Fiery slag incinerator grate glow
+      const fireGlow = Math.sin(t * 5) * 0.3 + 0.7;
+      ctx.fillStyle = `rgba(255, 100, 0, ${fireGlow * 0.6})`;
+      ctx.fillRect(gateX - 12, slagY + 15, 34, 16);
+
+      // Sorting flap / trapdoor
+      const isRejecting = state.byzantineDrop !== null;
+      const flapAngle = isRejecting ? 0.6 : 0;
+      ctx.strokeStyle = isXray ? "#00f0ff" : "#d4af37";
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(gateX - 20, gateY);
+      ctx.lineTo(gateX + Math.cos(flapAngle) * 25, gateY + Math.sin(flapAngle) * 25);
+      ctx.stroke();
+
+      // Specimen Callout ⑤: Byzantine Gate
+      renderSpecimenPin(ctx, gateX, gateY - 14, 5, isXray);
+
+      if (isXray) {
+        ctx.fillStyle = "#00f0ff";
+        ctx.font = "8px monospace";
+        ctx.fillText("O(1) HMAC Sieve", gateX - 25, gateY - 26);
+      }
+
+      // 3. GF(2) Matrix Computing Analytical Cylinder (Difference Engine Drum)
+      const drumX = x + 65;
+      const drumY = y + h - 90;
+      drawAnalyticalDrum(ctx, drumX, drumY, 80, 52, t, state.rank, state.k, isXray);
+
+      // Specimen Callout ⑥: GF(2) Cylinder
+      renderSpecimenPin(ctx, drumX + 40, drumY + 26, 6, isXray);
+
+      if (isXray) {
+        ctx.fillStyle = "#00f0ff";
+        ctx.font = "8.5px monospace";
+        ctx.fillText("G\u00b7x=y (mod 2) | Pivots Active", drumX - 10, drumY + 66);
+      }
+
+      // 4. Mechanical Odometer Rank Register (Top Right)
+      const odoX = x + w - 85;
+      const odoY = y + 54;
+      drawMechanicalOdometer(ctx, odoX, odoY, state.rank, state.k, isXray);
+
+      // Specimen Callout ⑦: Mechanical Odometer
+      renderSpecimenPin(ctx, odoX + 35, odoY + 16, 7, isXray);
+
+      // 5. Acoustic Diaphragm / Speaker Horn (Bottom Right)
+      const spkX = x + w - 50;
+      const spkY = y + h - 75;
+      ctx.strokeStyle = isXray ? "#00f0ff" : "#d4af37";
+      ctx.fillStyle = isXray ? "rgba(0, 240, 255, 0.15)" : "rgba(212, 175, 55, 0.2)";
+      ctx.beginPath();
+      ctx.arc(spkX, spkY, 24, -Math.PI * 0.45, Math.PI * 0.45);
+      ctx.stroke();
+
+      // Pulsing diaphragm lines
+      const spkPulse = (t * 6) % 18;
+      ctx.strokeStyle = isXray ? `rgba(0, 255, 163, ${1 - spkPulse / 18})` : `rgba(212, 175, 55, ${1 - spkPulse / 18})`;
+      ctx.beginPath();
+      ctx.arc(spkX + 10, spkY, 12 + spkPulse, -Math.PI * 0.35, Math.PI * 0.35);
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
+    // Helper: Draw Meshed Brass Spur Gears
+    function drawMeshedGears(ctx, cx, cy, radius, angle, isXray) {
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(angle);
+
+      ctx.strokeStyle = isXray ? "#00f0ff" : "#d4af37";
+      ctx.fillStyle = isXray ? "rgba(0, 240, 255, 0.12)" : "rgba(212, 175, 55, 0.18)";
+      ctx.lineWidth = 1.5;
+
+      const teeth = 12;
+      ctx.beginPath();
+      for (let i = 0; i < teeth; i++) {
+        const a1 = (i / teeth) * Math.PI * 2;
+        const a2 = ((i + 0.5) / teeth) * Math.PI * 2;
+        ctx.lineTo(Math.cos(a1) * (radius + 4), Math.sin(a1) * (radius + 4));
+        ctx.lineTo(Math.cos(a2) * radius, Math.sin(a2) * radius);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Center axle hub
+      ctx.beginPath();
+      ctx.arc(0, 0, 5, 0, Math.PI * 2);
+      ctx.fillStyle = isXray ? "#00f0ff" : "#f3c248";
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Helper: Draw Soliton Degree Orrery (Planetary Gears)
+    function drawSolitonOrrery(ctx, cx, cy, radius, t, isXray) {
+      ctx.save();
+      ctx.translate(cx, cy);
+
+      // Central Sun Gear
+      ctx.strokeStyle = isXray ? "#00f0ff" : "#d4af37";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(0, 0, radius * 0.35, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // 3 Planet arms rotating around sun gear
+      const planets = 3;
+      for (let p = 0; p < planets; p++) {
+        const theta = t * 1.2 + (p * Math.PI * 2) / planets;
+        const px = Math.cos(theta) * radius * 0.72;
+        const py = Math.sin(theta) * radius * 0.72;
+
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(px, py);
+        ctx.stroke();
+
+        ctx.fillStyle = isXray ? "#00f0ff" : (p === 0 ? "#00ffa3" : "#f3c248");
+        ctx.beginPath();
+        ctx.arc(px, py, 7, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Degree label on planet
+        ctx.fillStyle = "#060913";
+        ctx.font = "bold 8px monospace";
+        ctx.fillText(`d${p+1}`, px - 5, py + 3);
+      }
+      ctx.restore();
+    }
+
+    // Helper: Draw Analytical Difference Drum
+    function drawAnalyticalDrum(ctx, x, y, w, h, t, rank, k, isXray) {
+      ctx.save();
+      ctx.strokeStyle = isXray ? "rgba(0, 240, 255, 0.8)" : "rgba(212, 175, 55, 0.85)";
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(x, y, w, h);
+
+      ctx.fillStyle = isXray ? "rgba(0, 30, 60, 0.4)" : "rgba(0, 0, 0, 0.5)";
+      ctx.fillRect(x, y, w, h);
+
+      // Rotating tumbler pins
+      const cols = 8;
+      const rows = 5;
+      const colW = w / cols;
+      const rowH = h / rows;
+
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const px = x + c * colW + colW * 0.5;
+          const py = y + r * rowH + rowH * 0.5;
+          const isPivot = (r === c && rank > r * 4);
+
+          ctx.fillStyle = isPivot 
+            ? (isXray ? "#00f0ff" : "#00ffa3")
+            : (isXray ? "rgba(0, 240, 255, 0.2)" : "rgba(212, 175, 55, 0.25)");
+          ctx.beginPath();
+          ctx.arc(px, py, isPivot ? 3.5 : 2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      ctx.restore();
+    }
+
+    // Helper: Draw Mechanical Vintage Odometer
+    function drawMechanicalOdometer(ctx, x, y, rank, k, isXray) {
+      ctx.save();
+      ctx.strokeStyle = isXray ? "#00f0ff" : "#d4af37";
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(x, y, 70, 26);
+      ctx.fillStyle = isXray ? "#020c1c" : "#050811";
+      ctx.fillRect(x, y, 70, 26);
+
+      ctx.fillStyle = isXray ? "#00ffa3" : "#f7e7b4";
+      ctx.font = isXray ? "bold 13px monospace" : "bold 13px serif";
+      ctx.textAlign = "center";
+      ctx.fillText(`${rank.toString().padStart(2, "0")} / ${k}`, x + 35, y + 18);
+      ctx.restore();
+    }
+
+    // Helper: Render Specimen Brass Callout Pin (DK Eyewitness)
+    function renderSpecimenPin(ctx, px, py, id, isXray) {
+      ctx.save();
+      // Clickable circular pin badge
+      ctx.fillStyle = isXray ? "rgba(0, 240, 255, 0.2)" : "rgba(212, 175, 55, 0.35)";
+      ctx.strokeStyle = isXray ? "#00f0ff" : "#ffe885";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(px, py, 9, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = isXray ? "#00f0ff" : "#fff";
+      ctx.font = "bold 9px serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(id.toString(), px, py);
+      ctx.restore();
+    }
+
+    // Handle clicks on the apparatus canvas to open specimen details
+    apparatusCanvas.addEventListener("click", (e) => {
+      const rect = apparatusCanvas.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const clickY = e.clientY - rect.top;
+      const w = rect.width;
+      const h = rect.height;
+
+      // Approximate hit zones for the 7 specimens:
+      if (clickX < w * 0.18 && clickY < h * 0.45) openSpecimenModal(1);
+      else if (clickX >= w * 0.18 && clickX < w * 0.32 && clickY < h * 0.45) openSpecimenModal(2);
+      else if (clickX < w * 0.32 && clickY >= h * 0.45) openSpecimenModal(3);
+      else if (clickX >= w * 0.32 && clickX < w * 0.68) openSpecimenModal(4);
+      else if (clickX >= w * 0.68 && clickX < w * 0.85 && clickY < h * 0.45) openSpecimenModal(5);
+      else if (clickX >= w * 0.85 && clickY < h * 0.45) openSpecimenModal(7);
+      else if (clickX >= w * 0.68 && clickY >= h * 0.45) openSpecimenModal(6);
+    });
+
+    // Helper: Droplets in transit across wavefield & spark particle physics
+    function renderTransitDropletsAndSparks(ctx, w, h, waveX, waveW) {
+      // Periodically spawn visual transit droplet
+      if (state.isPlaying && Math.random() < 0.2) {
+        const isDropped = Math.random() < state.lossRate;
+        state.apparatusDroplets.push({
+          x: waveX + 5,
+          y: h * 0.52,
+          vx: Math.random() * 2 + 3.5,
+          isDropped,
+          detonated: false,
+        });
+      }
+
+      // Update and draw droplets in transit
+      for (let i = state.apparatusDroplets.length - 1; i >= 0; i--) {
+        const d = state.apparatusDroplets[i];
+        d.x += d.vx;
+
+        // Path loss: drop packet midway through wavefield with spark explosion
+        if (d.isDropped && d.x > waveX + waveW * 0.48 && !d.detonated) {
+          d.detonated = true;
+          // Spawn 12 spark particles
+          for (let s = 0; s < 12; s++) {
+            const angle = Math.random() * Math.PI * 2;
+            const spd = Math.random() * 3 + 1;
+            state.sparks.push({
+              x: d.x,
+              y: d.y,
+              vx: Math.cos(angle) * spd,
+              vy: Math.sin(angle) * spd,
+              alpha: 1.0,
+              color: Math.random() < 0.5 ? "#ff3366" : "#ffcc00",
+            });
+          }
+          state.apparatusDroplets.splice(i, 1);
+          continue;
+        }
+
+        // Draw transit droplet
+        ctx.fillStyle = state.isXray 
+          ? "#00f0ff" 
+          : (state.waveMode === "rf" ? "rgba(0, 240, 255, 0.9)" : "rgba(243, 194, 72, 0.95)");
+        ctx.beginPath();
+        ctx.arc(d.x, d.y, 4, 0, Math.PI * 2);
+        ctx.fill();
+
+        if (d.x > waveX + waveW) {
+          state.apparatusDroplets.splice(i, 1);
+        }
+      }
+
+      // Update and render spark particles
+      for (let i = state.sparks.length - 1; i >= 0; i--) {
+        const sp = state.sparks[i];
+        sp.x += sp.vx;
+        sp.y += sp.vy;
+        sp.alpha -= 0.035;
+
+        ctx.fillStyle = sp.color;
+        ctx.globalAlpha = Math.max(0, sp.alpha);
+        ctx.beginPath();
+        ctx.arc(sp.x, sp.y, 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1.0;
+
+        if (sp.alpha <= 0) {
+          state.sparks.splice(i, 1);
+        }
+      }
+    }
+
+    // ==========================================
+    // Analytical Panels 1 - 4 Renderers
     // ==========================================
     const cdcCanvas = document.getElementById("cdcCanvas");
     const merkleCanvas = document.getElementById("merkleCanvas");
     const fountainCanvas = document.getElementById("fountainCanvas");
     const matrixCanvas = document.getElementById("matrixCanvas");
 
-    function resizeCanvas(c) {
-      const rect = c.getBoundingClientRect();
-      c.width = rect.width * (window.devicePixelRatio || 1);
-      c.height = rect.height * (window.devicePixelRatio || 1);
-      const ctx = c.getContext("2d");
-      ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
-      return { ctx, w: rect.width, h: rect.height };
-    }
-
     // 1. Draw FastCDC Byte Ribbon
     function renderCDC() {
       const { ctx, w, h } = resizeCanvas(cdcCanvas);
-      const isScholastic = document.body.classList.contains("theme-scholastic");
-      ctx.fillStyle = isScholastic ? "#050811" : "#060a12";
+      const isXray = state.isXray;
+      ctx.fillStyle = isXray ? "#030b17" : "#050811";
       ctx.fillRect(0, 0, w, h);
 
       const blockWidth = 6;
       const totalBlocks = Math.floor((w - 40) / (blockWidth + 2));
       const cuts = [14, 32, 48, 62];
-
       state.cdcOffset = (state.cdcOffset + 0.5) % totalBlocks;
 
       for (let i = 0; i < totalBlocks; i++) {
@@ -981,36 +2108,36 @@
         const isCut = cuts.includes(i);
 
         if (isCut) {
-          ctx.fillStyle = isScholastic ? "rgba(212, 175, 55, 0.95)" : "rgba(0, 240, 255, 0.9)";
-          ctx.fillRect(x - 1, 30, blockWidth + 2, h - 60);
-          ctx.fillStyle = isScholastic ? "#f3c248" : "#00ffa3";
-          ctx.font = isScholastic ? "bold 10px serif" : "10px monospace";
-          ctx.fillText(`CUT`, x - 6, 22);
+          ctx.fillStyle = isXray ? "#00f0ff" : "rgba(212, 175, 55, 0.95)";
+          ctx.fillRect(x - 1, 28, blockWidth + 2, h - 56);
+          ctx.fillStyle = isXray ? "#7defff" : "#f3c248";
+          ctx.font = isXray ? "bold 9px monospace" : "bold 10px serif";
+          ctx.fillText("CUT", x - 6, 20);
         } else {
           const brightness = Math.sin((i + state.cdcOffset) * 0.3) * 0.3 + 0.5;
-          ctx.fillStyle = isScholastic ? `rgba(212, 175, 55, ${brightness * 0.35})` : `rgba(0, 150, 255, ${brightness * 0.4})`;
-          ctx.fillRect(x, 40, blockWidth, h - 80);
+          ctx.fillStyle = isXray 
+            ? `rgba(0, 240, 255, ${brightness * 0.35})` 
+            : `rgba(212, 175, 55, ${brightness * 0.35})`;
+          ctx.fillRect(x, 38, blockWidth, h - 76);
         }
       }
 
-      // Rolling Gear Hash Indicator
-      ctx.strokeStyle = isScholastic ? "rgba(243, 194, 72, 0.8)" : "rgba(255, 204, 0, 0.7)";
-      ctx.lineWidth = 2;
+      ctx.strokeStyle = isXray ? "#00f0ff" : "rgba(243, 194, 72, 0.8)";
+      ctx.lineWidth = 1.5;
       const scanX = 20 + ((state.cdcOffset * 4) % (w - 40));
       ctx.beginPath();
-      ctx.moveTo(scanX, 28);
-      ctx.lineTo(scanX, h - 28);
+      ctx.moveTo(scanX, 26);
+      ctx.lineTo(scanX, h - 26);
       ctx.stroke();
     }
 
     // 2. Draw Merkle Cryptographic Tree
     function renderMerkle() {
       const { ctx, w, h } = resizeCanvas(merkleCanvas);
-      const isScholastic = document.body.classList.contains("theme-scholastic");
-      ctx.fillStyle = isScholastic ? "#050811" : "#060a12";
+      const isXray = state.isXray;
+      ctx.fillStyle = isXray ? "#030b17" : "#050811";
       ctx.fillRect(0, 0, w, h);
 
-      // Simple 3-level binary tree
       const levels = [
         [{ x: w / 2, y: 35, verified: true, text: "ROOT" }],
         [
@@ -1018,17 +2145,16 @@
           { x: (3 * w) / 4, y: 100, verified: true, text: "H(2..3)" }
         ],
         [
-          { x: w / 8, y: 175, verified: true, text: "C0" },
-          { x: (3 * w) / 8, y: 175, verified: true, text: "C1" },
-          { x: (5 * w) / 8, y: 175, verified: true, text: "C2" },
-          { x: (7 * w) / 8, y: 175, verified: true, text: "C3" }
+          { x: w / 8, y: 170, verified: true, text: "C0" },
+          { x: (3 * w) / 8, y: 170, verified: true, text: "C1" },
+          { x: (5 * w) / 8, y: 170, verified: true, text: "C2" },
+          { x: (7 * w) / 8, y: 170, verified: true, text: "C3" }
         ]
       ];
 
       ctx.lineWidth = 1.5;
-      ctx.strokeStyle = isScholastic ? "rgba(212, 175, 55, 0.45)" : "rgba(0, 255, 163, 0.4)";
+      ctx.strokeStyle = isXray ? "rgba(0, 240, 255, 0.45)" : "rgba(212, 175, 55, 0.45)";
 
-      // Draw branch connections
       for (let l = 0; l < levels.length - 1; l++) {
         for (let i = 0; i < levels[l].length; i++) {
           const parent = levels[l][i];
@@ -1047,18 +2173,17 @@
         }
       }
 
-      // Draw nodes
       for (const level of levels) {
         for (const node of level) {
-          ctx.fillStyle = isScholastic ? "rgba(212, 175, 55, 0.2)" : "rgba(0, 255, 163, 0.2)";
-          ctx.strokeStyle = isScholastic ? "#d4af37" : "#00ffa3";
+          ctx.fillStyle = isXray ? "rgba(0, 240, 255, 0.2)" : "rgba(212, 175, 55, 0.2)";
+          ctx.strokeStyle = isXray ? "#00f0ff" : "#d4af37";
           ctx.beginPath();
-          ctx.arc(node.x, node.y, 16, 0, Math.PI * 2);
+          ctx.arc(node.x, node.y, 15, 0, Math.PI * 2);
           ctx.fill();
           ctx.stroke();
 
-          ctx.fillStyle = isScholastic ? "#ffeeb3" : "#fff";
-          ctx.font = isScholastic ? "9px serif" : "9px monospace";
+          ctx.fillStyle = isXray ? "#b8f2ff" : "#ffeeb3";
+          ctx.font = isXray ? "9px monospace" : "9px serif";
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
           ctx.fillText(node.text, node.x, node.y);
@@ -1069,11 +2194,10 @@
     // 3. Draw Fountain Droplet Rain & Loss Channel
     function updateAndRenderFountain() {
       const { ctx, w, h } = resizeCanvas(fountainCanvas);
-      const isScholastic = document.body.classList.contains("theme-scholastic");
-      ctx.fillStyle = isScholastic ? "#050811" : "#060a12";
+      const isXray = state.isXray;
+      ctx.fillStyle = isXray ? "#030b17" : "#050811";
       ctx.fillRect(0, 0, w, h);
 
-      // Emit new droplet periodically
       if (state.isPlaying && Math.random() < 0.35) {
         state.packetsSent++;
         const isDropped = Math.random() < state.lossRate;
@@ -1083,7 +2207,6 @@
           state.packetsSurvived++;
           if (state.rank < state.k) {
             state.rank++;
-            // Add matrix row
             const row = [];
             for (let c = 0; c < state.k; c++) {
               row.push(Math.random() < 0.3 ? 1 : 0);
@@ -1098,24 +2221,21 @@
           vx: Math.random() * 2 + 3,
           isDropped,
           seed: state.packetsSent,
-          progress: 0,
         });
       }
 
-      // Update and draw droplets
       for (let i = state.droplets.length - 1; i >= 0; i--) {
         const d = state.droplets[i];
         d.x += d.vx;
 
-        // Visual distinction between surviving and dropped
         if (d.isDropped && d.x > w * 0.5) {
           ctx.fillStyle = "rgba(255, 51, 102, 0.85)";
           ctx.font = "12px monospace";
-          ctx.fillText("✕", d.x, d.y);
+          ctx.fillText("\u2715", d.x, d.y);
         } else {
           ctx.fillStyle = d.isDropped 
             ? "rgba(255, 51, 102, 0.5)" 
-            : (isScholastic ? "rgba(212, 175, 55, 0.95)" : "rgba(0, 240, 255, 0.9)");
+            : (isXray ? "#00f0ff" : "rgba(212, 175, 55, 0.95)");
           ctx.beginPath();
           ctx.arc(d.x, d.y, 4, 0, Math.PI * 2);
           ctx.fill();
@@ -1126,7 +2246,6 @@
         }
       }
 
-      // Update DOM Counters
       document.getElementById("packetsSent").innerText = state.packetsSent;
       document.getElementById("packetsSurvived").innerText = state.packetsSurvived;
       document.getElementById("packetsLost").innerText = state.packetsLost;
@@ -1137,8 +2256,8 @@
     // 4. Draw GF(2) Matrix Solver
     function renderMatrix() {
       const { ctx, w, h } = resizeCanvas(matrixCanvas);
-      const isScholastic = document.body.classList.contains("theme-scholastic");
-      ctx.fillStyle = isScholastic ? "#050811" : "#060a12";
+      const isXray = state.isXray;
+      ctx.fillStyle = isXray ? "#030b17" : "#050811";
       ctx.fillRect(0, 0, w, h);
 
       const rows = state.matrixRows.slice(-15);
@@ -1155,15 +2274,14 @@
           if (val === 1) {
             ctx.fillStyle = (r === c) 
               ? "#00ffa3" 
-              : (isScholastic ? "rgba(212, 175, 55, 0.7)" : "rgba(0, 240, 255, 0.6)");
+              : (isXray ? "rgba(0, 240, 255, 0.7)" : "rgba(212, 175, 55, 0.7)");
           } else {
-            ctx.fillStyle = isScholastic ? "rgba(212, 175, 55, 0.05)" : "rgba(255, 255, 255, 0.05)";
+            ctx.fillStyle = isXray ? "rgba(0, 240, 255, 0.05)" : "rgba(212, 175, 55, 0.05)";
           }
           ctx.fillRect(x, y, cellW - 1, cellH - 1);
         }
       }
 
-      // Update Rank
       document.getElementById("rankNumber").innerText = `${state.rank}/${state.k}`;
       const statusEl = document.getElementById("matrixStatus");
       if (state.rank >= state.k) {
@@ -1171,11 +2289,10 @@
         statusEl.style.color = "var(--accent-emerald)";
       } else {
         statusEl.innerText = "ELIMINATING GF(2)";
-        statusEl.style.color = isScholastic ? "var(--accent-yellow)" : "var(--accent-cyan)";
+        statusEl.style.color = isXray ? "#00f0ff" : "var(--accent-yellow)";
       }
     }
 
-    // Slide Swapping when rank reached
     function advanceSlide() {
       state.currentSlideIdx = (state.currentSlideIdx + 1) % presentationSlides.length;
       updateSlideDisplay();
@@ -1208,6 +2325,7 @@
 
     // Main 60 FPS Animation Loop
     function animate() {
+      renderApparatus();
       renderCDC();
       renderMerkle();
       updateAndRenderFountain();
@@ -1267,7 +2385,6 @@
         duckAmbientAudio(true);
         const t = ctx.currentTime;
         if (type === "verified" || type === "acknowledge") {
-          // Major triad D4 -> F#4 -> A4 (Pythagorean scholastic chime)
           [293.66, 369.99, 440.0].forEach((freq, i) => {
             const osc = ctx.createOscillator();
             const g = ctx.createGain();
@@ -1281,7 +2398,6 @@
             osc.stop(t + i * 0.07 + 0.3);
           });
         } else if (type === "woodblock" || type === "prompt") {
-          // Double woodblock acoustic tap
           [0, 0.09].forEach((delay) => {
             const osc = ctx.createOscillator();
             const g = ctx.createGain();
@@ -1295,6 +2411,18 @@
             osc.start(t + delay);
             osc.stop(t + delay + 0.03);
           });
+        } else if (type === "gear") {
+          const osc = ctx.createOscillator();
+          const g = ctx.createGain();
+          osc.type = "square";
+          osc.frequency.setValueAtTime(320, t);
+          osc.frequency.exponentialRampToValueAtTime(120, t + 0.02);
+          g.gain.setValueAtTime(0.08, t);
+          g.gain.exponentialRampToValueAtTime(0.001, t + 0.02);
+          osc.connect(g);
+          g.connect(ctx.destination);
+          osc.start(t);
+          osc.stop(t + 0.025);
         }
         setTimeout(() => duckAmbientAudio(false), 550);
       } catch (e) {}
@@ -1326,8 +2454,7 @@
           ambientGain.connect(filter);
           filter.connect(ctx.destination);
 
-          // 432 Hz Pythagorean Ethereal Harmonic Bed:
-          // A3 (216 Hz), D4 (288 Hz), A4 (432 Hz), E5 (648 Hz)
+          // 432 Hz Pythagorean Ethereal Harmonic Bed
           [216.0, 288.0, 432.0, 648.0].forEach((freq, idx) => {
             const osc = ctx.createOscillator();
             osc.type = "sine";
@@ -1351,7 +2478,7 @@
     document.getElementById("btnAmbientToggle").addEventListener("click", toggleAmbientSound);
 
     // ==========================================
-    // Offline Speech Synthesis (Text as Wire, Voice as Human Shell)
+    // Offline Speech Synthesis
     // ==========================================
     function speakText(text) {
       if (!("speechSynthesis" in window)) return;
@@ -1374,29 +2501,55 @@
     }
 
     // ==========================================
-    // Encarta Scholastic vs Cyber-Mesh Theme Toggle
+    // Theme & X-Ray Blueprint Toggles
     // ==========================================
     function toggleTheme() {
       playParchmentClick();
       const isScholastic = document.body.classList.toggle("theme-scholastic");
+      document.body.classList.toggle("theme-cyber", !isScholastic);
       const btn = document.getElementById("btnThemeToggle");
       if (btn) {
         btn.innerText = isScholastic ? "🏛️ THEME: SCHOLASTIC" : "⚡ THEME: CYBER";
       }
-      localStorage.setItem("tfp-visualizer-theme", isScholastic ? "scholastic" : "cyber");
     }
     document.getElementById("btnThemeToggle").addEventListener("click", toggleTheme);
 
-    // Load persisted theme preference
-    const savedTheme = localStorage.getItem("tfp-visualizer-theme");
-    if (savedTheme === "cyber") {
-      document.body.classList.remove("theme-scholastic");
-      const btn = document.getElementById("btnThemeToggle");
-      if (btn) btn.innerText = "⚡ THEME: CYBER";
+    function toggleXrayBlueprint() {
+      playEarcon("woodblock");
+      state.isXray = !state.isXray;
+      document.body.classList.toggle("mode-xray", state.isXray);
+      const btn = document.getElementById("btnXrayToggle");
+      if (btn) {
+        btn.innerText = state.isXray ? "🔬 BLUEPRINT: ON" : "🔬 BLUEPRINT: OFF";
+        btn.classList.toggle("btn-blueprint-active", state.isXray);
+      }
+      const pill = document.getElementById("apparatusModePill");
+      if (pill) {
+        pill.innerText = state.isXray ? "BLUEPRINT X-RAY: ACTIVE" : "PHYSICAL SIMULATION: 60 FPS";
+      }
+      voiceController.showToast(state.isXray ? "X-Ray Blueprint Inspector Active" : "Physical Simulation View Active");
     }
+    document.getElementById("btnXrayToggle").addEventListener("click", toggleXrayBlueprint);
+
+    function toggleWaveMode() {
+      playParchmentClick();
+      state.waveMode = state.waveMode === "rf" ? "acoustic" : "rf";
+      const btn = document.getElementById("btnWaveModeToggle");
+      if (btn) {
+        btn.innerText = state.waveMode === "rf" ? "📻 WAVE: RF" : "📻 WAVE: ACOUSTIC";
+      }
+      const lbl = document.getElementById("waveChannelLabel");
+      if (lbl) {
+        lbl.innerText = state.waveMode === "rf" 
+          ? "RF Electromagnetic \u2022 Diffraction \u2022 Path Loss" 
+          : "Acoustic Sonar \u2022 1200 Baud \u2022 Doppler Shimmer";
+      }
+      voiceController.showToast(`Wave Mode: ${state.waveMode.toUpperCase()}`);
+    }
+    document.getElementById("btnWaveModeToggle").addEventListener("click", toggleWaveMode);
 
     // ==========================================
-    // Zero-Touch Voice Command Controller (Web Speech API + Hands-Free Fallback)
+    // Zero-Touch Voice Command Controller
     // ==========================================
     class ZeroTouchVoiceController {
       constructor() {
@@ -1410,7 +2563,7 @@
       init() {
         const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRec) {
-          console.log("[TFP Voice] SpeechRecognition API not available in this client. Headphone click and keyboard controls active.");
+          console.log("[TFP Voice] SpeechRecognition API not available in this client. Keyboard controls active.");
           return;
         }
 
@@ -1497,39 +2650,56 @@
         playEarcon("acknowledge");
 
         if (cmd.includes("next") || cmd.includes("forward")) {
-          this.showToast(`Heard: "NEXT" ▹ Advancing slide`);
+          this.showToast(`Heard: "NEXT" \u25b9 Advancing slide`);
           advanceSlide();
         } else if (cmd.includes("back") || cmd.includes("previous")) {
-          this.showToast(`Heard: "BACK" ▹ Previous slide`);
+          this.showToast(`Heard: "BACK" \u25b9 Previous slide`);
           prevSlide();
         } else if (cmd.includes("repeat") || cmd.includes("again") || cmd.includes("speak")) {
-          this.showToast(`Heard: "REPEAT" ▹ Re-reading narration`);
+          this.showToast(`Heard: "REPEAT" \u25b9 Re-reading narration`);
           speakCurrentNarration();
+        } else if (cmd.includes("video") || cmd.includes("film")) {
+          this.showToast(`Heard: "VIDEO" \u25b9 Transmitting scientific video`);
+          const btn = document.getElementById("btnStreamVideo");
+          if (btn) btn.click();
+        } else if (cmd.includes("atlas") || cmd.includes("plate") || cmd.includes("anatomy")) {
+          this.showToast(`Heard: "ATLAS" \u25b9 Transmitting anatomical codex`);
+          const btn = document.getElementById("btnStreamAtlas");
+          if (btn) btn.click();
         } else if (cmd.includes("stream") || cmd.includes("short") || cmd.includes("start")) {
-          this.showToast(`Heard: "STREAM" ▹ Transmitting Scholastic Codex`);
+          this.showToast(`Heard: "STREAM" \u25b9 Transmitting Scholastic Codex`);
           const btn = document.getElementById("btnStreamShort");
           if (btn) btn.click();
+        } else if (cmd.includes("x-ray") || cmd.includes("blueprint")) {
+          this.showToast(`Heard: "BLUEPRINT" \u25b9 Toggling X-Ray overlay`);
+          toggleXrayBlueprint();
+        } else if (cmd.includes("radio") || cmd.includes("acoustic") || cmd.includes("wave")) {
+          this.showToast(`Heard: "WAVE" \u25b9 Toggling RF / Acoustic mode`);
+          toggleWaveMode();
         } else if (cmd.includes("chime") || cmd.includes("audio")) {
-          this.showToast(`Heard: "CHIME" ▹ Transmitting AFSK Tone`);
+          this.showToast(`Heard: "CHIME" \u25b9 Transmitting AFSK Tone`);
           const btn = document.getElementById("btnStreamAudio");
           if (btn) btn.click();
         } else if (cmd.includes("pause") || cmd.includes("resume") || cmd.includes("play")) {
-          this.showToast(`Heard: "${cmd.toUpperCase()}" ▹ Toggling stream`);
+          this.showToast(`Heard: "${cmd.toUpperCase()}" \u25b9 Toggling stream`);
           const btn = document.getElementById("btnPlayPause");
           if (btn) btn.click();
         } else if (cmd.includes("theme") || cmd.includes("style")) {
-          this.showToast(`Heard: "THEME" ▹ Switching theme`);
+          this.showToast(`Heard: "THEME" \u25b9 Switching theme`);
           toggleTheme();
         } else if (cmd.includes("harmony") || cmd.includes("music") || cmd.includes("sound")) {
-          this.showToast(`Heard: "HARMONY" ▹ Toggling 432 Hz ambient`);
+          this.showToast(`Heard: "HARMONY" \u25b9 Toggling 432 Hz ambient`);
           toggleAmbientSound();
         } else if (cmd.includes("reset")) {
-          this.showToast(`Heard: "RESET" ▹ Resetting counters`);
+          this.showToast(`Heard: "RESET" \u25b9 Resetting counters`);
           const btn = document.getElementById("btnReset");
           if (btn) btn.click();
+        } else if (cmd.includes("log") || cmd.includes("telemetry")) {
+          this.showToast(`Heard: "LOGS" \u25b9 Toggling telemetry drawer`);
+          toggleTelemetryDrawer();
         } else if (cmd.includes("help")) {
-          this.showToast(`Heard: "HELP" ▹ Voice instructions`);
-          speakText("You can speak: next, back, repeat, stream short, chime, pause, or theme.");
+          this.showToast(`Heard: "HELP" \u25b9 Voice instructions`);
+          speakText("You can speak: video, atlas, x-ray, wave, next, back, repeat, stream short, chime, or pause.");
         } else {
           this.showToast(`Heard: "${cmd}"`);
         }
@@ -1539,13 +2709,25 @@
     const voiceController = new ZeroTouchVoiceController();
     document.getElementById("btnVoiceToggle").addEventListener("click", () => voiceController.toggle());
 
-    // Headphone remote single-button click / spacebar hands-free navigation fallback
+    // Keyboard Shortcuts
     window.addEventListener("keydown", (e) => {
       if (e.target.tagName === "INPUT") return;
       if (e.code === "Space") {
         e.preventDefault();
         playEarcon("woodblock");
         advanceSlide();
+      } else if (e.code === "KeyX") {
+        toggleXrayBlueprint();
+      } else if (e.code === "KeyW") {
+        toggleWaveMode();
+      } else if (e.code === "KeyV") {
+        document.getElementById("btnStreamVideo").click();
+      } else if (e.code === "KeyA") {
+        document.getElementById("btnStreamAtlas").click();
+      } else if (e.code === "KeyL") {
+        toggleTelemetryDrawer();
+      } else if (e.code === "Escape") {
+        closeSpecimenModal();
       } else if (e.code === "KeyR") {
         speakCurrentNarration();
       } else if (e.code === "KeyT") {
@@ -1561,6 +2743,7 @@
     lossSlider.addEventListener("input", (e) => {
       state.lossRate = parseInt(e.target.value) / 100.0;
       lossValue.innerText = `${e.target.value}%`;
+      fetch(`/api/set-loss?rate=${state.lossRate}`).catch(() => {});
     });
 
     const btnPlayPause = document.getElementById("btnPlayPause");
@@ -1579,6 +2762,8 @@
       state.rank = 0;
       state.matrixRows = [];
       state.droplets = [];
+      state.apparatusDroplets = [];
+      state.sparks = [];
     });
 
     // ==========================================
@@ -1623,35 +2808,32 @@
           badge.innerText = "PROTOCOL ENGINE: LIVE";
         }
 
-        // Connect to Live Server-Sent Events stream from Python Protocol Engine
         if ("EventSource" in window) {
           const evtSource = new EventSource("/api/stream-events");
 
           evtSource.addEventListener("cdc_cut", (e) => {
             const d = JSON.parse(e.data);
             state.cdcOffset = d.cut;
+            logTelemetry("cdc_cut", d);
           });
 
           evtSource.addEventListener("merkle_step", (e) => {
+            const d = JSON.parse(e.data);
             const merklePill = document.getElementById("merkleStatus");
             if (merklePill) {
               merklePill.innerText = "LIVE AUDIT PROOF OK";
               merklePill.style.color = "var(--accent-emerald)";
             }
+            logTelemetry("merkle_step", d);
           });
 
           evtSource.addEventListener("droplet_drop", (e) => {
             const d = JSON.parse(e.data);
             state.packetsSent++;
             state.packetsLost++;
-            state.droplets.push({
-              x: Math.random() * (fountainCanvas.width / (window.devicePixelRatio || 1) - 40) + 20,
-              y: 20,
-              vy: 2.8,
-              isLost: true,
-              seed: d.seed,
-              alpha: 1.0,
-            });
+            state.byzantineDrop = d.seed;
+            setTimeout(() => { state.byzantineDrop = null; }, 400);
+            logTelemetry("droplet_drop", d);
           });
 
           evtSource.addEventListener("droplet_recv", (e) => {
@@ -1659,14 +2841,7 @@
             state.packetsSent++;
             state.packetsSurvived++;
             state.rank = d.rank || state.rank;
-            state.droplets.push({
-              x: Math.random() * (fountainCanvas.width / (window.devicePixelRatio || 1) - 40) + 20,
-              y: 20,
-              vy: 2.8,
-              isLost: false,
-              seed: d.seed,
-              alpha: 1.0,
-            });
+            logTelemetry("droplet_recv", d);
           });
 
           evtSource.addEventListener("matrix_pivot", (e) => {
@@ -1681,6 +2856,7 @@
               matrixStatus.innerText = `PIVOTING (${state.rank}/${state.k})`;
               matrixStatus.style.color = "var(--accent-cyan)";
             }
+            logTelemetry("matrix_pivot", d);
           });
 
           evtSource.addEventListener("slide_ready", (e) => {
@@ -1688,11 +2864,13 @@
             document.getElementById("slideHeading").innerText = s.title;
             document.getElementById("slideBullets").innerHTML = s.bullets.map(b => `<li>${b}</li>`).join("");
             document.getElementById("narrationText").innerText = `"${s.narration}"`;
+            logTelemetry("slide_ready", s);
           });
 
           evtSource.addEventListener("media_reconstructed", (e) => {
             const d = JSON.parse(e.data);
             mountReconstructedMedia(d);
+            logTelemetry("media_reconstructed", { filename: d.filename, size: d.total_size });
           });
         }
       } catch (err) {
@@ -1702,7 +2880,7 @@
     initProtocolConnection();
 
     // ==========================================
-    // Real-Time Audio Frequency Visualizer
+    // Real-Time Audio Spectrum Visualizer
     // ==========================================
     let analyserNode = null;
     let analyserData = null;
@@ -1752,7 +2930,8 @@
     }
 
     // ==========================================
-    // Live Reconstructed Media Mount
+    // Reconstructed Media Mounting Engine
+    // (WebM Video, Parametric Anatomical Atlas, AFSK Audio, HTML Shorts)
     // ==========================================
     function mountReconstructedMedia(d) {
       console.log("[TFP Media Reconstructed]", d);
@@ -1775,16 +2954,26 @@
       viewport.innerHTML = "";
 
       const mime = (d.media_type || "").toLowerCase();
+
+      // Case A: High-Definition Video
       if (mime.startsWith("video/")) {
         const video = document.createElement("video");
         video.id = "liveVideoPlayer";
         video.className = "player-video";
         video.controls = true;
         video.autoplay = true;
+        video.loop = true;
         video.playsInline = true;
         video.src = d.data_uri;
         viewport.appendChild(video);
-      } else if (mime.startsWith("audio/")) {
+        voiceController.showToast("Scientific Video Decoded & Mounted");
+      }
+      // Case B: Parametric Anatomical Atlas
+      else if (mime === "application/json" && (d.filename.includes("atlas") || (d.data_uri && atob((d.data_uri.split(",")[1] || "")).includes("parametric_atlas")))) {
+        renderParametricAtlasPlate(viewport, d);
+      }
+      // Case C: Audio Melody
+      else if (mime.startsWith("audio/")) {
         const wrapper = document.createElement("div");
         wrapper.className = "player-audio-wrapper";
 
@@ -1798,14 +2987,17 @@
         specCanvas.id = "audioFreqCanvas";
         specCanvas.className = "audio-freq-canvas";
         specCanvas.width = 600;
-        specCanvas.height = 90;
+        specCanvas.height = 80;
 
         wrapper.appendChild(audio);
         wrapper.appendChild(specCanvas);
         viewport.appendChild(wrapper);
 
         audio.addEventListener("play", () => attachAudioSpectrum(audio));
-      } else if (mime.includes("html") || mime.includes("markdown")) {
+        voiceController.showToast("AFSK Audio Tone Decoded");
+      }
+      // Case D: HTML Codex Short
+      else if (mime.includes("html") || mime.includes("markdown")) {
         const bezel = document.createElement("div");
         bezel.className = "player-mobile-bezel";
         const iframe = document.createElement("iframe");
@@ -1827,20 +3019,91 @@
         }
         bezel.appendChild(iframe);
         viewport.appendChild(bezel);
-      } else {
+        voiceController.showToast("Emergency Codex Mounted");
+      }
+      // Case E: Generic Binary
+      else {
         const box = document.createElement("div");
         box.style.textAlign = "center";
         box.innerHTML = `
           <div style="font-size: 32px; margin-bottom: 10px;">📦</div>
-          <p style="margin-bottom: 12px; font-family: var(--font-mono); font-size: 14px;">Reconstructed Binary Payload: <b>${d.filename}</b></p>
+          <p style="margin-bottom: 12px; font-family: var(--font-scholastic); font-size: 14px;">Reconstructed Binary Payload: <b>${d.filename}</b></p>
           <a class="btn btn-action" href="${d.data_uri}" download="${d.filename}">⬇️ Download ${d.filename}</a>
         `;
         viewport.appendChild(box);
       }
     }
 
+    // Render Parametric Anatomical Atlas (DK Eyewitness & Encarta Plate IV)
+    function renderParametricAtlasPlate(container, d) {
+      let atlas = null;
+      try {
+        const rawJson = atob((d.data_uri.split(",")[1] || ""));
+        atlas = JSON.parse(rawJson);
+      } catch (err) {
+        console.error("Atlas parse error:", err);
+        return;
+      }
+
+      const plate = document.createElement("div");
+      plate.className = "atlas-viewport";
+
+      plate.innerHTML = `
+        <div class="atlas-header">
+          <div style="font-size: 10px; font-family: var(--font-scholastic); letter-spacing: 2px; color: var(--accent-gold);">${atlas.classification || "DORLING KINDERSLEY EXHIBITION PLATE"}</div>
+          <div class="atlas-title">${atlas.title}</div>
+          <div class="atlas-sub">${atlas.taxonomy} &bull; Wire Reduction: ${atlas.metrics.bandwidth_reduction_pct}% (242 B wire \u2192 14.8 KB SVG)</div>
+        </div>
+        <div class="atlas-body-grid">
+          <div class="atlas-svg-container">
+            <svg id="atlasSvg" width="320" height="400" viewBox="0 0 320 400" style="background: rgba(3,6,12,0.8); border: 1px solid rgba(212,175,55,0.3); border-radius: 6px;">
+              <!-- Torso contour -->
+              <path d="${atlas.vectors[0].d}" fill="${atlas.vectors[0].fill}" stroke="${atlas.vectors[0].stroke}" stroke-width="${atlas.vectors[0].stroke_width}" />
+              <!-- Cranial contour -->
+              <circle cx="${atlas.vectors[1].cx}" cy="${atlas.vectors[1].cy}" r="${atlas.vectors[1].r}" fill="${atlas.vectors[1].fill}" stroke="${atlas.vectors[1].stroke}" stroke-width="${atlas.vectors[1].stroke_width}" />
+              <!-- Cardiac Crucible -->
+              <path d="${atlas.vectors[4].d}" fill="${atlas.vectors[4].fill}" stroke="${atlas.vectors[4].stroke}" stroke-width="${atlas.vectors[4].stroke_width}" />
+              <!-- Aorta Arterial Tree -->
+              <path id="svgAorta" d="${atlas.vectors[2].d}" fill="none" stroke="${atlas.vectors[2].stroke}" stroke-width="${atlas.vectors[2].stroke_width}" stroke-linecap="round" />
+              <!-- Pulmonary Venous Tree -->
+              <path id="svgPulmonary" d="${atlas.vectors[3].d}" fill="none" stroke="${atlas.vectors[3].stroke}" stroke-width="${atlas.vectors[3].stroke_width}" stroke-linecap="round" />
+              
+              <!-- Callout Pin ① (Aortic Arch) -->
+              <circle cx="${atlas.callouts[0].pin[0]}" cy="${atlas.callouts[0].pin[1]}" r="6" fill="#ff3366" stroke="#fff" stroke-width="1.5" style="cursor:pointer;" onclick="speakText('${atlas.callouts[0].desc}')">
+                <animate attributeName="r" values="5;7;5" dur="1.8s" repeatCount="indefinite" />
+              </circle>
+              <!-- Callout Pin ② (Cardiac Node) -->
+              <circle cx="${atlas.callouts[1].pin[0]}" cy="${atlas.callouts[1].pin[1]}" r="6" fill="#f3c248" stroke="#fff" stroke-width="1.5" style="cursor:pointer;" onclick="speakText('${atlas.callouts[1].desc}')">
+                <animate attributeName="r" values="5;7;5" dur="1.4s" repeatCount="indefinite" />
+              </circle>
+              <!-- Callout Pin ③ (Coeliac Axis) -->
+              <circle cx="${atlas.callouts[2].pin[0]}" cy="${atlas.callouts[2].pin[1]}" r="6" fill="#00f0ff" stroke="#fff" stroke-width="1.5" style="cursor:pointer;" onclick="speakText('${atlas.callouts[2].desc}')">
+                <animate attributeName="r" values="5;7;5" dur="2.0s" repeatCount="indefinite" />
+              </circle>
+            </svg>
+          </div>
+          <div class="atlas-callout-list">
+            ${atlas.callouts.map((c, idx) => `
+              <div class="atlas-callout-card" onclick="speakText('${c.name}. ${c.desc}')">
+                <div class="atlas-pin-label">${c.fig} &bull; ${c.name}</div>
+                <div class="atlas-pin-latin">${c.latin}</div>
+                <div class="atlas-pin-desc">${c.desc}</div>
+                <div style="font-size: 10px; font-weight: 700; color: #ff3366; margin-top: 4px;">\u26a0 ${c.alert}</div>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+      `;
+      container.appendChild(plate);
+
+      if (atlas.audio_cues && atlas.audio_cues.narration) {
+        speakText(atlas.audio_cues.narration);
+      }
+      voiceController.showToast("Parametric Anatomical Atlas Decoded (98.4% Wire Saved)");
+    }
+
     // ==========================================
-    // Direct File Transmission & UI Actions
+    // Direct Transmission UI Actions
     // ==========================================
     const btnStreamShort = document.getElementById("btnStreamShort");
     if (btnStreamShort) {
@@ -1849,10 +3112,32 @@
         btnStreamShort.innerText = "STREAMING...";
         try {
           await fetch("/api/sample-short", { method: "POST" });
-        } catch (e) {
-          console.error(e);
-        }
+        } catch (e) { console.error(e); }
         setTimeout(() => { btnStreamShort.innerText = "⚡ STREAM SHORT"; }, 1500);
+      });
+    }
+
+    const btnStreamVideo = document.getElementById("btnStreamVideo");
+    if (btnStreamVideo) {
+      btnStreamVideo.addEventListener("click", async () => {
+        playParchmentClick();
+        btnStreamVideo.innerText = "STREAMING...";
+        try {
+          await fetch("/api/sample-video", { method: "POST" });
+        } catch (e) { console.error(e); }
+        setTimeout(() => { btnStreamVideo.innerText = "🎬 VIDEO"; }, 1500);
+      });
+    }
+
+    const btnStreamAtlas = document.getElementById("btnStreamAtlas");
+    if (btnStreamAtlas) {
+      btnStreamAtlas.addEventListener("click", async () => {
+        playParchmentClick();
+        btnStreamAtlas.innerText = "STREAMING...";
+        try {
+          await fetch("/api/sample-atlas", { method: "POST" });
+        } catch (e) { console.error(e); }
+        setTimeout(() => { btnStreamAtlas.innerText = "🗺️ ATLAS"; }, 1500);
       });
     }
 
@@ -1863,9 +3148,7 @@
         btnStreamAudio.innerText = "STREAMING...";
         try {
           await fetch("/api/sample-audio", { method: "POST" });
-        } catch (e) {
-          console.error(e);
-        }
+        } catch (e) { console.error(e); }
         setTimeout(() => { btnStreamAudio.innerText = "🎵 CHIME"; }, 1500);
       });
     }
@@ -1901,7 +3184,7 @@
       }
     }
 
-    // Drag & Drop Handling on Window
+    // Drag & Drop Handling
     window.addEventListener("dragover", (e) => {
       e.preventDefault();
       document.body.classList.add("dropzone-highlight");
@@ -1919,7 +3202,7 @@
       }
     });
 
-    // Start 60fps loop
+    // Start 60 FPS animation loop
     requestAnimationFrame(animate);
   </script>
 </body>

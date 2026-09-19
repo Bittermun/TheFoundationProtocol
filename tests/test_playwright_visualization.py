@@ -154,7 +154,62 @@ def test_visualizer_live_protocol_and_interaction(live_visualizer_server):
         heading_text = page.inner_text("#slideHeading")
         assert len(heading_text) > 10
 
-        # 13. Capture Artifact Screenshot with full page showing Encarta Scholastic design
+        # 13. Verify Grand Scientific Apparatus Canvas (PhET Wavefield & Macaulay Cutaways)
+        apparatus_box = page.locator("#apparatusCanvas").bounding_box()
+        assert apparatus_box is not None
+        assert apparatus_box["width"] > 700
+        assert apparatus_box["height"] > 300
+
+        # 14. Test X-Ray Blueprint Inspector Toggle (Button & Key X)
+        xray_btn = page.locator("#btnXrayToggle")
+        assert "BLUEPRINT: OFF" in xray_btn.inner_text()
+        xray_btn.click()
+        assert "BLUEPRINT: ON" in xray_btn.inner_text()
+        body_is_xray = page.locator("body").evaluate("el => el.classList.contains('mode-xray')")
+        assert body_is_xray is True
+        assert "BLUEPRINT X-RAY: ACTIVE" in page.inner_text("#apparatusModePill")
+
+        # Toggle back via keyboard shortcut 'X'
+        page.keyboard.press("KeyX")
+        body_is_xray_after = page.locator("body").evaluate("el => el.classList.contains('mode-xray')")
+        assert body_is_xray_after is False
+
+        # 15. Test Wave Mode Toggle (RF vs Acoustic)
+        wave_btn = page.locator("#btnWaveModeToggle")
+        assert "WAVE: RF" in wave_btn.inner_text()
+        wave_btn.click()
+        assert "WAVE: ACOUSTIC" in wave_btn.inner_text()
+        assert "Acoustic Sonar" in page.inner_text("#waveChannelLabel")
+        wave_btn.click()
+        assert "WAVE: RF" in wave_btn.inner_text()
+
+        # 16. Test DK Eyewitness Specimen Modal Interaction
+        # Click on Machine A FastCDC Guillotine zone
+        page.locator("#apparatusCanvas").click(position={"x": 100, "y": 100})
+        specimen_modal = page.locator("#specimenModal")
+        assert specimen_modal.is_visible()
+        assert "FastCDC" in page.inner_text("#specimenTitle")
+        assert "Scalprum" in page.inner_text("#specimenLatin")
+        # Close specimen modal
+        page.locator(".specimen-close-btn").click()
+        assert not specimen_modal.is_visible()
+
+        # 17. Test Telemetry Slide-out Drawer
+        telemetry_btn = page.locator("#btnTelemetryToggle")
+        telemetry_btn.click()
+        drawer = page.locator("#telemetryDrawer")
+        assert "open" in drawer.get_attribute("class")
+        telemetry_btn.click()
+
+        # 18. Test Parametric Anatomical Atlas Streaming
+        atlas_btn = page.locator("#btnStreamAtlas")
+        assert atlas_btn.is_visible()
+        atlas_btn.click()
+        page.wait_for_selector(".atlas-viewport, #liveFramePlayer, #liveVideoPlayer", timeout=12000)
+        time.sleep(1.0)
+        assert page.locator(".atlas-viewport, #liveFramePlayer, #liveVideoPlayer").count() > 0
+
+        # 19. Capture Artifact Screenshot with full page showing Encarta Scholastic design and Macaulay Apparatus
         artifact_dir = Path("C:/Users/msunw/.gemini/antigravity-ide/brain/9439d999-cc0c-40cc-b695-03d8d48e2dce")
         screenshot_path = artifact_dir / "visualizer_live_screenshot.png"
         page.screenshot(path=str(screenshot_path), full_page=True)
