@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 The Foundation Protocol Contributors
+
+FROM python:3.12-alpine
+
+RUN apk add --no-cache \
+    bash \
+    iproute2 \
+    iptables \
+    curl \
+    ca-certificates
+
+WORKDIR /app
+
+# Copy protocol tree
+COPY . /app
+
+ENV PYTHONPATH=/app:/app/tfp-foundation-protocol
+ENV PYTHONUNBUFFERED=1
+
+# Run headless client receiving from tfp-station over mesh network
+CMD ["python", "-c", "import time, urllib.request, json; print('[TFP Phone] Booting client receiver node...'); time.sleep(2); res = urllib.request.urlopen('http://tfp-station:8080/api/protocol-state'); print('[TFP Phone] Connected to station:', json.loads(res.read().decode())['engine']); time.sleep(86400)"]

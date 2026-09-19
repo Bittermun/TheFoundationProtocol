@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 The Foundation Protocol Contributors
+
+FROM python:3.12-alpine
+
+RUN apk add --no-cache \
+    bash \
+    iproute2 \
+    iptables \
+    curl \
+    ca-certificates
+
+WORKDIR /app
+
+# Copy protocol tree
+COPY . /app
+
+ENV PYTHONPATH=/app:/app/tfp-foundation-protocol
+ENV PYTHONUNBUFFERED=1
+
+EXPOSE 8080 9999/udp
+
+# Healthcheck verifying HTTP endpoints
+HEALTHCHECK --interval=5s --timeout=3s --retries=3 \
+    CMD curl -f http://127.0.0.1:8080/api/protocol-state || exit 1
+
+ENTRYPOINT ["python", "-m", "tfp_core_v4.cli", "stream", "--port", "8080"]

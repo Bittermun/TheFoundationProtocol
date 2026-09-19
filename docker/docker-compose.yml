@@ -1,0 +1,50 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 The Foundation Protocol Contributors
+#
+# Multi-Node Docker Network Simulation Harness for The Foundation Protocol v4.0.
+# Features isolated mesh bridge network with Linux Traffic Control (tc netem) packet loss.
+
+version: '3.8'
+
+services:
+  tfp-station:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.station
+    container_name: tfp-station
+    hostname: tfp-station
+    cap_add:
+      - NET_ADMIN
+    ports:
+      - "8080:8080"
+      - "9999:9999/udp"
+    networks:
+      tfp-mesh-net:
+        ipv4_address: 172.28.0.10
+    restart: unless-stopped
+
+  tfp-phone:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.phone
+    container_name: tfp-phone
+    hostname: tfp-phone
+    cap_add:
+      - NET_ADMIN
+    depends_on:
+      tfp-station:
+        condition: service_healthy
+    networks:
+      tfp-mesh-net:
+        ipv4_address: 172.28.0.20
+    restart: unless-stopped
+
+networks:
+  tfp-mesh-net:
+    name: tfp-mesh-net
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.28.0.0/16
+          gateway: 172.28.0.1

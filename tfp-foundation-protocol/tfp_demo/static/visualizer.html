@@ -363,11 +363,119 @@
       font-family: var(--font-mono);
     }
 
+    /* File Dropzone & Live Media Section */
+    .btn-action {
+      background: linear-gradient(135deg, rgba(0, 240, 255, 0.25), rgba(181, 95, 230, 0.25));
+      border: 1px solid var(--accent-cyan);
+      color: #fff;
+    }
+    .btn-action:hover {
+      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+      color: #000;
+      box-shadow: 0 0 16px rgba(0, 240, 255, 0.5);
+    }
+    .dropzone-highlight {
+      outline: 2px dashed var(--accent-emerald) !important;
+      background: rgba(0, 255, 163, 0.08) !important;
+    }
+    .media-card {
+      grid-column: 1 / -1;
+      border: 1px solid rgba(0, 255, 163, 0.35);
+      background: linear-gradient(180deg, rgba(14, 22, 38, 0.95), rgba(9, 13, 22, 0.95));
+      border-radius: 12px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .media-meta-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      padding: 12px 16px;
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      font-family: var(--font-mono);
+      font-size: 12px;
+    }
+    .media-meta-item {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .media-meta-label {
+      color: var(--text-muted);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .media-meta-val {
+      color: var(--accent-cyan);
+      font-weight: 700;
+    }
+    .media-viewport-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 280px;
+      border-radius: 10px;
+      background: rgba(6, 10, 18, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      padding: 20px;
+      position: relative;
+    }
+    .player-video {
+      max-width: 720px;
+      width: 100%;
+      max-height: 440px;
+      border-radius: 8px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+      border: 1px solid var(--border-color);
+    }
+    .player-audio-wrapper {
+      width: 100%;
+      max-width: 680px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      align-items: center;
+    }
+    .player-audio-wrapper audio {
+      width: 100%;
+      border-radius: 24px;
+    }
+    .audio-freq-canvas {
+      width: 100%;
+      height: 90px;
+      background: rgba(4, 7, 13, 0.9);
+      border-radius: 8px;
+      border: 1px solid rgba(0, 240, 255, 0.2);
+    }
+    .player-mobile-bezel {
+      max-width: 440px;
+      width: 100%;
+      height: 480px;
+      border-radius: 24px;
+      border: 4px solid #233554;
+      background: #000;
+      overflow: hidden;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.8);
+      position: relative;
+    }
+    .player-mobile-bezel iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+      background: #fff;
+    }
+
     @media (max-width: 1024px) {
       main {
         grid-template-columns: 1fr;
       }
-      .presentation-card {
+      .presentation-card, .media-card {
         grid-column: auto;
       }
     }
@@ -384,6 +492,15 @@
       <div class="ctrl-group">
         <label for="lossSlider">LOSS RATE: <span id="lossValue">25%</span></label>
         <input type="range" id="lossSlider" min="0" max="50" value="25" step="5">
+      </div>
+      <div class="ctrl-group">
+        <button id="btnStreamShort" class="btn btn-action" title="Transmit Real Emergency Multimedia Short over UDP">⚡ STREAM SHORT</button>
+        <button id="btnStreamAudio" class="btn btn-secondary" title="Transmit AFSK Acoustic Chime">🎵 CHIME</button>
+        <label for="fileUploadInput" class="btn btn-secondary" style="cursor:pointer;" title="Transmit Any Physical File">
+          📂 DROP FILE
+        </label>
+        <input type="file" id="fileUploadInput" style="display:none;" accept="*/*">
+        <button id="btnAmbientToggle" class="btn btn-secondary" title="Toggle Web Audio Ambient Harmonies">🔔 HARMONY: OFF</button>
       </div>
       <div class="ctrl-group">
         <button id="btnPlayPause" class="btn">PAUSE</button>
@@ -473,6 +590,43 @@
         <div class="narration-box" id="slideNarration">
           <span class="narration-icon">🔊 VOICE:</span>
           <span id="narrationText">"Initiate active core rewarming immediately. Prepare warmed saline and monitor vitals closely."</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Panel 6: Live Reconstructed Media Player Viewport -->
+    <div class="card media-card" id="reconstructedMediaCard">
+      <div class="card-header">
+        <div class="card-title"><span>06</span> LIVE RECONSTRUCTED MEDIA PLAYER (FULL RANK K REACHED)</div>
+        <div class="status-pill" id="mediaReconstructedStatus" style="background: rgba(0,255,163,0.15); color: var(--accent-emerald);">AWAITING RECONSTRUCTION</div>
+      </div>
+      <div class="media-meta-grid" id="mediaMetaGrid">
+        <div class="media-meta-item">
+          <span class="media-meta-label">Payload Filename</span>
+          <span class="media-meta-val" id="metaFilename">—</span>
+        </div>
+        <div class="media-meta-item">
+          <span class="media-meta-label">MIME Media Type</span>
+          <span class="media-meta-val" id="metaMime">—</span>
+        </div>
+        <div class="media-meta-item">
+          <span class="media-meta-label">Bit-Exact Size</span>
+          <span class="media-meta-val" id="metaSize">—</span>
+        </div>
+        <div class="media-meta-item">
+          <span class="media-meta-label">Droplets Sent / Dropped</span>
+          <span class="media-meta-val" id="metaDroplets">—</span>
+        </div>
+        <div class="media-meta-item">
+          <span class="media-meta-label">Merkle Sovereign Audit</span>
+          <span class="media-meta-val" id="metaMerkle" style="color:var(--accent-emerald);">—</span>
+        </div>
+      </div>
+      <div class="media-viewport-container" id="mediaViewport">
+        <div id="mediaPlaceholder" style="color: var(--text-muted); font-size: 13px; font-family: var(--font-mono); text-align: center;">
+          <div style="font-size: 28px; margin-bottom: 8px;">📡</div>
+          Streaming droplets over rateless fountain code.<br>
+          Media player will dynamically mount when Rank K is achieved.
         </div>
       </div>
     </div>
@@ -916,12 +1070,300 @@
             document.getElementById("slideBullets").innerHTML = s.bullets.map(b => `<li>${b}</li>`).join("");
             document.getElementById("narrationText").innerText = `"${s.narration}"`;
           });
+
+          evtSource.addEventListener("media_reconstructed", (e) => {
+            const d = JSON.parse(e.data);
+            mountReconstructedMedia(d);
+          });
         }
       } catch (err) {
         console.log("[TFP] Running with embedded protocol snapshot");
       }
     }
     initProtocolConnection();
+
+    // ==========================================
+    // Web Audio Ambient Synthesizer (0 KB external deps)
+    // ==========================================
+    let audioCtx = null;
+    let ambientGain = null;
+    let isAmbientPlaying = false;
+
+    function getAudioContext() {
+      if (!audioCtx) {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (AudioContextClass) {
+          audioCtx = new AudioContextClass();
+        }
+      }
+      if (audioCtx && audioCtx.state === "suspended") {
+        audioCtx.resume();
+      }
+      return audioCtx;
+    }
+
+    function toggleAmbientSound() {
+      const ctx = getAudioContext();
+      if (!ctx) return;
+      const btn = document.getElementById("btnAmbientToggle");
+
+      if (isAmbientPlaying) {
+        if (ambientGain) {
+          ambientGain.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.2);
+        }
+        isAmbientPlaying = false;
+        if (btn) {
+          btn.innerText = "🔇 HARMONY: OFF";
+          btn.style.color = "var(--text-muted)";
+        }
+      } else {
+        if (!ambientGain) {
+          ambientGain = ctx.createGain();
+          ambientGain.gain.setValueAtTime(0.001, ctx.currentTime);
+
+          const filter = ctx.createBiquadFilter();
+          filter.type = "lowpass";
+          filter.frequency.setValueAtTime(440, ctx.currentTime);
+          ambientGain.connect(filter);
+          filter.connect(ctx.destination);
+
+          // F major ethereal ambient chord (F3, A3, C4, E4)
+          [174.61, 220.00, 261.63, 329.63].forEach((freq, idx) => {
+            const osc = ctx.createOscillator();
+            osc.type = "sine";
+            osc.frequency.setValueAtTime(freq, ctx.currentTime);
+            osc.detune.setValueAtTime((idx - 1.5) * 3, ctx.currentTime);
+            const g = ctx.createGain();
+            g.gain.setValueAtTime(0.2, ctx.currentTime);
+            osc.connect(g);
+            g.connect(ambientGain);
+            osc.start();
+          });
+        }
+        ambientGain.gain.setTargetAtTime(0.04, ctx.currentTime, 0.3);
+        isAmbientPlaying = true;
+        if (btn) {
+          btn.innerText = "🔔 HARMONY: ON";
+          btn.style.color = "var(--accent-emerald)";
+        }
+      }
+    }
+
+    document.getElementById("btnAmbientToggle").addEventListener("click", toggleAmbientSound);
+
+    // ==========================================
+    // Real-Time Audio Frequency Visualizer
+    // ==========================================
+    let analyserNode = null;
+    let analyserData = null;
+
+    function attachAudioSpectrum(audioEl) {
+      const ctx = getAudioContext();
+      if (!ctx) return;
+      try {
+        if (!audioEl._sourceConnected) {
+          const src = ctx.createMediaElementSource(audioEl);
+          analyserNode = ctx.createAnalyser();
+          analyserNode.fftSize = 64;
+          src.connect(analyserNode);
+          analyserNode.connect(ctx.destination);
+          audioEl._sourceConnected = true;
+          analyserData = new Uint8Array(analyserNode.frequencyBinCount);
+        }
+        drawAudioSpectrum();
+      } catch (err) {
+        console.log("[Audio Visualizer]", err);
+      }
+    }
+
+    function drawAudioSpectrum() {
+      const canvas = document.getElementById("audioFreqCanvas");
+      if (!canvas || !analyserNode) return;
+      const ctx = canvas.getContext("2d");
+      const w = canvas.width;
+      const h = canvas.height;
+      analyserNode.getByteFrequencyData(analyserData);
+
+      ctx.fillStyle = "rgba(6, 10, 18, 0.4)";
+      ctx.fillRect(0, 0, w, h);
+
+      const barWidth = (w / analyserData.length) * 1.6;
+      let x = 0;
+      for (let i = 0; i < analyserData.length; i++) {
+        const barHeight = (analyserData[i] / 255) * h;
+        const grad = ctx.createLinearGradient(0, h, 0, 0);
+        grad.addColorStop(0, "#00f0ff");
+        grad.addColorStop(1, "#b55fe6");
+        ctx.fillStyle = grad;
+        ctx.fillRect(x, h - barHeight, barWidth - 2, barHeight);
+        x += barWidth;
+      }
+      requestAnimationFrame(drawAudioSpectrum);
+    }
+
+    // ==========================================
+    // Live Reconstructed Media Mount
+    // ==========================================
+    function mountReconstructedMedia(d) {
+      console.log("[TFP Media Reconstructed]", d);
+      const card = document.getElementById("reconstructedMediaCard");
+      if (!card) return;
+
+      document.getElementById("mediaReconstructedStatus").innerText = "RECONSTRUCTED (100% BIT-EXACT)";
+      document.getElementById("mediaReconstructedStatus").style.background = "rgba(0, 255, 163, 0.2)";
+      document.getElementById("metaFilename").innerText = d.filename || "payload.bin";
+      document.getElementById("metaMime").innerText = d.media_type || "application/octet-stream";
+      document.getElementById("metaSize").innerText = d.total_size ? (d.total_size >= 1024 ? (d.total_size / 1024).toFixed(1) + " KB" : d.total_size + " B") : "—";
+      document.getElementById("metaDroplets").innerText = `${d.droplets_sent || state.packetsSent} sent / ${d.droplets_dropped || state.packetsLost} dropped (${d.effective_loss_pct || 0}%)`;
+      if (d.merkle_root) {
+        document.getElementById("metaMerkle").innerText = "0x" + d.merkle_root.slice(0, 12) + "... (VERIFIED)";
+      }
+
+      const viewport = document.getElementById("mediaViewport");
+      viewport.innerHTML = "";
+
+      const mime = (d.media_type || "").toLowerCase();
+      if (mime.startsWith("video/")) {
+        const video = document.createElement("video");
+        video.id = "liveVideoPlayer";
+        video.className = "player-video";
+        video.controls = true;
+        video.autoplay = true;
+        video.playsInline = true;
+        video.src = d.data_uri;
+        viewport.appendChild(video);
+      } else if (mime.startsWith("audio/")) {
+        const wrapper = document.createElement("div");
+        wrapper.className = "player-audio-wrapper";
+
+        const audio = document.createElement("audio");
+        audio.id = "liveAudioPlayer";
+        audio.controls = true;
+        audio.autoplay = true;
+        audio.src = d.data_uri;
+
+        const specCanvas = document.createElement("canvas");
+        specCanvas.id = "audioFreqCanvas";
+        specCanvas.className = "audio-freq-canvas";
+        specCanvas.width = 600;
+        specCanvas.height = 90;
+
+        wrapper.appendChild(audio);
+        wrapper.appendChild(specCanvas);
+        viewport.appendChild(wrapper);
+
+        audio.addEventListener("play", () => attachAudioSpectrum(audio));
+      } else if (mime.includes("html") || mime.includes("markdown")) {
+        const bezel = document.createElement("div");
+        bezel.className = "player-mobile-bezel";
+        const iframe = document.createElement("iframe");
+        iframe.id = "liveFramePlayer";
+        try {
+          const rawB64 = (d.data_uri || "").split(",")[1];
+          if (rawB64) {
+            const binStr = atob(rawB64);
+            const bytes = new Uint8Array(binStr.length);
+            for (let i = 0; i < binStr.length; i++) {
+              bytes[i] = binStr.charCodeAt(i);
+            }
+            iframe.srcdoc = new TextDecoder("utf-8").decode(bytes);
+          } else {
+            iframe.src = d.data_uri;
+          }
+        } catch (e) {
+          iframe.src = d.data_uri;
+        }
+        bezel.appendChild(iframe);
+        viewport.appendChild(bezel);
+      } else {
+        const box = document.createElement("div");
+        box.style.textAlign = "center";
+        box.innerHTML = `
+          <div style="font-size: 32px; margin-bottom: 10px;">📦</div>
+          <p style="margin-bottom: 12px; font-family: var(--font-mono); font-size: 14px;">Reconstructed Binary Payload: <b>${d.filename}</b></p>
+          <a class="btn btn-action" href="${d.data_uri}" download="${d.filename}">⬇️ Download ${d.filename}</a>
+        `;
+        viewport.appendChild(box);
+      }
+    }
+
+    // ==========================================
+    // Direct File Transmission & UI Actions
+    // ==========================================
+    const btnStreamShort = document.getElementById("btnStreamShort");
+    if (btnStreamShort) {
+      btnStreamShort.addEventListener("click", async () => {
+        btnStreamShort.innerText = "STREAMING...";
+        try {
+          await fetch("/api/sample-short", { method: "POST" });
+        } catch (e) {
+          console.error(e);
+        }
+        setTimeout(() => { btnStreamShort.innerText = "⚡ STREAM SHORT"; }, 1500);
+      });
+    }
+
+    const btnStreamAudio = document.getElementById("btnStreamAudio");
+    if (btnStreamAudio) {
+      btnStreamAudio.addEventListener("click", async () => {
+        btnStreamAudio.innerText = "STREAMING...";
+        try {
+          await fetch("/api/sample-audio", { method: "POST" });
+        } catch (e) {
+          console.error(e);
+        }
+        setTimeout(() => { btnStreamAudio.innerText = "🎵 CHIME"; }, 1500);
+      });
+    }
+
+    const fileUploadInput = document.getElementById("fileUploadInput");
+    if (fileUploadInput) {
+      fileUploadInput.addEventListener("change", async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        await uploadAndTransmitFile(file);
+      });
+    }
+
+    async function uploadAndTransmitFile(file) {
+      const statusPill = document.getElementById("mediaReconstructedStatus");
+      if (statusPill) {
+        statusPill.innerText = `TRANSMITTING ${file.name.toUpperCase()}...`;
+        statusPill.style.background = "rgba(0, 240, 255, 0.2)";
+        statusPill.style.color = "var(--accent-cyan)";
+      }
+      try {
+        const buffer = await file.arrayBuffer();
+        await fetch("/api/transmit-file", {
+          method: "POST",
+          headers: {
+            "X-Filename": file.name,
+            "Content-Type": file.type || "application/octet-stream",
+          },
+          body: buffer,
+        });
+      } catch (err) {
+        console.error("Transmission failed:", err);
+      }
+    }
+
+    // Drag & Drop Handling on Window
+    window.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      document.body.classList.add("dropzone-highlight");
+    });
+    window.addEventListener("dragleave", (e) => {
+      if (e.relatedTarget === null) {
+        document.body.classList.remove("dropzone-highlight");
+      }
+    });
+    window.addEventListener("drop", async (e) => {
+      e.preventDefault();
+      document.body.classList.remove("dropzone-highlight");
+      if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+        await uploadAndTransmitFile(e.dataTransfer.files[0]);
+      }
+    });
 
     // Start 60fps loop
     requestAnimationFrame(animate);

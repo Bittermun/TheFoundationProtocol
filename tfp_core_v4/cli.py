@@ -18,9 +18,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
-import secrets
 import sys
-import time
 import urllib.parse
 from pathlib import Path
 from typing import Any
@@ -50,12 +48,21 @@ from tfp_core_v4.node import TFPNode
 def create_visualizer_server(port: int = 8080) -> tuple[Any, int]:
     """Creates a configured TCPServer instance for the visualizer dashboard."""
     import http.server
+    import queue
     import socketserver
+    import threading
+
+    from tfp_client.lib.media.live_streamer import LiveTransmissionEngine
+    from tfp_client.lib.media.telemetry_events import TelemetryEventBus
 
     static_dir = _tfp_root / "tfp_demo" / "static"
     html_file = static_dir / "visualizer.html"
     if not html_file.exists():
         raise FileNotFoundError(f"Visualizer HTML not found at {html_file}")
+
+    live_engine = LiveTransmissionEngine(symbol_size=256)
+    event_bus = TelemetryEventBus.get_instance()
+    active_loss_rate = [0.25]
 
     def generate_live_protocol_telemetry() -> dict[str, Any]:
         md = """# Severe Hypothermia Field Triage & Resuscitation
@@ -132,11 +139,25 @@ Initiate active core rewarming with warmed IV saline at 39 degrees C.
             "dedup_ratio": "11.9x",
         }
 
-    active_loss_rate = [0.25]
-
     class VisualizerHandler(http.server.SimpleHTTPRequestHandler):
         def __init__(self, *a, **kw):
             super().__init__(*a, directory=str(static_dir), **kw)
+
+        def _send_json(self, data: dict, status: int = 200):
+            payload = json.dumps(data).encode("utf-8")
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+
+        def do_OPTIONS(self):
+            self.send_response(200)
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Filename")
+            self.end_headers()
 
         def do_GET(self):
             if self.path.startswith("/api/set-loss"):
@@ -146,23 +167,26 @@ Initiate active core rewarming with warmed IV saline at 39 degrees C.
                         active_loss_rate[0] = max(0.0, min(0.9, float(query["rate"][0])))
                     except (ValueError, IndexError, KeyError):
                         pass
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json")
-                self.send_header("Access-Control-Allow-Origin", "*")
-                self.end_headers()
-                self.wfile.write(json.dumps({"ok": True, "rate": active_loss_rate[0]}).encode("utf-8"))
+                self._send_json({"ok": True, "rate": active_loss_rate[0]})
                 return
 
             if self.path == "/api/protocol-state":
                 data = generate_live_protocol_telemetry()
                 data["active_loss_rate"] = active_loss_rate[0]
+                self._send_json(data)
+                return
+
+            if self.path == "/api/reconstructed-media":
+                if live_engine.last_reconstructed_media is None:
+                    self._send_json({"ok": False, "error": "No media reconstructed yet"}, status=404)
+                    return
                 self.send_response(200)
-                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Type", live_engine.last_media_type)
                 self.send_header("Access-Control-Allow-Origin", "*")
-                payload = json.dumps(data).encode("utf-8")
-                self.send_header("Content-Length", str(len(payload)))
+                self.send_header("Content-Disposition", f'inline; filename="{live_engine.last_filename}"')
+                self.send_header("Content-Length", str(len(live_engine.last_reconstructed_media)))
                 self.end_headers()
-                self.wfile.write(payload)
+                self.wfile.write(live_engine.last_reconstructed_media)
                 return
 
             if self.path.startswith("/api/stream-events"):
@@ -183,42 +207,107 @@ Initiate active core rewarming with warmed IV saline at 39 degrees C.
                 self.path = "/visualizer.html"
             return super().do_GET()
 
+        def do_POST(self):
+            if self.path == "/api/sample-short":
+                def run_short():
+                    data, fname, mtype = live_engine.generate_sample_short()
+                    live_engine.transmit_file_bytes(
+                        data,
+                        filename=fname,
+                        media_type=mtype,
+                        loss_rate=active_loss_rate[0],
+                        pace_delay=0.03,
+                    )
+                threading.Thread(target=run_short, daemon=True).start()
+                self._send_json({"ok": True, "status": "streaming_sample_short"})
+                return
+
+            if self.path == "/api/sample-audio":
+                def run_audio():
+                    data, fname, mtype = live_engine.generate_sample_audio_melody()
+                    live_engine.transmit_file_bytes(
+                        data,
+                        filename=fname,
+                        media_type=mtype,
+                        loss_rate=active_loss_rate[0],
+                        pace_delay=0.03,
+                    )
+                threading.Thread(target=run_audio, daemon=True).start()
+                self._send_json({"ok": True, "status": "streaming_sample_audio"})
+                return
+
+            if self.path == "/api/transmit-file":
+                content_length = int(self.headers.get("Content-Length", 0))
+                if content_length <= 0:
+                    self._send_json({"ok": False, "error": "Empty body"}, status=400)
+                    return
+                if content_length > 25 * 1024 * 1024:
+                    self._send_json({"ok": False, "error": "File exceeds 25MB safety threshold"}, status=413)
+                    return
+
+                file_data = self.rfile.read(content_length)
+                raw_filename = self.headers.get("X-Filename", "uploaded_media.bin")
+                filename = Path(raw_filename).name
+                media_type = self.headers.get("Content-Type")
+                if media_type == "application/octet-stream" or not media_type:
+                    media_type = None
+
+                def run_upload():
+                    live_engine.transmit_file_bytes(
+                        file_data,
+                        filename=filename,
+                        media_type=media_type,
+                        loss_rate=active_loss_rate[0],
+                        pace_delay=0.02,
+                    )
+                threading.Thread(target=run_upload, daemon=True).start()
+                self._send_json({
+                    "ok": True,
+                    "status": "streaming_file",
+                    "filename": filename,
+                    "size": len(file_data),
+                })
+                return
+
+            self._send_json({"ok": False, "error": "Not Found"}, status=404)
+
         def _stream_events(self):
-            k = 7
-            for _ in range(5):  # Run 5 continuous transmission cycles
-                for cut in [14, 32, 48]:
-                    self._send_sse("cdc_cut", {"cut": cut})
-                    time.sleep(0.08)
+            client_queue: queue.Queue = queue.Queue(maxsize=2000)
 
-                self._send_sse("merkle_step", {"status": "verified", "root": "487cf572a41a..."})
-                time.sleep(0.12)
+            def listener(ev):
+                try:
+                    client_queue.put_nowait(ev)
+                except queue.Full:
+                    pass
 
-                rank = 0
-                sys_rng = secrets.SystemRandom()
-                for seed in range(30):
-                    is_lost = sys_rng.random() < active_loss_rate[0]
-                    if is_lost:
-                        self._send_sse("droplet_drop", {"seed": seed, "k": k})
-                    else:
-                        rank = min(k, rank + 1)
-                        self._send_sse("droplet_recv", {"seed": seed, "k": k, "rank": rank})
-                        self._send_sse("matrix_pivot", {"rank": rank, "k": k})
+            event_bus.subscribe(listener)
 
-                    time.sleep(0.07)
-                    if rank >= k:
-                        self._send_sse("slide_ready", {
-                            "title": "Severe Hypothermia Field Triage & Resuscitation",
-                            "badge": "TRIAGE ALERT [MEDICAL]",
-                            "badgeClass": "badge-red",
-                            "bullets": [
-                                "Administer oral rehydration solution: 6 tsp sugar + 0.5 tsp salt per 1L boiled water.",
-                                "Continuous ECG monitoring for ventricular fibrillation prevention.",
-                                "Boil vigorously for 1 minute before consumption."
-                            ],
-                            "narration": "Initiate active core rewarming immediately. Prepare warmed saline."
-                        })
-                        time.sleep(1.2)
-                        break
+            try:
+                # If no media has been reconstructed yet, kick off an initial demo short stream
+                if live_engine.last_reconstructed_media is None:
+                    def _init_run():
+                        data, fname, mtype = live_engine.generate_sample_short()
+                        try:
+                            live_engine.transmit_file_bytes(
+                                data,
+                                filename=fname,
+                                media_type=mtype,
+                                loss_rate=active_loss_rate[0],
+                                pace_delay=0.03,
+                            )
+                        except (RuntimeError, ValueError, OSError) as exc:
+                            sys.stderr.write(f"Background stream init notice: {exc}\n")
+                    threading.Thread(target=_init_run, daemon=True).start()
+
+                while True:
+                    try:
+                        ev = client_queue.get(timeout=1.0)
+                        self._send_sse(ev.event_type, ev.data)
+                    except queue.Empty:
+                        self.wfile.write(b": keepalive\n\n")
+                        self.wfile.flush()
+            finally:
+                event_bus.unsubscribe(listener)
 
         def _send_sse(self, event: str, data: dict):
             msg = f"event: {event}\ndata: {json.dumps(data)}\n\n".encode()

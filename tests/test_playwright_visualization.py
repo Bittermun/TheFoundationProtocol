@@ -35,7 +35,7 @@ def live_visualizer_server():
         try:
             with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/protocol-state", timeout=0.2):
                 break
-        except Exception:
+        except (urllib.error.URLError, OSError, TimeoutError):
             time.sleep(0.05)
 
     yield url
@@ -91,21 +91,47 @@ def test_visualizer_live_protocol_and_interaction(live_visualizer_server):
         play_btn.click()
         assert play_btn.inner_text() == "PAUSE"
 
-        # 8. Let the live protocol stream run for 2 seconds to accumulate droplets
-        time.sleep(2.0)
+        # 8. Test Web Audio Ambient Toggle
+        ambient_btn = page.locator("#btnAmbientToggle")
+        assert "HARMONY: OFF" in ambient_btn.inner_text()
+        ambient_btn.click()
+        assert "HARMONY: ON" in ambient_btn.inner_text()
+
+        # 9. Verify Live Reconstructed Media Player Card exists
+        media_card = page.locator("#reconstructedMediaCard")
+        assert media_card.is_visible()
+        status_pill = page.locator("#mediaReconstructedStatus")
+        assert status_pill.is_visible()
+
+        # 10. Trigger Real Stream Short Transmission
+        stream_short_btn = page.locator("#btnStreamShort")
+        assert stream_short_btn.is_visible()
+        stream_short_btn.click()
+
+        # Wait for transmission to complete and media player to mount
+        page.wait_for_selector("#liveFramePlayer, #liveVideoPlayer, #liveAudioPlayer, .player-mobile-bezel", timeout=12000)
+        time.sleep(1.0)
+
+        # Verify bit-exact reconstruction status
+        status_text = page.inner_text("#mediaReconstructedStatus")
+        assert "RECONSTRUCTED" in status_text
+
+        # Verify metadata elements populated
+        meta_mime = page.inner_text("#metaMime")
+        assert "text/html" in meta_mime or "application" in meta_mime or len(meta_mime) > 0
 
         # Verify packet counts are advancing
         packets_sent = int(page.inner_text("#packetsSent"))
-        assert packets_sent >= 0
+        assert packets_sent > 0
 
         # Verify slide presentation content rendered
         heading_text = page.inner_text("#slideHeading")
         assert len(heading_text) > 10
 
-        # 9. Capture Artifact Screenshot
+        # 11. Capture Artifact Screenshot with full page
         artifact_dir = Path("C:/Users/msunw/.gemini/antigravity-ide/brain/9439d999-cc0c-40cc-b695-03d8d48e2dce")
         screenshot_path = artifact_dir / "visualizer_live_screenshot.png"
-        page.screenshot(path=str(screenshot_path))
+        page.screenshot(path=str(screenshot_path), full_page=True)
         assert screenshot_path.exists()
         assert screenshot_path.stat().st_size > 10000
 
