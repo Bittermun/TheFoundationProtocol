@@ -1213,6 +1213,14 @@
       waveMode: "rf",        // "rf" or "acoustic"
       isXray: false,          // X-Ray Blueprint Inspector
       mechPhase: 0,           // Unified mechanical drivetrain phase
+      probePos: { x: null, y: null, isDragging: false },
+      probeHistory: new Float32Array(50),
+      probeHistIdx: 0,
+      etherParticles: [],
+      furnaceEmbers: [],
+      furnaceSmoke: [],
+      crucibleBubbles: [],
+      cutSparkIntensity: 0,
       hoveredSpecimen: null,
       mousePos: { x: -100, y: -100 },
       smokeParticles: [],
@@ -1445,21 +1453,73 @@
     }
 
     // ==========================================
-    // Grand Apparatus Renderer (Macaulay Kinematics + PhET Continuous Wavefield + Encarta Plates)
+    // Master Scientific Apparatus Engine
+    // (Ciechanowski Volumetric Metals + PhET Wavefield & Oscilloscope Probe + Macaulay Cutaways)
     // ==========================================
     const apparatusCanvas = document.getElementById("apparatusCanvas");
 
-    // Interactive Hover Tracking on Apparatus Canvas
+    // Initialize 160 Kinetic Ether Particles (Ciechanowski Sound Model)
+    function initEtherParticles(w, h, waveX, waveW) {
+      state.etherParticles = [];
+      for (let i = 0; i < 160; i++) {
+        const bx = waveX + 15 + Math.random() * (waveW - 30);
+        const by = 20 + Math.random() * (h * 0.70);
+        state.etherParticles.push({
+          baseX: bx,
+          baseY: by,
+          x: bx,
+          y: by,
+          jitter: Math.random() * Math.PI * 2,
+          radius: Math.random() * 1.8 + 1.2,
+        });
+      }
+    }
+
+    // Interactive Dragging of PhET Oscilloscope Sensor Probe
+    apparatusCanvas.addEventListener("mousedown", (e) => {
+      const rect = apparatusCanvas.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+
+      if (state.probePos.x !== null) {
+        const dist = Math.hypot(mx - state.probePos.x, my - state.probePos.y);
+        if (dist < 28) {
+          state.probePos.isDragging = true;
+          playEarcon("woodblock");
+        }
+      }
+    });
+
+    window.addEventListener("mouseup", () => {
+      if (state.probePos.isDragging) {
+        state.probePos.isDragging = false;
+        playEarcon("gear");
+      }
+    });
+
     apparatusCanvas.addEventListener("mousemove", (e) => {
       const rect = apparatusCanvas.getBoundingClientRect();
       state.mousePos.x = e.clientX - rect.left;
       state.mousePos.y = e.clientY - rect.top;
+
+      const mA_w = rect.width * 0.33;
+      const wave_x = mA_w;
+      const wave_w = rect.width * 0.34;
+
+      if (state.probePos.isDragging) {
+        // Constrain probe inside wavefield sector
+        state.probePos.x = Math.max(wave_x + 15, Math.min(wave_x + wave_w - 15, state.mousePos.x));
+        state.probePos.y = Math.max(25, Math.min(rect.height * 0.75, state.mousePos.y));
+      }
+
       updateSpecimenHover(state.mousePos.x, state.mousePos.y, rect.width, rect.height);
     });
+
     apparatusCanvas.addEventListener("mouseleave", () => {
       state.mousePos.x = -100;
       state.mousePos.y = -100;
       state.hoveredSpecimen = null;
+      state.probePos.isDragging = false;
     });
 
     function updateSpecimenHover(mx, my, w, h) {
@@ -1468,7 +1528,6 @@
       const wave_w = w * 0.34;
       const mB_x = wave_x + wave_w;
 
-      // Pin coordinates matching render locations
       const pins = [
         { id: 1, x: 10 + (mA_w - 15) * 0.28, y: 10 + 130 },
         { id: 2, x: 10 + (mA_w - 15) * 0.74, y: 10 + 135 },
@@ -1481,8 +1540,7 @@
 
       let found = null;
       for (const p of pins) {
-        const dist = Math.hypot(mx - p.x, my - p.y);
-        if (dist < 32) {
+        if (Math.hypot(mx - p.x, my - p.y) < 32) {
           found = p.id;
           break;
         }
@@ -1490,77 +1548,222 @@
       state.hoveredSpecimen = found;
     }
 
+    // ==========================================
+    // Metallic Shading Palette Generators (Ciechanowski Shading Model)
+    // ==========================================
+    function createBrassLinearGradient(ctx, x, y, w, h, angle = Math.PI * 0.25) {
+      const x2 = x + Math.cos(angle) * w;
+      const y2 = y + Math.sin(angle) * h;
+      const g = ctx.createLinearGradient(x, y, x2, y2);
+      g.addColorStop(0.00, "#ffffff"); // Specular glint
+      g.addColorStop(0.18, "#fae498");
+      g.addColorStop(0.42, "#d4af37"); // Core gold body
+      g.addColorStop(0.72, "#8a6414"); // Ambient shadow
+      g.addColorStop(0.88, "#523908"); // Crevice occlusion
+      g.addColorStop(1.00, "#fde68a"); // Rim bounce
+      return g;
+    }
+
+    function createSteelLinearGradient(ctx, x, y, w, h) {
+      const g = ctx.createLinearGradient(x, y, x + w * 0.7, y + h);
+      g.addColorStop(0.00, "#ffffff");
+      g.addColorStop(0.20, "#e2e8f0");
+      g.addColorStop(0.50, "#94a3b8");
+      g.addColorStop(0.80, "#475569");
+      g.addColorStop(1.00, "#1e293b");
+      return g;
+    }
+
+    function createCopperLinearGradient(ctx, x, y, w, h) {
+      const g = ctx.createLinearGradient(x, y, x + w * 0.6, y + h);
+      g.addColorStop(0.00, "#ffedd5");
+      g.addColorStop(0.25, "#fb923c");
+      g.addColorStop(0.60, "#c2410c");
+      g.addColorStop(0.85, "#7c2d12");
+      g.addColorStop(1.00, "#fdba74");
+      return g;
+    }
+
+    // Draw Real Mathematical Involute Spur Gear with 3D Depth Extrusion
+    function drawInvoluteGear(ctx, cx, cy, radius, teeth, angle, isXray, isBrass = true) {
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(angle);
+
+      // Involute Gear Geometry Constants
+      const addendum = radius * 0.24;
+      const dedendum = radius * 0.22;
+      const outerR = radius + addendum;
+      const rootR = radius - dedendum;
+      const toothAngle = (Math.PI * 2) / teeth;
+
+      // 1. Drop Shadow under gear
+      if (!isXray) {
+        ctx.fillStyle = "rgba(0, 0, 0, 0.45)";
+        ctx.beginPath();
+        for (let i = 0; i < teeth; i++) {
+          const ca = i * toothAngle;
+          const a0 = ca - toothAngle * 0.28;
+          const a1 = ca - toothAngle * 0.12;
+          const a2 = ca + toothAngle * 0.12;
+          const a3 = ca + toothAngle * 0.28;
+          if (i === 0) ctx.moveTo(Math.cos(a0) * rootR + 3, Math.sin(a0) * rootR + 4);
+          else ctx.lineTo(Math.cos(a0) * rootR + 3, Math.sin(a0) * rootR + 4);
+          ctx.lineTo(Math.cos(a1) * outerR + 3, Math.sin(a1) * outerR + 4);
+          ctx.lineTo(Math.cos(a2) * outerR + 3, Math.sin(a2) * outerR + 4);
+          ctx.lineTo(Math.cos(a3) * rootR + 3, Math.sin(a3) * rootR + 4);
+        }
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      // 2. Main Gear Tooth Profile
+      ctx.beginPath();
+      for (let i = 0; i < teeth; i++) {
+        const ca = i * toothAngle;
+        const a0 = ca - toothAngle * 0.28;
+        const a1 = ca - toothAngle * 0.12;
+        const a2 = ca + toothAngle * 0.12;
+        const a3 = ca + toothAngle * 0.28;
+        if (i === 0) ctx.moveTo(Math.cos(a0) * rootR, Math.sin(a0) * rootR);
+        else ctx.lineTo(Math.cos(a0) * rootR, Math.sin(a0) * rootR);
+        ctx.lineTo(Math.cos(a1) * outerR, Math.sin(a1) * outerR);
+        ctx.lineTo(Math.cos(a2) * outerR, Math.sin(a2) * outerR);
+        ctx.lineTo(Math.cos(a3) * rootR, Math.sin(a3) * rootR);
+      }
+      ctx.closePath();
+
+      if (isXray) {
+        ctx.strokeStyle = "#00f0ff";
+        ctx.lineWidth = 1.5;
+        ctx.fillStyle = "rgba(0, 240, 255, 0.12)";
+        ctx.fill();
+        ctx.stroke();
+      } else {
+        // Volumetric Metallic Fill
+        ctx.fillStyle = isBrass 
+          ? createBrassLinearGradient(ctx, -outerR, -outerR, outerR * 2, outerR * 2)
+          : createSteelLinearGradient(ctx, -outerR, -outerR, outerR * 2, outerR * 2);
+        ctx.fill();
+
+        // 1.5px Beveled Chamfer Edge Highlight
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.65)";
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+      }
+
+      // 3. Web & Circular Lightening Cutouts (Macaulay Weight-Reduction Holes)
+      const webR = radius * 0.68;
+      ctx.strokeStyle = isXray ? "rgba(0, 240, 255, 0.5)" : "rgba(100, 70, 20, 0.6)";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(0, 0, webR, 0, Math.PI * 2); ctx.stroke();
+
+      const holes = 4;
+      const holeR = radius * 0.18;
+      const holeDist = radius * 0.44;
+      for (let h = 0; h < holes; h++) {
+        const ha = (h * Math.PI * 2) / holes;
+        const hx = Math.cos(ha) * holeDist;
+        const hy = Math.sin(ha) * holeDist;
+
+        ctx.fillStyle = isXray ? "#020712" : "#050811";
+        ctx.beginPath(); ctx.arc(hx, hy, holeR, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = isXray ? "#00f0ff" : "rgba(255, 225, 120, 0.6)";
+        ctx.stroke();
+      }
+
+      // 4. Central Cast Bronze Axle Hub & Hex Bolt
+      const hubR = radius * 0.22;
+      ctx.fillStyle = isXray ? "#00f0ff" : createSteelLinearGradient(ctx, -hubR, -hubR, hubR * 2, hubR * 2);
+      ctx.beginPath(); ctx.arc(0, 0, hubR, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = isXray ? "#00f0ff" : "#fff";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      // Hex nut shape
+      ctx.fillStyle = isXray ? "#020712" : "#2c3e50";
+      ctx.beginPath();
+      for (let n = 0; n < 6; n++) {
+        const na = (n * Math.PI) / 3;
+        const nx = Math.cos(na) * (hubR * 0.55);
+        const ny = Math.sin(na) * (hubR * 0.55);
+        if (n === 0) ctx.moveTo(nx, ny); else ctx.lineTo(nx, ny);
+      }
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.restore();
+    }
+
+    // ==========================================
+    // Main Apparatus Rendering Loop
+    // ==========================================
     function renderApparatus() {
       const { ctx, w, h } = resizeCanvas(apparatusCanvas);
       const isXray = state.isXray;
       const t = state.mechPhase;
 
-      // 1. Overall Architectural Backdrop & Border Rules
-      if (isXray) {
-        ctx.fillStyle = "#020712";
-        ctx.fillRect(0, 0, w, h);
-        // CAD Blueprint Grid
-        ctx.strokeStyle = "rgba(0, 240, 255, 0.09)";
-        ctx.lineWidth = 1;
-        for (let x = 0; x < w; x += 24) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke(); }
-        for (let y = 0; y < h; y += 24) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
-      } else {
-        // Deep obsidian parchment gradient
-        const bgGrad = ctx.createLinearGradient(0, 0, 0, h);
-        bgGrad.addColorStop(0, "#0a1122");
-        bgGrad.addColorStop(0.5, "#060914");
-        bgGrad.addColorStop(1, "#03050a");
-        ctx.fillStyle = bgGrad;
-        ctx.fillRect(0, 0, w, h);
-
-        // Subtle architectural grid
-        ctx.strokeStyle = "rgba(212, 175, 55, 0.04)";
-        ctx.lineWidth = 1;
-        for (let x = 0; x < w; x += 30) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke(); }
-        for (let y = 0; y < h; y += 30) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
-      }
-
-      // Three physical sector divisions:
       const mA_w = Math.floor(w * 0.33);
       const wave_x = mA_w;
       const wave_w = Math.floor(w * 0.34);
       const mB_x = wave_x + wave_w;
       const mB_w = w - mB_x;
 
-      // ----------------------------------------
-      // Render Wavefield (Center Terrain)
-      // ----------------------------------------
+      // Initialize ether particles once
+      if (state.etherParticles.length === 0) {
+        initEtherParticles(w, h, wave_x, wave_w);
+        state.probePos.x = wave_x + wave_w * 0.45;
+        state.probePos.y = h * 0.38;
+      }
+
+      // 1. Overall Architectural Backdrop & Precision Border Measurement Ticks
+      if (isXray) {
+        ctx.fillStyle = "#020712";
+        ctx.fillRect(0, 0, w, h);
+        ctx.strokeStyle = "rgba(0, 240, 255, 0.08)";
+        ctx.lineWidth = 1;
+        for (let x = 0; x < w; x += 24) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke(); }
+        for (let y = 0; y < h; y += 24) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
+      } else {
+        const bgGrad = ctx.createLinearGradient(0, 0, 0, h);
+        bgGrad.addColorStop(0, "#0c1326");
+        bgGrad.addColorStop(0.5, "#060914");
+        bgGrad.addColorStop(1, "#03040a");
+        ctx.fillStyle = bgGrad;
+        ctx.fillRect(0, 0, w, h);
+
+        ctx.strokeStyle = "rgba(212, 175, 55, 0.04)";
+        ctx.lineWidth = 1;
+        for (let x = 0; x < w; x += 30) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke(); }
+        for (let y = 0; y < h; y += 30) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
+      }
+
+      // 2. Render Sector 1: PhET Wavefield & Geological Terrain
       stepWavefield();
       renderWavefieldSector(ctx, wave_x, 10, wave_w, h - 20, isXray, t);
 
-      // ----------------------------------------
-      // Render Machine A: The Solar Beacon (Left Cutaway)
-      // ----------------------------------------
+      // 3. Render Sector 2: Machine A — The Solar Beacon
       renderMachineACutaway(ctx, 10, 10, mA_w - 15, h - 20, isXray, t);
 
-      // ----------------------------------------
-      // Render Machine B: The Field Scholar Appliance (Right Cutaway)
-      // ----------------------------------------
+      // 4. Render Sector 3: Machine B — Field Scholar Appliance
       renderMachineBCutaway(ctx, mB_x + 5, 10, mB_w - 15, h - 20, isXray, t);
 
-      // ----------------------------------------
-      // Render Droplets In Transit & Spark Particles
-      // ----------------------------------------
+      // 5. Render Transit Droplets, Ballistic Particle Trails, and Sparks
       renderTransitDropletsAndSparks(ctx, w, h, wave_x, wave_w);
 
-      // ----------------------------------------
-      // Render Interactive Specimen Hover Reticle & Tooltip Card
-      // ----------------------------------------
+      // 6. Render PhET Draggable Oscilloscope Sensor Probe & Live Waveform Display
+      renderOscilloscopeProbeAndDisplay(ctx, wave_x, wave_w, h, isXray);
+
+      // 7. Render On-Canvas Interactive Specimen Hover Reticle & Card
       renderHoverReticleAndCard(ctx, w, h, isXray);
 
-      // Update mechanical phase
       if (state.isPlaying) {
         state.mechPhase += 0.05;
       }
     }
 
     // ==========================================
-    // Sector 1: PhET Continuous Wavefield & Geological Terrain
+    // Sector 1: PhET Wavefield & Ciechanowski Particle Ether Simulation
     // ==========================================
     function renderWavefieldSector(ctx, x, y, w, h, isXray, t) {
       ctx.save();
@@ -1568,14 +1771,12 @@
       ctx.rect(x, y, w, h);
       ctx.clip();
 
-      // Atmospheric sky gradient
+      // Atmospheric ether sky
       const skyGrad = ctx.createLinearGradient(x, y, x, y + h * 0.7);
       if (isXray) {
-        skyGrad.addColorStop(0, "#030c1d");
-        skyGrad.addColorStop(1, "#01050d");
+        skyGrad.addColorStop(0, "#030c1d"); skyGrad.addColorStop(1, "#01050d");
       } else {
-        skyGrad.addColorStop(0, "#08142a");
-        skyGrad.addColorStop(1, "#030712");
+        skyGrad.addColorStop(0, "#071224"); skyGrad.addColorStop(1, "#02050e");
       }
       ctx.fillStyle = skyGrad;
       ctx.fillRect(x, y, w, h);
@@ -1589,42 +1790,71 @@
       const cellH = h / gh;
       const isRf = state.waveMode === "rf";
 
-      // Render continuous wave heightfield ripples
+      // 1. Continuous Wavefield Heightfield Ripples with Phong Specular Glints (Evan Wallace Model)
       for (let gy = 0; gy < gh; gy += 2) {
         for (let gx = 0; gx < gw; gx += 2) {
           const idx = gy * gw + gx;
           const val = uC[idx];
           const obstacle = terr[idx];
+          if (obstacle > 0.5) continue;
 
-          if (obstacle > 0.5) continue; // Drawn in geology layer
-
-          if (Math.abs(val) > 0.03) {
+          if (Math.abs(val) > 0.025) {
             const alpha = Math.min(0.9, Math.abs(val) * 0.85);
             const cx = x + gx * cellW;
             const cy = y + gy * cellH;
 
+            // Surface normal specular glint calculation
+            const dx = (gx > 0 && gx < gw - 1) ? (uC[idx + 1] - uC[idx - 1]) : 0;
+            const isGlint = (val > 0.35 && Math.abs(dx) < 0.15);
+
             if (isXray) {
-              ctx.fillStyle = val > 0 ? `rgba(0, 240, 255, ${alpha})` : `rgba(0, 110, 240, ${alpha * 0.7})`;
+              ctx.fillStyle = isGlint ? "#ffffff" : (val > 0 ? `rgba(0, 240, 255, ${alpha})` : `rgba(0, 110, 240, ${alpha * 0.7})`);
             } else if (isRf) {
-              // Electric cyan crests / deep violet troughs
-              ctx.fillStyle = val > 0 ? `rgba(0, 240, 255, ${alpha * 0.9})` : `rgba(170, 70, 240, ${alpha * 0.65})`;
+              ctx.fillStyle = isGlint ? "#ffffff" : (val > 0 ? `rgba(0, 240, 255, ${alpha * 0.9})` : `rgba(168, 85, 247, ${alpha * 0.65})`);
             } else {
-              // Warm golden acoustic compression rings
-              ctx.fillStyle = val > 0 ? `rgba(243, 194, 72, ${alpha * 0.9})` : `rgba(212, 145, 45, ${alpha * 0.6})`;
+              ctx.fillStyle = isGlint ? "#ffffff" : (val > 0 ? `rgba(243, 194, 72, ${alpha * 0.9})` : `rgba(217, 119, 6, ${alpha * 0.6})`);
             }
             ctx.fillRect(cx, cy, cellW * 2.2, cellH * 2.2);
           }
         }
       }
 
-      // ----------------------------------------
-      // Geological Terrain Cutaway (Macaulay Stratigraphy)
-      // ----------------------------------------
-      const hillBaseY = y + h * 0.86;
-      const hillPeakX = x + w * 0.50;
-      const hillPeakY = y + h * 0.42;
+      // 2. Kinetic Gas / Ether Particle Medium (Ciechanowski Sound Particle Model)
+      for (let i = 0; i < state.etherParticles.length; i++) {
+        const p = state.etherParticles[i];
+        p.jitter += 0.08;
 
-      // 1. Bedrock Fill
+        // Map wave displacement at particle location
+        const gx = Math.floor(((p.baseX - x) / w) * gw);
+        const gy = Math.floor(((p.baseY - y) / h) * gh);
+        let waveDisp = 0;
+        if (gx >= 0 && gx < gw && gy >= 0 && gy < gh) {
+          waveDisp = uC[gy * gw + gx] || 0;
+        }
+
+        // Longitudinal (acoustic) vs Transverse (RF) oscillation
+        if (isRf) {
+          p.x = p.baseX + Math.sin(p.jitter) * 1.5;
+          p.y = p.baseY + waveDisp * 16;
+        } else {
+          p.x = p.baseX + waveDisp * 18 + Math.cos(p.jitter) * 1.2;
+          p.y = p.baseY + Math.sin(p.jitter) * 1.2;
+        }
+
+        // Draw particle with subtle glowing core
+        const pAlpha = Math.min(0.85, 0.35 + Math.abs(waveDisp) * 0.8);
+        ctx.fillStyle = isXray 
+          ? `rgba(0, 240, 255, ${pAlpha})` 
+          : (isRf ? `rgba(147, 197, 253, ${pAlpha})` : `rgba(253, 224, 71, ${pAlpha})`);
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // 3. Geological Bedrock Cutaway (Macaulay Stratigraphy)
+      const hillPeakX = x + w * 0.50;
+      const hillPeakY = y + h * 0.44;
+
       ctx.beginPath();
       ctx.moveTo(x, y + h);
       ctx.lineTo(x, y + h * 0.82);
@@ -1635,22 +1865,16 @@
       ctx.lineTo(x + w, y + h);
       ctx.closePath();
 
-      // Geological stratum gradient
       const geoGrad = ctx.createLinearGradient(x, hillPeakY, x, y + h);
       if (isXray) {
-        geoGrad.addColorStop(0, "#051930");
-        geoGrad.addColorStop(0.5, "#020f20");
-        geoGrad.addColorStop(1, "#010812");
+        geoGrad.addColorStop(0, "#051930"); geoGrad.addColorStop(0.5, "#020f20"); geoGrad.addColorStop(1, "#010812");
       } else {
-        geoGrad.addColorStop(0, "#2d241c");
-        geoGrad.addColorStop(0.3, "#3d3024");
-        geoGrad.addColorStop(0.7, "#1f1812");
-        geoGrad.addColorStop(1, "#120e0b");
+        geoGrad.addColorStop(0, "#2d241c"); geoGrad.addColorStop(0.3, "#3d3024"); geoGrad.addColorStop(0.7, "#1f1812"); geoGrad.addColorStop(1, "#120e0b");
       }
       ctx.fillStyle = geoGrad;
       ctx.fill();
 
-      // Sedimentary horizontal striations
+      // Horizontal Sedimentary Striations & Diagonal Cross-Hatching
       ctx.strokeStyle = isXray ? "rgba(0, 240, 255, 0.15)" : "rgba(212, 175, 55, 0.18)";
       ctx.lineWidth = 1;
       for (let sY = hillPeakY + 30; sY < y + h; sY += 16) {
@@ -1660,20 +1884,16 @@
         ctx.stroke();
       }
 
-      // Diagonal seismic fracture hatching (Macaulay cross-hatching)
       ctx.strokeStyle = isXray ? "rgba(0, 240, 255, 0.08)" : "rgba(180, 140, 90, 0.12)";
       for (let hX = x; hX < x + w; hX += 18) {
-        ctx.beginPath();
-        ctx.moveTo(hX, y + h * 0.75);
-        ctx.lineTo(hX + 22, y + h);
-        ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(hX, y + h * 0.75); ctx.lineTo(hX + 22, y + h); ctx.stroke();
       }
 
-      // Embedded golden ammonite fossil drawing inside bedrock
+      // Embedded Golden Ammonite Fossil Drawing
       if (!isXray) {
         const fosX = x + w * 0.50;
         const fosY = y + h * 0.82;
-        ctx.strokeStyle = "rgba(212, 175, 55, 0.4)";
+        ctx.strokeStyle = "rgba(212, 175, 55, 0.45)";
         ctx.lineWidth = 1.2;
         ctx.beginPath();
         for (let a = 0; a < Math.PI * 5; a += 0.2) {
@@ -1685,7 +1905,7 @@
         ctx.stroke();
       }
 
-      // Granite summit ridge contour
+      // Summit Ridge Bevel & Huygens Diffraction Wavelets
       ctx.strokeStyle = isXray ? "#00f0ff" : "#d4af37";
       ctx.lineWidth = 2;
       ctx.beginPath();
@@ -1696,7 +1916,6 @@
       ctx.quadraticCurveTo(x + w * 0.75, y + h * 0.74, x + w, y + h * 0.84);
       ctx.stroke();
 
-      // Huygens diffraction wavelet arcs at mountain summit
       const diffPulse = (t * 5) % 30;
       ctx.strokeStyle = isXray ? `rgba(0, 240, 255, ${1 - diffPulse / 30})` : `rgba(243, 194, 72, ${1 - diffPulse / 30})`;
       ctx.lineWidth = 1.2;
@@ -1704,9 +1923,9 @@
       ctx.arc(hillPeakX, hillPeakY, 12 + diffPulse, -Math.PI * 0.3, Math.PI * 0.8);
       ctx.stroke();
 
-      // Labeled diffraction point & path loss
+      // Top Title
       ctx.fillStyle = isXray ? "#00f0ff" : "#f3c248";
-      ctx.font = isXray ? "bold 10px monospace" : "bold 10px serif";
+      ctx.font = isXray ? "bold 10px monospace" : "bold 10.5px serif";
       ctx.fillText(isRf ? "\u223f RF ELECTROMAGNETIC WAVEFIELD (2.4 GHz)" : "\u223f ACOUSTIC AFSK SONAR CHANNEL (1200 BAUD)", x + 14, y + 22);
 
       // Specimen Callout ④: PhET Wavefield Terrain
@@ -1722,27 +1941,142 @@
     }
 
     // ==========================================
-    // Sector 2: Machine A — The Solar Beacon (Macaulay Mechanical Cutaway)
+    // PhET Draggable Oscilloscope Sensor Probe & Miniature Live Display
+    // ==========================================
+    function renderOscilloscopeProbeAndDisplay(ctx, waveX, waveW, h, isXray) {
+      if (!state.probePos.x) return;
+      const px = state.probePos.x;
+      const py = state.probePos.y;
+
+      // Sample wavefield at probe position
+      const gw = state.waveGridW;
+      const gh = state.waveGridH;
+      const gx = Math.floor(((px - waveX) / waveW) * gw);
+      const gy = Math.floor((py / h) * gh);
+      let probeSample = 0;
+      if (gx >= 0 && gx < gw && gy >= 0 && gy < gh && state.uCurr) {
+        probeSample = state.uCurr[gy * gw + gx] || 0;
+      }
+
+      // Record sample in circular buffer
+      state.probeHistory[state.probeHistIdx] = probeSample;
+      state.probeHistIdx = (state.probeHistIdx + 1) % state.probeHistory.length;
+
+      // Miniature Oscilloscope Instrument Box (Fixed at lower-left of terrain)
+      const oscW = 86;
+      const oscH = 54;
+      const oscX = waveX + 16;
+      const oscY = h - oscH - 24;
+
+      ctx.save();
+      // Flexible Coiled Wire connecting probe to oscilloscope
+      ctx.strokeStyle = isXray ? "#00f0ff" : "#d4af37";
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.moveTo(px, py + 12);
+      // Coiled bezier loops
+      const midY = (py + oscY) * 0.5;
+      ctx.bezierCurveTo(px - 15, midY - 20, oscX + oscW + 20, midY + 20, oscX + oscW - 6, oscY + 12);
+      ctx.stroke();
+
+      // Draw Oscilloscope Chassis
+      ctx.strokeStyle = isXray ? "rgba(0, 240, 255, 0.85)" : "rgba(212, 175, 55, 0.85)";
+      ctx.fillStyle = isXray ? "#020b18" : "#0a0e17";
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(oscX, oscY, oscW, oscH);
+      ctx.fillRect(oscX, oscY, oscW, oscH);
+
+      // CRT Display Bezel & Green Phosphor Screen
+      const crtPad = 5;
+      const crtX = oscX + crtPad;
+      const crtY = oscY + 14;
+      const crtW = oscW - crtPad * 2;
+      const crtH = oscH - 18;
+
+      ctx.fillStyle = "#011308";
+      ctx.fillRect(crtX, crtY, crtW, crtH);
+      ctx.strokeStyle = "rgba(0, 255, 100, 0.25)";
+      ctx.strokeRect(crtX, crtY, crtW, crtH);
+
+      // Oscilloscope Label
+      ctx.fillStyle = isXray ? "#00f0ff" : "#d4af37";
+      ctx.font = "bold 7px monospace";
+      ctx.fillText("PHET SENSOR PROBE", oscX + 4, oscY + 9);
+
+      // Live Phosphor Waveform Trace
+      ctx.strokeStyle = "#00ffa3";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      const histLen = state.probeHistory.length;
+      for (let i = 0; i < histLen; i++) {
+        const hIdx = (state.probeHistIdx + i) % histLen;
+        const sVal = state.probeHistory[hIdx];
+        const wx = crtX + (i / histLen) * crtW;
+        const wy = crtY + crtH * 0.5 - sVal * (crtH * 0.45);
+        if (i === 0) ctx.moveTo(wx, wy); else ctx.lineTo(wx, wy);
+      }
+      ctx.stroke();
+
+      // ----------------------------------------
+      // Draw Draggable Brass Sensor Probe (at px, py)
+      // ----------------------------------------
+      // Outer grab highlight
+      if (state.probePos.isDragging) {
+        ctx.strokeStyle = "#00ffa3";
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(px, py, 14, 0, Math.PI * 2); ctx.stroke();
+      }
+
+      // Pointy brass antenna tip
+      ctx.fillStyle = isXray ? "#00f0ff" : "#d4af37";
+      ctx.beginPath();
+      ctx.moveTo(px, py - 14);
+      ctx.lineTo(px - 5, py);
+      ctx.lineTo(px + 5, py);
+      ctx.closePath();
+      ctx.fill();
+
+      // Knurled brass handle
+      ctx.fillStyle = isXray ? "#020712" : "#2c3e50";
+      ctx.fillRect(px - 3, py, 6, 12);
+      ctx.strokeStyle = isXray ? "#00f0ff" : "#f3c248";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(px - 3, py, 6, 12);
+
+      // Glowing indicator diode
+      ctx.fillStyle = state.probePos.isDragging ? "#00ffa3" : "#ff3366";
+      ctx.beginPath(); ctx.arc(px, py + 14, 2.5, 0, Math.PI * 2); ctx.fill();
+
+      // "DRAG PROBE" tooltip if not dragging
+      if (!state.probePos.isDragging) {
+        ctx.fillStyle = isXray ? "rgba(0, 240, 255, 0.7)" : "rgba(243, 194, 72, 0.75)";
+        ctx.font = "bold 7px sans-serif";
+        ctx.fillText("DRAG SENSOR", px - 24, py - 18);
+      }
+
+      ctx.restore();
+    }
+
+    // ==========================================
+    // Sector 2: Machine A — The Solar Beacon (Ciechanowski & Macaulay Cutaway)
     // ==========================================
     function renderMachineACutaway(ctx, x, y, w, h, isXray, t) {
       ctx.save();
-
-      // Outer heavy machinery chassis frame
       drawMachineryChassis(ctx, x, y, w, h, isXray, "MACHINE A: THE SOLAR BEACON", "Pharus Solaris Transmissor Core");
 
       // ----------------------------------------
-      // 1. Raw Byte Ribbon Spool & Kinetic Tension Array (Top Deck)
+      // 1. Raw Byte Ribbon Spool & Kinetic Tension Dancer Array (Top Deck)
       // ----------------------------------------
       const spoolX = x + 44;
       const spoolY = y + 55;
       const spoolR = 24;
 
-      // Spool outer rim and rotating spokes
+      // Volumetric Brass Spool with Involute spokes
       ctx.save();
       ctx.translate(spoolX, spoolY);
       ctx.rotate(t * 0.8);
       ctx.strokeStyle = isXray ? "#00f0ff" : "#d4af37";
-      ctx.fillStyle = isXray ? "rgba(0, 240, 255, 0.1)" : "rgba(212, 175, 55, 0.15)";
+      ctx.fillStyle = isXray ? "rgba(0, 240, 255, 0.12)" : createBrassLinearGradient(ctx, -spoolR, -spoolR, spoolR * 2, spoolR * 2);
       ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(0, 0, spoolR, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
       ctx.beginPath(); ctx.arc(0, 0, spoolR * 0.45, 0, Math.PI * 2); ctx.stroke();
@@ -1763,27 +2097,24 @@
       ctx.beginPath();
       ctx.moveTo(tapeStartX, spoolY);
 
-      // Dancer wheel 1
       const d1Y = pulleyY_base + Math.sin(t * 2.5) * 6;
       ctx.lineTo(spoolX + 55, d1Y);
-      // Dancer wheel 2
       const d2Y = pulleyY_base - Math.cos(t * 2.5) * 5;
       ctx.lineTo(spoolX + 90, d2Y);
-      // Dancer wheel 3
       const d3Y = pulleyY_base + Math.sin(t * 2.5 + 1) * 6;
       ctx.lineTo(spoolX + 130, d3Y);
       ctx.lineTo(tapeEndX, y + 54);
       ctx.stroke();
 
-      // Draw pulley wheels
+      // Pulleys
       [ [spoolX + 55, d1Y], [spoolX + 90, d2Y], [spoolX + 130, d3Y] ].forEach(([px, py]) => {
         ctx.strokeStyle = isXray ? "#00f0ff" : "#d4af37";
-        ctx.fillStyle = isXray ? "#020712" : "#0d1422";
+        ctx.fillStyle = isXray ? "#020712" : createSteelLinearGradient(ctx, px - 7, py - 7, 14, 14);
         ctx.beginPath(); ctx.arc(px, py, 7, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
         ctx.beginPath(); ctx.arc(px, py, 2.5, 0, Math.PI * 2); ctx.fillStyle = isXray ? "#00f0ff" : "#f3c248"; ctx.fill();
       });
 
-      // Binary tape byte ribbon conveyor beneath pulleys
+      // Binary tape conveyor ribbon
       const convY = y + 72;
       ctx.strokeStyle = isXray ? "rgba(0, 240, 255, 0.4)" : "rgba(212, 175, 55, 0.5)";
       ctx.strokeRect(x + 20, convY, w - 40, 18);
@@ -1797,14 +2128,14 @@
       }
 
       // ----------------------------------------
-      // 2. FastCDC Epicyclic Gear Guillotine (Mid-Left)
+      // 2. FastCDC Epicyclic Gear Guillotine (True Involute Gears)
       // ----------------------------------------
       const gearX = x + (w - 15) * 0.28;
       const gearY = y + 155;
 
-      // Heavy gearset: Center Sun Gear + 2 Planetary Gears
-      drawMeshedGears(ctx, gearX, gearY, 26, t * 1.6, isXray);
-      drawMeshedGears(ctx, gearX + 44, gearY + 5, 20, -t * 2.1, isXray);
+      // Draw True Involute Gears with 3D Depth Extrusions
+      drawInvoluteGear(ctx, gearX, gearY, 26, 14, t * 1.6, isXray, true);
+      drawInvoluteGear(ctx, gearX + 44, gearY + 5, 20, 10, -t * 2.1, isXray, false);
 
       // Guillotine Blade Frame & Trips
       state.guillotineDrop = Math.max(0, state.guillotineDrop - 0.08);
@@ -1814,7 +2145,6 @@
         state.guillotineDrop = 1.0;
         state.cutSparkIntensity = 1.0;
         playEarcon("gear");
-        // Spawn cut spark burst
         for (let s = 0; s < 8; s++) {
           state.sparks.push({
             x: gearX + 22,
@@ -1832,16 +2162,15 @@
       ctx.lineWidth = 2;
       ctx.strokeRect(gearX + 16, gearY - 38, 14, 52);
 
-      // Guillotine Blade Drop
+      // Guillotine Blade Drop with steel gradient & mirrored bevel
       const bladeY = gearY - 34 + state.guillotineDrop * 26;
-      ctx.fillStyle = isXray ? "#00f0ff" : "#e4edf7";
+      ctx.fillStyle = isXray ? "#00f0ff" : createSteelLinearGradient(ctx, gearX + 17, bladeY, 12, 22);
       ctx.fillRect(gearX + 17, bladeY, 12, 22);
 
-      // Anvil baseplate with chunk graduation ticks
+      // Anvil baseplate
       ctx.fillStyle = isXray ? "rgba(0, 240, 255, 0.3)" : "rgba(212, 175, 55, 0.4)";
       ctx.fillRect(gearX + 10, gearY + 18, 26, 6);
 
-      // Cut status tag
       ctx.fillStyle = state.guillotineDrop > 0.4 ? (isXray ? "#00f0ff" : "#f3c248") : "#7f8c8d";
       ctx.font = isXray ? "bold 8.5px monospace" : "bold 9px serif";
       ctx.fillText(state.guillotineDrop > 0.4 ? "CHUNK CUT!" : "64b ROLLING", gearX + 3, gearY - 42);
@@ -1862,7 +2191,6 @@
       ctx.quadraticCurveTo(gearX + 70, gearY + 50, crucX - 28, crucY - 8);
       ctx.stroke();
 
-      // Moving chunk canister sliding down pneumatic chute
       const chuteProgress = (t * 1.5) % 1.0;
       const canX = (gearX + 35) * (1 - chuteProgress) + (crucX - 28) * chuteProgress;
       const canY = (gearY + 18) * (1 - chuteProgress) + (crucY - 8) * chuteProgress + Math.sin(chuteProgress * Math.PI) * 12;
@@ -1872,7 +2200,6 @@
       // ----------------------------------------
       // 4. Sovereign Merkle Forge & Balance Scale (Mid-Right)
       // ----------------------------------------
-      // Double-walled crucible with brass cooling fins
       ctx.strokeStyle = isXray ? "rgba(0, 240, 255, 0.8)" : "rgba(212, 175, 55, 0.85)";
       ctx.fillStyle = isXray ? "rgba(0, 20, 45, 0.7)" : "rgba(20, 14, 8, 0.8)";
       ctx.lineWidth = 2;
@@ -1882,7 +2209,6 @@
       ctx.fill();
       ctx.stroke();
 
-      // Molten hash broth inside crucible
       const boilGlow = Math.sin(t * 3.5) * 0.2 + 0.8;
       const brothGrad = ctx.createRadialGradient(crucX, crucY + 12, 4, crucX, crucY + 12, 26);
       if (isXray) {
@@ -1895,7 +2221,7 @@
       ctx.fillStyle = brothGrad;
       ctx.beginPath(); ctx.arc(crucX, crucY + 12, 24, 0, Math.PI); ctx.fill();
 
-      // Rising steam / vapor curls from crucible
+      // Rising steam
       ctx.strokeStyle = isXray ? "rgba(0, 240, 255, 0.25)" : "rgba(255, 220, 150, 0.25)";
       ctx.lineWidth = 1.2;
       for (let sm = -12; sm <= 12; sm += 12) {
@@ -1906,7 +2232,7 @@
         ctx.stroke();
       }
 
-      // Twin-pan jeweler's balance scale over crucible
+      // Balance scale
       const armTilt = Math.sin(t * 2.0) * 8;
       ctx.strokeStyle = isXray ? "#00f0ff" : "#d4af37";
       ctx.lineWidth = 2;
@@ -1914,13 +2240,11 @@
       ctx.moveTo(crucX - 26, crucY - 18 + armTilt);
       ctx.lineTo(crucX + 26, crucY - 18 - armTilt);
       ctx.stroke();
-      // Center fulcrum
       ctx.beginPath(); ctx.moveTo(crucX, crucY - 28); ctx.lineTo(crucX, crucY - 8); ctx.stroke();
-      // Pans
       ctx.beginPath(); ctx.arc(crucX - 26, crucY - 14 + armTilt + 8, 8, 0, Math.PI); ctx.stroke();
       ctx.beginPath(); ctx.arc(crucX + 26, crucY - 14 - armTilt + 8, 8, 0, Math.PI); ctx.stroke();
 
-      // Golden Sovereign Root Seal atop fulcrum
+      // Root Seal
       ctx.fillStyle = isXray ? "#00f0ff" : "#f3c248";
       ctx.beginPath(); ctx.arc(crucX, crucY - 30, 6, 0, Math.PI * 2); ctx.fill();
       ctx.font = isXray ? "8px monospace" : "bold 8px serif";
@@ -1930,7 +2254,7 @@
       renderSpecimenPin(ctx, crucX, crucY - 10, 2, isXray);
 
       // ----------------------------------------
-      // 5. Soliton Astronomical Orrery & Droplet Pump (Bottom-Left)
+      // 5. Soliton Degree Orrery & Hydraulic Droplet Pump (Bottom-Left)
       // ----------------------------------------
       const orreryX = x + (w - 15) * 0.34;
       const orreryY = y + h - 85;
@@ -1938,20 +2262,18 @@
 
       drawSolitonOrrery(ctx, orreryX, orreryY, orreryR, t, isXray);
 
-      // Kinetic Syringe / Piston Pump linked to Orrery
+      // Hydraulic Pump
       const pumpX = orreryX + 46;
       const pumpY = orreryY + 10;
       const pistonStroke = Math.sin(t * 1.5) * 10;
 
-      // Pump Glass Cylinder
       ctx.strokeStyle = isXray ? "rgba(0, 240, 255, 0.7)" : "rgba(212, 175, 55, 0.75)";
       ctx.fillStyle = isXray ? "rgba(0, 40, 80, 0.4)" : "rgba(0, 20, 40, 0.4)";
       ctx.lineWidth = 1.5;
       ctx.strokeRect(pumpX, pumpY - 8, 42, 16);
       ctx.fillRect(pumpX, pumpY - 8, 42, 16);
 
-      // Moving Piston Plunger & Rod
-      ctx.fillStyle = isXray ? "#00f0ff" : "#d4af37";
+      ctx.fillStyle = isXray ? "#00f0ff" : createSteelLinearGradient(ctx, pumpX + 16 + pistonStroke, pumpY - 6, 6, 12);
       ctx.fillRect(pumpX + 16 + pistonStroke, pumpY - 6, 6, 12);
       ctx.strokeStyle = isXray ? "#00f0ff" : "#d4af37";
       ctx.beginPath();
@@ -1959,7 +2281,6 @@
       ctx.lineTo(pumpX + 16 + pistonStroke, pumpY);
       ctx.stroke();
 
-      // Fluid reservoir glow inside pump
       ctx.fillStyle = isXray ? "rgba(0, 240, 255, 0.6)" : "rgba(0, 240, 255, 0.5)";
       ctx.fillRect(pumpX + 2, pumpY - 6, 14 + pistonStroke, 12);
 
@@ -1979,20 +2300,19 @@
         ctx.beginPath(); ctx.ellipse(hornX - 38, cY, 9, 3, 0, 0, Math.PI * 2); ctx.stroke();
       }
 
-      // Twin Glowing Vacuum Tube Amplifier Bulbs
+      // Vacuum Tube Amplifier Bulbs
       [hornY - 14, hornY + 14].forEach(ty => {
         ctx.strokeStyle = isXray ? "rgba(0, 240, 255, 0.5)" : "rgba(200, 220, 240, 0.6)";
         ctx.fillStyle = isXray ? "rgba(0, 240, 255, 0.15)" : "rgba(255, 120, 30, 0.25)";
         ctx.lineWidth = 1.2;
         ctx.beginPath(); ctx.arc(hornX - 22, ty, 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-        // Warm orange filament
         ctx.fillStyle = "#ff6600";
         ctx.beginPath(); ctx.arc(hornX - 22, ty, 2, 0, Math.PI * 2); ctx.fill();
       });
 
-      // Spark Gap Oscillating Electrical Arc
+      // Spark Gap Arc
       if (state.isPlaying && Math.random() < 0.6) {
-        ctx.strokeStyle = isXray ? "#00f0ff" : "#fff";
+        ctx.strokeStyle = isXray ? "#00f0ff" : "#ffffff";
         ctx.lineWidth = 1.5;
         ctx.beginPath();
         ctx.moveTo(hornX - 16, hornY - 4);
@@ -2001,9 +2321,9 @@
         ctx.stroke();
       }
 
-      // Flared Conical Radiator Horn
+      // Radiator Horn with multi-stop brass gradient
       ctx.strokeStyle = isXray ? "#00f0ff" : "#d4af37";
-      ctx.fillStyle = isXray ? "rgba(0, 240, 255, 0.2)" : "rgba(212, 175, 55, 0.25)";
+      ctx.fillStyle = isXray ? "rgba(0, 240, 255, 0.2)" : createBrassLinearGradient(ctx, hornX - 18, hornY - 32, 18, 64);
       ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.moveTo(hornX - 18, hornY - 12);
@@ -2014,7 +2334,6 @@
       ctx.fill();
       ctx.stroke();
 
-      // Concentric Radiating Wavefront Arcs launching into wavefield
       const arcPulse = (t * 8) % 24;
       ctx.strokeStyle = isXray ? `rgba(0, 240, 255, ${1 - arcPulse / 24})` : `rgba(243, 194, 72, ${1 - arcPulse / 24})`;
       ctx.lineWidth = 1.5;
@@ -2026,12 +2345,10 @@
     }
 
     // ==========================================
-    // Sector 3: Machine B — The Field Scholar Appliance (Macaulay Cutaway)
+    // Sector 3: Machine B — Field Scholar Appliance (Ciechanowski & Macaulay Cutaway)
     // ==========================================
     function renderMachineBCutaway(ctx, x, y, w, h, isXray, t) {
       ctx.save();
-
-      // Outer heavy machinery chassis frame
       drawMachineryChassis(ctx, x, y, w, h, isXray, "MACHINE B: FIELD SCHOLAR APPLIANCE", "Apparatus Scholaris Campestris Core");
 
       // ----------------------------------------
@@ -2041,14 +2358,12 @@
       const dishY = y + h * 0.50;
       const dishR = 42;
 
-      // Parabolic curved reflector rim
       ctx.strokeStyle = isXray ? "#00f0ff" : "#d4af37";
       ctx.lineWidth = 2.5;
       ctx.beginPath();
       ctx.arc(dishX + 25, dishY, dishR, Math.PI * 0.62, Math.PI * 1.38);
       ctx.stroke();
 
-      // Radial structural ribs & wire-grid cross-hatching
       ctx.strokeStyle = isXray ? "rgba(0, 240, 255, 0.25)" : "rgba(212, 175, 55, 0.3)";
       ctx.lineWidth = 1;
       for (let a = Math.PI * 0.68; a < Math.PI * 1.35; a += 0.14) {
@@ -2057,13 +2372,12 @@
         ctx.beginPath(); ctx.moveTo(dishX + 25, dishY); ctx.lineTo(rx, ry); ctx.stroke();
       }
 
-      // Dipole Feed Horn on Tripod Mount & Waveguide Conduit Pipe
       ctx.strokeStyle = isXray ? "#00f0ff" : "#d4af37";
       ctx.lineWidth = 2;
       ctx.beginPath(); ctx.moveTo(dishX + 25, dishY); ctx.lineTo(dishX + 54, dishY); ctx.stroke();
       ctx.beginPath(); ctx.arc(dishX + 54, dishY, 4, 0, Math.PI * 2); ctx.fillStyle = isXray ? "#00f0ff" : "#f3c248"; ctx.fill();
 
-      // Coaxial wavepipe running from feed horn up to pre-amplifier
+      // Coaxial wavepipe
       ctx.strokeStyle = isXray ? "rgba(0, 240, 255, 0.5)" : "rgba(212, 120, 60, 0.7)";
       ctx.lineWidth = 3;
       ctx.beginPath();
@@ -2078,7 +2392,6 @@
       const meterX = x + 85;
       const meterY = y + 42;
 
-      // Triode Vacuum Tube
       ctx.strokeStyle = isXray ? "rgba(0, 240, 255, 0.6)" : "rgba(200, 220, 240, 0.7)";
       ctx.fillStyle = isXray ? "rgba(0, 240, 255, 0.15)" : "rgba(0, 200, 255, 0.1)";
       ctx.lineWidth = 1.5;
@@ -2087,19 +2400,17 @@
       ctx.fillStyle = "#ff6600";
       ctx.beginPath(); ctx.arc(meterX - 11, meterY + 16, 2.5, 0, Math.PI * 2); ctx.fill();
 
-      // Analog Galvanometer Dial Bezel
-      ctx.strokeStyle = isXray ? "rgba(0, 240, 255, 0.8)" : "rgba(212, 175, 55, 0.85)";
+      // Galvanometer with bevelled brass bezel
+      ctx.strokeStyle = isXray ? "rgba(0, 240, 255, 0.8)" : "#d4af37";
       ctx.strokeRect(meterX, meterY, 68, 36);
-      ctx.fillStyle = isXray ? "rgba(0, 20, 45, 0.6)" : "rgba(8, 12, 18, 0.75)";
+      ctx.fillStyle = isXray ? "rgba(0, 20, 45, 0.6)" : "#080c12";
       ctx.fillRect(meterX, meterY, 68, 36);
 
-      // Curved meter scale arch
       ctx.strokeStyle = isXray ? "rgba(0, 240, 255, 0.4)" : "rgba(212, 175, 55, 0.45)";
       ctx.beginPath();
       ctx.arc(meterX + 34, meterY + 34, 26, Math.PI * 1.2, Math.PI * 1.8);
       ctx.stroke();
 
-      // Vibrating Galvanometer Needle (Live SNR indicator)
       const needleAngle = Math.sin(t * 3.8) * 0.35 - 0.15;
       ctx.strokeStyle = isXray ? "#00ffa3" : "#ff3366";
       ctx.lineWidth = 1.5;
@@ -2118,12 +2429,10 @@
       const gateX = x + (w - 15) * 0.48;
       const gateY = y + 78;
 
-      // Transparent pneumatic sorting tube
       ctx.strokeStyle = isXray ? "rgba(0, 240, 255, 0.5)" : "rgba(212, 175, 55, 0.6)";
       ctx.lineWidth = 2;
       ctx.strokeRect(gateX - 22, gateY - 26, 44, 20);
 
-      // Two-way sorting diverter flap
       const isRejecting = state.byzantineDrop !== null;
       const flapAngle = isRejecting ? 0.65 : -0.1;
       ctx.strokeStyle = isXray ? "#00f0ff" : "#d4af37";
@@ -2133,23 +2442,20 @@
       ctx.lineTo(gateX - 14 + Math.cos(flapAngle) * 28, gateY - 6 + Math.sin(flapAngle) * 28);
       ctx.stroke();
 
-      // Indicator Lanterns (Green: Authentic, Red: Byzantine)
       ctx.fillStyle = isRejecting ? "#ff3366" : "#00ffa3";
       ctx.beginPath(); ctx.arc(gateX + 24, gateY - 16, 4, 0, Math.PI * 2); ctx.fill();
 
-      // Roaring Slag Incinerator Chute (Below gate)
+      // Slag furnace
       const slagY = gateY + 32;
       ctx.fillStyle = isXray ? "rgba(255, 51, 102, 0.25)" : "rgba(35, 15, 10, 0.85)";
       ctx.strokeStyle = isXray ? "#ff3366" : "#c0392b";
       ctx.strokeRect(gateX - 18, slagY, 42, 34);
       ctx.fillRect(gateX - 18, slagY, 42, 34);
 
-      // Incinerator cast iron grate & roaring fire glow
       const fireGlow = Math.sin(t * 6) * 0.25 + 0.75;
       ctx.fillStyle = `rgba(255, 90, 0, ${fireGlow * 0.7})`;
       ctx.fillRect(gateX - 14, slagY + 12, 34, 18);
 
-      // Embers rising from furnace
       ctx.fillStyle = "#ffcc00";
       for (let e = 0; e < 3; e++) {
         const eX = gateX - 8 + ((t * 8 + e * 12) % 24);
@@ -2190,30 +2496,28 @@
       const crtX = x + w - 92;
       const crtY = y + h - 90;
 
-      // Curved Amber CRT Screen Bezel
       ctx.strokeStyle = isXray ? "rgba(0, 240, 255, 0.7)" : "rgba(212, 175, 55, 0.75)";
       ctx.fillStyle = isXray ? "#020712" : "#0d0903";
       ctx.strokeRect(crtX, crtY, 44, 40);
       ctx.fillRect(crtX, crtY, 44, 40);
 
-      // Phosphor scanline glow on CRT
       const crtGlow = state.rank >= state.k ? "#00ffa3" : "#f3c248";
       ctx.fillStyle = crtGlow;
       ctx.font = "8px monospace";
       ctx.fillText(state.rank >= state.k ? "\u2713 DECODED" : `${Math.floor((state.rank/state.k)*100)}%`, crtX + 4, crtY + 18);
       ctx.fillText("MATRIX K", crtX + 4, crtY + 30);
 
-      // Acoustic Phonograph Loudspeaker Horn
+      // Loudspeaker Horn with brass gradient
       const hornBX = x + w - 20;
       const hornBY = crtY + 20;
       ctx.strokeStyle = isXray ? "#00f0ff" : "#d4af37";
-      ctx.fillStyle = isXray ? "rgba(0, 240, 255, 0.2)" : "rgba(212, 175, 55, 0.25)";
+      ctx.fillStyle = isXray ? "rgba(0, 240, 255, 0.2)" : createBrassLinearGradient(ctx, hornBX - 22, hornBY - 22, 44, 44);
       ctx.lineWidth = 1.8;
       ctx.beginPath();
       ctx.arc(hornBX, hornBY, 22, -Math.PI * 0.45, Math.PI * 0.45);
       ctx.stroke();
+      ctx.fill();
 
-      // Concentric soundwaves emanating from speaker diaphragm
       const spkPulse = (t * 7) % 18;
       ctx.strokeStyle = isXray ? `rgba(0, 255, 163, ${1 - spkPulse / 18})` : `rgba(243, 194, 72, ${1 - spkPulse / 18})`;
       ctx.beginPath();
@@ -2225,27 +2529,25 @@
 
     // Helper: Heavy Victorian Cast-Iron & Brass Chassis Enclosure
     function drawMachineryChassis(ctx, x, y, w, h, isXray, title, sub) {
-      // Bevelled metallic enclosure frame
-      ctx.strokeStyle = isXray ? "rgba(0, 240, 255, 0.85)" : "rgba(212, 175, 55, 0.85)";
+      ctx.strokeStyle = isXray ? "rgba(0, 240, 255, 0.85)" : "#d4af37";
       ctx.lineWidth = 2;
       ctx.strokeRect(x, y, w, h);
 
-      // Brass Corner Reinforcement Brackets
+      // Brass Corner Reinforcement Brackets with rivets
       const cb = 14;
-      ctx.fillStyle = isXray ? "rgba(0, 240, 255, 0.2)" : "rgba(212, 175, 55, 0.25)";
+      ctx.fillStyle = isXray ? "rgba(0, 240, 255, 0.2)" : createBrassLinearGradient(ctx, x, y, cb * 2, cb * 2);
       [[x, y], [x + w - cb, y], [x, y + h - cb], [x + w - cb, y + h - cb]].forEach(([cx, cy]) => {
         ctx.fillRect(cx, cy, cb, cb);
         ctx.strokeRect(cx, cy, cb, cb);
       });
 
-      // Raised Rivets along outer frame
+      // Raised Rivets
       ctx.fillStyle = isXray ? "#00f0ff" : "#f3c248";
       for (let ry = y + 16; ry < y + h; ry += 22) {
         ctx.beginPath(); ctx.arc(x + 4, ry, 1.8, 0, Math.PI * 2); ctx.fill();
         ctx.beginPath(); ctx.arc(x + w - 4, ry, 1.8, 0, Math.PI * 2); ctx.fill();
       }
 
-      // Ornate Title Cartouche
       ctx.fillStyle = isXray ? "#00f0ff" : "#f7e7b4";
       ctx.font = isXray ? "bold 10.5px monospace" : "bold 11px serif";
       ctx.fillText(title, x + 12, y + 18);
@@ -2254,56 +2556,20 @@
       ctx.fillText(sub, x + 12, y + 30);
     }
 
-    // Helper: Draw Meshed Brass Spur Gears
-    function drawMeshedGears(ctx, cx, cy, radius, angle, isXray) {
-      ctx.save();
-      ctx.translate(cx, cy);
-      ctx.rotate(angle);
-
-      ctx.strokeStyle = isXray ? "#00f0ff" : "#d4af37";
-      ctx.fillStyle = isXray ? "rgba(0, 240, 255, 0.12)" : "rgba(212, 175, 55, 0.2)";
-      ctx.lineWidth = 1.6;
-
-      const teeth = 14;
-      ctx.beginPath();
-      for (let i = 0; i < teeth; i++) {
-        const a1 = (i / teeth) * Math.PI * 2;
-        const a2 = ((i + 0.5) / teeth) * Math.PI * 2;
-        ctx.lineTo(Math.cos(a1) * (radius + 4), Math.sin(a1) * (radius + 4));
-        ctx.lineTo(Math.cos(a2) * radius, Math.sin(a2) * radius);
-      }
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-
-      // Gear Spokes & Cutouts (Macaulay style)
-      ctx.beginPath(); ctx.arc(0, 0, radius * 0.65, 0, Math.PI * 2); ctx.stroke();
-      for (let s = 0; s < 4; s++) {
-        ctx.rotate(Math.PI / 2);
-        ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(radius * 0.65, 0); ctx.stroke();
-      }
-
-      // Center Axle Hub & Hex Bolt
-      ctx.beginPath(); ctx.arc(0, 0, 5, 0, Math.PI * 2); ctx.fillStyle = isXray ? "#00f0ff" : "#f3c248"; ctx.fill();
-      ctx.restore();
-    }
-
     // Helper: Draw Soliton Degree Orrery (Planetary Gears)
     function drawSolitonOrrery(ctx, cx, cy, radius, t, isXray) {
       ctx.save();
       ctx.translate(cx, cy);
 
-      // Outer Armillary Glass Sphere & Ring
       ctx.strokeStyle = isXray ? "rgba(0, 240, 255, 0.4)" : "rgba(212, 175, 55, 0.45)";
       ctx.lineWidth = 1.2;
       ctx.beginPath(); ctx.arc(0, 0, radius, 0, Math.PI * 2); ctx.stroke();
 
       // Central Sun Gear
       ctx.strokeStyle = isXray ? "#00f0ff" : "#d4af37";
-      ctx.fillStyle = isXray ? "rgba(0, 240, 255, 0.15)" : "rgba(212, 175, 55, 0.2)";
+      ctx.fillStyle = isXray ? "rgba(0, 240, 255, 0.15)" : createBrassLinearGradient(ctx, -radius * 0.35, -radius * 0.35, radius * 0.7, radius * 0.7);
       ctx.beginPath(); ctx.arc(0, 0, radius * 0.35, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
 
-      // 3 Planet arms rotating around sun gear
       const planets = [
         { deg: "d=1", color: "#00ffa3", dist: radius * 0.52, speed: 1.4 },
         { deg: "d=2", color: "#f3c248", dist: radius * 0.74, speed: 0.9 },
@@ -2315,15 +2581,12 @@
         const px = Math.cos(theta) * p.dist;
         const py = Math.sin(theta) * p.dist;
 
-        // Orbital track
         ctx.strokeStyle = isXray ? "rgba(0, 240, 255, 0.12)" : "rgba(212, 175, 55, 0.15)";
         ctx.beginPath(); ctx.arc(0, 0, p.dist, 0, Math.PI * 2); ctx.stroke();
 
-        // Planet connecting spoke
         ctx.strokeStyle = isXray ? "#00f0ff" : "#d4af37";
         ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(px, py); ctx.stroke();
 
-        // Degree Orb
         ctx.fillStyle = isXray ? "#00f0ff" : p.color;
         ctx.beginPath(); ctx.arc(px, py, 6.5, 0, Math.PI * 2); ctx.fill();
 
@@ -2340,14 +2603,13 @@
     // Helper: Draw Babbage Analytical Difference Drum
     function drawAnalyticalDrum(ctx, x, y, w, h, t, rank, k, isXray) {
       ctx.save();
-      ctx.strokeStyle = isXray ? "rgba(0, 240, 255, 0.85)" : "rgba(212, 175, 55, 0.85)";
+      ctx.strokeStyle = isXray ? "rgba(0, 240, 255, 0.85)" : "#d4af37";
       ctx.lineWidth = 1.8;
       ctx.strokeRect(x, y, w, h);
 
-      ctx.fillStyle = isXray ? "rgba(0, 30, 60, 0.5)" : "rgba(6, 10, 18, 0.75)";
+      ctx.fillStyle = isXray ? "rgba(0, 30, 60, 0.5)" : "#070b14";
       ctx.fillRect(x, y, w, h);
 
-      // Stacked Bronze Code Discs (Difference Engine Wheels)
       const wheels = 6;
       const wheelW = (w - 8) / wheels;
 
@@ -2356,7 +2618,6 @@
         ctx.strokeStyle = isXray ? "rgba(0, 240, 255, 0.3)" : "rgba(212, 175, 55, 0.35)";
         ctx.strokeRect(wx, y + 2, wheelW - 1, h - 4);
 
-        // Discs rotate on pivot events
         const isPivotActive = rank > i * 3;
         const wheelRot = isPivotActive ? 0 : Math.sin(t * 2 + i) * 8;
 
@@ -2371,7 +2632,6 @@
           ctx.fillText(bit, wx + wheelW * 0.25, dy);
         }
 
-        // Active pivot indicator lamp at bottom of wheel
         ctx.fillStyle = isPivotActive ? (isXray ? "#00f0ff" : "#00ffa3") : "rgba(50,50,50,0.5)";
         ctx.beginPath(); ctx.arc(wx + wheelW * 0.5, y + h - 5, 2.2, 0, Math.PI * 2); ctx.fill();
       }
@@ -2388,7 +2648,6 @@
       ctx.fillStyle = isXray ? "#020c1c" : "#050811";
       ctx.fillRect(x, y, 76, 28);
 
-      // Bevelled glass reflection
       ctx.fillStyle = "rgba(255, 255, 255, 0.05)";
       ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 76, y); ctx.lineTo(x, y + 14); ctx.fill();
 
@@ -2405,14 +2664,12 @@
       ctx.save();
       const isHovered = (state.hoveredSpecimen === id);
 
-      // Glowing aura if hovered
       if (isHovered) {
         ctx.strokeStyle = isXray ? "#00f0ff" : "#f3c248";
         ctx.lineWidth = 2;
         ctx.beginPath(); ctx.arc(px, py, 14, 0, Math.PI * 2); ctx.stroke();
       }
 
-      // Clickable circular pin badge
       ctx.fillStyle = isXray 
         ? (isHovered ? "rgba(0, 240, 255, 0.5)" : "rgba(0, 240, 255, 0.25)")
         : (isHovered ? "rgba(243, 194, 72, 0.6)" : "rgba(212, 175, 55, 0.4)");
@@ -2441,7 +2698,6 @@
       const my = state.mousePos.y;
 
       ctx.save();
-      // Floating Scholastic Card Box
       const cardW = 260;
       const cardH = 100;
       let cx = mx + 16;
@@ -2449,20 +2705,17 @@
       if (cx + cardW > w - 15) cx = mx - cardW - 16;
       if (cy + cardH > h - 15) cy = my - cardH - 16;
 
-      // Card Backdrop
       ctx.fillStyle = isXray ? "rgba(2, 15, 34, 0.95)" : "rgba(8, 14, 26, 0.96)";
       ctx.strokeStyle = isXray ? "#00f0ff" : "#d4af37";
       ctx.lineWidth = 1.5;
       ctx.strokeRect(cx, cy, cardW, cardH);
       ctx.fillRect(cx, cy, cardW, cardH);
 
-      // Gold leader line from mouse to card
       ctx.beginPath();
       ctx.moveTo(mx, my);
       ctx.lineTo(cx, cy + 10);
       ctx.stroke();
 
-      // Card Contents
       ctx.fillStyle = isXray ? "#00f0ff" : "#f3c248";
       ctx.font = "bold 9px monospace";
       ctx.textAlign = "left";
@@ -2477,7 +2730,6 @@
       ctx.font = "italic 9.5px serif";
       ctx.fillText(s.latin, cx + 10, cy + 38);
 
-      // Formula / Telemetry
       ctx.fillStyle = isXray ? "#00ffa3" : "#e0e6ed";
       ctx.font = "8.5px monospace";
       ctx.fillText(s.formula.slice(0, 38), cx + 10, cy + 56);
@@ -2491,7 +2743,6 @@
 
     // Helper: Droplets in transit across wavefield & spark particle physics
     function renderTransitDropletsAndSparks(ctx, w, h, waveX, waveW) {
-      // Periodically spawn visual transit droplet
       if (state.isPlaying && Math.random() < 0.22) {
         const isDropped = Math.random() < state.lossRate;
         state.apparatusDroplets.push({
@@ -2503,15 +2754,12 @@
         });
       }
 
-      // Update and draw droplets in transit
       for (let i = state.apparatusDroplets.length - 1; i >= 0; i--) {
         const d = state.apparatusDroplets[i];
         d.x += d.vx;
 
-        // Path loss: drop packet midway through wavefield with spark explosion
         if (d.isDropped && d.x > waveX + waveW * 0.48 && !d.detonated) {
           d.detonated = true;
-          // Spawn 14 spark particles
           for (let s = 0; s < 14; s++) {
             const angle = Math.random() * Math.PI * 2;
             const spd = Math.random() * 3.5 + 1.2;
@@ -2528,7 +2776,6 @@
           continue;
         }
 
-        // Draw glowing transit droplet with trailing motion wake
         const dropColor = state.isXray 
           ? "#00f0ff" 
           : (state.waveMode === "rf" ? "#00f0ff" : "#f3c248");
@@ -2536,7 +2783,6 @@
         ctx.fillStyle = dropColor;
         ctx.beginPath(); ctx.arc(d.x, d.y, 4.5, 0, Math.PI * 2); ctx.fill();
 
-        // Trail
         ctx.fillStyle = state.isXray ? "rgba(0, 240, 255, 0.4)" : "rgba(243, 194, 72, 0.45)";
         ctx.beginPath(); ctx.arc(d.x - 5, d.y, 3, 0, Math.PI * 2); ctx.fill();
         ctx.beginPath(); ctx.arc(d.x - 10, d.y, 1.8, 0, Math.PI * 2); ctx.fill();
@@ -2546,7 +2792,6 @@
         }
       }
 
-      // Update and render spark particles
       for (let i = state.sparks.length - 1; i >= 0; i--) {
         const sp = state.sparks[i];
         sp.x += sp.vx;
@@ -2568,13 +2813,15 @@
 
     // Handle clicks on the apparatus canvas to open specimen details
     apparatusCanvas.addEventListener("click", (e) => {
+      // Ignore click if dragging probe
+      if (state.probePos.isDragging) return;
+
       const rect = apparatusCanvas.getBoundingClientRect();
       const clickX = e.clientX - rect.left;
       const clickY = e.clientY - rect.top;
       const w = rect.width;
       const h = rect.height;
 
-      // Approximate hit zones for the 7 specimens:
       if (clickX < w * 0.18 && clickY < h * 0.45) openSpecimenModal(1);
       else if (clickX >= w * 0.18 && clickX < w * 0.33 && clickY < h * 0.45) openSpecimenModal(2);
       else if (clickX < w * 0.33 && clickY >= h * 0.45) openSpecimenModal(3);
