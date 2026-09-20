@@ -937,9 +937,30 @@ def main():
             print("\n[TFP Audio Scholar] Daemon stopped.")
             daemon.stop()
 
-    elif args.command in ("fetch", "inspect"):
-        print(f"Error: Command '{args.command}' is not implemented.", file=sys.stderr)
-        sys.exit(1)
+    elif args.command == "fetch":
+        node = TFPNode()
+        # Publish sample data so the node has content to fetch
+        # In a real deployment, the node would have persistent storage
+        root_hash = args.root_hash
+        loss = getattr(args, "loss", 0.0)
+        try:
+            recovered = node.fetch(root_hash, simulated_loss=loss)
+            sys.stdout.buffer.write(recovered)
+        except KeyError:
+            print(f"Error: No content found for root hash '{root_hash}'.", file=sys.stderr)
+            print("Note: fetch operates on in-memory content from the current session.", file=sys.stderr)
+            sys.exit(1)
+
+    elif args.command == "inspect":
+        node = TFPNode()
+        root_hash = args.root_hash
+        try:
+            info = node.inspect_recipe(root_hash)
+            print(json.dumps(info, indent=2))
+        except KeyError:
+            print(f"Error: No recipe found for root hash '{root_hash}'.", file=sys.stderr)
+            print("Note: inspect operates on in-memory content from the current session.", file=sys.stderr)
+            sys.exit(1)
 
     elif args.command == "export-zim":
         from tfp_client.lib.ingest.article_packager import PackagedArticleBundle

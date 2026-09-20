@@ -113,14 +113,16 @@ class VocoderCodec:
 
     def _encode_frame(self, frame_raw: np.ndarray, frame_pe: np.ndarray) -> bytes:
         """Encodes a single 160-sample frame into 24 bits (3 bytes)."""
-        # 1. Compute RMS energy
+        # 1. Compute RMS energy (frame_raw is normalized to [-1.0, 1.0])
         rms = float(np.sqrt(np.mean(frame_raw**2)))
-        if rms < 15.0:
-            # Silence / noise floor: return all zeros frame
+        if rms < 0.001:
+            # Silence / noise floor (~-60 dBFS): return all zeros frame
             return b"\x00\x00\x00"
 
         # Log energy quantized to 5 bits (0..31)
-        db = 20.0 * math.log10(max(1.0, rms))
+        # Scale RMS back to int16 range for dB calculation to preserve existing quantization
+        rms_int16 = rms * 32768.0
+        db = 20.0 * math.log10(max(1.0, rms_int16))
         # Map 20 dB .. 90 dB into 1 .. 31
         energy_idx = int(np.clip(round((db - 20.0) / (70.0 / 30.0)) + 1, 1, 31))
 

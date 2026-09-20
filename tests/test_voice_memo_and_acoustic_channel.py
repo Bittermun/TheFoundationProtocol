@@ -165,6 +165,22 @@ def test_vocoder_compression_ratio_and_decompression():
     decompressed = decompress_speech(compressed, sample_rate=sample_rate)
     assert len(decompressed) == len(raw_bytes)
 
+    # Signal fidelity: verify output contains audio energy, not silence
+    import numpy as np
+    in_samples = np.frombuffer(raw_bytes, dtype=np.int16).astype(np.float64)
+    out_samples = np.frombuffer(decompressed, dtype=np.int16).astype(np.float64)
+    in_rms = float(np.sqrt(np.mean(in_samples**2)))
+    out_rms = float(np.sqrt(np.mean(out_samples**2)))
+    assert out_rms > 0, "Vocoder output is total silence — compress/decompress produced zero energy"
+    assert out_rms > in_rms * 0.01, (
+        f"Vocoder output energy too low: input RMS={in_rms:.1f}, output RMS={out_rms:.1f}, "
+        f"ratio={out_rms/in_rms:.4f} (expected >1%)"
+    )
+    non_zero = int(np.sum(np.abs(out_samples) > 0))
+    assert non_zero > len(out_samples) * 0.5, (
+        f"Too few non-zero samples: {non_zero}/{len(out_samples)}"
+    )
+
 
 def test_voice_memo_vocoder_roundtrip_and_wav_generation():
     """Verify VoiceMemo handles vocoder compression, deserialization, and WAV playback."""

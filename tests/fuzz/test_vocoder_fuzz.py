@@ -75,3 +75,39 @@ class TestVocoderHypothesisFuzz:
         for i in range(sample_count):
             val = struct.unpack_from("<h", decompressed, i * 2)[0]
             assert -32768 <= val <= 32767
+
+    def test_signal_fidelity_tone_survives_roundtrip(self):
+        """Regression: vocoder must preserve audio energy, not produce silence.
+
+        This test catches the RMS threshold bug where normalization to [-1, 1]
+        made the silence threshold (previously 15.0) always true, causing
+        every frame to be classified as silence and encoded as zeros.
+        """
+        import numpy as np
+
+        # Generate a 0.5-second 440 Hz tone at full scale
+        sr = 8000
+        n = sr // 2  # 0.5 seconds
+        t = np.linspace(0, 0.5, n, endpoint=False)
+        tone = (np.sin(2 * np.pi * 440 * t) * 30000).astype(np.int16)
+        pcm = tone.tobytes()
+
+        compressed = compress_speech(pcm, sample_rate=sr)
+        decompressed = decompress_speech(compressed, sample_rate=sr)
+
+        out_samples = np.frombuffer(decompressed, dtype=np.int16).astype(np.float64)
+        in_rms = float(np.sqrt(np.mean(tone.astype(np.float64)**2)))
+        out_rms = float(np.sqrt(np.mean(out_samples**2)))
+
+        # Output must not be silence
+        assert out_rms > 0, "Vocoder roundtrip produced total silence"
+        # Output must retain at least 1% of input energy
+        assert out_rms > in_rms * 0.01, (
+            f"Vocoder energy ratio too low: {out_rms/in_rms:.4f} (need >0.01)"
+        )
+        # Majority of samples must be non-zero
+        non_zero = int(np.sum(np.abs(out_samples) > 0))
+        assert non_zero > len(out_samples) * 0.5, (
+            f"Only {non_zero}/{len(out_samples)} non-zero samples"
+        )
+
