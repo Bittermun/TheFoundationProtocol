@@ -408,16 +408,18 @@ def main():
     parser.add_argument("--query", type=str, help="Search symbol definition, callers, and tests")
     parser.add_argument("--json", action="store_true", help="Export full graph as JSON")
     parser.add_argument("--stats", action="store_true", help="Print repository code metrics")
+    parser.add_argument("--output", "-o", type=str, help="Write output to specified file path (UTF-8)")
     args = parser.parse_args()
 
     root_dir = Path(args.root).resolve()
     graph = CodeGraph(root_dir).build()
 
+    out_content: str | None = None
     if args.query:
         result = graph.query(args.query)
-        print(json.dumps(result, indent=2))
+        out_content = json.dumps(result, indent=2)
     elif args.mermaid:
-        print(graph.mermaid())
+        out_content = graph.mermaid()
     elif args.json:
         data = {
             "stats": graph.stats(),
@@ -430,11 +432,19 @@ def main():
                 for f, node in graph.files.items()
             },
         }
-        print(json.dumps(data, indent=2))
+        out_content = json.dumps(data, indent=2)
     elif args.stats:
-        print(json.dumps(graph.stats(), indent=2))
+        out_content = json.dumps(graph.stats(), indent=2)
     elif args.map:
-        print(graph.repo_map())
+        out_content = graph.repo_map()
+
+    if out_content is not None:
+        if args.output:
+            out_path = Path(args.output).resolve()
+            out_path.write_text(out_content, encoding="utf-8")
+            print(f"Code graph output written to {out_path} ({len(out_content)} bytes)")
+        else:
+            print(out_content)
     else:
         # Default behavior: print stats and brief repo map preview
         print(f"Foundation Protocol Code Graph: {len(graph.files)} Python files parsed.")
