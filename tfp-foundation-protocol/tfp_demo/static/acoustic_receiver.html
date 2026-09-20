@@ -461,12 +461,18 @@ function triggerHaptic(type) {
   } catch (e) {}
 }
 
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str || '';
+  return div.innerHTML;
+}
+
 function displayReceivedArticle(title, body) {
   currentArticleText = `${title}. ${body}`;
   const area = document.getElementById('contentArea');
   area.innerHTML = `
-    <h2 class="content-title">${title}</h2>
-    <div class="content-body">${body}</div>
+    <h2 class="content-title">${escapeHtml(title)}</h2>
+    <div class="content-body">${escapeHtml(body)}</div>
   `;
   document.getElementById('speakBtn').disabled = false;
 }
@@ -477,7 +483,7 @@ function displayReceivedVoiceMemo(callsign, durationMs, transcript) {
   area.innerHTML = `
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
       <h2 class="content-title" style="margin:0;">📻 Voice Memo</h2>
-      <span class="badge" style="background:#0284c7; color:#fff;">[${callsign}]</span>
+      <span class="badge" style="background:#0284c7; color:#fff;">[${escapeHtml(callsign)}]</span>
     </div>
     <div style="background:#0b1220; border:1px solid #1e293b; border-radius:8px; padding:12px; margin-bottom:8px;">
       <div style="display:flex; align-items:center; gap:10px;">
@@ -485,7 +491,7 @@ function displayReceivedVoiceMemo(callsign, durationMs, transcript) {
         <span style="font-size:12px; color:#94a3b8;">Duration: ${(durationMs / 1000).toFixed(2)}s | 8 kHz Mono PCM</span>
       </div>
     </div>
-    <div class="content-body" style="font-style:italic; color:#94a3b8;">"${transcript}"</div>
+    <div class="content-body" style="font-style:italic; color:#94a3b8;">"${escapeHtml(transcript)}"</div>
   `;
   document.getElementById('speakBtn').disabled = false;
 }
@@ -539,11 +545,21 @@ function loadOfflineArchive() {
       feed.innerHTML = '<div class="packet-line" style="color:var(--muted)">No transmissions stored yet.</div>';
       return;
     }
-    feed.innerHTML = list.map(item => `
-      <div class="packet-line" style="cursor:pointer;" onclick="displayReceivedArticle('${item.title.replace(/'/g, "\\'")}', '${item.snippet.replace(/'/g, "\\'")}')">
-        <span style="color:#00e5ff;">[${item.time}]</span> <b>${item.title}</b>: ${item.snippet.slice(0, 50)}...
-      </div>
-    `).join('');
+    feed.innerHTML = '';
+    list.forEach(item => {
+      const line = document.createElement('div');
+      line.className = 'packet-line';
+      line.style.cursor = 'pointer';
+      line.innerHTML = `<span style="color:#00e5ff;">[${escapeHtml(item.time)}]</span> <b>${escapeHtml(item.title)}</b>: ${escapeHtml((item.snippet || '').slice(0, 50))}...`;
+      line.onclick = () => {
+        if (item.type === 'voice') {
+          displayReceivedVoiceMemo(item.title, 1850, item.snippet);
+        } else {
+          displayReceivedArticle(item.title, item.snippet);
+        }
+      };
+      feed.appendChild(line);
+    });
   } catch (e) {}
 }
 

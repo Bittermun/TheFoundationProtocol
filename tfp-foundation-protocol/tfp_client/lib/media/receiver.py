@@ -20,6 +20,7 @@ from pathlib import Path
 import socket
 import struct
 import sys
+import time
 from typing import Callable, Dict, List, Optional, Set, Tuple
 
 # Ensure tfp_core_v4 is importable
@@ -64,10 +65,16 @@ class FountainStreamReceiver:
         symbol_size: int = 512,
         secret_key: bytes = b"tfp-default-streaming-salt",
         verify_tag: bool = True,
+        max_sessions: int = 32,
+        max_droplets_per_chunk: int = 512,
+        session_ttl_seconds: float = 600.0,
     ):
         self.symbol_size = symbol_size
         self.secret_key = secret_key
         self.verify_tag = verify_tag
+        self.max_sessions = max_sessions
+        self.max_droplets_per_chunk = max_droplets_per_chunk
+        self.session_ttl_seconds = session_ttl_seconds
         self.codec = FountainCodec(symbol_size=symbol_size)
 
         # Droplet buffers: (session_id, chunk_index) -> {seed: FountainDroplet}
@@ -79,6 +86,7 @@ class FountainStreamReceiver:
         self.received_manifests: Dict[int, MediaManifest] = {}
         self.latest_manifest: Optional[MediaManifest] = None
         self._last_active_session: Optional[int] = None
+        self._session_timestamps: Dict[int, float] = {}
         # Reception statistics
         self.stats = ReceiverStats()
 
@@ -102,6 +110,32 @@ class FountainStreamReceiver:
         except Exception:
             return int.from_bytes(hashlib.sha256(manifest.manifest_id.encode()).digest()[:4], "big")
 
+    def _evict_stale_or_excess_sessions(self, incoming_session: int) -> None:
+        """Evicts sessions exceeding max_sessions (LRU) or older than session_ttl_seconds."""
+        now = time.time()
+
+        # 1. Clean up expired sessions (except incoming)
+        expired = [
+            sid for sid, ts in list(self._session_timestamps.items())
+            if sid != incoming_session and (now - ts) > self.session_ttl_seconds
+        ]
+        for sid in expired:
+            self.reset(sid)
+
+        # 2. If at capacity when a new session arrives, evict LRU
+        if (
+            incoming_session not in self.reconstructed_chunks_by_session
+            and len(self.reconstructed_chunks_by_session) >= self.max_sessions
+        ):
+            candidates = [
+                (ts, sid) for sid, ts in self._session_timestamps.items()
+                if sid != incoming_session
+            ]
+            if candidates:
+                candidates.sort()
+                oldest_sid = candidates[0][1]
+                self.reset(oldest_sid)
+
     def reset(self, session_id: Optional[int] = None):
         """
         Reset receiver state.
@@ -112,6 +146,8 @@ class FountainStreamReceiver:
             self._droplet_buffers.clear()
             self._chunk_meta.clear()
             self.reconstructed_chunks_by_session.clear()
+            self.received_manifests.clear()
+            self._session_timestamps.clear()
             self._last_active_session = None
         else:
             to_delete = [k for k in self._droplet_buffers if k[0] == session_id]
@@ -119,6 +155,8 @@ class FountainStreamReceiver:
                 self._droplet_buffers.pop(k, None)
                 self._chunk_meta.pop(k, None)
             self.reconstructed_chunks_by_session.pop(session_id, None)
+            self.received_manifests.pop(session_id, None)
+            self._session_timestamps.pop(session_id, None)
             if self._last_active_session == session_id:
                 self._last_active_session = next(iter(self.reconstructed_chunks_by_session), None)
 
@@ -135,6 +173,9 @@ class FountainStreamReceiver:
         session_id = pkt.session_id
         chunk_idx = pkt.chunk_index
         self._last_active_session = session_id
+
+        self._evict_stale_or_excess_sessions(session_id)
+        self._session_timestamps[session_id] = time.time()
 
         if session_id not in self.reconstructed_chunks_by_session:
             self.reconstructed_chunks_by_session[session_id] = {}
@@ -177,6 +218,9 @@ class FountainStreamReceiver:
         buf = self._droplet_buffers[buf_key]
         if pkt.seed in buf:
             self.stats.packets_duplicate += 1
+            return None
+
+        if len(buf) >= self.max_droplets_per_chunk:
             return None
 
         droplet = pkt.to_droplet()
@@ -230,6 +274,8 @@ class FountainStreamReceiver:
                     verify_tag=self.verify_tag,
                 )
                 sess_id = self.derive_session_id(manifest)
+                self._evict_stale_or_excess_sessions(sess_id)
+                self._session_timestamps[sess_id] = time.time()
                 self.received_manifests[sess_id] = manifest
                 self.latest_manifest = manifest
                 self._last_active_session = sess_id

@@ -197,3 +197,64 @@ def test_shared_first_chunk_cross_session_isolation():
     assert receiver.is_complete(manifest_2), "Transfer 2 must be complete after receiving its chunks"
     assert receiver.assemble(manifest_1) == payload_1
     assert receiver.assemble(manifest_2) == payload_2
+
+
+def test_receiver_lru_session_eviction_bounded_memory():
+    """Verify receiver evicts oldest LRU sessions when max_sessions threshold is reached."""
+    receiver = FountainStreamReceiver(symbol_size=64, max_sessions=3, verify_tag=False)
+    from tfp_client.lib.media.fountain_streamer import MediaDropletPacket
+
+    # Ingest packets from 3 distinct sessions (10, 20, 30)
+    for sid in (10, 20, 30):
+        pkt = MediaDropletPacket(
+            session_id=sid,
+            chunk_index=0,
+            k=5,
+            orig_len=64,
+            symbol_size=64,
+            seed=0,
+            payload=b"A" * 64,
+        )
+        receiver.ingest_packet(pkt)
+
+    assert set(receiver._session_timestamps.keys()) == {10, 20, 30}
+    assert len(receiver.reconstructed_chunks_by_session) <= 3
+
+    # Now ingest a 4th session (40) -> Session 10 (oldest) must be evicted
+    pkt_4 = MediaDropletPacket(
+        session_id=40,
+        chunk_index=0,
+        k=5,
+        orig_len=64,
+        symbol_size=64,
+        seed=0,
+        payload=b"B" * 64,
+    )
+    receiver.ingest_packet(pkt_4)
+
+    assert len(receiver.reconstructed_chunks_by_session) <= 3
+    assert 10 not in receiver.reconstructed_chunks_by_session, "Session 10 should have been evicted by LRU"
+    assert 40 in receiver.reconstructed_chunks_by_session
+
+
+def test_receiver_max_droplets_per_chunk_bound():
+    """Verify receiver bounds droplet buffer size per chunk to prevent memory exhaustion."""
+    receiver = FountainStreamReceiver(symbol_size=64, max_droplets_per_chunk=8, verify_tag=False)
+    from tfp_client.lib.media.fountain_streamer import MediaDropletPacket
+
+    # Send 20 distinct repair packets for a chunk requiring k=50 (never completes)
+    for seed in range(20):
+        pkt = MediaDropletPacket(
+            session_id=999,
+            chunk_index=0,
+            k=50,
+            orig_len=64,
+            symbol_size=64,
+            seed=seed,
+            payload=bytes([seed % 256] * 64),
+        )
+        receiver.ingest_packet(pkt)
+
+    buf = receiver._droplet_buffers.get((999, 0), {})
+    assert len(buf) <= 8, f"Droplet buffer exceeded max_droplets_per_chunk bound: {len(buf)} > 8"
+
