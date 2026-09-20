@@ -18,6 +18,7 @@ import hmac
 import logging
 from pathlib import Path
 import socket
+import struct
 import sys
 from typing import Callable, Dict, List, Optional, Set, Tuple
 
@@ -32,6 +33,8 @@ from .fountain_streamer import (
     MediaDropletPacket,
     MediaStreamError,
     MANIFEST_MAGIC,
+    PACKET_MAGIC,
+    PACKET_VERSION,
     deserialize_manifest_packet,
 )
 from .stream_packager import MediaManifest
@@ -138,6 +141,29 @@ class FountainStreamReceiver:
 
         session_chunks = self.reconstructed_chunks_by_session[session_id]
 
+        # O(1) Anti-pollution verification of droplet packet HMAC if configured
+        if self.verify_tag and self.secret_key and pkt.auth_tag:
+            header_pre = struct.pack(
+                ">2sBBIIHIHI",
+                PACKET_MAGIC,
+                PACKET_VERSION,
+                0,
+                pkt.session_id,
+                pkt.chunk_index,
+                pkt.k,
+                pkt.orig_len,
+                pkt.symbol_size,
+                pkt.seed,
+            )
+            expected_tag = hmac.new(
+                self.secret_key,
+                header_pre + pkt.payload,
+                hashlib.sha3_256,
+            ).digest()[:16]
+            if not hmac.compare_digest(pkt.auth_tag, expected_tag):
+                self.stats.packets_rejected_auth += 1
+                return None
+
         # Already completed for this chunk in this session?
         if chunk_idx in session_chunks:
             self.stats.packets_duplicate += 1
@@ -164,6 +190,18 @@ class FountainStreamReceiver:
             try:
                 droplet_list = list(buf.values())
                 reconstructed = self.codec.decode(droplet_list, k, orig_len)
+
+                # Defense-in-depth: Verify reconstructed chunk hash if manifest is known
+                target_m = self.received_manifests.get(session_id)
+                if target_m and chunk_idx < len(target_m.chunk_hashes):
+                    expected_hash = target_m.chunk_hashes[chunk_idx]
+                    actual_hash = hashlib.sha3_256(reconstructed).hexdigest()
+                    if not hmac.compare_digest(actual_hash, expected_hash):
+                        log.warning(
+                            f"Reconstructed chunk {chunk_idx} failed integrity for session {session_id}"
+                        )
+                        return None
+
                 session_chunks[chunk_idx] = reconstructed
                 del self._droplet_buffers[buf_key]
                 self.stats.chunks_reconstructed += 1

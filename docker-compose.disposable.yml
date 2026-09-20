@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 The Foundation Protocol Contributors
+
+# Disposable Verification Lab Docker Compose Configuration.
+# Unlike docker-compose.workshop.yml, this configuration does NOT bind-mount
+# the live host directory or mutate host databases.
+# All state is contained within isolated ephemeral volumes and tmpfs in RAM.
+#
+# Usage (requires Docker engine running):
+#   docker compose -f docker-compose.disposable.yml run --rm tfp-disposable python scripts/run_experiment.py --scenario all
+#   docker compose -f docker-compose.disposable.yml run --rm tfp-disposable pytest tests/test_udp_process_boundary.py
+
+version: '3.8'
+
+services:
+  tfp-disposable:
+    build:
+      context: .
+      dockerfile: Dockerfile.workshop
+      target: workshop-dev
+    container_name: tfp-disposable-lab
+    # Zero host bind mounts: all operations execute inside container volume
+    volumes:
+      - tfp-disposable-code:/workspace:ro  # Read-only snapshot of code
+      - tfp-disposable-scratch:/workspace/data  # Ephemeral scratch storage
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=256m
+      - /run:rw,noexec,nosuid,size=64m
+    environment:
+      - PYTHONPATH=/workspace:/workspace/tfp-foundation-protocol
+      - TFP_DB_PATH=/tmp/disposable_pib.db
+      - TFP_DISPOSABLE_LAB=1
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONUNBUFFERED=1
+    working_dir: /workspace
+    networks:
+      - tfp-disposable-net
+    stdin_open: true
+    tty: true
+
+volumes:
+  tfp-disposable-code:
+    driver: local
+  tfp-disposable-scratch:
+    driver: local
+
+networks:
+  tfp-disposable-net:
+    driver: bridge

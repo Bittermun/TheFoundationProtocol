@@ -113,18 +113,56 @@ class AFSKModulator:
                 bits.append((byte >> i) & 1)
         return self.modulate_bits(bits, amplitude=amplitude)
 
-    def synthesize_wav(self, payload: bytes, amplitude: float = 0.8) -> bytes:
+    def synthesize_sync_chirp(
+        self,
+        duration_ms: int = 50,
+        start_freq: float = 800.0,
+        end_freq: float = 2400.0,
+        amplitude: float = 0.8,
+    ) -> bytes:
+        """
+        Synthesizes a linear frequency sweep (chirp) from start_freq to end_freq.
+        Acts as an acoustic preamble to trigger radio VOX and microphone squelch.
+        """
+        n_samples = int((duration_ms / 1000.0) * self.sample_rate)
+        if n_samples <= 0:
+            return b""
+
+        t_total = duration_ms / 1000.0
+        max_amp = int(32767 * max(0.1, min(1.0, amplitude)))
+        two_pi = 2.0 * math.pi
+        k = (end_freq - start_freq) / t_total  # chirp rate (Hz/s)
+
+        frames = bytearray()
+        for i in range(n_samples):
+            t = i / self.sample_rate
+            phase = two_pi * (start_freq * t + 0.5 * k * t * t)
+            val = int(max_amp * math.sin(phase))
+            frames.extend(struct.pack("<h", val))
+
+        # Add 10ms silence guard after chirp
+        silence_samples = int(0.010 * self.sample_rate)
+        frames.extend(struct.pack("<h", 0) * silence_samples)
+
+        return bytes(frames)
+
+    def synthesize_wav(self, payload: bytes, amplitude: float = 0.8, include_chirp: bool = False) -> bytes:
         """
         Convenience method: frames packet and encodes into a valid PCM WAV buffer.
+        Optionally prepends an acoustic synchronization chirp.
         """
+        pcm_samples = bytearray()
+        if include_chirp:
+            pcm_samples.extend(self.synthesize_sync_chirp(amplitude=amplitude))
+
         framed_data = self.frame_packet(payload)
-        pcm_samples = self.modulate_bytes(framed_data, amplitude=amplitude)
+        pcm_samples.extend(self.modulate_bytes(framed_data, amplitude=amplitude))
 
         buf = io.BytesIO()
         with wave.open(buf, "wb") as w:
             w.setnchannels(1)        # Mono
             w.setsampwidth(2)        # 16-bit (2 bytes per sample)
             w.setframerate(self.sample_rate)
-            w.writeframes(pcm_samples)
+            w.writeframes(bytes(pcm_samples))
 
         return buf.getvalue()
