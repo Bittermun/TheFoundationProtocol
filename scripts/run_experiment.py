@@ -419,10 +419,86 @@ def run_voice_memo_airgap_experiment() -> Dict[str, Any]:
     }
 
 
+def run_acoustic_multipath_sweep_experiment() -> Dict[str, Any]:
+    """
+    Sweeps acoustic multipath room reflections and background noise across 1200 baud
+    and 300 baud fallback modes to characterize room echo limits and adaptive recovery.
+    """
+    start_time = time.perf_counter()
+    sim = AcousticChannelSimulator(seed=42)
+    payload = b"CRITICAL_ALERT:CLINIC_EVACUATION_ORDER:SECTOR_4"
+
+    m12 = AFSKModulator.bell202_1200()
+    d12 = AFSKDemodulator.bell202_1200()
+    m30 = AFSKModulator.bell202_300()
+    d30 = AFSKDemodulator.bell202_300()
+
+    # Define 3 progressive acoustic environments:
+    # 1. Mild room echo (small room / clinic with soft furnishings)
+    # 2. Moderate echo (classroom / hallway with plaster walls)
+    # 3. Severe multipath reflection (concrete corridor / stairwell where 1200 baud collapses)
+    profiles = [
+        {"name": "mild_clinic", "refl": [(0.015, 0.25)], "snr": 30.0},
+        {"name": "moderate_hallway", "refl": [(0.025, 0.38)], "snr": 28.0},
+        {"name": "severe_concrete_cavern", "refl": [(0.015, 0.60), (0.035, 0.35)], "snr": 30.0},
+    ]
+
+    profile_results = []
+    cliff_detected = False
+    fallback_rescued = False
+
+    for prof in profiles:
+        # Modulate at 1200 baud and 300 baud
+        tx12 = m12.synthesize_wav(payload, amplitude=0.8, include_chirp=True)
+        tx30 = m30.synthesize_wav(payload, amplitude=0.8, include_chirp=True)
+
+        # Apply multipath channel impairments
+        rx12 = sim.impair_wav(tx12, attenuation=0.6, snr_db=prof["snr"], reverberation=True, reflections=prof["refl"])
+        rx30 = sim.impair_wav(tx30, attenuation=0.6, snr_db=prof["snr"], reverberation=True, reflections=prof["refl"])
+
+        ok12 = (payload in d12.decode_wav(rx12))
+        ok30 = (payload in d30.decode_wav(rx30))
+
+        # Test whether standard receiver with fallback_300=True rescues the 300-baud audio
+        rescued_by_fallback = (payload in d12.decode_wav(rx30, fallback_300=True))
+
+        if not ok12 and ok30:
+            cliff_detected = True
+        if not ok12 and rescued_by_fallback:
+            fallback_rescued = True
+
+        profile_results.append({
+            "profile": prof["name"],
+            "baud_1200_pass": ok12,
+            "baud_300_pass": ok30,
+            "rescued_by_fallback": rescued_by_fallback,
+        })
+
+    elapsed = time.perf_counter() - start_time
+    success = cliff_detected and fallback_rescued
+
+    return {
+        "scenario": "acoustic_multipath_sweep",
+        "success": success,
+        "cliff_detected": cliff_detected,
+        "fallback_rescued": fallback_rescued,
+        "profiles": profile_results,
+        "duration_seconds": round(elapsed, 4),
+    }
+
+
 async def main_async(args: argparse.Namespace) -> int:
     results: List[Dict[str, Any]] = []
     scenarios_to_run = (
-        ["e2e_fountain_loss", "consecutive_streams", "interleaved_multiplex", "daemon_reboot_persistence", "acoustic_afsk_airgap", "voice_memo_airgap"]
+        [
+            "e2e_fountain_loss",
+            "consecutive_streams",
+            "interleaved_multiplex",
+            "daemon_reboot_persistence",
+            "acoustic_afsk_airgap",
+            "voice_memo_airgap",
+            "acoustic_multipath_sweep",
+        ]
         if args.scenario == "all"
         else [args.scenario]
     )
@@ -452,6 +528,8 @@ async def main_async(args: argparse.Namespace) -> int:
                 res = run_acoustic_afsk_airgap_experiment()
             elif scenario == "voice_memo_airgap":
                 res = run_voice_memo_airgap_experiment()
+            elif scenario == "acoustic_multipath_sweep":
+                res = run_acoustic_multipath_sweep_experiment()
             else:
                 print(f"UNKNOWN SCENARIO: {scenario}")
                 overall_success = False
@@ -494,7 +572,16 @@ def main():
     parser.add_argument(
         "--scenario",
         default="all",
-        choices=["all", "e2e_fountain_loss", "consecutive_streams", "interleaved_multiplex", "daemon_reboot_persistence", "acoustic_afsk_airgap", "voice_memo_airgap"],
+        choices=[
+            "all",
+            "e2e_fountain_loss",
+            "consecutive_streams",
+            "interleaved_multiplex",
+            "daemon_reboot_persistence",
+            "acoustic_afsk_airgap",
+            "voice_memo_airgap",
+            "acoustic_multipath_sweep",
+        ],
         help="Experiment scenario to execute (default: all)",
     )
     parser.add_argument(

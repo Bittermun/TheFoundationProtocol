@@ -261,10 +261,21 @@ class FountainStreamReceiver:
         if target_manifest is None:
             return False
 
-        if session_id is None:
-            session_id = self.derive_session_id(target_manifest)
+        if session_id is not None:
+            chunks = self.reconstructed_chunks_by_session.get(session_id, {})
+        else:
+            derived = self.derive_session_id(target_manifest)
+            if derived in self.reconstructed_chunks_by_session:
+                chunks = self.reconstructed_chunks_by_session[derived]
+            else:
+                chunks = {}
+                for sess, s_chunks in self.reconstructed_chunks_by_session.items():
+                    if 0 in s_chunks and len(target_manifest.chunk_hashes) > 0:
+                        first_hash = hashlib.sha3_256(s_chunks[0]).hexdigest()
+                        if hmac.compare_digest(first_hash, target_manifest.chunk_hashes[0]):
+                            chunks = s_chunks
+                            break
 
-        chunks = self.reconstructed_chunks_by_session.get(session_id, {})
         if len(chunks) < target_manifest.chunk_count:
             return False
         return all(idx in chunks for idx in range(target_manifest.chunk_count))
@@ -275,21 +286,33 @@ class FountainStreamReceiver:
         if target_manifest is None:
             raise ValueError("Cannot assemble media: no manifest provided and none received over wire")
 
-        if session_id is None:
-            session_id = self.derive_session_id(target_manifest)
+        target_session = session_id
+        if target_session is None:
+            derived = self.derive_session_id(target_manifest)
+            if derived in self.reconstructed_chunks_by_session:
+                target_session = derived
+            else:
+                for sess, s_chunks in self.reconstructed_chunks_by_session.items():
+                    if 0 in s_chunks and len(target_manifest.chunk_hashes) > 0:
+                        first_hash = hashlib.sha3_256(s_chunks[0]).hexdigest()
+                        if hmac.compare_digest(first_hash, target_manifest.chunk_hashes[0]):
+                            target_session = sess
+                            break
+                if target_session is None:
+                    target_session = derived
 
-        if not self.is_complete(target_manifest, session_id=session_id):
-            chunks = self.reconstructed_chunks_by_session.get(session_id, {})
+        if not self.is_complete(target_manifest, session_id=target_session):
+            chunks = self.reconstructed_chunks_by_session.get(target_session, {})
             missing = set(range(target_manifest.chunk_count)) - set(chunks.keys())
-            raise ValueError(f"Cannot assemble media for session {session_id}: missing chunks {sorted(missing)}")
+            raise ValueError(f"Cannot assemble media for session {target_session}: missing chunks {sorted(missing)}")
 
-        session_chunks = self.reconstructed_chunks_by_session[session_id]
+        session_chunks = self.reconstructed_chunks_by_session[target_session]
         assembled = bytearray()
         for idx in range(target_manifest.chunk_count):
             chunk = session_chunks[idx]
             expected_hash = target_manifest.chunk_hashes[idx]
             if not hmac.compare_digest(hashlib.sha3_256(chunk).hexdigest(), expected_hash):
-                raise ValueError(f"Integrity check failed on chunk {idx} in session {session_id}")
+                raise ValueError(f"Integrity check failed on chunk {idx} in session {target_session}")
             assembled.extend(chunk)
 
         return bytes(assembled)

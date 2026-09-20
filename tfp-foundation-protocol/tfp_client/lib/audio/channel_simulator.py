@@ -109,6 +109,7 @@ class AcousticChannelSimulator:
         snr_db: float = 25.0,
         reverberation: bool = True,
         clipping: bool = False,
+        reflections: List[Tuple[float, float]] = None,
     ) -> bytes:
         """
         Reads input 16-bit PCM WAV, applies specified acoustic impairments,
@@ -134,7 +135,7 @@ class AcousticChannelSimulator:
 
         # 2. Multipath Room Echo
         if reverberation:
-            samples = self.apply_multipath_reverberation(samples, sample_rate)
+            samples = self.apply_multipath_reverberation(samples, sample_rate, reflections=reflections)
 
         # 3. Additive Noise
         if snr_db < 100.0:

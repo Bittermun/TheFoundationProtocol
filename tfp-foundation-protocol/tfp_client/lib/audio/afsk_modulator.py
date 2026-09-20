@@ -59,6 +59,21 @@ class AFSKModulator:
         self.preamble_flags = preamble_flags
         self.samples_per_bit = sample_rate / baud_rate
 
+    @classmethod
+    def bell202_1200(cls, sample_rate: int = 16000, preamble_flags: int = 16) -> "AFSKModulator":
+        """Standard Bell 202: 1200 baud, 1200 Hz mark / 2200 Hz space."""
+        return cls(sample_rate=sample_rate, baud_rate=1200, mark_freq=1200.0, space_freq=2200.0, preamble_flags=preamble_flags)
+
+    @classmethod
+    def bell202_300(cls, sample_rate: int = 16000, preamble_flags: int = 8) -> "AFSKModulator":
+        """Bell 202 Robust Acoustic Fallback: 300 baud, 1200 Hz mark / 2200 Hz space (3.33ms symbol)."""
+        return cls(sample_rate=sample_rate, baud_rate=300, mark_freq=1200.0, space_freq=2200.0, preamble_flags=preamble_flags)
+
+    @classmethod
+    def bell103_300(cls, sample_rate: int = 16000, preamble_flags: int = 8) -> "AFSKModulator":
+        """Standard Bell 103: 300 baud, 1270 Hz mark / 1070 Hz space."""
+        return cls(sample_rate=sample_rate, baud_rate=300, mark_freq=1270.0, space_freq=1070.0, preamble_flags=preamble_flags)
+
     def frame_packet(self, payload: bytes) -> bytes:
         """
         Frames binary payload with preamble, length header, and CRC16.

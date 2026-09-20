@@ -132,3 +132,123 @@ def test_afsk_preamble_chirp_demodulation_through_multipath():
     extracted = demodulator.decode_wav(impaired_wav)
     assert len(extracted) >= 1
     assert payload in extracted, "AFSK demodulator must recover packet despite chirp and room echo"
+
+
+def test_vocoder_compression_ratio_and_decompression():
+    """Verify 1200 bps vocoder achieves > 95% data reduction on speech audio."""
+    from tfp_client.lib.audio.vocoder import compress_speech, decompress_speech
+
+    # Synthesize 5 seconds of 8000 Hz voiced harmonic audio (160 Hz fundamental + formants)
+    sample_rate = 8000
+    n_samples = sample_rate * 5
+    raw_pcm = bytearray()
+    for i in range(n_samples):
+        t = i / sample_rate
+        val = (
+            8000.0 * math.sin(2.0 * math.pi * 160.0 * t)
+            + 4000.0 * math.sin(2.0 * math.pi * 750.0 * t)
+            + 2500.0 * math.sin(2.0 * math.pi * 1400.0 * t)
+            + 1500.0 * math.sin(2.0 * math.pi * 2800.0 * t)
+        )
+        clamped = int(max(-32768, min(32767, val)))
+        raw_pcm.extend(struct.pack("<h", clamped))
+
+    raw_bytes = bytes(raw_pcm)
+    assert len(raw_bytes) == 80000  # 5s * 8000 * 2 bytes = 80 KB
+
+    compressed = compress_speech(raw_bytes, sample_rate=sample_rate)
+    # 5s * 50 fps * 3 B/f + 4B header = 754 bytes
+    assert len(compressed) <= 800
+    compression_ratio = (len(raw_bytes) - len(compressed)) / len(raw_bytes)
+    assert compression_ratio > 0.98, f"Expected > 98% compression, got {compression_ratio * 100:.2f}%"
+
+    decompressed = decompress_speech(compressed, sample_rate=sample_rate)
+    assert len(decompressed) == len(raw_bytes)
+
+
+def test_voice_memo_vocoder_roundtrip_and_wav_generation():
+    """Verify VoiceMemo handles vocoder compression, deserialization, and WAV playback."""
+    # Synthesize 2 seconds of audio
+    sample_rate = 8000
+    n_samples = sample_rate * 2
+    raw_pcm = bytearray()
+    for i in range(n_samples):
+        t = i / sample_rate
+        val = int(12000.0 * math.sin(2.0 * math.pi * 200.0 * t))
+        raw_pcm.extend(struct.pack("<h", clamped := max(-32768, min(32767, val))))
+
+    memo = VoiceMemo(
+        callsign="DISPATCH",
+        sample_rate=sample_rate,
+        pcm_data=bytes(raw_pcm),
+        is_vocoder=False,
+    )
+    assert len(memo.pcm_data) == 32000
+
+    compressed_memo = memo.compress()
+    assert compressed_memo.is_vocoder is True
+    assert len(compressed_memo.pcm_data) <= 350  # ~304 bytes
+
+    # Wire serialization
+    wire = compressed_memo.to_bytes()
+    assert len(wire) < 400
+
+    # Deserialization without auto-decompress
+    recovered_comp = VoiceMemo.from_bytes(wire)
+    assert recovered_comp.is_vocoder is True
+    assert recovered_comp.callsign == "DISPATCH"
+
+    # Deserialization with auto-decompress
+    recovered_decomp = VoiceMemo.from_bytes(wire, auto_decompress=True)
+    assert recovered_decomp.is_vocoder is False
+    assert len(recovered_decomp.pcm_data) == 32000
+
+    # WAV generation from compressed memo auto-decompresses
+    wav_bytes = compressed_memo.to_wav()
+    with wave.open(io.BytesIO(wav_bytes), "rb") as w:
+        assert w.getnchannels() == 1
+        assert w.getsampwidth() == 2
+        assert w.getframerate() == 8000
+        assert w.getnframes() == 16000
+
+
+def test_vocoder_transmission_over_acoustic_channel():
+    """Verify vocoder voice memo transmits through simulated room acoustics over Bell 202 tones."""
+    sample_rate = 8000
+    n_samples = sample_rate * 1  # 1-second audio snippet
+    raw_pcm = bytearray()
+    for i in range(n_samples):
+        t = i / sample_rate
+        val = int(10000.0 * math.sin(2.0 * math.pi * 240.0 * t))
+        raw_pcm.extend(struct.pack("<h", max(-32768, min(32767, val))))
+
+    memo = VoiceMemo(callsign="VILLAGE3", sample_rate=sample_rate, pcm_data=bytes(raw_pcm)).compress()
+    wire_memo = memo.to_bytes()
+    assert len(wire_memo) < 200  # 1s vocoder payload is ~154 bytes + header + CRC
+
+    modulator = AFSKModulator(sample_rate=16000, baud_rate=1200, preamble_flags=16)
+    demodulator = AFSKDemodulator(sample_rate=16000, baud_rate=1200)
+    sim = AcousticChannelSimulator(seed=777)
+
+    # Modulate into Bell 202 audio
+    tx_wav = modulator.synthesize_wav(wire_memo, amplitude=0.8, include_chirp=True)
+
+    # Impair with room reflections, attenuation, and noise
+    rx_wav = sim.impair_wav(
+        tx_wav,
+        attenuation=0.50,
+        snr_db=30.0,
+        reverberation=True,
+        clipping=False,
+    )
+
+    # Demodulate and reconstruct
+    recovered_packets = demodulator.decode_wav(rx_wav)
+    assert len(recovered_packets) >= 1
+    assert wire_memo in recovered_packets
+
+    rx_memo = VoiceMemo.from_bytes(wire_memo, auto_decompress=True)
+    assert rx_memo.callsign == "VILLAGE3"
+    assert rx_memo.sample_rate == 8000
+    assert len(rx_memo.pcm_data) == 8000 * 2
+

@@ -304,6 +304,32 @@ class FountainDecoder:
                 f"Need at least {k} valid droplets to decode, got {len(valid_droplets)}"
             )
 
+        # Systematic fast-path: if all k systematic droplets (degree=1, indices=[i]) are present,
+        # assemble directly in O(k) without expensive Gaussian elimination
+        systematic_map: dict[int, bytes] = {}
+        for d in valid_droplets:
+            if d.degree == 1 and len(d.indices) == 1:
+                idx = d.indices[0]
+                if 0 <= idx < k and idx not in systematic_map:
+                    systematic_map[idx] = d.payload
+        if len(systematic_map) == k:
+            recovered = bytearray()
+            for col in range(k):
+                recovered.extend(systematic_map[col])
+            result = bytes(recovered[:orig_len])
+            if target_root is not None:
+                expected_hex = (
+                    target_root if isinstance(target_root, str) else target_root.hex()
+                )
+                if expected_hex.startswith("0x") or expected_hex.startswith("0X"):
+                    expected_hex = expected_hex[2:]
+                actual_hex = hashlib.sha3_256(result).hexdigest()
+                if not hmac.compare_digest(actual_hex.lower(), expected_hex.lower()):
+                    raise ValueError(
+                        f"Integrity check failed: payload hash mismatch (expected {expected_hex[:12]}..., got {actual_hex[:12]}...)"
+                    )
+            return result
+
         # Build generator matrix and payload table
         matrix: list[bytearray] = []
         payloads: list[int] = [int.from_bytes(d.payload, "big") for d in valid_droplets]
@@ -367,8 +393,10 @@ class FountainDecoder:
             expected_hex = (
                 target_root if isinstance(target_root, str) else target_root.hex()
             )
+            if expected_hex.startswith("0x") or expected_hex.startswith("0X"):
+                expected_hex = expected_hex[2:]
             actual_hex = hashlib.sha3_256(result).hexdigest()
-            if not hmac.compare_digest(actual_hex, expected_hex):
+            if not hmac.compare_digest(actual_hex.lower(), expected_hex.lower()):
                 raise ValueError(
                     f"Integrity check failed: payload hash mismatch (expected {expected_hex[:12]}..., got {actual_hex[:12]}...)"
                 )

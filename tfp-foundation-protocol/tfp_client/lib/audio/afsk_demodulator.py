@@ -61,8 +61,23 @@ class AFSKDemodulator:
         self.goertzel_mark = GoertzelDetector(mark_freq, sample_rate, self.block_size)
         self.goertzel_space = GoertzelDetector(space_freq, sample_rate, self.block_size)
 
-    def decode_wav(self, wav_bytes: bytes) -> list[bytes]:
-        """Reads a WAV file buffer and extracts all valid packets."""
+    @classmethod
+    def bell202_1200(cls, sample_rate: int = 16000) -> "AFSKDemodulator":
+        """Standard Bell 202: 1200 baud, 1200 Hz mark / 2200 Hz space."""
+        return cls(sample_rate=sample_rate, baud_rate=1200, mark_freq=1200.0, space_freq=2200.0)
+
+    @classmethod
+    def bell202_300(cls, sample_rate: int = 16000) -> "AFSKDemodulator":
+        """Bell 202 Robust Acoustic Fallback: 300 baud, 1200 Hz mark / 2200 Hz space."""
+        return cls(sample_rate=sample_rate, baud_rate=300, mark_freq=1200.0, space_freq=2200.0)
+
+    @classmethod
+    def bell103_300(cls, sample_rate: int = 16000) -> "AFSKDemodulator":
+        """Standard Bell 103: 300 baud, 1270 Hz mark / 1070 Hz space."""
+        return cls(sample_rate=sample_rate, baud_rate=300, mark_freq=1270.0, space_freq=1070.0)
+
+    def decode_wav(self, wav_bytes: bytes, fallback_300: bool = False) -> list[bytes]:
+        """Reads a WAV file buffer and extracts all valid packets, optionally falling back to 300 baud."""
         buf = io.BytesIO(wav_bytes)
         with wave.open(buf, "rb") as w:
             sr = w.getframerate()
@@ -86,7 +101,18 @@ class AFSKDemodulator:
         for i in range(0, len(all_samples), n_channels):
             samples.append(float(all_samples[i]))
 
-        return self.demodulate_samples(samples)
+        packets = self.demodulate_samples(samples)
+        if not packets and fallback_300 and self.baud_rate != 300:
+            # Attempt acoustic fallback at 300 baud
+            fallback_demod = AFSKDemodulator(
+                sample_rate=self.sample_rate,
+                baud_rate=300,
+                mark_freq=self.mark_freq,
+                space_freq=self.space_freq,
+            )
+            packets = fallback_demod.demodulate_samples(samples)
+
+        return packets
 
     def demodulate_samples(self, samples: list[float]) -> list[bytes]:
         """
@@ -113,8 +139,9 @@ class AFSKDemodulator:
 
         packets: list[bytes] = []
 
-        # Search across sub-symbol sample phase offsets to lock clock
-        for offset in range(step_int):
+        # Search across sub-symbol sample phase offsets with bounded stride
+        stride = max(1, step_int // 16)
+        for offset in range(0, step_int, stride):
             total_bits = int((n_samples - offset) // step)
             if total_bits < 32:
                 continue

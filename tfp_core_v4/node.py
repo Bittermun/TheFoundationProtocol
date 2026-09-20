@@ -50,7 +50,7 @@ class TFPNode:
         self,
         data: bytes,
         metadata: dict[str, Any] | None = None,
-        redundancy: float = 0.50,
+        redundancy: float = 3.0,
     ) -> ChunkRecipe:
         """
         Publish binary data into the node:
@@ -71,7 +71,9 @@ class TFPNode:
         self.recipes[root_hash] = recipe
 
         # Encode with specified fountain redundancy
-        droplets, _k, _orig_len = self.codec.encode(data, redundancy=redundancy)
+        k_blocks = (len(data) + self.codec.symbol_size - 1) // self.codec.symbol_size
+        effective_redundancy = max(6.0, redundancy) if k_blocks <= 16 else max(0.50, redundancy)
+        droplets, _k, _orig_len = self.codec.encode(data, redundancy=effective_redundancy)
         self.droplet_store[root_hash] = droplets
 
         # Build Merkle tree over droplet serialized payloads

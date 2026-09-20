@@ -620,6 +620,15 @@ def main():
     search_p = subparsers.add_parser("search", help="Execute hybrid BM25 + MinHash search")
     search_p.add_argument("query", help="Text search query")
 
+    # Fetch
+    fetch_p = subparsers.add_parser("fetch", help="Fetch content by root hash")
+    fetch_p.add_argument("hash", help="Root hash to fetch")
+    fetch_p.add_argument("--output", default=None, help="Optional output file path")
+
+    # Inspect
+    inspect_p = subparsers.add_parser("inspect", help="Inspect content recipe by root hash")
+    inspect_p.add_argument("hash", help="Root hash to inspect")
+
     # Radio Frame
     radio_p = subparsers.add_parser("radio-frame", help="Fragment file into physical radio MTU frames")
     radio_p.add_argument("file_path", help="Path to file to fragment")
@@ -911,6 +920,10 @@ def main():
         except KeyboardInterrupt:
             print("\n[TFP Audio Scholar] Daemon stopped.")
             daemon.stop()
+
+    elif args.command in ("fetch", "inspect"):
+        print(f"Error: Command '{args.command}' is not implemented.", file=sys.stderr)
+        sys.exit(1)
 
     elif args.command == "verify":
         print("[TFP] Running self-verification across core protocol primitives...")
