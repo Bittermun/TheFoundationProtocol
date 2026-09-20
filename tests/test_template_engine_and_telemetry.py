@@ -178,16 +178,23 @@ async def test_async_telemetry_subscription_under_loss():
 
 
 def test_visualizer_html_assets_integrity():
-    """Verify visualizer.html exists and contains all 4 canvas panels and slide display."""
-    html_path = _tfp_root / "tfp_demo" / "static" / "visualizer.html"
-    assert html_path.is_file()
+    """Verify visualizer assets exist: clean slate visualizer.html and legacy_visualizer_v1.html."""
+    clean_path = _tfp_root / "tfp_demo" / "static" / "visualizer.html"
+    legacy_path = _tfp_root / "tfp_demo" / "static" / "legacy_visualizer_v1.html"
+    assert clean_path.is_file()
+    assert legacy_path.is_file()
 
-    content = html_path.read_text(encoding="utf-8")
-    # Assert panel elements exist
-    assert 'id="cdcCanvas"' in content
-    assert 'id="merkleCanvas"' in content
-    assert 'id="fountainCanvas"' in content
-    assert 'id="matrixCanvas"' in content
-    assert 'id="slideViewport"' in content
-    assert 'id="lossSlider"' in content
-    assert 'requestAnimationFrame' in content
+    clean_content = clean_path.read_text(encoding="utf-8")
+    assert "The Foundation Protocol" in clean_content
+    assert 'id="engineStatusBadge"' in clean_content
+    assert 'id="rootHashText"' in clean_content
+
+    legacy_content = legacy_path.read_text(encoding="utf-8")
+    assert 'id="cdcCanvas"' in legacy_content
+    assert 'id="merkleCanvas"' in legacy_content
+    assert 'id="fountainCanvas"' in legacy_content
+    assert 'id="matrixCanvas"' in legacy_content
+    assert 'id="slideViewport"' in legacy_content
+    assert 'id="lossSlider"' in legacy_content
+    assert 'requestAnimationFrame' in legacy_content
+

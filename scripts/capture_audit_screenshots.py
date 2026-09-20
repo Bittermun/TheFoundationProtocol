@@ -37,7 +37,7 @@ def run_audit():
     server_thread.start()
     time.sleep(0.6)
 
-    url = f"http://127.0.0.1:{port}/visualizer.html"
+    url = f"http://127.0.0.1:{port}/legacy_visualizer_v1.html"
     print(f"Visualizer server live at: {url}")
 
     with sync_playwright() as p:

@@ -30,26 +30,58 @@ def live_visualizer_server():
     server_thread = threading.Thread(target=server.serve_forever, daemon=True)
     server_thread.start()
 
-    url = f"http://127.0.0.1:{port}/visualizer.html"
+    base_url = f"http://127.0.0.1:{port}"
     for _ in range(50):
         try:
-            with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/protocol-state", timeout=0.2):
+            with urllib.request.urlopen(f"{base_url}/api/protocol-state", timeout=0.2):
                 break
         except (urllib.error.URLError, OSError, TimeoutError):
             time.sleep(0.05)
 
-    yield url
+    yield base_url
     server.shutdown()
     server.server_close()
 
 
-def test_visualizer_live_protocol_and_interaction(live_visualizer_server):
+def test_clean_slate_visualizer(live_visualizer_server):
+    """Verifies that the clean slate visualizer is lightweight, error-free, and connects to live protocol."""
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page(viewport={"width": 1280, "height": 800})
 
-        # Navigate to visualizer on ephemeral test server
-        page.goto(live_visualizer_server, wait_until="networkidle")
+        console_errors = []
+        page.on("pageerror", lambda err: console_errors.append(str(err)))
+
+        page.goto(f"{live_visualizer_server}/visualizer.html", wait_until="networkidle")
+
+        assert "The Foundation Protocol" in page.title()
+        page.wait_for_selector(".logo-badge", timeout=5000)
+        badge_text = page.inner_text(".logo-badge")
+        assert "PROTOCOL ENGINE: LIVE" in badge_text
+
+        time.sleep(0.5)
+        root_text = page.inner_text("#rootHashText")
+        assert "0x" in root_text
+
+        cdc_text = page.inner_text("#cdcChunksFound")
+        assert "CHUNKS" in cdc_text
+
+        assert len(console_errors) == 0
+
+        artifact_dir = Path("C:/Users/msunw/.gemini/antigravity-ide/brain/9439d999-cc0c-40cc-b695-03d8d48e2dce")
+        screenshot_path = artifact_dir / "clean_slate_screenshot.png"
+        page.screenshot(path=str(screenshot_path))
+        assert screenshot_path.exists()
+        browser.close()
+
+
+def test_legacy_visualizer_live_protocol_and_interaction(live_visualizer_server):
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page(viewport={"width": 1280, "height": 800})
+
+        # Navigate to legacy visualizer archive on ephemeral test server
+        page.goto(f"{live_visualizer_server}/legacy_visualizer_v1.html", wait_until="networkidle")
 
         # 1. Verify Page Title
         assert "The Foundation Protocol" in page.title()
