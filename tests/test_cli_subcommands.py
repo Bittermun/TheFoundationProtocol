@@ -103,3 +103,111 @@ def test_cli_voice_memo_missing_file():
     )
     assert result.returncode != 0
     assert "not found" in result.stderr.lower()
+
+
+def test_cli_publish_inspect_fetch_roundtrip(tmp_path: Path):
+    """Verify publish -> process exit -> inspect -> process exit -> fetch cross-process journey."""
+    db_file = tmp_path / "node_storage.db"
+    sample_file = tmp_path / "payload.txt"
+    sample_text = "TFP v4.0 Cross-Process Persistence & Retrieval Test Payload"
+    sample_file.write_text(sample_text, encoding="utf-8")
+
+    # 1. Publish in Subprocess A
+    pub_res = subprocess.run(
+        [
+            sys.executable, "-m", "tfp_core_v4.cli",
+            "--db", str(db_file),
+            "publish", str(sample_file),
+            "--title", "TestPayload"
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=15,
+    )
+    assert "File Published & Persisted Successfully" in pub_res.stdout
+    assert db_file.exists()
+
+    root_hash = None
+    for line in pub_res.stdout.splitlines():
+        if "Root Hash" in line:
+            root_hash = line.split(":")[-1].strip()
+            break
+    assert root_hash is not None
+
+    # 2. Inspect in Subprocess B (fresh process context)
+    insp_res = subprocess.run(
+        [
+            sys.executable, "-m", "tfp_core_v4.cli",
+            "--db", str(db_file),
+            "inspect", root_hash
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=15,
+    )
+    import json
+    recipe_info = json.loads(insp_res.stdout)
+    assert recipe_info["root_hash"] == root_hash
+    assert recipe_info["total_size_bytes"] == len(sample_text.encode("utf-8"))
+
+    # 3. Fetch in Subprocess C (fresh process context)
+    out_file = tmp_path / "fetched.txt"
+    fetch_res = subprocess.run(
+        [
+            sys.executable, "-m", "tfp_core_v4.cli",
+            "--db", str(db_file),
+            "fetch", root_hash,
+            "--output", str(out_file)
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=15,
+    )
+    assert out_file.exists()
+    assert out_file.read_text(encoding="utf-8") == sample_text
+
+
+def test_cli_export_zim_plain_text_fallback(tmp_path: Path):
+    """Verify export-zim does not fail with NameError on hashlib when exporting plain text."""
+    txt_file = tmp_path / "offline_guidelines.txt"
+    txt_file.write_text("Community emergency procedures and contacts.", encoding="utf-8")
+    out_zim = tmp_path / "zim_output"
+
+    res = subprocess.run(
+        [
+            sys.executable, "-m", "tfp_core_v4.cli",
+            "export-zim", str(txt_file),
+            "--out", str(out_zim),
+            "--title", "Community Triage"
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=15,
+    )
+    assert "Kiwix / ZIM Bundle Export Complete" in res.stdout
+    assert (out_zim / "index.html").exists()
+    assert (out_zim / "manifest.json").exists()
+
+
+def test_afsk_packet_size_symmetric_limit():
+    """Verify that AFSK modulator and demodulator enforce symmetric 4096-byte packet limits."""
+    from tfp_client.lib.audio.afsk_modulator import AFSKModulator, MAX_AFSK_PAYLOAD_SIZE
+    from tfp_client.lib.audio.afsk_demodulator import MAX_AFSK_PAYLOAD_SIZE as RX_MAX
+
+    assert MAX_AFSK_PAYLOAD_SIZE == 4096
+    assert RX_MAX == 4096
+
+    mod = AFSKModulator()
+    # 4096 bytes: within limit
+    framed_ok = mod.frame_packet(b"X" * 4096)
+    assert len(framed_ok) > 4096
+
+    # 4097 bytes: must be rejected with ValueError
+    import pytest
+    with pytest.raises(ValueError, match="exceeds maximum allowed 4096 bytes"):
+        mod.frame_packet(b"X" * 4097)
+

@@ -10,7 +10,12 @@ across decentralized mesh topologies.
 
 import hashlib
 import hmac
+import json
+import os
 import secrets
+import sqlite3
+import time
+from pathlib import Path
 from typing import Any
 
 from .cdc import ChunkRecipe, ContentDefinedChunker
@@ -19,15 +24,19 @@ from .merkle import MerkleTree
 
 
 class TFPNode:
-    """A self-contained Foundation Protocol node instance."""
+    """A self-contained Foundation Protocol node instance with optional SQLite persistence."""
 
     def __init__(
         self,
         node_id: str = "tfp_local_01",
         target_chunk_size: int = 1024,
         symbol_size: int = 256,
+        db_path: Path | str | None = None,
     ):
         self.node_id = node_id
+        resolved_db = db_path if db_path is not None else os.environ.get("TFP_DB_PATH")
+        self.db_path: Path | None = Path(resolved_db) if resolved_db else None
+
         self.chunker = ContentDefinedChunker(
             min_size=max(256, target_chunk_size // 2),
             max_size=target_chunk_size * 4,
@@ -46,6 +55,150 @@ class TFPNode:
             "bandwidth_saved_pct": 0.0,
             "successful_reconstructions": 0,
         }
+
+        if self.db_path:
+            self._init_db()
+
+    def _init_db(self) -> None:
+        """Initialize SQLite schema for persistent node storage."""
+        if not self.db_path:
+            return
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        conn = sqlite3.connect(str(self.db_path))
+        try:
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS recipes (
+                    root_hash TEXT PRIMARY KEY,
+                    total_size INTEGER,
+                    chunk_hashes_json TEXT,
+                    chunk_sizes_json TEXT,
+                    metadata_json TEXT,
+                    created_at REAL
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS chunks (
+                    chunk_hash TEXT PRIMARY KEY,
+                    data BLOB
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS droplets (
+                    root_hash TEXT,
+                    seed INTEGER,
+                    degree INTEGER,
+                    data BLOB,
+                    PRIMARY KEY (root_hash, seed)
+                )
+                """
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    def _persist_content(
+        self,
+        recipe: ChunkRecipe,
+        chunks: list[bytes],
+        droplets: list[FountainDroplet],
+    ) -> None:
+        """Persist recipe, chunks, and droplets to SQLite database."""
+        if not self.db_path:
+            return
+        conn = sqlite3.connect(str(self.db_path))
+        try:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO recipes
+                (root_hash, total_size, chunk_hashes_json, chunk_sizes_json, metadata_json, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    recipe.root_hash,
+                    recipe.total_size,
+                    json.dumps(recipe.chunk_hashes),
+                    json.dumps(recipe.chunk_sizes),
+                    json.dumps(recipe.metadata),
+                    time.time(),
+                ),
+            )
+            chunk_rows = [(h, b) for h, b in zip(recipe.chunk_hashes, chunks)]
+            conn.executemany(
+                "INSERT OR REPLACE INTO chunks (chunk_hash, data) VALUES (?, ?)",
+                chunk_rows,
+            )
+            droplet_rows = [
+                (recipe.root_hash, d.seed, d.degree, d.serialize())
+                for d in droplets
+            ]
+            conn.executemany(
+                "INSERT OR REPLACE INTO droplets (root_hash, seed, degree, data) VALUES (?, ?, ?, ?)",
+                droplet_rows,
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    def _load_recipe_from_db(self, root_hash: str) -> bool:
+        """Attempt to restore recipe, chunks, and droplets for root_hash from SQLite."""
+        if not self.db_path or not self.db_path.exists():
+            return False
+        conn = sqlite3.connect(str(self.db_path))
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT root_hash, total_size, chunk_hashes_json, chunk_sizes_json, metadata_json FROM recipes WHERE root_hash = ?",
+                (root_hash,),
+            )
+            row = cursor.fetchone()
+            if not row:
+                return False
+
+            r_hash, total_size, hashes_json, sizes_json, meta_json = row
+            recipe = ChunkRecipe(
+                root_hash=r_hash,
+                total_size=total_size,
+                chunk_hashes=json.loads(hashes_json),
+                chunk_sizes=json.loads(sizes_json),
+                metadata=json.loads(meta_json) if meta_json else {},
+            )
+            self.recipes[r_hash] = recipe
+
+            # Load chunks
+            cursor.execute(
+                f"SELECT chunk_hash, data FROM chunks WHERE chunk_hash IN ({','.join(['?'] * len(recipe.chunk_hashes))})",
+                recipe.chunk_hashes,
+            )
+            for chash, cdata in cursor.fetchall():
+                self.chunk_store[chash] = cdata
+
+            # Load droplets
+            cursor.execute(
+                "SELECT data FROM droplets WHERE root_hash = ?",
+                (root_hash,),
+            )
+            loaded_droplets = []
+            for (d_blob,) in cursor.fetchall():
+                try:
+                    droplet = FountainDroplet.deserialize(d_blob, symbol_size=self.codec.symbol_size)
+                    loaded_droplets.append(droplet)
+                except Exception:
+                    pass
+
+            if loaded_droplets:
+                self.droplet_store[root_hash] = loaded_droplets
+                # Rebuild Merkle tree
+                droplet_bytes = [d.serialize() for d in loaded_droplets]
+                self.merkle_trees[root_hash] = MerkleTree(droplet_bytes)
+
+            return True
+        finally:
+            conn.close()
 
     def publish(
         self,
@@ -98,6 +251,7 @@ class TFPNode:
                 (reused / self.telemetry["total_chunks_stored"]) * 100.0, 1
             )
 
+        self._persist_content(recipe, chunks, droplets)
         return recipe
 
     def fetch(
@@ -111,7 +265,8 @@ class TFPNode:
         honestly recovering ONLY from received or surviving droplets.
         """
         if root_hash not in self.recipes:
-            raise KeyError(f"Content root hash {root_hash} not found on this node")
+            if not self._load_recipe_from_db(root_hash):
+                raise KeyError(f"Content root hash {root_hash} not found on this node")
 
         recipe = self.recipes[root_hash]
         droplets = self.droplet_store[root_hash]
@@ -154,7 +309,8 @@ class TFPNode:
     def inspect_recipe(self, root_hash: str) -> dict[str, Any]:
         """Inspect deterministic recipe and chunk hierarchy."""
         if root_hash not in self.recipes:
-            raise KeyError(f"Root hash {root_hash} not found")
+            if not self._load_recipe_from_db(root_hash):
+                raise KeyError(f"Root hash {root_hash} not found")
         recipe = self.recipes[root_hash]
         mtree = self.merkle_trees.get(root_hash)
         return {

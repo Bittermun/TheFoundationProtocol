@@ -17,7 +17,9 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import hashlib
 import json
+import os
 import re
 import sys
 import urllib.parse
@@ -607,6 +609,11 @@ def main():
         prog="tfp",
         description="The Foundation Protocol (TFP v4.0) Unified CLI",
     )
+    parser.add_argument(
+        "--db",
+        default=os.environ.get("TFP_DB_PATH", str(Path.home() / ".tfp" / "node_store.db")),
+        help="Path to persistent SQLite node storage (default: ~/.tfp/node_store.db or $TFP_DB_PATH)",
+    )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     # Publish
@@ -695,16 +702,16 @@ def main():
             sys.exit(1)
 
         data = path.read_bytes()
-        packager = MediaStreamPackager(min_chunk_size=2048, target_chunk_size=8192, max_chunk_size=16384)
-        manifest, chunks, _merkle = packager.package(data, metadata={"filename": path.name})
+        node = TFPNode(db_path=args.db)
+        recipe = node.publish(data, metadata={"filename": path.name, "title": args.title or path.stem})
 
         print("=" * 60)
-        print("  [TFP] File Packaged Successfully")
+        print("  [TFP] File Published & Persisted Successfully")
         print("=" * 60)
-        print(f"  Manifest ID  : {manifest.manifest_id}")
-        print(f"  Merkle Root  : {manifest.merkle_root}")
-        print(f"  Total Size   : {manifest.total_size:,} bytes")
-        print(f"  FastCDC Chunks: {manifest.chunk_count}")
+        print(f"  Root Hash    : {recipe.root_hash}")
+        print(f"  Total Size   : {recipe.total_size:,} bytes")
+        print(f"  FastCDC Chunks: {len(recipe.chunk_hashes)}")
+        print(f"  Database     : {args.db}")
         print("=" * 60)
 
     elif args.command == "stream":
@@ -938,28 +945,28 @@ def main():
             daemon.stop()
 
     elif args.command == "fetch":
-        node = TFPNode()
-        # Publish sample data so the node has content to fetch
-        # In a real deployment, the node would have persistent storage
-        root_hash = args.root_hash
+        node = TFPNode(db_path=args.db)
+        target_hash = getattr(args, "hash", getattr(args, "root_hash", None))
         loss = getattr(args, "loss", 0.0)
         try:
-            recovered = node.fetch(root_hash, simulated_loss=loss)
-            sys.stdout.buffer.write(recovered)
-        except KeyError:
-            print(f"Error: No content found for root hash '{root_hash}'.", file=sys.stderr)
-            print("Note: fetch operates on in-memory content from the current session.", file=sys.stderr)
+            recovered = node.fetch(target_hash, simulated_loss=loss)
+            if getattr(args, "output", None):
+                Path(args.output).write_bytes(recovered)
+                print(f"[TFP] Fetched {len(recovered):,} bytes and written to {args.output}")
+            else:
+                sys.stdout.buffer.write(recovered)
+        except (KeyError, RuntimeError, ValueError) as exc:
+            print(f"Error: Could not fetch content for hash '{target_hash}': {exc}", file=sys.stderr)
             sys.exit(1)
 
     elif args.command == "inspect":
-        node = TFPNode()
-        root_hash = args.root_hash
+        node = TFPNode(db_path=args.db)
+        target_hash = getattr(args, "hash", getattr(args, "root_hash", None))
         try:
-            info = node.inspect_recipe(root_hash)
+            info = node.inspect_recipe(target_hash)
             print(json.dumps(info, indent=2))
         except KeyError:
-            print(f"Error: No recipe found for root hash '{root_hash}'.", file=sys.stderr)
-            print("Note: inspect operates on in-memory content from the current session.", file=sys.stderr)
+            print(f"Error: No recipe found for root hash '{target_hash}'.", file=sys.stderr)
             sys.exit(1)
 
     elif args.command == "export-zim":

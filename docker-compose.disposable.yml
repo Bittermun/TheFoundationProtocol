@@ -13,7 +13,7 @@
 version: '3.8'
 
 services:
-  tfp-disposable:
+  tfp-disposable: &tfp-disposable-service
     build:
       context: .
       dockerfile: Dockerfile.workshop
@@ -38,6 +38,9 @@ services:
       - tfp-disposable-net
     stdin_open: true
     tty: true
+
+  disposable-lab:
+    <<: *tfp-disposable-service
 
 networks:
   tfp-disposable-net:

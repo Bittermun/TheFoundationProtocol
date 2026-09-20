@@ -30,6 +30,7 @@ def crc16_ccitt(data: bytes, initial: int = 0xFFFF) -> int:
 
 
 SYNC_FLAG = 0x7E     # HDLC Framing sync byte (01111110)
+MAX_AFSK_PAYLOAD_SIZE = 4096  # Maximum packet payload size in bytes (shared limit)
 
 
 class AFSKModulator:
@@ -79,8 +80,8 @@ class AFSKModulator:
         Frames binary payload with preamble, length header, and CRC16.
         Wire layout: [PREAMBLE FLAGS] [LENGTH: 2B] [PAYLOAD] [CRC16: 2B] [POSTAMBLE]
         """
-        if len(payload) > 65535:
-            raise ValueError(f"Payload size {len(payload)} exceeds 16-bit max (65535 bytes)")
+        if len(payload) > MAX_AFSK_PAYLOAD_SIZE:
+            raise ValueError(f"Payload size {len(payload)} exceeds maximum allowed {MAX_AFSK_PAYLOAD_SIZE} bytes")
 
         crc = crc16_ccitt(payload)
         length_bytes = struct.pack(">H", len(payload))

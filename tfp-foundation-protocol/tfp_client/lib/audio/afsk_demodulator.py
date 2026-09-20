@@ -14,7 +14,7 @@ import math
 import struct
 import wave
 
-from .afsk_modulator import crc16_ccitt
+from .afsk_modulator import MAX_AFSK_PAYLOAD_SIZE, crc16_ccitt
 
 
 class GoertzelDetector:
@@ -221,7 +221,7 @@ class AFSKDemodulator:
                 length = (raw_bytes[idx] << 8) | raw_bytes[idx + 1]
                 idx += 2
 
-                if 0 < length <= 4096 and idx + length + 2 <= n_bytes:
+                if 0 < length <= MAX_AFSK_PAYLOAD_SIZE and idx + length + 2 <= n_bytes:
                     payload = bytes(raw_bytes[idx : idx + length])
                     idx += length
                     expected_crc = (raw_bytes[idx] << 8) | raw_bytes[idx + 1]
