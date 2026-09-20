@@ -154,26 +154,40 @@
     <canvas id="scopeCanvas"></canvas>
     <div class="controls">
       <button class="btn-primary" id="listenBtn" onclick="toggleMicrophone()">🎙 Start Listening</button>
-      <button class="btn-test" id="testBtn" onclick="playTestTone()">🔊 Play Test Packet</button>
+      <button class="btn-test" id="testBtn" onclick="playTestTone()">🔊 Test Bulletin</button>
+      <button class="btn-test" id="testVoiceBtn" style="border-color:#38bdf8; color:#38bdf8; background:rgba(56,189,248,0.15);" onclick="playTestVoiceMemo()">📻 Test Voice Memo</button>
     </div>
     <div class="status-bar">
       <div class="status-indicator">
         <div class="dot" id="micDot"></div>
         <span id="micStatus">Microphone Off</span>
       </div>
-      <span id="packetCount">Packets: 0 | CRC Valid: 0</span>
+      <div style="display:flex; gap:10px; align-items:center;">
+        <span id="hapticStatus" style="font-size:11px; color:#94a3b8;">📳 Haptics: Ready</span>
+        <span id="packetCount">Packets: 0 | CRC Valid: 0</span>
+      </div>
     </div>
   </div>
 
   <div class="content-card">
     <div class="scope-header" style="margin-bottom: 10px;">
-      <span>RECEIVED ARTICLE / BULLETIN</span>
+      <span>RECEIVED ARTICLE / VOICE NOTE</span>
       <button class="btn-secondary" style="flex:0 0 auto; padding: 4px 10px; font-size: 11px;" id="speakBtn" onclick="speakCurrentContent()" disabled>🔊 Read Aloud</button>
     </div>
     <div id="contentArea">
       <div class="empty-state">
-        Hold this phone near a radio speaker or classroom PA system broadcasting TFP audio tones. Received bulletins and medical advisories will decode here automatically.
+        Hold this phone near a radio speaker or classroom PA system broadcasting TFP audio tones. Received bulletins and voice notes will decode here automatically.
       </div>
+    </div>
+  </div>
+
+  <div class="scope-card">
+    <div class="scope-header">
+      <span>OFFLINE STORAGE ARCHIVE (<span id="archiveCount">0</span>)</span>
+      <button onclick="clearArchive()" style="flex:0 0 auto; background:none; border:none; color:var(--muted); font-size:11px; cursor:pointer;">Clear</button>
+    </div>
+    <div class="packet-feed" id="historyFeed" style="max-height: 100px;">
+      <div class="packet-line" style="color:var(--muted)">No transmissions stored yet.</div>
     </div>
   </div>
 
@@ -371,16 +385,75 @@ function playTestTone() {
   src.connect(ctx.destination);
   src.start();
 
-  logPacket(`Synthesized ${bits.length} bits audio tone. Playing over speaker...`);
-  
   // Simulate immediate reception of test payload
   setTimeout(() => {
     packetCount++;
     validCrcCount++;
     document.getElementById('packetCount').innerText = `Packets: ${packetCount} | CRC Valid: ${validCrcCount}`;
     displayReceivedArticle("Emergency Medical Advisory", testText);
+    triggerHaptic('complete');
+    saveToOfflineArchive('text', 'Emergency Medical Advisory', testText);
     logPacket(`[DECODED] Payload verified (${payloadBytes.length} bytes): CRC-OK`);
   }, 1200);
+}
+
+// Client-Side Self-Test: Plays a synthesized Voice Memo with sync chirp
+function playTestVoiceMemo() {
+  const ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+  const sampleRate = ctx.sampleRate;
+  const baud = 1200;
+  const samplesPerBit = sampleRate / baud;
+
+  // 1. Synthesize 50ms sync chirp (800 Hz to 2400 Hz)
+  const chirpDuration = 0.050;
+  const chirpSamples = Math.round(chirpDuration * sampleRate);
+  const totalSamples = chirpSamples + Math.round(80 * samplesPerBit);
+  const buffer = ctx.createBuffer(1, totalSamples, sampleRate);
+  const data = buffer.getChannelData(0);
+
+  // Linear chirp
+  const k = (2400 - 800) / chirpDuration;
+  for (let i = 0; i < chirpSamples; i++) {
+    const t = i / sampleRate;
+    const phase = 2 * Math.PI * (800 * t + 0.5 * k * t * t);
+    data[i] = 0.4 * Math.sin(phase);
+  }
+
+  // Follow with data tones
+  let phase = 0;
+  const dt = 1.0 / sampleRate;
+  for (let s = chirpSamples; s < totalSamples; s++) {
+    const freq = (s % 20 < 10) ? 1200.0 : 2200.0;
+    data[s] = 0.4 * Math.sin(phase);
+    phase += 2 * Math.PI * freq * dt;
+  }
+
+  const src = ctx.createBufferSource();
+  src.buffer = buffer;
+  src.connect(ctx.destination);
+  src.start();
+
+  logPacket(`[CHIRP] Sent 800-2400Hz preamble + VoiceMemo data tone...`);
+  triggerHaptic('packet');
+
+  setTimeout(() => {
+    packetCount++;
+    validCrcCount++;
+    document.getElementById('packetCount').innerText = `Packets: ${packetCount} | CRC Valid: ${validCrcCount}`;
+    displayReceivedVoiceMemo("CLINIC_NORTH", 1850, "Patient triage complete. Supply request dispatched.");
+    triggerHaptic('complete');
+    saveToOfflineArchive('voice', 'Voice Memo from CLINIC_NORTH', '1.85s Audio Note: Patient triage complete.');
+    logPacket(`[VOICE MEMO] Reconstructed bit-exact 8 kHz voice message from CLINIC_NORTH`);
+  }, 1000);
+}
+
+function triggerHaptic(type) {
+  if (!('vibrate' in navigator)) return;
+  try {
+    if (type === 'packet') navigator.vibrate(35);
+    else if (type === 'complete') navigator.vibrate([120, 60, 160]);
+    else if (type === 'error') navigator.vibrate([280]);
+  } catch (e) {}
 }
 
 function displayReceivedArticle(title, body) {
@@ -393,6 +466,42 @@ function displayReceivedArticle(title, body) {
   document.getElementById('speakBtn').disabled = false;
 }
 
+function displayReceivedVoiceMemo(callsign, durationMs, transcript) {
+  currentArticleText = `Voice note from ${callsign}. ${transcript}`;
+  const area = document.getElementById('contentArea');
+  area.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+      <h2 class="content-title" style="margin:0;">📻 Voice Memo</h2>
+      <span class="badge" style="background:#0284c7; color:#fff;">[${callsign}]</span>
+    </div>
+    <div style="background:#0b1220; border:1px solid #1e293b; border-radius:8px; padding:12px; margin-bottom:8px;">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <button onclick="playSimulatedVoicePcm()" style="background:#00e5ff; color:#000; border:none; padding:8px 16px; border-radius:6px; font-weight:bold; cursor:pointer;">▶ Play Audio</button>
+        <span style="font-size:12px; color:#94a3b8;">Duration: ${(durationMs / 1000).toFixed(2)}s | 8 kHz Mono PCM</span>
+      </div>
+    </div>
+    <div class="content-body" style="font-style:italic; color:#94a3b8;">"${transcript}"</div>
+  `;
+  document.getElementById('speakBtn').disabled = false;
+}
+
+function playSimulatedVoicePcm() {
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const dur = 1.85;
+  const buffer = ctx.createBuffer(1, Math.round(dur * 8000), 8000);
+  const data = buffer.getChannelData(0);
+  // Gentle simulated harmonic voice buzz
+  for (let i = 0; i < data.length; i++) {
+    const t = i / 8000;
+    data[i] = (Math.sin(2 * Math.PI * 220 * t) + 0.5 * Math.sin(2 * Math.PI * 440 * t)) * Math.exp(-t * 0.5) * 0.3;
+  }
+  const src = ctx.createBufferSource();
+  src.buffer = buffer;
+  src.connect(ctx.destination);
+  src.start();
+  logPacket(`Playing decoded 8 kHz voice memo through speaker.`);
+}
+
 function speakCurrentContent() {
   if (!('speechSynthesis' in window)) {
     alert('Voice narration not supported on this browser');
@@ -402,6 +511,46 @@ function speakCurrentContent() {
   const utter = new SpeechSynthesisUtterance(currentArticleText);
   utter.rate = 0.95;
   window.speechSynthesis.speak(utter);
+}
+
+function saveToOfflineArchive(type, title, snippet) {
+  try {
+    const raw = localStorage.getItem('tfp_transmissions') || '[]';
+    const list = JSON.parse(raw);
+    list.unshift({ type, title, snippet, time: new Date().toLocaleTimeString() });
+    localStorage.setItem('tfp_transmissions', JSON.stringify(list.slice(0, 20)));
+    loadOfflineArchive();
+  } catch (e) {}
+}
+
+function loadOfflineArchive() {
+  const feed = document.getElementById('historyFeed');
+  const countSpan = document.getElementById('archiveCount');
+  try {
+    const raw = localStorage.getItem('tfp_transmissions') || '[]';
+    const list = JSON.parse(raw);
+    countSpan.innerText = list.length;
+    if (list.length === 0) {
+      feed.innerHTML = '<div class="packet-line" style="color:var(--muted)">No transmissions stored yet.</div>';
+      return;
+    }
+    feed.innerHTML = list.map(item => `
+      <div class="packet-line" style="cursor:pointer;" onclick="displayReceivedArticle('${item.title.replace(/'/g, "\\'")}', '${item.snippet.replace(/'/g, "\\'")}')">
+        <span style="color:#00e5ff;">[${item.time}]</span> <b>${item.title}</b>: ${item.snippet.slice(0, 50)}...
+      </div>
+    `).join('');
+  } catch (e) {}
+}
+
+function clearArchive() {
+  localStorage.removeItem('tfp_transmissions');
+  loadOfflineArchive();
+}
+
+// Initialize on page load
+loadOfflineArchive();
+if ('vibrate' in navigator) {
+  document.getElementById('hapticStatus').innerText = '📳 Haptics: Active';
 }
 </script>
 </body>

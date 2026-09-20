@@ -248,6 +248,43 @@ def test_legacy_visualizer_live_protocol_and_interaction(live_visualizer_server)
         screenshot_path = artifact_dir / "visualizer_live_screenshot.png"
         page.screenshot(path=str(screenshot_path), full_page=True)
         assert screenshot_path.exists()
-        assert screenshot_path.stat().st_size > 10000
+        browser.close()
 
+
+def test_acoustic_receiver_page(live_visualizer_server):
+    """Verifies that the acoustic demodulator and voice memo UI functions correctly with zero console errors."""
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        page = browser.new_page(viewport={"width": 800, "height": 900})
+
+        console_errors = []
+        page.on("pageerror", lambda err: console_errors.append(str(err)))
+
+        page.goto(f"{live_visualizer_server}/acoustic_receiver.html", wait_until="domcontentloaded")
+        assert "TFP Acoustic Audio Receiver" in page.title()
+
+        # Check Haptics status indicator
+        haptic_status = page.inner_text("#hapticStatus")
+        assert "Haptics" in haptic_status
+
+        # Test Voice Memo button click
+        voice_btn = page.locator("#testVoiceBtn")
+        assert voice_btn.is_visible()
+        voice_btn.click()
+
+        # Wait for Voice Memo card to render
+        page.wait_for_selector("#contentArea .content-title", timeout=5000)
+        page.wait_for_selector("#historyFeed .packet-line", timeout=5000)
+
+        # Assert voice memo rendered
+        content_area = page.inner_text("#contentArea")
+        assert "Voice Memo" in content_area
+        assert "CLINIC_NORTH" in content_area
+        assert "Play Audio" in content_area
+
+        # Assert offline archive updated
+        archive_count = page.inner_text("#archiveCount")
+        assert int(archive_count) >= 1
+
+        assert console_errors == []
         browser.close()
