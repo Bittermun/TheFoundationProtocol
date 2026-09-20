@@ -265,16 +265,7 @@ class FountainStreamReceiver:
             chunks = self.reconstructed_chunks_by_session.get(session_id, {})
         else:
             derived = self.derive_session_id(target_manifest)
-            if derived in self.reconstructed_chunks_by_session:
-                chunks = self.reconstructed_chunks_by_session[derived]
-            else:
-                chunks = {}
-                for sess, s_chunks in self.reconstructed_chunks_by_session.items():
-                    if 0 in s_chunks and len(target_manifest.chunk_hashes) > 0:
-                        first_hash = hashlib.sha3_256(s_chunks[0]).hexdigest()
-                        if hmac.compare_digest(first_hash, target_manifest.chunk_hashes[0]):
-                            chunks = s_chunks
-                            break
+            chunks = self.reconstructed_chunks_by_session.get(derived, {})
 
         if len(chunks) < target_manifest.chunk_count:
             return False
@@ -286,20 +277,7 @@ class FountainStreamReceiver:
         if target_manifest is None:
             raise ValueError("Cannot assemble media: no manifest provided and none received over wire")
 
-        target_session = session_id
-        if target_session is None:
-            derived = self.derive_session_id(target_manifest)
-            if derived in self.reconstructed_chunks_by_session:
-                target_session = derived
-            else:
-                for sess, s_chunks in self.reconstructed_chunks_by_session.items():
-                    if 0 in s_chunks and len(target_manifest.chunk_hashes) > 0:
-                        first_hash = hashlib.sha3_256(s_chunks[0]).hexdigest()
-                        if hmac.compare_digest(first_hash, target_manifest.chunk_hashes[0]):
-                            target_session = sess
-                            break
-                if target_session is None:
-                    target_session = derived
+        target_session = session_id if session_id is not None else self.derive_session_id(target_manifest)
 
         if not self.is_complete(target_manifest, session_id=target_session):
             chunks = self.reconstructed_chunks_by_session.get(target_session, {})

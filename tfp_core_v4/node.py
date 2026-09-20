@@ -40,6 +40,7 @@ class TFPNode:
         self.merkle_trees: dict[str, MerkleTree] = {}
         self.telemetry = {
             "total_bytes_published": 0,
+            "total_droplet_bytes_published": 0,
             "total_chunks_stored": 0,
             "unique_chunks_stored": 0,
             "bandwidth_saved_pct": 0.0,
@@ -50,7 +51,7 @@ class TFPNode:
         self,
         data: bytes,
         metadata: dict[str, Any] | None = None,
-        redundancy: float = 3.0,
+        redundancy: float | None = None,
     ) -> ChunkRecipe:
         """
         Publish binary data into the node:
@@ -70,9 +71,14 @@ class TFPNode:
 
         self.recipes[root_hash] = recipe
 
-        # Encode with specified fountain redundancy
+        # Separate automatic redundancy policy from explicit settings
         k_blocks = (len(data) + self.codec.symbol_size - 1) // self.codec.symbol_size
-        effective_redundancy = max(6.0, redundancy) if k_blocks <= 16 else max(0.50, redundancy)
+        if redundancy is not None:
+            effective_redundancy = max(0.0, float(redundancy))
+        else:
+            # Automatic policy based on block count
+            effective_redundancy = 3.0 if k_blocks <= 16 else 0.50
+
         droplets, _k, _orig_len = self.codec.encode(data, redundancy=effective_redundancy)
         self.droplet_store[root_hash] = droplets
 
@@ -83,6 +89,7 @@ class TFPNode:
 
         # Update telemetry
         self.telemetry["total_bytes_published"] += len(data)
+        self.telemetry["total_droplet_bytes_published"] += sum(len(b) for b in droplet_bytes)
         self.telemetry["total_chunks_stored"] += len(chunks)
         self.telemetry["unique_chunks_stored"] = len(self.chunk_store)
         if self.telemetry["total_chunks_stored"] > 0:

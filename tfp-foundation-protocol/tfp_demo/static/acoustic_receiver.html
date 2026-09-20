@@ -144,6 +144,9 @@
     <span class="badge">Offline Acoustic Radio Bridge</span>
     <h1>TFP Acoustic Demodulator</h1>
     <p class="subtitle">Decodes Bell 202 data tones from classroom loudspeakers and FM radios</p>
+    <div style="background: rgba(245, 158, 11, 0.12); border: 1px solid var(--warning); border-radius: 8px; padding: 8px 12px; font-size: 11px; color: #fcd34d; margin-top: 10px; text-align: left; line-height: 1.4;">
+      ℹ️ <b>Demonstration & Lab Mode</b>: The microphone input performs live Goertzel spectral tone power detection (1200/2200 Hz). The <i>[SIMULATION]</i> buttons play synthesized AFSK audio through the speaker and demonstrate UI layout with predetermined payloads.
+    </div>
   </div>
 
   <div class="scope-card">
@@ -154,8 +157,8 @@
     <canvas id="scopeCanvas"></canvas>
     <div class="controls">
       <button class="btn-primary" id="listenBtn" onclick="toggleMicrophone()">🎙 Start Listening</button>
-      <button class="btn-test" id="testBtn" onclick="playTestTone()">🔊 Test Bulletin</button>
-      <button class="btn-test" id="testVoiceBtn" style="border-color:#38bdf8; color:#38bdf8; background:rgba(56,189,248,0.15);" onclick="playTestVoiceMemo()">📻 Test Voice Memo</button>
+      <button class="btn-test" id="testBtn" onclick="playTestTone()">🔊 [SIMULATION] Demo Bulletin</button>
+      <button class="btn-test" id="testVoiceBtn" style="border-color:#38bdf8; color:#38bdf8; background:rgba(56,189,248,0.15);" onclick="playTestVoiceMemo()">📻 [SIMULATION] Demo Voice Note</button>
     </div>
     <div class="status-bar">
       <div class="status-indicator">
@@ -385,15 +388,17 @@ function playTestTone() {
   src.connect(ctx.destination);
   src.start();
 
-  // Simulate immediate reception of test payload
+  logPacket(`[SIMULATION] Synthesizing 1200/2200Hz AFSK audio through speaker...`);
+
+  // Simulate reception of test payload for UI demonstration
   setTimeout(() => {
     packetCount++;
     validCrcCount++;
     document.getElementById('packetCount').innerText = `Packets: ${packetCount} | CRC Valid: ${validCrcCount}`;
-    displayReceivedArticle("Emergency Medical Advisory", testText);
+    displayReceivedArticle("[SIMULATED] Emergency Medical Advisory", testText);
     triggerHaptic('complete');
-    saveToOfflineArchive('text', 'Emergency Medical Advisory', testText);
-    logPacket(`[DECODED] Payload verified (${payloadBytes.length} bytes): CRC-OK`);
+    saveToOfflineArchive('text', '[SIMULATED] Emergency Medical Advisory', testText);
+    logPacket(`[SIMULATION DEMO] Displayed predetermined test payload (simulation mode, not over-the-air decoded).`);
   }, 1200);
 }
 
@@ -433,17 +438,17 @@ function playTestVoiceMemo() {
   src.connect(ctx.destination);
   src.start();
 
-  logPacket(`[CHIRP] Sent 800-2400Hz preamble + VoiceMemo data tone...`);
+  logPacket(`[SIMULATION] Sent 800-2400Hz preamble + VoiceMemo data tone...`);
   triggerHaptic('packet');
 
   setTimeout(() => {
     packetCount++;
     validCrcCount++;
     document.getElementById('packetCount').innerText = `Packets: ${packetCount} | CRC Valid: ${validCrcCount}`;
-    displayReceivedVoiceMemo("CLINIC_NORTH", 1850, "Patient triage complete. Supply request dispatched.");
+    displayReceivedVoiceMemo("CLINIC_NORTH (SIMULATED)", 1850, "Patient triage complete. Supply request dispatched.");
     triggerHaptic('complete');
-    saveToOfflineArchive('voice', 'Voice Memo from CLINIC_NORTH', '1.85s Audio Note: Patient triage complete.');
-    logPacket(`[VOICE MEMO] Reconstructed bit-exact 8 kHz voice message from CLINIC_NORTH`);
+    saveToOfflineArchive('voice', '[SIMULATED] Voice Memo from CLINIC_NORTH', '1.85s Audio Note: Patient triage complete.');
+    logPacket(`[SIMULATION DEMO] Displayed predetermined voice note payload (simulation mode).`);
   }, 1000);
 }
 

@@ -358,9 +358,10 @@ class TestSessionTokenAndAccessGatesAdversarial:
 
     def test_demo_server_puf_signature_forgery_and_replay(self):
         """Verify demo server rejects unauthorized signatures, fake task IDs, and replayed requests."""
+        import uuid
         with TestClient(app) as client:
             puf_entropy = os.urandom(32)
-            device_id = "device_test_sec_01"
+            device_id = f"device_test_sec_{uuid.uuid4().hex[:8]}"
 
             # Enroll device
             resp = client.post(

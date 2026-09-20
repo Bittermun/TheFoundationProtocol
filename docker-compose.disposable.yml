@@ -19,11 +19,12 @@ services:
       dockerfile: Dockerfile.workshop
       target: workshop-dev
     container_name: tfp-disposable-lab
-    # Zero host bind mounts: all operations execute inside container volume
+    # Host code is mounted strictly read-only to prevent host filesystem mutation.
+    # Scratch data and temporary databases reside entirely in ephemeral tmpfs RAM.
     volumes:
-      - tfp-disposable-code:/workspace:ro  # Read-only snapshot of code
-      - tfp-disposable-scratch:/workspace/data  # Ephemeral scratch storage
+      - .:/workspace:ro
     tmpfs:
+      - /workspace/data:rw,size=256m
       - /tmp:rw,noexec,nosuid,size=256m
       - /run:rw,noexec,nosuid,size=64m
     environment:
@@ -37,12 +38,6 @@ services:
       - tfp-disposable-net
     stdin_open: true
     tty: true
-
-volumes:
-  tfp-disposable-code:
-    driver: local
-  tfp-disposable-scratch:
-    driver: local
 
 networks:
   tfp-disposable-net:

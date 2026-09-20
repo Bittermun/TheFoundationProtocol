@@ -150,3 +150,50 @@ def test_session_reset_lifecycle():
     # Global reset clears everything
     receiver.reset()
     assert not receiver.is_complete(manifest_2), "Global reset must clear session 2"
+
+
+def test_shared_first_chunk_cross_session_isolation():
+    """
+    Regression test: Two different transfers sharing their first chunk.
+    Ingesting transfer 1 must NOT cause transfer 2 to report complete.
+    """
+    secret = b"shared-chunk-regression-secret-1"
+    # min_chunk_size=256, target=256, max=256 ensures exact deterministic chunks
+    packager = MediaStreamPackager(min_chunk_size=256, target_chunk_size=256, max_chunk_size=256)
+
+    # Identical 256-byte chunk 0, distinct chunk 1
+    shared_prefix = b"COMMON_PROTOCOL_HEADER_DATA_PADDING_BYTE_0000" * 6  # 276 bytes -> chunk 0
+    payload_1 = shared_prefix + (b"MISSION_CRITICAL_PAYLOAD_ONE_XYZ" * 10)
+    payload_2 = shared_prefix + (b"MISSION_CRITICAL_PAYLOAD_TWO_ABC" * 10)
+
+    manifest_1, chunks_1, _ = packager.package(payload_1)
+    manifest_2, chunks_2, _ = packager.package(payload_2)
+
+    # Verify chunk 0 is identical between both transfers
+    assert chunks_1[0] == chunks_2[0]
+    assert manifest_1.chunk_hashes[0] == manifest_2.chunk_hashes[0]
+    # But chunk 1 differs
+    assert chunks_1[1] != chunks_2[1]
+    assert manifest_1.chunk_hashes[1] != manifest_2.chunk_hashes[1]
+
+    streamer = FountainStreamer(symbol_size=64, secret_key=secret)
+    receiver = FountainStreamReceiver(symbol_size=64, secret_key=secret)
+
+    packets_1 = list(streamer.stream_manifest(manifest_1, chunks_1, redundancy=0.50))
+    packets_2 = list(streamer.stream_manifest(manifest_2, chunks_2, redundancy=0.50))
+
+    # Ingest only transfer 1
+    for p in packets_1:
+        receiver.ingest_packet(p)
+
+    assert receiver.is_complete(manifest_1), "Transfer 1 must be complete"
+    # REGRESSION CHECK: Transfer 2 shares chunk 0, but must NOT be reported as complete!
+    assert not receiver.is_complete(manifest_2), "Transfer 2 must NOT report complete before receiving its unique chunks"
+
+    # Now ingest transfer 2
+    for p in packets_2:
+        receiver.ingest_packet(p)
+
+    assert receiver.is_complete(manifest_2), "Transfer 2 must be complete after receiving its chunks"
+    assert receiver.assemble(manifest_1) == payload_1
+    assert receiver.assemble(manifest_2) == payload_2

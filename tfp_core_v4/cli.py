@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import re
 import sys
 import urllib.parse
 from pathlib import Path
@@ -170,9 +171,11 @@ def create_visualizer_server(port: int = 8080) -> tuple[Any, int]:
             data = json.loads(pf.read_text(encoding="utf-8"))
             b = PackagedArticleBundle.from_dict(data)
             articles_by_root[b.merkle_root] = b
+            # Include body content so body-only searches return exact results after restart
+            clean_body = re.sub(r"<[^>]+>", " ", b.standalone_html or "")
             search_engine.add_document(
                 doc_id=b.merkle_root,
-                content=f"{b.title}\n{b.category}\n{b.metadata.get('summary', '')}",
+                content=f"{b.title}\n{b.category}\n{b.metadata.get('summary', '')}\n{clean_body}",
                 metadata={
                     "title": b.title,
                     "summary": b.metadata.get("summary", ""),

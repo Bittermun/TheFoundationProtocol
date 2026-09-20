@@ -92,3 +92,53 @@ def test_zim_directory_export_layout():
         assert manifest_data["article_count"] == 2
         assert manifest_data["articles"][0]["merkle_root"] == bundles[0].merkle_root
         assert manifest_data["articles"][1]["merkle_root"] == bundles[1].merkle_root
+
+
+def test_slug_collision_disambiguation_zero_data_loss(tmp_path: Path):
+    """
+    Regression test: Exporting articles titled 'A B' and 'A-B' must generate
+    unique filenames and preserve both articles without data loss.
+    """
+    exporter = ZimDirectoryExporter()
+    bundles = [
+        PackagedArticleBundle(
+            title="A B",
+            category="Test",
+            merkle_root="1" * 64,
+            raw_size_bytes=100,
+            compressed_size_bytes=50,
+            savings_pct=50.0,
+            chunk_count=1,
+            standalone_html="<html><body>FIRST ARTICLE A B</body></html>",
+            metadata={},
+        ),
+        PackagedArticleBundle(
+            title="A-B",
+            category="Test",
+            merkle_root="2" * 64,
+            raw_size_bytes=100,
+            compressed_size_bytes=50,
+            savings_pct=50.0,
+            chunk_count=1,
+            standalone_html="<html><body>SECOND ARTICLE A-B</body></html>",
+            metadata={},
+        ),
+    ]
+
+    export_path = tmp_path / "zim_collision"
+    exporter.export_bundles(bundles, export_path)
+
+    articles_dir = export_path / "A"
+    art1_file = articles_dir / "a-b.html"
+    art2_file = articles_dir / "a-b-1.html"
+
+    # Both HTML files must exist with their respective distinct content
+    assert art1_file.exists(), "First article 'a-b.html' must exist"
+    assert art2_file.exists(), "Colliding second article 'a-b-1.html' must exist"
+    assert "FIRST ARTICLE" in art1_file.read_text(encoding="utf-8")
+    assert "SECOND ARTICLE" in art2_file.read_text(encoding="utf-8")
+
+    # Manifest must list both articles with their distinct filenames
+    manifest = json.loads((export_path / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["article_count"] == 2
+    assert len(list(articles_dir.glob("*.html"))) == 2

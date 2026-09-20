@@ -186,9 +186,17 @@ class ZimDirectoryExporter:
 
         catalog_by_category: Dict[str, List[Dict[str, Any]]] = {}
         manifest_entries: List[Dict[str, Any]] = []
+        seen_slugs: set[str] = set()
 
         for bundle in bundles:
-            slug = slugify(bundle.title)
+            base_slug = slugify(bundle.title)
+            slug = base_slug
+            collision_counter = 1
+            while slug in seen_slugs:
+                slug = f"{base_slug}-{collision_counter}"
+                collision_counter += 1
+            seen_slugs.add(slug)
+
             article_filename = f"{slug}.html"
             article_path = articles_dir / article_filename
 
