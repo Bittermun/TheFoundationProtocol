@@ -15,12 +15,15 @@ import os
 import secrets
 import sqlite3
 import time
+import logging
 from pathlib import Path
 from typing import Any
 
 from .cdc import ChunkRecipe, ContentDefinedChunker
 from .fountain import FountainCodec, FountainDroplet
 from .merkle import MerkleTree
+
+log = logging.getLogger(__name__)
 
 
 class TFPNode:
@@ -197,8 +200,8 @@ class TFPNode:
                 try:
                     droplet = FountainDroplet.deserialize(d_blob, symbol_size=sym_size)
                     loaded_droplets.append(droplet)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    log.warning(f"Malformed droplet blob skipped for root {root_hash}: {exc}")
 
             if loaded_droplets:
                 self.droplet_store[root_hash] = loaded_droplets
