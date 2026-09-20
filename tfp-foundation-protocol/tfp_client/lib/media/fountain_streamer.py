@@ -363,17 +363,27 @@ class FountainStreamer:
         redundancy: float = 0.30,
         session_id: Optional[int] = None,
         repeat_manifest: int = 3,
+        manifest_interval: int = 10,
     ) -> Generator[bytes, None, None]:
         """
         Yields raw wire datagram bytes for both the manifest and fountain droplets.
-        Transmits the manifest first (repeated `repeat_manifest` times for loss tolerance),
-        followed by all fountain droplet packets.
+        Transmits the manifest initially (repeated `repeat_manifest` times for loss tolerance),
+        interleaves the manifest every `manifest_interval` droplet packets (per FLUTE RFC 6726 Section 3.3),
+        and emits a closing manifest packet at the end of the stream for late-joining receivers.
         """
         manifest_bytes = serialize_manifest_packet(manifest, secret_key=self.secret_key)
         for _ in range(repeat_manifest):
             yield manifest_bytes
+
+        count = 0
         for pkt in self.stream_manifest(manifest, chunks, redundancy=redundancy, session_id=session_id):
+            count += 1
+            if manifest_interval > 0 and count > 1 and (count - 1) % manifest_interval == 0:
+                yield manifest_bytes
             yield pkt.to_bytes(self.secret_key)
+
+        if manifest_interval > 0 and count > 0:
+            yield manifest_bytes
 
     async def broadcast_udp(
         self,

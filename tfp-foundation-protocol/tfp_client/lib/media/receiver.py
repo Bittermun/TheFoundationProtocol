@@ -123,18 +123,25 @@ class FountainStreamReceiver:
             self.reset(sid)
 
         # 2. If at capacity when a new session arrives, evict LRU
-        if (
-            incoming_session not in self.reconstructed_chunks_by_session
-            and len(self.reconstructed_chunks_by_session) >= self.max_sessions
-        ):
+        while True:
+            known_sessions = (
+                set(self._session_timestamps.keys())
+                | set(self.reconstructed_chunks_by_session.keys())
+                | set(self.received_manifests.keys())
+            )
+            if incoming_session in known_sessions or len(known_sessions) < self.max_sessions:
+                break
+
             candidates = [
-                (ts, sid) for sid, ts in self._session_timestamps.items()
+                (self._session_timestamps.get(sid, 0.0), sid)
+                for sid in known_sessions
                 if sid != incoming_session
             ]
-            if candidates:
-                candidates.sort()
-                oldest_sid = candidates[0][1]
-                self.reset(oldest_sid)
+            if not candidates:
+                break
+            candidates.sort()
+            oldest_sid = candidates[0][1]
+            self.reset(oldest_sid)
 
     def reset(self, session_id: Optional[int] = None):
         """
@@ -147,18 +154,23 @@ class FountainStreamReceiver:
             self._chunk_meta.clear()
             self.reconstructed_chunks_by_session.clear()
             self.received_manifests.clear()
+            self.latest_manifest = None
             self._session_timestamps.clear()
             self._last_active_session = None
         else:
-            to_delete = [k for k in self._droplet_buffers if k[0] == session_id]
-            for k in to_delete:
+            to_delete_buf = [k for k in self._droplet_buffers if k[0] == session_id]
+            for k in to_delete_buf:
                 self._droplet_buffers.pop(k, None)
+            to_delete_meta = [k for k in self._chunk_meta if k[0] == session_id]
+            for k in to_delete_meta:
                 self._chunk_meta.pop(k, None)
             self.reconstructed_chunks_by_session.pop(session_id, None)
             self.received_manifests.pop(session_id, None)
             self._session_timestamps.pop(session_id, None)
+            if self.latest_manifest and self.derive_session_id(self.latest_manifest) == session_id:
+                self.latest_manifest = next(iter(self.received_manifests.values()), None)
             if self._last_active_session == session_id:
-                self._last_active_session = next(iter(self.reconstructed_chunks_by_session), None)
+                self._last_active_session = next(iter(self._session_timestamps), None)
 
     def ingest_packet(self, pkt: MediaDropletPacket) -> Optional[Tuple[int, bytes]]:
         """

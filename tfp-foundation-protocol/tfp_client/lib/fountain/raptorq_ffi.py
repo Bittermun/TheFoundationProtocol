@@ -25,7 +25,10 @@ except ImportError:
     raptorq = None
     _HAS_RAPTORQ = False
 
-from tfp_client.lib.fountain.fountain_real import RealRaptorQAdapter as PurePythonFountainAdapter
+from tfp_client.lib.fountain.fountain_real import (
+    RealRaptorQAdapter as PurePythonFountainAdapter,
+    IntegrityError,
+)
 
 log = logging.getLogger(__name__)
 
@@ -38,12 +41,6 @@ _HMAC_SIZE = 32  # HMAC-SHA3-256 digest length
 
 class RaptorQError(Exception):
     """Raised when RaptorQ library operations fail."""
-
-    pass
-
-
-class IntegrityError(Exception):
-    """Raised when a per-shard HMAC verification fails."""
 
     pass
 
@@ -136,10 +133,6 @@ class RealRaptorQAdapter:
         hmac_failed_count = 0
         
         for shard in shards:
-            if shard.startswith(b'fallback_shard_'):
-                log.debug("Detected NDN fallback shard, returning content directly")
-                return shard[15:]
-            
             if hmac_key is not None:
                 if len(shard) < 16 + _HMAC_SIZE:
                     log.warning(
@@ -154,7 +147,11 @@ class RealRaptorQAdapter:
                     hmac_failed_count += 1
                     continue
                 shard = frame
-            
+
+            if shard.startswith(b'fallback_shard_'):
+                log.debug("Detected authenticated NDN fallback shard, returning content directly")
+                return shard[15:]
+
             if len(shard) < 16:
                 continue
             

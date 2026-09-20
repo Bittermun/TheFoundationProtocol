@@ -104,7 +104,9 @@ all = [
 ]
 
 [tool.setuptools.package-data]
+"*" = ["*.html", "*.json", "*.js", "*.css", "*.svg"]
 demo = ["*.html", "*.json", "*.js", "assets/*.css", "assets/*.js", "assets/*.svg"]
+tfp_demo = ["static/*", "templates/*"]
 
 [tool.setuptools]
 include-package-data = false

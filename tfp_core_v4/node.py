@@ -32,17 +32,26 @@ class TFPNode:
         target_chunk_size: int = 1024,
         symbol_size: int = 256,
         db_path: Path | str | None = None,
+        chunker: ContentDefinedChunker | None = None,
+        codec: FountainCodec | None = None,
     ):
         self.node_id = node_id
         resolved_db = db_path if db_path is not None else os.environ.get("TFP_DB_PATH")
         self.db_path: Path | None = Path(resolved_db) if resolved_db else None
 
-        self.chunker = ContentDefinedChunker(
-            min_size=max(256, target_chunk_size // 2),
-            max_size=target_chunk_size * 4,
-            target_size=target_chunk_size,
-        )
-        self.codec = FountainCodec(symbol_size=symbol_size)
+        if chunker is not None:
+            self.chunker = chunker
+        else:
+            self.chunker = ContentDefinedChunker(
+                min_size=max(256, target_chunk_size // 2),
+                max_size=target_chunk_size * 4,
+                target_size=target_chunk_size,
+            )
+
+        if codec is not None:
+            self.codec = codec
+        else:
+            self.codec = FountainCodec(symbol_size=symbol_size)
         self.chunk_store: dict[str, bytes] = {}
         self.recipes: dict[str, ChunkRecipe] = {}
         self.droplet_store: dict[str, list[FountainDroplet]] = {}
@@ -183,9 +192,10 @@ class TFPNode:
                 (root_hash,),
             )
             loaded_droplets = []
+            sym_size = recipe.metadata.get("symbol_size", self.codec.symbol_size)
             for (d_blob,) in cursor.fetchall():
                 try:
-                    droplet = FountainDroplet.deserialize(d_blob, symbol_size=self.codec.symbol_size)
+                    droplet = FountainDroplet.deserialize(d_blob, symbol_size=sym_size)
                     loaded_droplets.append(droplet)
                 except Exception:
                     pass
@@ -215,7 +225,9 @@ class TFPNode:
         if not data:
             raise ValueError("Payload cannot be empty")
 
-        recipe, chunks = self.chunker.create_recipe(data, metadata=metadata)
+        meta = dict(metadata or {})
+        meta["symbol_size"] = self.codec.symbol_size
+        recipe, chunks = self.chunker.create_recipe(data, metadata=meta)
         root_hash = recipe.root_hash
 
         # Store chunks in content-addressed chunk store
@@ -269,21 +281,41 @@ class TFPNode:
                 raise KeyError(f"Content root hash {root_hash} not found on this node")
 
         recipe = self.recipes[root_hash]
-        droplets = self.droplet_store[root_hash]
-        k = (recipe.total_size + self.codec.symbol_size - 1) // self.codec.symbol_size
+
+        # 1. Fast path: Direct assembly from locally stored verified chunks
+        all_chunks_present = all(chash in self.chunk_store for chash in recipe.chunk_hashes)
+        if all_chunks_present and simulated_loss == 0.0 and received_droplets is None:
+            assembled = bytearray()
+            verified = True
+            for chash, csize in zip(recipe.chunk_hashes, recipe.chunk_sizes):
+                cdata = self.chunk_store[chash]
+                if len(cdata) != csize or hashlib.sha3_256(cdata).hexdigest() != chash:
+                    verified = False
+                    break
+                assembled.extend(cdata)
+
+            if verified and len(assembled) == recipe.total_size:
+                self.telemetry["successful_reconstructions"] += 1
+                return bytes(assembled)
+
+        # 2. Fountain reconstruction path (for lossy network or missing chunks)
+        droplets = self.droplet_store.get(root_hash, [])
+        sym_size = recipe.metadata.get("symbol_size", self.codec.symbol_size)
+        k = (recipe.total_size + sym_size - 1) // sym_size
+        codec = self.codec if self.codec.symbol_size == sym_size else FountainCodec(symbol_size=sym_size)
 
         if received_droplets is not None:
             surviving = list(received_droplets)
         else:
-            # Simulate network packet loss: dropped droplets NEVER return
+            if not droplets:
+                raise RuntimeError(f"No fountain droplets available for root {root_hash}")
             surviving = [d for d in droplets if (secrets.randbelow(1_000_000) / 1_000_000.0) >= simulated_loss]
 
-        # Honest fountain recovery: decode ONLY from surviving droplets
         if not surviving:
             raise RuntimeError(f"Fountain decode failed for root {root_hash}: 0 surviving droplets under loss {simulated_loss}")
 
         try:
-            reconstructed = self.codec.decode(
+            reconstructed = codec.decode(
                 surviving,
                 k=k,
                 orig_len=recipe.total_size,
@@ -293,11 +325,16 @@ class TFPNode:
                 f"Fountain decode failed for root {root_hash} with {len(surviving)}/{len(droplets)} surviving droplets (k={k}): {exc}"
             ) from exc
 
-        # Verify hash integrity
-        _, check_chunks = self.chunker.create_recipe(reconstructed)
+        # Verify hash integrity against recipe chunk slices (independent of reader's FastCDC settings)
+        offset = 0
         hasher = hashlib.sha3_256()
-        for c in check_chunks:
-            hasher.update(hashlib.sha3_256(c).hexdigest().encode("utf-8"))
+        for expected_hash, csize in zip(recipe.chunk_hashes, recipe.chunk_sizes):
+            chunk_slice = reconstructed[offset : offset + csize]
+            offset += csize
+            slice_hash = hashlib.sha3_256(chunk_slice).hexdigest()
+            if slice_hash != expected_hash:
+                raise ValueError(f"Chunk hash mismatch during verification: {slice_hash} != {expected_hash}")
+            hasher.update(slice_hash.encode("utf-8"))
         recovered_root = hasher.hexdigest()
 
         if not hmac.compare_digest(recovered_root, root_hash):
@@ -322,6 +359,29 @@ class TFPNode:
             "merkle_root": mtree.root_hex if mtree else None,
             "metadata": recipe.metadata,
         }
+
+    def list_recipes(self) -> list[ChunkRecipe]:
+        """Return all recipes stored in memory and in the persistent SQLite database."""
+        recipes = dict(self.recipes)
+        if self.db_path and self.db_path.exists():
+            conn = sqlite3.connect(str(self.db_path))
+            try:
+                cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT root_hash, total_size, chunk_hashes_json, chunk_sizes_json, metadata_json FROM recipes"
+                )
+                for r_hash, total_size, hashes_json, sizes_json, meta_json in cursor.fetchall():
+                    if r_hash not in recipes:
+                        recipes[r_hash] = ChunkRecipe(
+                            root_hash=r_hash,
+                            total_size=total_size,
+                            chunk_hashes=json.loads(hashes_json),
+                            chunk_sizes=json.loads(sizes_json),
+                            metadata=json.loads(meta_json) if meta_json else {},
+                        )
+            finally:
+                conn.close()
+        return list(recipes.values())
 
     def get_telemetry(self) -> dict[str, Any]:
         """Return real deduplication and throughput metrics."""

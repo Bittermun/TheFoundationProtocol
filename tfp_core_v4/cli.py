@@ -629,6 +629,7 @@ def main():
     # Search
     search_p = subparsers.add_parser("search", help="Execute hybrid BM25 + MinHash search")
     search_p.add_argument("query", help="Text search query")
+    search_p.add_argument("--top-k", type=int, default=5, help="Maximum number of results to return (default: 5)")
 
     # Fetch
     fetch_p = subparsers.add_parser("fetch", help="Fetch content by root hash")
@@ -757,15 +758,46 @@ def main():
         print("[TFP RADIO] CRC16 verified; reassembly succeeded: 100% MATCH.")
 
     elif args.command == "search":
-        engine = HybridSearchEngine()
-        engine.add_document("doc1", "Emergency field manual for water purification and sanitation.")
-        engine.add_document("doc2", "Triage protocols for trauma and hypothermia resuscitation.")
-        engine.add_document("doc3", "LoRa physical layer modulation and packet radio framing.")
+        node = TFPNode(db_path=args.db)
+        recipes = node.list_recipes()
 
-        results = engine.search(args.query, top_k=3)
+        engine = HybridSearchEngine()
+        indexed_count = 0
+
+        for r in recipes:
+            title = r.metadata.get("title", r.metadata.get("filename", r.root_hash[:16]))
+            try:
+                content_bytes = node.fetch(r.root_hash)
+                text_content = content_bytes.decode("utf-8", errors="replace")
+                doc_text = f"{title}\n\n{text_content}"
+            except Exception:
+                doc_text = title
+
+            engine.add_document(
+                doc_id=r.root_hash,
+                content=doc_text,
+                metadata={
+                    "title": title,
+                    "filename": r.metadata.get("filename", ""),
+                    "root_hash": r.root_hash,
+                    "total_size": r.total_size,
+                },
+            )
+            indexed_count += 1
+
+        if indexed_count == 0:
+            engine.add_document("doc1", "Emergency field manual for water purification and sanitation.")
+            engine.add_document("doc2", "Triage protocols for trauma and hypothermia resuscitation.")
+            engine.add_document("doc3", "LoRa physical layer modulation and packet radio framing.")
+
+        top_k = getattr(args, "top_k", 5)
+        results = engine.search(args.query, top_k=top_k)
         print(f"[TFP SEARCH] Found {len(results)} matches for '{args.query}':")
         for r in results:
-            print(f"  [{r.score:.3f}] {r.chunk_id}: {r.content}")
+            snippet = r.content.strip().replace("\n", " ")
+            if len(snippet) > 120:
+                snippet = snippet[:117] + "..."
+            print(f"  [{r.score:.3f}] {r.chunk_id}: {snippet}")
 
     elif args.command == "mesh-sim":
         from scripts.run_mesh_simulation import run_simulation

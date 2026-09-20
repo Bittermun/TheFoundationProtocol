@@ -260,6 +260,7 @@ class RealRaptorQAdapter:
                         "Shard too short for HMAC verification (%d bytes); skipping",
                         len(shard),
                     )
+                    hmac_failed_count += 1
                     continue
                 frame, received_mac = shard[:-_HMAC_SIZE], shard[-_HMAC_SIZE:]
                 expected_mac = _shard_hmac(hmac_key, frame)
@@ -268,6 +269,11 @@ class RealRaptorQAdapter:
                     hmac_failed_count += 1
                     continue
                 shard = frame  # strip MAC for further processing
+
+            if shard.startswith(b'fallback_shard_'):
+                log.debug("Detected authenticated NDN fallback shard, returning content directly")
+                return shard[15:]
+
             if len(shard) < 16:
                 continue
             o_len, sk, idx = struct.unpack(">QII", shard[:16])
@@ -277,7 +283,7 @@ class RealRaptorQAdapter:
                 parsed.append((idx, shard[16:]))
 
         if orig_len is None or src_k is None:
-            if hmac_key is not None and hmac_failed_count > 0:
+            if hmac_key is not None:
                 raise IntegrityError("per-shard HMAC verification failed for all shards")
             # Legacy shards without header — concatenate directly
             return b"".join(s[:k] if k else s for s in shards)[

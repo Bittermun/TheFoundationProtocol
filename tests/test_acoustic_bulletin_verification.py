@@ -95,7 +95,7 @@ class TestAcousticPhysicalChannelVerification:
 
         corrupted_wav = _synthesize_wav(corrupted_frames, sample_rate=sample_rate)
         recovered = demod.decode_wav(corrupted_wav)
-        assert payload not in recovered, "Corrupted audio frame was mistakenly accepted!"
+        assert recovered == [], f"Corrupted audio frame produced unvalidated packets: {recovered}"
 
     def test_novel_text_bulletin_delivery_through_room_acoustics(self, tmp_path: Path):
         """
