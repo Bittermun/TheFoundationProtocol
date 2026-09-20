@@ -667,6 +667,19 @@ def main():
     asch_p.add_argument("--symbol-size", type=int, default=256, help="Fountain symbol size in bytes (default: 256)")
     asch_p.add_argument("--speech-rate", type=int, default=140, help="Speech rate in WPM (default: 140)")
 
+    # Export ZIM (Kiwix offline reader bundle)
+    zim_p = subparsers.add_parser("export-zim", help="Export articles to Kiwix-compatible ZIM directory layout")
+    zim_p.add_argument("target", help="Path to article JSON, or directory containing articles")
+    zim_p.add_argument("--out", default="zim_export", help="Output directory for ZIM archive (default: zim_export)")
+    zim_p.add_argument("--title", default="The Foundation Protocol Offline Library", help="ZIM bundle title")
+
+    # Voice Memo (Audio-Pocket 1200 bps Vocoder)
+    vm_p = subparsers.add_parser("voice-memo", help="Process ultra-low-bitrate voice memos via 1200 bps vocoder")
+    vm_p.add_argument("action", choices=["compress", "decompress", "info"], help="Action: compress WAV to .vm, decompress .vm to WAV, or inspect .vm")
+    vm_p.add_argument("input_path", help="Path to input .wav (for compress) or .vm (for decompress/info)")
+    vm_p.add_argument("--out", default=None, help="Output file path")
+    vm_p.add_argument("--callsign", default="TFP_NODE", help="Station callsign (max 8 characters)")
+
     # Verify
     subparsers.add_parser("verify", help="Run automated self-verification test battery")
 
@@ -924,6 +937,119 @@ def main():
     elif args.command in ("fetch", "inspect"):
         print(f"Error: Command '{args.command}' is not implemented.", file=sys.stderr)
         sys.exit(1)
+
+    elif args.command == "export-zim":
+        from tfp_client.lib.ingest.article_packager import PackagedArticleBundle
+        from tfp_client.lib.ingest.zim_exporter import ZimDirectoryExporter
+
+        target_path = Path(args.target)
+        out_dir = Path(args.out)
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        bundles = []
+        if target_path.is_file():
+            try:
+                data = json.loads(target_path.read_text(encoding="utf-8"))
+                bundles.append(PackagedArticleBundle.from_dict(data))
+            except Exception:
+                text = target_path.read_text(encoding="utf-8")
+                b = PackagedArticleBundle(
+                    title=target_path.stem,
+                    category="General",
+                    merkle_root=hashlib.sha3_256(text.encode("utf-8")).hexdigest(),
+                    raw_size_bytes=len(text),
+                    compressed_size_bytes=len(text),
+                    savings_pct=0.0,
+                    chunk_count=1,
+                    standalone_html=text,
+                    metadata={"source": target_path.name},
+                )
+                bundles.append(b)
+        elif target_path.is_dir():
+            for p in sorted(target_path.glob("*.json")):
+                try:
+                    data = json.loads(p.read_text(encoding="utf-8"))
+                    if "title" in data and ("standalone_html" in data or "merkle_root" in data):
+                        bundles.append(PackagedArticleBundle.from_dict(data))
+                except Exception:
+                    continue
+        else:
+            print(f"Error: Target path '{target_path}' not found.", file=sys.stderr)
+            sys.exit(1)
+
+        if not bundles:
+            print(f"Error: No valid article bundles found at '{target_path}'.", file=sys.stderr)
+            sys.exit(1)
+
+        exporter = ZimDirectoryExporter()
+        index_path = exporter.export_bundles(
+            bundles=bundles,
+            target_dir=out_dir,
+            library_title=args.title,
+        )
+        print("=" * 60)
+        print("  [TFP] Kiwix / ZIM Bundle Export Complete")
+        print("=" * 60)
+        print(f"  Articles Exported : {len(bundles)}")
+        print(f"  ZIM Directory     : {out_dir}")
+        print(f"  Offline Index     : {index_path}")
+        print("=" * 60)
+
+    elif args.command == "voice-memo":
+        from tfp_client.lib.audio.voice_memo import VoiceMemo
+
+        in_path = Path(args.input_path)
+        if not in_path.exists():
+            print(f"Error: Input file not found: {in_path}", file=sys.stderr)
+            sys.exit(1)
+
+        if args.action == "compress":
+            wav_bytes = in_path.read_bytes()
+            memo = VoiceMemo.from_wav(wav_bytes, callsign=args.callsign, compress_vocoder=True)
+            vm_bytes = memo.to_bytes()
+            out_file = Path(args.out) if args.out else in_path.with_suffix(".vm")
+            out_file.write_bytes(vm_bytes)
+            print("=" * 60)
+            print("  [TFP] Voice Memo Compressed (1200 bps Vocoder)")
+            print("=" * 60)
+            print(f"  Input WAV Size    : {len(wav_bytes):,} bytes")
+            print(f"  Output .vm Size   : {len(vm_bytes):,} bytes")
+            ratio = (1.0 - len(vm_bytes) / max(1, len(wav_bytes))) * 100.0
+            print(f"  Compression Ratio : {ratio:.1f}%")
+            print(f"  Duration          : {(memo.duration_ms or 0) / 1000.0:.2f} s")
+            print(f"  Callsign          : {memo.callsign}")
+            print(f"  Saved To          : {out_file}")
+            print("=" * 60)
+
+        elif args.action == "decompress":
+            vm_bytes = in_path.read_bytes()
+            memo = VoiceMemo.from_bytes(vm_bytes, auto_decompress=True)
+            wav_bytes = memo.to_wav()
+            out_file = Path(args.out) if args.out else in_path.with_suffix(".decompressed.wav")
+            out_file.write_bytes(wav_bytes)
+            print("=" * 60)
+            print("  [TFP] Voice Memo Decompressed to 16-bit PCM WAV")
+            print("=" * 60)
+            print(f"  Input .vm Size    : {len(vm_bytes):,} bytes")
+            print(f"  Output WAV Size   : {len(wav_bytes):,} bytes")
+            print(f"  Duration          : {(memo.duration_ms or 0) / 1000.0:.2f} s")
+            print(f"  Callsign          : {memo.callsign}")
+            print(f"  Saved To          : {out_file}")
+            print("=" * 60)
+
+        elif args.action == "info":
+            vm_bytes = in_path.read_bytes()
+            memo = VoiceMemo.from_bytes(vm_bytes, auto_decompress=False)
+            print("=" * 60)
+            print("  [TFP] Voice Memo Binary Wire Inspection")
+            print("=" * 60)
+            print(f"  Callsign          : {memo.callsign}")
+            print(f"  Timestamp         : {memo.timestamp}")
+            print(f"  Duration          : {memo.duration_ms} ms ({(memo.duration_ms or 0) / 1000.0:.2f} s)")
+            print(f"  Sample Rate       : {memo.sample_rate} Hz")
+            print(f"  Vocoder Encoded   : {memo.is_vocoder}")
+            print(f"  Wire Payload Size : {len(memo.pcm_data):,} bytes")
+            print("=" * 60)
 
     elif args.command == "verify":
         print("[TFP] Running self-verification across core protocol primitives...")

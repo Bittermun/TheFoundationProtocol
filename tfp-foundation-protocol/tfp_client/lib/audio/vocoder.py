@@ -22,6 +22,7 @@ FRAME_MS = 20
 SAMPLE_RATE = 8000
 FRAME_SAMPLES = int(SAMPLE_RATE * FRAME_MS / 1000)  # 160 samples
 BYTES_PER_FRAME = 3
+PREEMPHASIS_COEFF = 0.95
 
 
 class VocoderCodec:
@@ -37,31 +38,39 @@ class VocoderCodec:
         """
         Compresses 16-bit mono PCM bytes into 1200 bps vocoder bitstream.
         """
+        rem = len(pcm_bytes) % 2
+        if rem != 0:
+            pcm_bytes = pcm_bytes[: len(pcm_bytes) - rem]
+
         if len(pcm_bytes) < 2:
             return VOCODER_MAGIC
 
         # Convert to float numpy array
         raw_samples = np.frombuffer(pcm_bytes, dtype=np.int16).astype(np.float32)
+        n_samples = len(raw_samples)
+        if n_samples == 0:
+            return VOCODER_MAGIC
 
-        # Pad to integer number of frames
-        remainder = len(raw_samples) % self.frame_samples
-        if remainder != 0:
-            pad_len = self.frame_samples - remainder
-            raw_samples = np.pad(raw_samples, (0, pad_len), mode="constant")
+        # Normalize to [-1.0, 1.0]
+        raw_samples = raw_samples / 32768.0
 
-        # DC-removal pre-emphasis filter: y[n] = x[n] - 0.95 * x[n-1]
-        preemp = np.empty_like(raw_samples)
-        preemp[0] = raw_samples[0]
-        preemp[1:] = raw_samples[1:] - 0.95 * raw_samples[:-1]
+        # Pre-emphasis filter
+        pe_samples = np.empty_like(raw_samples)
+        pe_samples[0] = raw_samples[0]
+        pe_samples[1:] = raw_samples[1:] - PREEMPHASIS_COEFF * raw_samples[:-1]
 
-        n_frames = len(raw_samples) // self.frame_samples
+        n_frames = (n_samples + FRAME_SAMPLES - 1) // FRAME_SAMPLES
         out_bytes = bytearray(VOCODER_MAGIC)
 
         for f_idx in range(n_frames):
-            start = f_idx * self.frame_samples
-            end = start + self.frame_samples
+            start = f_idx * FRAME_SAMPLES
+            end = min(start + FRAME_SAMPLES, n_samples)
             frame_raw = raw_samples[start:end]
-            frame_pe = preemp[start:end]
+            frame_pe = pe_samples[start:end]
+
+            if len(frame_raw) < FRAME_SAMPLES:
+                frame_raw = np.pad(frame_raw, (0, FRAME_SAMPLES - len(frame_raw)))
+                frame_pe = np.pad(frame_pe, (0, FRAME_SAMPLES - len(frame_pe)))
 
             frame_packed = self._encode_frame(frame_raw, frame_pe)
             out_bytes.extend(frame_packed)
@@ -72,12 +81,8 @@ class VocoderCodec:
         """
         Decompresses 1200 bps vocoder bitstream back into 16-bit mono PCM.
         """
-        if len(vocoder_bytes) < len(VOCODER_MAGIC):
-            return b""
-
-        magic = vocoder_bytes[: len(VOCODER_MAGIC)]
-        if magic != VOCODER_MAGIC:
-            raise ValueError(f"Invalid vocoder magic: {magic!r}")
+        if len(vocoder_bytes) < len(VOCODER_MAGIC) or vocoder_bytes[: len(VOCODER_MAGIC)] != VOCODER_MAGIC:
+            raise ValueError(f"Invalid vocoder magic: {vocoder_bytes[:4]!r}")
 
         payload = vocoder_bytes[len(VOCODER_MAGIC) :]
         n_frames = len(payload) // BYTES_PER_FRAME

@@ -76,3 +76,24 @@ def test_afsk_demodulator_adaptive_fallback():
     # Adaptive decoding with fallback_300=True automatically detects and extracts it
     with_fallback = dem1200.decode_wav(tx_wav, fallback_300=True)
     assert payload in with_fallback
+
+
+def test_afsk_clock_drift_tolerance():
+    """Verifies that AFSKDemodulator recovers packets when transmitter clock drifts by ±1.5%."""
+    payload = b"CLOCK_DRIFT_COMPENSATION_OK"
+    sample_rate = 16000
+    
+    # Transmitter with +1.5% oscillator drift (1218 baud instead of nominal 1200 baud)
+    drift_mod = AFSKModulator(
+        sample_rate=sample_rate,
+        baud_rate=int(1200 * 1.015),
+        mark_freq=1200.0,
+        space_freq=2200.0,
+    )
+    drift_wav = drift_mod.synthesize_wav(payload, amplitude=0.9, include_chirp=True)
+
+    # Receiver configured for nominal 1200 baud
+    nominal_demod = AFSKDemodulator.bell202_1200(sample_rate=sample_rate)
+    recovered = nominal_demod.decode_wav(drift_wav)
+
+    assert payload in recovered

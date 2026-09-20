@@ -129,9 +129,7 @@ class AFSKDemodulator:
             scale = 16000.0 / max_abs
             samples = [x * scale for x in samples]
 
-        step = self.samples_per_bit
         n_samples = len(samples)
-        step_int = max(1, round(step))
         dt = 1.0 / self.sample_rate
         two_pi = 2.0 * math.pi
         w_mark = two_pi * self.mark_freq
@@ -139,36 +137,42 @@ class AFSKDemodulator:
 
         packets: list[bytes] = []
 
-        # Search across sub-symbol sample phase offsets with bounded stride
-        stride = max(1, step_int // 16)
-        for offset in range(0, step_int, stride):
-            total_bits = int((n_samples - offset) // step)
-            if total_bits < 32:
-                continue
-
-            bits = []
-            for i in range(total_bits):
-                start = offset + round(i * step)
-                end = offset + round((i + 1) * step)
-                chunk = samples[start:end]
-                if len(chunk) < 2:
+        # Search across nominal baud rate first, then clock drift factors (±1.5%, ±3%)
+        drift_factors = [0.0, -0.015, 0.015, -0.03, 0.03]
+        for drift in drift_factors:
+            step = self.samples_per_bit * (1.0 + drift)
+            step_int = max(1, round(step))
+            stride = max(1, step_int // 16)
+            for offset in range(0, step_int, stride):
+                total_bits = int((n_samples - offset) // step)
+                if total_bits < 32:
                     continue
 
-                # Quadrature product correlation at mark and space frequencies
-                i_m = sum(x * math.cos(w_mark * (start + j) * dt) for j, x in enumerate(chunk))
-                q_m = sum(x * math.sin(w_mark * (start + j) * dt) for j, x in enumerate(chunk))
-                e_m = i_m * i_m + q_m * q_m
+                bits = []
+                for i in range(total_bits):
+                    start = offset + round(i * step)
+                    end = offset + round((i + 1) * step)
+                    chunk = samples[start:end]
+                    if len(chunk) < 2:
+                        continue
 
-                i_s = sum(x * math.cos(w_space * (start + j) * dt) for j, x in enumerate(chunk))
-                q_s = sum(x * math.sin(w_space * (start + j) * dt) for j, x in enumerate(chunk))
-                e_s = i_s * i_s + q_s * q_s
+                    # Quadrature product correlation at mark and space frequencies
+                    i_m = sum(x * math.cos(w_mark * (start + j) * dt) for j, x in enumerate(chunk))
+                    q_m = sum(x * math.sin(w_mark * (start + j) * dt) for j, x in enumerate(chunk))
+                    e_m = i_m * i_m + q_m * q_m
 
-                bits.append(1 if e_m >= e_s else 0)
+                    i_s = sum(x * math.cos(w_space * (start + j) * dt) for j, x in enumerate(chunk))
+                    q_s = sum(x * math.sin(w_space * (start + j) * dt) for j, x in enumerate(chunk))
+                    e_s = i_s * i_s + q_s * q_s
 
-            found = self._extract_packets_from_bits(bits)
-            for pkt in found:
-                if pkt not in packets:
-                    packets.append(pkt)
+                    bits.append(1 if e_m >= e_s else 0)
+
+                found = self._extract_packets_from_bits(bits)
+                for pkt in found:
+                    if pkt not in packets:
+                        packets.append(pkt)
+                if packets:
+                    break
             if packets:
                 break
 
