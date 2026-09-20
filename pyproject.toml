@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tfp"
-version = "3.1.1"
+version = "4.0.0"
 description = "The Foundation Protocol - decentralized content and compute protocol for global information access"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -113,7 +113,7 @@ include-package-data = false
 "*" = ["test_*.py", "*_test.py", "*.tests*"]
 
 [project.scripts]
-tfp = "tfp_cli.main:main"
+tfp = "tfp_core_v4.cli:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tfp-foundation-protocol/tests", "tests"]

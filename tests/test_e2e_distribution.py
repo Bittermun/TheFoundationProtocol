@@ -87,7 +87,7 @@ async def test_full_lifecycle_e2e():
 
     # Broadcaster streams rateless droplets; simulate 25% wireless packet loss
     rng = random.Random(42)
-    session_id = 999
+    session_id = receiver.derive_session_id(manifest)
 
     for idx, chunk in enumerate(chunks):
         seed = 0

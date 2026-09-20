@@ -58,9 +58,6 @@ class AFSKDemodulator:
         self.samples_per_bit = sample_rate / baud_rate
         self.block_size = round(self.samples_per_bit)
 
-        self.goertzel_mark = GoertzelDetector(mark_freq, sample_rate, self.block_size)
-        self.goertzel_space = GoertzelDetector(space_freq, sample_rate, self.block_size)
-
     @classmethod
     def bell202_1200(cls, sample_rate: int = 16000) -> "AFSKDemodulator":
         """Standard Bell 202: 1200 baud, 1200 Hz mark / 2200 Hz space."""
@@ -87,12 +84,10 @@ class AFSKDemodulator:
             raw_frames = w.readframes(n_frames)
 
         if sr != self.sample_rate:
-            # Adjust sample rate detectors if necessary
+            # Adjust sample rate configuration
             self.sample_rate = sr
             self.samples_per_bit = sr / self.baud_rate
             self.block_size = round(self.samples_per_bit)
-            self.goertzel_mark = GoertzelDetector(self.mark_freq, sr, self.block_size)
-            self.goertzel_space = GoertzelDetector(self.space_freq, sr, self.block_size)
 
         # Unpack 16-bit mono or stereo samples (taking left channel if stereo)
         samples = []
