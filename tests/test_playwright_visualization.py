@@ -52,7 +52,7 @@ def test_clean_slate_visualizer(live_visualizer_server):
         console_errors = []
         page.on("pageerror", lambda err: console_errors.append(str(err)))
 
-        page.goto(f"{live_visualizer_server}/visualizer.html", wait_until="networkidle")
+        page.goto(f"{live_visualizer_server}/visualizer.html", wait_until="domcontentloaded")
 
         assert "The Foundation Protocol" in page.title()
         page.wait_for_selector(".logo-badge", timeout=5000)
@@ -69,6 +69,7 @@ def test_clean_slate_visualizer(live_visualizer_server):
         assert len(console_errors) == 0
 
         artifact_dir = Path("C:/Users/msunw/.gemini/antigravity-ide/brain/9439d999-cc0c-40cc-b695-03d8d48e2dce")
+        artifact_dir.mkdir(parents=True, exist_ok=True)
         screenshot_path = artifact_dir / "clean_slate_screenshot.png"
         page.screenshot(path=str(screenshot_path))
         assert screenshot_path.exists()
@@ -81,7 +82,7 @@ def test_legacy_visualizer_live_protocol_and_interaction(live_visualizer_server)
         page = browser.new_page(viewport={"width": 1280, "height": 800})
 
         # Navigate to legacy visualizer archive on ephemeral test server
-        page.goto(f"{live_visualizer_server}/legacy_visualizer_v1.html", wait_until="networkidle")
+        page.goto(f"{live_visualizer_server}/legacy_visualizer_v1.html", wait_until="domcontentloaded")
 
         # 1. Verify Page Title
         assert "The Foundation Protocol" in page.title()
@@ -243,6 +244,7 @@ def test_legacy_visualizer_live_protocol_and_interaction(live_visualizer_server)
 
         # 19. Capture Artifact Screenshot with full page showing Encarta Scholastic design and Macaulay Apparatus
         artifact_dir = Path("C:/Users/msunw/.gemini/antigravity-ide/brain/9439d999-cc0c-40cc-b695-03d8d48e2dce")
+        artifact_dir.mkdir(parents=True, exist_ok=True)
         screenshot_path = artifact_dir / "visualizer_live_screenshot.png"
         page.screenshot(path=str(screenshot_path), full_page=True)
         assert screenshot_path.exists()

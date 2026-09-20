@@ -174,6 +174,7 @@ class AcceleratedFountainCodec:
         self.root_hash = root_hash
         self.session_nonce = session_nonce
         self.prefer_native = prefer_native
+        self.last_engine_used: str = "none"
         self._python_codec = FountainCodec(
             symbol_size=symbol_size,
             root_hash=root_hash,
@@ -202,10 +203,13 @@ class AcceleratedFountainCodec:
         # When native is available and loaded
         if self.is_accelerated and _LIB_WIREHAIR is not None:
             try:
-                return self._encode_native(data, redundancy)
+                res = self._encode_native(data, redundancy)
+                self.last_engine_used = "simd_wirehair"
+                return res
             except (OSError, RuntimeError, ValueError) as e:
                 log.warning("Native Wirehair encode failed (%s); falling back to Python.", e)
 
+        self.last_engine_used = "python_fallback" if self.prefer_native else "python_pure"
         return self._python_codec.encode(
             data,
             redundancy=redundancy,
@@ -272,6 +276,7 @@ class AcceleratedFountainCodec:
         k: int,
         orig_len: int,
         pre_validate: bool | None = None,
+        root_hash: str | bytes | None = None,
     ) -> bytes:
         """
         Decode original payload from received droplets.
@@ -279,15 +284,19 @@ class AcceleratedFountainCodec:
         """
         if self.is_accelerated and _LIB_WIREHAIR is not None:
             try:
-                return self._decode_native(droplets, k, orig_len)
+                res = self._decode_native(droplets, k, orig_len)
+                self.last_engine_used = "simd_wirehair"
+                return res
             except (OSError, RuntimeError, ValueError) as e:
                 log.warning("Native Wirehair decode failed (%s); falling back to Python.", e)
 
+        self.last_engine_used = "python_fallback" if self.prefer_native else "python_pure"
         return self._python_codec.decode(
             droplets,
             k=k,
             orig_len=orig_len,
             pre_validate=pre_validate,
+            root_hash=root_hash,
         )
 
     def _decode_native(

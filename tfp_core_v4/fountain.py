@@ -270,11 +270,14 @@ class FountainDecoder:
         k: int,
         orig_len: int,
         pre_validate: bool | None = None,
+        root_hash: str | bytes | None = None,
     ) -> bytes:
         """
         Decode original payload using vectorized Gaussian elimination over GF(2).
-        Filters out poisoned droplets before admitting to elimination matrix.
+        Filters out poisoned droplets before admitting to elimination matrix,
+        and strictly verifies cryptographic integrity against root_hash if configured.
         """
+        target_root = root_hash if root_hash is not None else self.root_hash
         do_validate = self.pre_validate if pre_validate is None else pre_validate
 
         # Filter valid droplets
@@ -282,10 +285,10 @@ class FountainDecoder:
         for d in droplets:
             if len(d.payload) != self.symbol_size:
                 continue
-            if do_validate:
+            if do_validate and target_root is not None:
                 is_valid = verify_droplet_seed_authenticity(
                     droplet_seed=d.seed,
-                    root_hash=self.root_hash or b"",
+                    root_hash=target_root or b"",
                     session_nonce=self.session_nonce or b"",
                     total_source_blocks=k,
                     degree=d.degree,
@@ -357,7 +360,20 @@ class FountainDecoder:
             row_idx = pivots[col]
             recovered.extend(payloads[row_idx].to_bytes(self.symbol_size, "big"))
 
-        return bytes(recovered[:orig_len])
+        result = bytes(recovered[:orig_len])
+
+        # Cryptographic integrity check: strictly reject corrupted payload
+        if target_root is not None:
+            expected_hex = (
+                target_root if isinstance(target_root, str) else target_root.hex()
+            )
+            actual_hex = hashlib.sha3_256(result).hexdigest()
+            if not hmac.compare_digest(actual_hex, expected_hex):
+                raise ValueError(
+                    f"Integrity check failed: payload hash mismatch (expected {expected_hex[:12]}..., got {actual_hex[:12]}...)"
+                )
+
+        return result
 
 
 class FountainCodec(FountainEncoder, FountainDecoder):

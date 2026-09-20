@@ -14,6 +14,7 @@ import asyncio
 from dataclasses import dataclass
 import hashlib
 import hmac
+import json
 import math
 from pathlib import Path
 import random
@@ -38,9 +39,44 @@ from .stream_packager import MediaManifest
 
 
 PACKET_MAGIC = b"FD"
+MANIFEST_MAGIC = b"FM"
 PACKET_VERSION = 1
 HEADER_FORMAT = ">2sBBIIHIHI16s"  # 40 bytes total
 HEADER_SIZE = struct.calcsize(HEADER_FORMAT)
+MANIFEST_HEADER_FORMAT = ">2sBBI16s"  # 24 bytes total
+MANIFEST_HEADER_SIZE = struct.calcsize(MANIFEST_HEADER_FORMAT)
+
+
+def serialize_manifest_packet(manifest: MediaManifest, secret_key: bytes = b"") -> bytes:
+    """Serialize a MediaManifest into an authenticated over-the-wire binary datagram."""
+    raw_json = manifest.to_json().encode("utf-8")
+    hdr_pre = struct.pack(">2sBBI", MANIFEST_MAGIC, PACKET_VERSION, 0, len(raw_json))
+    tag = hmac.new(secret_key, hdr_pre + raw_json, hashlib.sha3_256).digest()[:16]
+    full_hdr = struct.pack(MANIFEST_HEADER_FORMAT, MANIFEST_MAGIC, PACKET_VERSION, 0, len(raw_json), tag)
+    return full_hdr + raw_json
+
+
+def deserialize_manifest_packet(
+    data: bytes,
+    secret_key: bytes = b"",
+    verify_tag: bool = True,
+) -> MediaManifest:
+    """Deserialize and cryptographically authenticate a wire MediaManifest datagram."""
+    if len(data) < MANIFEST_HEADER_SIZE:
+        raise ValueError(f"Manifest packet too short: {len(data)} < {MANIFEST_HEADER_SIZE}")
+    magic, version, flags, length, tag = struct.unpack_from(MANIFEST_HEADER_FORMAT, data, 0)
+    if magic != MANIFEST_MAGIC:
+        raise ValueError(f"Invalid manifest magic: {magic}")
+    raw_json = data[MANIFEST_HEADER_SIZE : MANIFEST_HEADER_SIZE + length]
+    if len(raw_json) != length:
+        raise ValueError(f"Truncated manifest payload: expected {length}, got {len(raw_json)}")
+    if verify_tag and secret_key:
+        hdr_pre = struct.pack(">2sBBI", magic, version, flags, length)
+        expected_tag = hmac.new(secret_key, hdr_pre + raw_json, hashlib.sha3_256).digest()[:16]
+        if not hmac.compare_digest(tag, expected_tag):
+            raise AntiPollutionError("Manifest authentication tag verification failed")
+    d = json.loads(raw_json.decode("utf-8"))
+    return MediaManifest.from_dict(d)
 
 
 class MediaStreamError(Exception):
@@ -320,22 +356,41 @@ class FountainStreamer:
             for pkt in packets:
                 yield pkt
 
+    def stream_manifest_wire_packets(
+        self,
+        manifest: MediaManifest,
+        chunks: List[bytes],
+        redundancy: float = 0.30,
+        session_id: Optional[int] = None,
+        repeat_manifest: int = 3,
+    ) -> Generator[bytes, None, None]:
+        """
+        Yields raw wire datagram bytes for both the manifest and fountain droplets.
+        Transmits the manifest first (repeated `repeat_manifest` times for loss tolerance),
+        followed by all fountain droplet packets.
+        """
+        manifest_bytes = serialize_manifest_packet(manifest, secret_key=self.secret_key)
+        for _ in range(repeat_manifest):
+            yield manifest_bytes
+        for pkt in self.stream_manifest(manifest, chunks, redundancy=redundancy, session_id=session_id):
+            yield pkt.to_bytes(self.secret_key)
+
     async def broadcast_udp(
         self,
-        packets: Iterable[MediaDropletPacket],
+        packets: Iterable[Union[MediaDropletPacket, bytes]],
         host: str = "127.0.0.1",
         port: int = 9876,
         packet_interval: float = 0.0,
     ):
         """
-        Asynchronously send packets over UDP socket.
+        Asynchronously send packets or raw datagram bytes over UDP socket.
         """
         loop = asyncio.get_running_loop()
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.setblocking(False)
         try:
             for pkt in packets:
-                raw = pkt.to_bytes(self.secret_key)
+                raw = pkt if isinstance(pkt, bytes) else pkt.to_bytes(self.secret_key)
                 await loop.sock_sendto(sock, raw, (host, port))
                 if packet_interval > 0:
                     await asyncio.sleep(packet_interval)

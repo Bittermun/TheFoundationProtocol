@@ -31,8 +31,8 @@ class PackagedArticleBundle:
     standalone_html: str
     metadata: dict[str, Any]
 
-    def to_dict(self) -> dict[str, Any]:
-        return {
+    def to_dict(self, include_html: bool = False) -> dict[str, Any]:
+        d = {
             "title": self.title,
             "category": self.category,
             "merkle_root": self.merkle_root,
@@ -42,6 +42,23 @@ class PackagedArticleBundle:
             "chunk_count": self.chunk_count,
             "metadata": self.metadata,
         }
+        if include_html:
+            d["standalone_html"] = self.standalone_html
+        return d
+
+    @classmethod
+    def from_dict(cls, d: dict[str, Any]) -> "PackagedArticleBundle":
+        return cls(
+            title=d["title"],
+            category=d.get("category", "General"),
+            merkle_root=d["merkle_root"],
+            raw_size_bytes=int(d.get("raw_size_bytes", 0)),
+            compressed_size_bytes=int(d.get("compressed_size_bytes", 0)),
+            savings_pct=float(d.get("savings_pct", 0.0)),
+            chunk_count=int(d.get("chunk_count", 0)),
+            standalone_html=d.get("standalone_html", ""),
+            metadata=dict(d.get("metadata", {})),
+        )
 
 
 class ArticlePackager:
@@ -213,7 +230,7 @@ h1 {{ font-size: 1.6rem; line-height: 1.25; margin-bottom: 10px; color: #ffffff;
   {body_html}
   <div class="audio-bar">
     <button class="play-btn" id="ttsBtn" onclick="toggleAudioNarration()">🔊 Read Aloud</button>
-    <span class="offline-tag">✓ Stored Offline</span>
+    <span id="storageBadge" class="offline-tag" style="color: #64748b;">⏳ Verifying Storage...</span>
   </div>
 </div>
 <script>
@@ -241,11 +258,28 @@ function toggleAudioNarration() {{
   }}
 }}
 
-// Automatically cache article locally in localStorage with quota safety guard
+// Dynamically verify and cache article locally with ground-truth UI feedback
+const badge = document.getElementById('storageBadge');
 try {{
-  localStorage.setItem('tfp_article_' + encodeURIComponent("{cls._escape_html(article.title[:24])}"), document.documentElement.outerHTML);
+  const storageKey = 'tfp_art_' + encodeURIComponent("{cls._escape_html(article.title[:24])}");
+  localStorage.setItem(storageKey, document.documentElement.outerHTML);
+  if (localStorage.getItem(storageKey)) {{
+    if (badge) {{
+      badge.innerText = '✓ Stored Offline';
+      badge.style.color = '#10b981';
+    }}
+  }} else {{
+    if (badge) {{
+      badge.innerText = '⚠️ Ephemeral View (Not Saved)';
+      badge.style.color = '#f59e0b';
+    }}
+  }}
 }} catch(e) {{
   console.warn('TFP Offline Storage: quota exceeded or storage unavailable.', e);
+  if (badge) {{
+    badge.innerText = '⚠️ Ephemeral View (Storage Blocked)';
+    badge.style.color = '#ef4444';
+  }}
 }}
 </script>
 </body>

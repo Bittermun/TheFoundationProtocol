@@ -92,7 +92,17 @@ class AFSKDemodulator:
         """
         Processes normalized floating-point samples through exact quadrature
         correlation, scans sub-symbol phase offsets, and extracts CRC-verified packets.
+        Applies Automatic Gain Control (AGC) to tolerate quiet/attenuated acoustic recordings.
         """
+        if not samples:
+            return []
+
+        # Automatic Gain Control (AGC): normalize peak amplitude to target ~16000.0 (half-scale)
+        max_abs = max(abs(x) for x in samples)
+        if max_abs > 20.0:  # Only normalize if signal exceeds noise floor
+            scale = 16000.0 / max_abs
+            samples = [x * scale for x in samples]
+
         step = self.samples_per_bit
         n_samples = len(samples)
         step_int = max(1, round(step))

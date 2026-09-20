@@ -34,7 +34,7 @@ if str(_tfp_root) not in sys.path:
 from tfp_client.lib.audio.afsk_demodulator import AFSKDemodulator
 from tfp_client.lib.audio.afsk_modulator import AFSKModulator
 from tfp_client.lib.ingest.article_ingester import ArticleIngester
-from tfp_client.lib.ingest.article_packager import ArticlePackager
+from tfp_client.lib.ingest.article_packager import ArticlePackager, PackagedArticleBundle
 from tfp_client.lib.media.fountain_streamer import FountainStreamer
 from tfp_client.lib.media.receiver import FountainStreamReceiver
 from tfp_client.lib.media.stream_packager import MediaStreamPackager
@@ -63,6 +63,152 @@ def create_visualizer_server(port: int = 8080) -> tuple[Any, int]:
     live_engine = LiveTransmissionEngine(symbol_size=256)
     event_bus = TelemetryEventBus.get_instance()
     active_loss_rate = [0.25]
+
+    search_engine = HybridSearchEngine(bm25_weight=0.70, lsh_weight=0.30)
+    packager = ArticlePackager(lexicons_dir=_repo_root / "lexicons")
+    articles_by_root: dict[str, Any] = {}
+
+    INITIAL_ARTICLES = [
+        """# Severe Hypothermia Field Triage & Resuscitation
+> Immediate field emergency medical protocol for acute environmental hypothermia.
+
+## Assessment & Staging
+- Mild (35-32°C): Shivering, normal blood pressure, alert.
+- Moderate (32-28°C): Ceased shivering, confusion, bradycardia.
+- Severe (<28°C): Coma, ventricular fibrillation risk, apnea.
+
+## Rewarming Protocols
+- Initiate passive external rewarming in sheltered dry environment.
+- Active core rewarming with warmed IV fluids at 39-42°C.
+- Avoid rough movement to prevent ventricular fibrillation arrest.
+- Administer oral rehydration: 6 tsp sugar + 0.5 tsp salt per 1L clean water.
+""",
+        """# Emergency Water Purification & Chlorine Dosage
+> Field guidelines for making contaminated water bacteriologically safe.
+
+## Boiling Protocol
+- Bring water to a rolling boil for at least 1 full minute (3 minutes at altitudes above 2000m).
+- Allow water to cool naturally without adding ice.
+
+## Chemical Chlorination (Bleach / NaDCC)
+- Household unscented bleach (5.25% - 8.25% sodium hypochlorite):
+  - Clear water: 2 drops per liter (approx. 8 drops per gallon).
+  - Cloudy / turbid water: Filter through clean cloth first, then 4 drops per liter.
+- Stir thoroughly and let stand covered for at least 30 minutes.
+- Water should have a slight chlorine scent. If not, repeat dose and wait 15 minutes.
+""",
+        """# FastCDC Content-Defined Chunking & Gear Hash Mechanics
+> Technical architecture of boundary-shift resistant chunking in The Foundation Protocol.
+
+## Gear Hash Algorithm
+- FastCDC uses a precomputed 256-entry 64-bit random gear array.
+- For each incoming byte, state advances as: H = (H << 1) + GearMatrix[byte].
+- Rolling hash state requires zero division or modulo arithmetic, maximizing throughput.
+
+## Normalized Sub-Chunk Masks
+- Uses normalized bitmasks to control chunk size distribution:
+  - Minimum size: 512 bytes (avoids chunk explosion).
+  - Target average: 1024 to 4096 bytes.
+  - Maximum limit: 8192 bytes.
+- Achieves >10x deduplication speed over Rabin-Karp while preserving boundary resilience.
+""",
+        """# Luby Transform Rateless Fountain Codes over Lossy Links
+> Mathematical principles of erasure recovery across unreliable physical radio transport.
+
+## Soliton Degree Distribution
+- The transmitter samples droplet degree d from an Ideal or Robust Soliton distribution.
+- Low degree ensures quick ripple formation; high degree ensures full coupon-collector coverage.
+- Each encoded droplet is the bitwise XOR of d randomly selected source symbols.
+
+## Gaussian Elimination Decoding
+- Receiver maintains a sparse matrix of received droplets and resolves ripple symbols incrementally.
+- Inversion succeeds with high probability with only (1 + epsilon) * K packets received.
+- Eliminates need for round-trip acknowledgment (ACK) packets across unidirectional broadcasts.
+""",
+        """# VHF/UHF Packet Radio & KISS TNC Protocol Bridging
+> Emergency communication bridge linking TCP/IP networks with physical amateur radio transceivers.
+
+## KISS Framing Rules
+- FEND (0xC0): Frame End delimiter.
+- FESC (0xDB): Frame Escape character.
+- TFEND (0xDC): Transposed Frame End.
+- TFESC (0xDD): Transposed Frame Escape.
+
+## Physical Layer & Modulation
+- Bell 202 Audio Frequency Shift Keying (AFSK) at 1200 baud.
+- 1200 Hz Mark (Binary 1), 2200 Hz Space (Binary 0).
+- Compatible with Baofeng, Yaesu, and Kenwood handheld radios via 3.5mm TRRS audio cables.
+""",
+        """# Structural Collapse Search & Rescue INSARAG Marking
+> Unified marking system for urban search and rescue (USAR) teams clearing damaged buildings.
+
+## Central 2x2 Meter Square Symbol
+- Upper Quadrant: Time and date of entry and exit.
+- Left Quadrant: Search and Rescue team identifier.
+- Right Quadrant: Identified hazards (gas leak, structural collapse, asbestos).
+- Lower Quadrant: Number of live victims rescued (L) and deceased victims recovered (D).
+
+## Operational Safety
+- Establish structural lookout prior to interior breach.
+- Monitor secondary collapse indicators using plumb bobs or acoustic listening devices.
+"""
+    ]
+
+    articles_dir = _repo_root / "data" / "articles"
+    articles_dir.mkdir(parents=True, exist_ok=True)
+
+    def persist_bundle(bundle_to_save: PackagedArticleBundle):
+        try:
+            target_path = articles_dir / f"{bundle_to_save.merkle_root}.json"
+            target_path.write_text(json.dumps(bundle_to_save.to_dict(include_html=True), indent=2), encoding="utf-8")
+        except Exception as exc:
+            sys.stderr.write(f"Article persistence warning: {exc}\n")
+
+    # 1. Recover any existing persisted articles from disk
+    for pf in articles_dir.glob("*.json"):
+        try:
+            data = json.loads(pf.read_text(encoding="utf-8"))
+            b = PackagedArticleBundle.from_dict(data)
+            articles_by_root[b.merkle_root] = b
+            search_engine.add_document(
+                doc_id=b.merkle_root,
+                content=f"{b.title}\n{b.category}\n{b.metadata.get('summary', '')}",
+                metadata={
+                    "title": b.title,
+                    "summary": b.metadata.get("summary", ""),
+                    "category": b.category,
+                    "reading_time_minutes": b.metadata.get("reading_time_minutes", 1),
+                    "merkle_root": b.merkle_root,
+                    "savings_pct": b.savings_pct,
+                    "compressed_size": b.compressed_size_bytes,
+                },
+            )
+        except Exception as exc:
+            sys.stderr.write(f"Article recovery error from {pf.name}: {exc}\n")
+
+    # 2. If first run with no persisted articles, seed foundational guides
+    if not articles_by_root:
+        for raw_md in INITIAL_ARTICLES:
+            try:
+                art = ArticleIngester.ingest_markdown(raw_md)
+                bundle = packager.package_article(art)
+                articles_by_root[bundle.merkle_root] = bundle
+                persist_bundle(bundle)
+                search_engine.add_document(
+                    doc_id=bundle.merkle_root,
+                    content=f"{art.title}\n{art.summary}\n{art.to_markdown()}",
+                    metadata={
+                        "title": art.title,
+                        "summary": art.summary,
+                        "category": art.category,
+                        "reading_time_minutes": art.reading_time_minutes,
+                        "merkle_root": bundle.merkle_root,
+                        "savings_pct": bundle.savings_pct,
+                        "compressed_size": bundle.compressed_size_bytes,
+                    },
+                )
+            except Exception as exc:
+                sys.stderr.write(f"Pre-indexing warning: {exc}\n")
 
     def generate_live_protocol_telemetry() -> dict[str, Any]:
         md = """# Severe Hypothermia Field Triage & Resuscitation
@@ -136,7 +282,7 @@ Initiate active core rewarming with warmed IV saline at 39 degrees C.
             "k": droplets[0]["k"] if droplets else 4,
             "slides": slides_data,
             "raw_size": len(md),
-            "dedup_ratio": "11.9x",
+            "dedup_ratio": f"{max(1.0, len(md) / max(1, sum(len(c) for c in chunks))):.1f}x",
         }
 
     class VisualizerHandler(http.server.SimpleHTTPRequestHandler):
@@ -168,6 +314,53 @@ Initiate active core rewarming with warmed IV saline at 39 degrees C.
                     except (ValueError, IndexError, KeyError):
                         pass
                 self._send_json({"ok": True, "rate": active_loss_rate[0]})
+                return
+
+            if self.path.startswith("/api/search"):
+                query = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+                q = query.get("q", [""])[0].strip()
+                top_k = int(query.get("top_k", [10])[0])
+                if not q:
+                    self._send_json({"ok": True, "query": "", "count": 0, "results": []})
+                    return
+                results = search_engine.search(q, top_k=top_k)
+                res_list = [
+                    {
+                        "merkle_root": r.chunk_id,
+                        "score": round(r.score, 4),
+                        "lexical_score": round(r.lexical_score, 4),
+                        "semantic_score": round(r.semantic_score, 4),
+                        "metadata": r.metadata,
+                        "snippet": r.metadata.get("summary") or r.content[:160] + "...",
+                    }
+                    for r in results
+                ]
+                self._send_json({"ok": True, "query": q, "count": len(res_list), "results": res_list})
+                return
+
+            if self.path == "/api/articles":
+                articles_list = [b.to_dict() for b in articles_by_root.values()]
+                self._send_json({"ok": True, "count": len(articles_list), "articles": articles_list})
+                return
+
+            if self.path.startswith("/api/article"):
+                query = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+                root = query.get("root", [""])[0].strip()
+                if not root:
+                    parts = self.path.split("/")
+                    if len(parts) > 2 and parts[2]:
+                        root = parts[2].split("?")[0]
+                bundle = articles_by_root.get(root)
+                if not bundle:
+                    self._send_json({"ok": False, "error": f"Article not found for root: {root}"}, status=404)
+                    return
+                html_bytes = bundle.standalone_html.encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Content-Length", str(len(html_bytes)))
+                self.end_headers()
+                self.wfile.write(html_bytes)
                 return
 
             if self.path == "/api/protocol-state":
@@ -208,6 +401,50 @@ Initiate active core rewarming with warmed IV saline at 39 degrees C.
             return super().do_GET()
 
         def do_POST(self):
+            if self.path == "/api/ingest":
+                content_length = int(self.headers.get("Content-Length", 0))
+                if content_length <= 0:
+                    self._send_json({"ok": False, "error": "Empty body"}, status=400)
+                    return
+                body_bytes = self.rfile.read(content_length)
+                content_type = self.headers.get("Content-Type", "")
+
+                try:
+                    if "application/json" in content_type:
+                        payload = json.loads(body_bytes.decode("utf-8"))
+                        text = payload.get("text", "")
+                        url = payload.get("url", "")
+                        fmt = payload.get("format", "markdown")
+                        if url:
+                            extracted = ArticleIngester.ingest_url(url)
+                        elif fmt == "html":
+                            extracted = ArticleIngester.ingest_html(text)
+                        else:
+                            extracted = ArticleIngester.ingest_markdown(text)
+                    else:
+                        extracted = ArticleIngester.ingest_markdown(body_bytes.decode("utf-8"))
+
+                    bundle = packager.package_article(extracted)
+                    articles_by_root[bundle.merkle_root] = bundle
+                    persist_bundle(bundle)
+                    search_engine.add_document(
+                        doc_id=bundle.merkle_root,
+                        content=f"{extracted.title}\n{extracted.summary}\n{extracted.to_markdown()}",
+                        metadata={
+                            "title": extracted.title,
+                            "summary": extracted.summary,
+                            "category": extracted.category,
+                            "reading_time_minutes": extracted.reading_time_minutes,
+                            "merkle_root": bundle.merkle_root,
+                            "savings_pct": bundle.savings_pct,
+                            "compressed_size": bundle.compressed_size_bytes,
+                        }
+                    )
+                    self._send_json({"ok": True, "bundle": bundle.to_dict()})
+                except Exception as exc:
+                    self._send_json({"ok": False, "error": str(exc)}, status=500)
+                return
+
             if self.path == "/api/sample-short":
                 def run_short():
                     data, fname, mtype = live_engine.generate_sample_short()

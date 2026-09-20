@@ -79,3 +79,17 @@ def test_afsk_corrupted_noise_rejection():
 
     decoded = demodulator.decode_wav(buf.getvalue())
     assert decoded == []  # Rejects noise cleanly without crash or false positives
+
+
+def test_afsk_attenuated_signal_with_agc():
+    """Verify that AGC allows demodulation of quiet/attenuated audio (e.g. distant phone microphone)."""
+    modulator = AFSKModulator(sample_rate=16000, baud_rate=1200, preamble_flags=16)
+    demodulator = AFSKDemodulator(sample_rate=16000, baud_rate=1200)
+
+    payload = b"QUIET_CLINIC_BEACON:DRUGS_OK"
+    # Synthesize at very low amplitude: 0.05 (~24 dB attenuation below normal)
+    quiet_wav = modulator.synthesize_wav(payload, amplitude=0.05)
+
+    decoded = demodulator.decode_wav(quiet_wav)
+    assert len(decoded) >= 1
+    assert payload in decoded, "AGC must normalize and recover quiet audio packets"

@@ -46,7 +46,12 @@ class TFPNode:
             "successful_reconstructions": 0,
         }
 
-    def publish(self, data: bytes, metadata: dict[str, Any] | None = None) -> ChunkRecipe:
+    def publish(
+        self,
+        data: bytes,
+        metadata: dict[str, Any] | None = None,
+        redundancy: float = 0.50,
+    ) -> ChunkRecipe:
         """
         Publish binary data into the node:
         1. FastCDC 64-bit content chunking & deduplication
@@ -65,8 +70,8 @@ class TFPNode:
 
         self.recipes[root_hash] = recipe
 
-        # Encode with 50% fountain redundancy
-        droplets, _k, _orig_len = self.codec.encode(data, redundancy=0.50)
+        # Encode with specified fountain redundancy
+        droplets, _k, _orig_len = self.codec.encode(data, redundancy=redundancy)
         self.droplet_store[root_hash] = droplets
 
         # Build Merkle tree over droplet serialized payloads
@@ -86,10 +91,15 @@ class TFPNode:
 
         return recipe
 
-    def fetch(self, root_hash: str, simulated_loss: float = 0.0) -> bytes:
+    def fetch(
+        self,
+        root_hash: str,
+        simulated_loss: float = 0.0,
+        received_droplets: list[FountainDroplet] | None = None,
+    ) -> bytes:
         """
         Fetch and reconstruct content from local or peer fountain droplet store,
-        even under high packet drop rates.
+        honestly recovering ONLY from received or surviving droplets.
         """
         if root_hash not in self.recipes:
             raise KeyError(f"Content root hash {root_hash} not found on this node")
@@ -98,25 +108,26 @@ class TFPNode:
         droplets = self.droplet_store[root_hash]
         k = (recipe.total_size + self.codec.symbol_size - 1) // self.codec.symbol_size
 
-        # Simulate network packet loss
-        surviving = [d for d in droplets if (secrets.randbelow(1_000_000) / 1_000_000.0) >= simulated_loss]
+        if received_droplets is not None:
+            surviving = list(received_droplets)
+        else:
+            # Simulate network packet loss: dropped droplets NEVER return
+            surviving = [d for d in droplets if (secrets.randbelow(1_000_000) / 1_000_000.0) >= simulated_loss]
 
-        # Rateless recovery: accumulate droplets from available pool until full rank
-        reconstructed = None
-        for d in droplets:
-            try:
-                reconstructed = self.codec.decode(
-                    surviving,
-                    k=k,
-                    orig_len=recipe.total_size,
-                )
-                break
-            except (ValueError, RuntimeError):
-                if d not in surviving:
-                    surviving.append(d)
+        # Honest fountain recovery: decode ONLY from surviving droplets
+        if not surviving:
+            raise RuntimeError(f"Fountain decode failed for root {root_hash}: 0 surviving droplets under loss {simulated_loss}")
 
-        if reconstructed is None:
-            raise RuntimeError(f"Fountain decode failed for root {root_hash}")
+        try:
+            reconstructed = self.codec.decode(
+                surviving,
+                k=k,
+                orig_len=recipe.total_size,
+            )
+        except (ValueError, RuntimeError) as exc:
+            raise RuntimeError(
+                f"Fountain decode failed for root {root_hash} with {len(surviving)}/{len(droplets)} surviving droplets (k={k}): {exc}"
+            ) from exc
 
         # Verify hash integrity
         _, check_chunks = self.chunker.create_recipe(reconstructed)
