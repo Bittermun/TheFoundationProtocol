@@ -45,14 +45,27 @@ class MediaManifest:
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> MediaManifest:
+        chunk_hashes = list(d["chunk_hashes"])
+        chunk_sizes = [int(s) for s in d["chunk_sizes"]]
+        chunk_count = int(d["chunk_count"])
+        total_size = int(d["total_size"])
+        if chunk_count != len(chunk_hashes) or chunk_count != len(chunk_sizes):
+            raise ValueError(
+                f"Manifest chunk_count ({chunk_count}) does not match chunk_hashes length ({len(chunk_hashes)}) "
+                f"or chunk_sizes length ({len(chunk_sizes)})"
+            )
+        if sum(chunk_sizes) != total_size:
+            raise ValueError(
+                f"Manifest total_size ({total_size}) does not match sum of chunk_sizes ({sum(chunk_sizes)})"
+            )
         return cls(
             manifest_id=d["manifest_id"],
             media_type=d.get("media_type", "application/octet-stream"),
-            total_size=int(d["total_size"]),
-            chunk_count=int(d["chunk_count"]),
+            total_size=total_size,
+            chunk_count=chunk_count,
             merkle_root=d["merkle_root"],
-            chunk_hashes=list(d["chunk_hashes"]),
-            chunk_sizes=list(d["chunk_sizes"]),
+            chunk_hashes=chunk_hashes,
+            chunk_sizes=chunk_sizes,
             metadata=dict(d.get("metadata", {})),
         )
 

@@ -67,6 +67,7 @@ class FountainStreamReceiver:
         verify_tag: bool = True,
         max_sessions: int = 32,
         max_droplets_per_chunk: int = 512,
+        max_chunks_per_session: int = 128,
         session_ttl_seconds: float = 600.0,
     ):
         self.symbol_size = symbol_size
@@ -74,6 +75,7 @@ class FountainStreamReceiver:
         self.verify_tag = verify_tag
         self.max_sessions = max_sessions
         self.max_droplets_per_chunk = max_droplets_per_chunk
+        self.max_chunks_per_session = max_chunks_per_session
         self.session_ttl_seconds = session_ttl_seconds
         self.codec = FountainCodec(symbol_size=symbol_size)
 
@@ -222,6 +224,21 @@ class FountainStreamReceiver:
             self.stats.packets_duplicate += 1
             return None
 
+        # Strict single-transfer bounding:
+        target_m = self.received_manifests.get(session_id)
+        if target_m is not None:
+            if chunk_idx < 0 or chunk_idx >= target_m.chunk_count:
+                # Reject packet: out-of-bounds chunk index for known manifest
+                return None
+        else:
+            # Manifest not yet received: bound total distinct chunks per session
+            active_chunk_indices = set(session_chunks.keys()) | {
+                c_idx for (s_id, c_idx) in self._droplet_buffers if s_id == session_id
+            }
+            if chunk_idx not in active_chunk_indices and len(active_chunk_indices) >= self.max_chunks_per_session:
+                # Reject packet: exceeded maximum untrusted chunk allocations in session
+                return None
+
         buf_key = (session_id, chunk_idx)
         if buf_key not in self._droplet_buffers:
             self._droplet_buffers[buf_key] = {}
@@ -291,6 +308,24 @@ class FountainStreamReceiver:
                 self.received_manifests[sess_id] = manifest
                 self.latest_manifest = manifest
                 self._last_active_session = sess_id
+
+                # Prune any speculative out-of-bounds chunk buffers for this session
+                stale_keys = [
+                    k for k in self._droplet_buffers
+                    if k[0] == sess_id and (k[1] < 0 or k[1] >= manifest.chunk_count)
+                ]
+                for k in stale_keys:
+                    self._droplet_buffers.pop(k, None)
+                    self._chunk_meta.pop(k, None)
+
+                session_reconstructed = self.reconstructed_chunks_by_session.get(sess_id, {})
+                stale_chunks = [
+                    c_idx for c_idx in session_reconstructed
+                    if c_idx < 0 or c_idx >= manifest.chunk_count
+                ]
+                for c_idx in stale_chunks:
+                    session_reconstructed.pop(c_idx, None)
+
                 return (-1, b"")
             except AntiPollutionError:
                 self.stats.packets_rejected_auth += 1

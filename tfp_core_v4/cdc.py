@@ -95,15 +95,43 @@ class ChunkRecipe:
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
+    def compute_root_hash(self) -> str:
+        """Calculate deterministic root hash over the sequence of chunk hashes."""
+        hasher = hashlib.sha3_256()
+        for h in self.chunk_hashes:
+            hasher.update(h.encode("utf-8"))
+        return hasher.hexdigest()
+
+    def validate(self, expected_root: str | None = None) -> bool:
+        """
+        Validate structural integrity and hash identity:
+        1. chunk_hashes and chunk_sizes lengths match
+        2. sum(chunk_sizes) == total_size
+        3. computed root hash over ordered chunk hashes matches self.root_hash (and expected_root if provided)
+        """
+        if len(self.chunk_hashes) != len(self.chunk_sizes):
+            return False
+        if sum(self.chunk_sizes) != self.total_size:
+            return False
+        computed = self.compute_root_hash()
+        if not hmac.compare_digest(computed, self.root_hash):
+            return False
+        if expected_root is not None and not hmac.compare_digest(computed, expected_root):
+            return False
+        return True
+
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "ChunkRecipe":
-        return cls(
+        rec = cls(
             root_hash=data["root_hash"],
             total_size=data["total_size"],
-            chunk_hashes=data["chunk_hashes"],
-            chunk_sizes=data["chunk_sizes"],
-            metadata=data.get("metadata", {}),
+            chunk_hashes=list(data["chunk_hashes"]),
+            chunk_sizes=list(data["chunk_sizes"]),
+            metadata=dict(data.get("metadata", {})),
         )
+        if not rec.validate(expected_root=rec.root_hash):
+            raise ValueError(f"Invalid recipe data: chunk sequence does not match root_hash {rec.root_hash}")
+        return rec
 
 
 class ContentDefinedChunker:
@@ -214,6 +242,8 @@ class ContentDefinedChunker:
     @staticmethod
     def assemble(recipe: ChunkRecipe, chunk_map: dict[str, bytes]) -> bytes:
         """Bit-exact assembly of chunks according to recipe."""
+        if not recipe.validate():
+            raise ValueError(f"Invalid recipe: sequence of chunk hashes does not match root_hash {recipe.root_hash}")
         assembled = bytearray()
         for expected_hash, size in zip(recipe.chunk_hashes, recipe.chunk_sizes):
             if expected_hash not in chunk_map:

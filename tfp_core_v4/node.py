@@ -172,13 +172,22 @@ class TFPNode:
                 return False
 
             r_hash, total_size, hashes_json, sizes_json, meta_json = row
-            recipe = ChunkRecipe(
-                root_hash=r_hash,
-                total_size=total_size,
-                chunk_hashes=json.loads(hashes_json),
-                chunk_sizes=json.loads(sizes_json),
-                metadata=json.loads(meta_json) if meta_json else {},
-            )
+            try:
+                recipe = ChunkRecipe(
+                    root_hash=r_hash,
+                    total_size=total_size,
+                    chunk_hashes=json.loads(hashes_json),
+                    chunk_sizes=json.loads(sizes_json),
+                    metadata=json.loads(meta_json) if meta_json else {},
+                )
+            except Exception as exc:
+                log.warning(f"Malformed recipe JSON in DB for root {root_hash}: {exc}")
+                return False
+
+            if not recipe.validate(expected_root=root_hash):
+                log.warning(f"Recipe validation failed for root {root_hash}: chunk sequence does not match root")
+                return False
+
             self.recipes[r_hash] = recipe
 
             # Load chunks
@@ -284,6 +293,8 @@ class TFPNode:
                 raise KeyError(f"Content root hash {root_hash} not found on this node")
 
         recipe = self.recipes[root_hash]
+        if not recipe.validate(expected_root=root_hash):
+            raise ValueError(f"Stored recipe chunk sequence does not match root hash {root_hash}")
 
         # 1. Fast path: Direct assembly from locally stored verified chunks
         all_chunks_present = all(chash in self.chunk_store for chash in recipe.chunk_hashes)
@@ -292,12 +303,19 @@ class TFPNode:
             verified = True
             for chash, csize in zip(recipe.chunk_hashes, recipe.chunk_sizes):
                 cdata = self.chunk_store[chash]
-                if len(cdata) != csize or hashlib.sha3_256(cdata).hexdigest() != chash:
+                if len(cdata) != csize or not hmac.compare_digest(hashlib.sha3_256(cdata).hexdigest(), chash):
                     verified = False
                     break
                 assembled.extend(cdata)
 
             if verified and len(assembled) == recipe.total_size:
+                hasher = hashlib.sha3_256()
+                for chash in recipe.chunk_hashes:
+                    hasher.update(chash.encode("utf-8"))
+                computed_root = hasher.hexdigest()
+                if not hmac.compare_digest(computed_root, root_hash):
+                    raise ValueError(f"Content root hash mismatch during fast-path assembly: {computed_root} != {root_hash}")
+
                 self.telemetry["successful_reconstructions"] += 1
                 return bytes(assembled)
 
@@ -375,13 +393,20 @@ class TFPNode:
                 )
                 for r_hash, total_size, hashes_json, sizes_json, meta_json in cursor.fetchall():
                     if r_hash not in recipes:
-                        recipes[r_hash] = ChunkRecipe(
-                            root_hash=r_hash,
-                            total_size=total_size,
-                            chunk_hashes=json.loads(hashes_json),
-                            chunk_sizes=json.loads(sizes_json),
-                            metadata=json.loads(meta_json) if meta_json else {},
-                        )
+                        try:
+                            rec = ChunkRecipe(
+                                root_hash=r_hash,
+                                total_size=total_size,
+                                chunk_hashes=json.loads(hashes_json),
+                                chunk_sizes=json.loads(sizes_json),
+                                metadata=json.loads(meta_json) if meta_json else {},
+                            )
+                            if rec.validate(expected_root=r_hash):
+                                recipes[r_hash] = rec
+                            else:
+                                log.warning(f"Corrupted recipe skipped in DB for root {r_hash}")
+                        except Exception as exc:
+                            log.warning(f"Malformed recipe JSON skipped in DB for root {r_hash}: {exc}")
             finally:
                 conn.close()
         return list(recipes.values())

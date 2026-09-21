@@ -1,12 +1,12 @@
 {
   "stats": {
     "production_files": 307,
-    "production_loc": 52026,
+    "production_loc": 52154,
     "production_classes": 469,
-    "production_functions": 2580,
-    "test_files": 84,
-    "test_functions": 654,
-    "total_symbols": 3925
+    "production_functions": 2583,
+    "test_files": 87,
+    "test_functions": 663,
+    "total_symbols": 3937
   },
   "files": {
     "benchmark_comparative.py": {
@@ -10407,6 +10407,86 @@
         }
       ]
     },
+    "tests/test_package_asset_resolution.py": {
+      "loc": 48,
+      "symbols": [
+        {
+          "name": "test_get_static_assets_dir_resolves_files",
+          "qualified_name": "test_get_static_assets_dir_resolves_files",
+          "kind": "function",
+          "file_path": "tests/test_package_asset_resolution.py",
+          "lineno": 23,
+          "args": [],
+          "return_type": null,
+          "docstring": "Verify that static assets directory resolves and contains required HTML files.",
+          "bases": []
+        },
+        {
+          "name": "test_cli_search_empty_database_transparency",
+          "qualified_name": "test_cli_search_empty_database_transparency",
+          "kind": "function",
+          "file_path": "tests/test_package_asset_resolution.py",
+          "lineno": 31,
+          "args": [
+            "tmp_path"
+          ],
+          "return_type": null,
+          "docstring": "Verify that an empty database triggers the explicit demo fallback notice and prefixes.",
+          "bases": []
+        },
+        {
+          "name": "test_cli_search_persisted_content_reporting",
+          "qualified_name": "test_cli_search_persisted_content_reporting",
+          "kind": "function",
+          "file_path": "tests/test_package_asset_resolution.py",
+          "lineno": 48,
+          "args": [
+            "tmp_path"
+          ],
+          "return_type": null,
+          "docstring": "Verify that a database with published articles reports real document search.",
+          "bases": []
+        }
+      ],
+      "imports": [
+        {
+          "module": "io",
+          "name": "StringIO",
+          "alias": "StringIO",
+          "lineno": 16
+        },
+        {
+          "module": "sys",
+          "name": "sys",
+          "alias": "sys",
+          "lineno": 17
+        },
+        {
+          "module": "unittest.mock",
+          "name": "patch",
+          "alias": "patch",
+          "lineno": 18
+        },
+        {
+          "module": "tfp_core_v4.cli",
+          "name": "get_static_assets_dir",
+          "alias": "get_static_assets_dir",
+          "lineno": 19
+        },
+        {
+          "module": "tfp_core_v4.cli",
+          "name": "main",
+          "alias": "main",
+          "lineno": 19
+        },
+        {
+          "module": "tfp_core_v4.node",
+          "name": "TFPNode",
+          "alias": "TFPNode",
+          "lineno": 20
+        }
+      ]
+    },
     "tests/test_playwright_visualization.py": {
       "loc": 195,
       "symbols": [
@@ -11544,6 +11624,154 @@
           "name": "FountainStreamReceiver",
           "alias": "FountainStreamReceiver",
           "lineno": 20
+        }
+      ]
+    },
+    "tests/test_receiver_single_transfer_bounds.py": {
+      "loc": 120,
+      "symbols": [
+        {
+          "name": "test_manifest_from_dict_bounds_validation",
+          "qualified_name": "test_manifest_from_dict_bounds_validation",
+          "kind": "function",
+          "file_path": "tests/test_receiver_single_transfer_bounds.py",
+          "lineno": 22,
+          "args": [],
+          "return_type": null,
+          "docstring": "Verify that MediaManifest.from_dict rejects inconsistent counts and sizes.",
+          "bases": []
+        },
+        {
+          "name": "test_receiver_single_transfer_bounds_rejects_flood",
+          "qualified_name": "test_receiver_single_transfer_bounds_rejects_flood",
+          "kind": "function",
+          "file_path": "tests/test_receiver_single_transfer_bounds.py",
+          "lineno": 49,
+          "args": [],
+          "return_type": null,
+          "docstring": "Given a 1-chunk manifest, verify that emitting 100 out-of-bounds chunk_indices",
+          "bases": []
+        },
+        {
+          "name": "test_receiver_pre_manifest_flood_bounded",
+          "qualified_name": "test_receiver_pre_manifest_flood_bounded",
+          "kind": "function",
+          "file_path": "tests/test_receiver_single_transfer_bounds.py",
+          "lineno": 93,
+          "args": [],
+          "return_type": null,
+          "docstring": "Verify that an untrusted stream without a manifest cannot allocate more than",
+          "bases": []
+        },
+        {
+          "name": "test_receiver_prunes_speculative_chunks_on_manifest_arrival",
+          "qualified_name": "test_receiver_prunes_speculative_chunks_on_manifest_arrival",
+          "kind": "function",
+          "file_path": "tests/test_receiver_single_transfer_bounds.py",
+          "lineno": 120,
+          "args": [],
+          "return_type": null,
+          "docstring": "Verify that when a manifest arrives, any speculative chunk buffers with",
+          "bases": []
+        }
+      ],
+      "imports": [
+        {
+          "module": "pytest",
+          "name": "pytest",
+          "alias": "pytest",
+          "lineno": 16
+        },
+        {
+          "module": "tfp_client.lib.media.fountain_streamer",
+          "name": "MediaDropletPacket",
+          "alias": "MediaDropletPacket",
+          "lineno": 17
+        },
+        {
+          "module": "tfp_client.lib.media.fountain_streamer",
+          "name": "serialize_manifest_packet",
+          "alias": "serialize_manifest_packet",
+          "lineno": 17
+        },
+        {
+          "module": "tfp_client.lib.media.receiver",
+          "name": "FountainStreamReceiver",
+          "alias": "FountainStreamReceiver",
+          "lineno": 18
+        },
+        {
+          "module": "tfp_client.lib.media.stream_packager",
+          "name": "MediaManifest",
+          "alias": "MediaManifest",
+          "lineno": 19
+        }
+      ]
+    },
+    "tests/test_recipe_integrity_acceptance.py": {
+      "loc": 72,
+      "symbols": [
+        {
+          "name": "test_recipe_validation_reversal_detected",
+          "qualified_name": "test_recipe_validation_reversal_detected",
+          "kind": "function",
+          "file_path": "tests/test_recipe_integrity_acceptance.py",
+          "lineno": 21,
+          "args": [],
+          "return_type": null,
+          "docstring": "Verify that reversing chunk order invalidates the recipe.",
+          "bases": []
+        },
+        {
+          "name": "test_sqlite_tampered_order_rejected_by_node_fetch",
+          "qualified_name": "test_sqlite_tampered_order_rejected_by_node_fetch",
+          "kind": "function",
+          "file_path": "tests/test_recipe_integrity_acceptance.py",
+          "lineno": 47,
+          "args": [
+            "tmp_path"
+          ],
+          "return_type": null,
+          "docstring": "Simulate an adversarial attack where SQLite chunk_hashes_json order is reversed.",
+          "bases": []
+        }
+      ],
+      "imports": [
+        {
+          "module": "json",
+          "name": "json",
+          "alias": "json",
+          "lineno": 14
+        },
+        {
+          "module": "sqlite3",
+          "name": "sqlite3",
+          "alias": "sqlite3",
+          "lineno": 15
+        },
+        {
+          "module": "pytest",
+          "name": "pytest",
+          "alias": "pytest",
+          "lineno": 16
+        },
+        {
+          "module": "tfp_core_v4.cdc",
+          "name": "ContentDefinedChunker",
+          "alias": "ContentDefinedChunker",
+          "lineno": 17
+        },
+        {
+          "module": "tfp_core_v4.cdc",
+          "name": "ChunkRecipe",
+          "alias": "ChunkRecipe",
+          "lineno": 17
+        },
+        {
+          "module": "tfp_core_v4.node",
+          "name": "TFPNode",
+          "alias": "TFPNode",
+          "lineno": 18
         }
       ]
     },
@@ -16456,7 +16684,7 @@
       ]
     },
     "tfp_core_v4/cdc.py": {
-      "loc": 191,
+      "loc": 219,
       "symbols": [
         {
           "name": "ChunkRecipe",
@@ -16481,11 +16709,35 @@
           "bases": []
         },
         {
+          "name": "compute_root_hash",
+          "qualified_name": "ChunkRecipe.compute_root_hash",
+          "kind": "function",
+          "file_path": "tfp_core_v4/cdc.py",
+          "lineno": 98,
+          "args": [],
+          "return_type": "str",
+          "docstring": "Calculate deterministic root hash over the sequence of chunk hashes.",
+          "bases": []
+        },
+        {
+          "name": "validate",
+          "qualified_name": "ChunkRecipe.validate",
+          "kind": "function",
+          "file_path": "tfp_core_v4/cdc.py",
+          "lineno": 105,
+          "args": [
+            "expected_root"
+          ],
+          "return_type": "bool",
+          "docstring": "Validate structural integrity and hash identity:",
+          "bases": []
+        },
+        {
           "name": "from_dict",
           "qualified_name": "ChunkRecipe.from_dict",
           "kind": "function",
           "file_path": "tfp_core_v4/cdc.py",
-          "lineno": 99,
+          "lineno": 124,
           "args": [
             "cls",
             "data"
@@ -16499,7 +16751,7 @@
           "qualified_name": "ContentDefinedChunker",
           "kind": "class",
           "file_path": "tfp_core_v4/cdc.py",
-          "lineno": 109,
+          "lineno": 137,
           "args": [],
           "return_type": null,
           "docstring": "FastCDC 64-bit normalized content-defined chunker.",
@@ -16510,7 +16762,7 @@
           "qualified_name": "ContentDefinedChunker.__init__",
           "kind": "function",
           "file_path": "tfp_core_v4/cdc.py",
-          "lineno": 112,
+          "lineno": 140,
           "args": [
             "min_size",
             "max_size",
@@ -16525,7 +16777,7 @@
           "qualified_name": "ContentDefinedChunker._log2",
           "kind": "function",
           "file_path": "tfp_core_v4/cdc.py",
-          "lineno": 130,
+          "lineno": 158,
           "args": [
             "n"
           ],
@@ -16538,7 +16790,7 @@
           "qualified_name": "ContentDefinedChunker.chunk",
           "kind": "function",
           "file_path": "tfp_core_v4/cdc.py",
-          "lineno": 134,
+          "lineno": 162,
           "args": [
             "data"
           ],
@@ -16551,7 +16803,7 @@
           "qualified_name": "ContentDefinedChunker.create_recipe",
           "kind": "function",
           "file_path": "tfp_core_v4/cdc.py",
-          "lineno": 193,
+          "lineno": 221,
           "args": [
             "data",
             "metadata"
@@ -16565,7 +16817,7 @@
           "qualified_name": "ContentDefinedChunker.assemble",
           "kind": "function",
           "file_path": "tfp_core_v4/cdc.py",
-          "lineno": 215,
+          "lineno": 243,
           "args": [
             "recipe",
             "chunk_map"
@@ -16610,19 +16862,30 @@
           "module": "math",
           "name": "math",
           "alias": "math",
-          "lineno": 131
+          "lineno": 159
         }
       ]
     },
     "tfp_core_v4/cli.py": {
-      "loc": 944,
+      "loc": 983,
       "symbols": [
+        {
+          "name": "get_static_assets_dir",
+          "qualified_name": "get_static_assets_dir",
+          "kind": "function",
+          "file_path": "tfp_core_v4/cli.py",
+          "lineno": 51,
+          "args": [],
+          "return_type": "Path",
+          "docstring": "Resolve static web assets directory across:",
+          "bases": []
+        },
         {
           "name": "create_visualizer_server",
           "qualified_name": "create_visualizer_server",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 51,
+          "lineno": 89,
           "args": [
             "port"
           ],
@@ -16635,7 +16898,7 @@
           "qualified_name": "persist_bundle",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 163,
+          "lineno": 201,
           "args": [
             "bundle_to_save"
           ],
@@ -16648,7 +16911,7 @@
           "qualified_name": "generate_live_protocol_telemetry",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 218,
+          "lineno": 256,
           "args": [],
           "return_type": "dict[str, Any]",
           "docstring": null,
@@ -16659,7 +16922,7 @@
           "qualified_name": "VisualizerHandler",
           "kind": "class",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 293,
+          "lineno": 331,
           "args": [],
           "return_type": null,
           "docstring": null,
@@ -16672,7 +16935,7 @@
           "qualified_name": "VisualizerHandler.__init__",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 294,
+          "lineno": 332,
           "args": [],
           "return_type": null,
           "docstring": null,
@@ -16683,7 +16946,7 @@
           "qualified_name": "VisualizerHandler._send_json",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 297,
+          "lineno": 335,
           "args": [
             "data",
             "status"
@@ -16697,7 +16960,7 @@
           "qualified_name": "VisualizerHandler.do_OPTIONS",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 306,
+          "lineno": 344,
           "args": [],
           "return_type": null,
           "docstring": null,
@@ -16708,7 +16971,7 @@
           "qualified_name": "VisualizerHandler.do_GET",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 313,
+          "lineno": 351,
           "args": [],
           "return_type": null,
           "docstring": null,
@@ -16719,7 +16982,7 @@
           "qualified_name": "VisualizerHandler.do_POST",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 408,
+          "lineno": 446,
           "args": [],
           "return_type": null,
           "docstring": null,
@@ -16730,7 +16993,7 @@
           "qualified_name": "VisualizerHandler.run_short",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 454,
+          "lineno": 492,
           "args": [],
           "return_type": null,
           "docstring": null,
@@ -16741,7 +17004,7 @@
           "qualified_name": "VisualizerHandler.run_audio",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 468,
+          "lineno": 506,
           "args": [],
           "return_type": null,
           "docstring": null,
@@ -16752,7 +17015,7 @@
           "qualified_name": "VisualizerHandler.run_video",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 482,
+          "lineno": 520,
           "args": [],
           "return_type": null,
           "docstring": null,
@@ -16763,7 +17026,7 @@
           "qualified_name": "VisualizerHandler.run_atlas",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 496,
+          "lineno": 534,
           "args": [],
           "return_type": null,
           "docstring": null,
@@ -16774,7 +17037,7 @@
           "qualified_name": "VisualizerHandler.run_upload",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 525,
+          "lineno": 563,
           "args": [],
           "return_type": null,
           "docstring": null,
@@ -16785,7 +17048,7 @@
           "qualified_name": "VisualizerHandler._stream_events",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 544,
+          "lineno": 582,
           "args": [],
           "return_type": null,
           "docstring": null,
@@ -16796,7 +17059,7 @@
           "qualified_name": "VisualizerHandler.listener",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 547,
+          "lineno": 585,
           "args": [
             "ev"
           ],
@@ -16809,7 +17072,7 @@
           "qualified_name": "VisualizerHandler._init_run",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 558,
+          "lineno": 596,
           "args": [],
           "return_type": null,
           "docstring": null,
@@ -16820,7 +17083,7 @@
           "qualified_name": "VisualizerHandler._send_sse",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 587,
+          "lineno": 625,
           "args": [
             "event",
             "data"
@@ -16834,7 +17097,7 @@
           "qualified_name": "VisualizerHandler.log_message",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 595,
+          "lineno": 633,
           "args": [
             "format"
           ],
@@ -16847,7 +17110,7 @@
           "qualified_name": "ThreadedTCPServer",
           "kind": "class",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 598,
+          "lineno": 636,
           "args": [],
           "return_type": null,
           "docstring": null,
@@ -16861,8 +17124,10 @@
           "qualified_name": "main",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 607,
-          "args": [],
+          "lineno": 645,
+          "args": [
+            "argv"
+          ],
           "return_type": null,
           "docstring": null,
           "bases": []
@@ -16872,7 +17137,7 @@
           "qualified_name": "AcousticHandler",
           "kind": "class",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 926,
+          "lineno": 970,
           "args": [],
           "return_type": null,
           "docstring": null,
@@ -16885,7 +17150,7 @@
           "qualified_name": "AcousticHandler.__init__",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 927,
+          "lineno": 971,
           "args": [],
           "return_type": null,
           "docstring": null,
@@ -16896,7 +17161,7 @@
           "qualified_name": "AcousticHandler.do_GET",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 930,
+          "lineno": 974,
           "args": [],
           "return_type": null,
           "docstring": null,
@@ -16907,7 +17172,7 @@
           "qualified_name": "AcousticHandler.log_message",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 935,
+          "lineno": 979,
           "args": [
             "format"
           ],
@@ -17062,94 +17327,100 @@
           "lineno": 48
         },
         {
+          "module": "importlib.resources",
+          "name": "importlib.resources",
+          "alias": "pkg_resources",
+          "lineno": 59
+        },
+        {
           "module": "http.server",
           "name": "http.server",
           "alias": "http.server",
-          "lineno": 53
+          "lineno": 91
         },
         {
           "module": "queue",
           "name": "queue",
           "alias": "queue",
-          "lineno": 54
+          "lineno": 92
         },
         {
           "module": "socketserver",
           "name": "socketserver",
           "alias": "socketserver",
-          "lineno": 55
+          "lineno": 93
         },
         {
           "module": "threading",
           "name": "threading",
           "alias": "threading",
-          "lineno": 56
+          "lineno": 94
         },
         {
           "module": "tfp_client.lib.media.live_streamer",
           "name": "LiveTransmissionEngine",
           "alias": "LiveTransmissionEngine",
-          "lineno": 58
+          "lineno": 96
         },
         {
           "module": "tfp_client.lib.media.telemetry_events",
           "name": "TelemetryEventBus",
           "alias": "TelemetryEventBus",
-          "lineno": 59
+          "lineno": 97
         },
         {
           "module": "scripts.run_mesh_simulation",
           "name": "run_simulation",
           "alias": "run_simulation",
-          "lineno": 803
+          "lineno": 847
         },
         {
           "module": "webbrowser",
           "name": "webbrowser",
           "alias": "webbrowser",
-          "lineno": 807
+          "lineno": 851
         },
         {
           "module": "http.server",
           "name": "http.server",
           "alias": "http.server",
-          "lineno": 920
+          "lineno": 964
         },
         {
           "module": "socketserver",
           "name": "socketserver",
           "alias": "socketserver",
-          "lineno": 921
+          "lineno": 965
         },
         {
           "module": "webbrowser",
           "name": "webbrowser",
           "alias": "webbrowser",
-          "lineno": 922
+          "lineno": 966
         },
         {
           "module": "tfp_core_v4.audio_scholar",
           "name": "AudioScholarDaemon",
           "alias": "AudioScholarDaemon",
-          "lineno": 960
+          "lineno": 1004
         },
         {
           "module": "tfp_client.lib.ingest.article_packager",
           "name": "PackagedArticleBundle",
           "alias": "PackagedArticleBundle",
-          "lineno": 1005
+          "lineno": 1049
         },
         {
           "module": "tfp_client.lib.ingest.zim_exporter",
           "name": "ZimDirectoryExporter",
           "alias": "ZimDirectoryExporter",
-          "lineno": 1006
+          "lineno": 1050
         },
         {
           "module": "tfp_client.lib.audio.voice_memo",
           "name": "VoiceMemo",
           "alias": "VoiceMemo",
-          "lineno": 1062
+          "lineno": 1106
         }
       ]
     },
@@ -17746,7 +18017,7 @@
       ]
     },
     "tfp_core_v4/node.py": {
-      "loc": 336,
+      "loc": 358,
       "symbols": [
         {
           "name": "TFPNode",
@@ -17821,7 +18092,7 @@
           "qualified_name": "TFPNode.publish",
           "kind": "function",
           "file_path": "tfp_core_v4/node.py",
-          "lineno": 216,
+          "lineno": 225,
           "args": [
             "data",
             "metadata",
@@ -17836,7 +18107,7 @@
           "qualified_name": "TFPNode.fetch",
           "kind": "function",
           "file_path": "tfp_core_v4/node.py",
-          "lineno": 272,
+          "lineno": 281,
           "args": [
             "root_hash",
             "simulated_loss",
@@ -17851,7 +18122,7 @@
           "qualified_name": "TFPNode.inspect_recipe",
           "kind": "function",
           "file_path": "tfp_core_v4/node.py",
-          "lineno": 349,
+          "lineno": 367,
           "args": [
             "root_hash"
           ],
@@ -17864,7 +18135,7 @@
           "qualified_name": "TFPNode.list_recipes",
           "kind": "function",
           "file_path": "tfp_core_v4/node.py",
-          "lineno": 366,
+          "lineno": 384,
           "args": [],
           "return_type": "list[ChunkRecipe]",
           "docstring": "Return all recipes stored in memory and in the persistent SQLite database.",
@@ -17875,7 +18146,7 @@
           "qualified_name": "TFPNode.get_telemetry",
           "kind": "function",
           "file_path": "tfp_core_v4/node.py",
-          "lineno": 389,
+          "lineno": 414,
           "args": [],
           "return_type": "dict[str, Any]",
           "docstring": "Return real deduplication and throughput metrics.",
@@ -57877,7 +58148,7 @@
       ]
     },
     "tfp-foundation-protocol/tfp_client/lib/media/receiver.py": {
-      "loc": 318,
+      "loc": 344,
       "symbols": [
         {
           "name": "ReceiverStats",
@@ -57913,6 +58184,7 @@
             "verify_tag",
             "max_sessions",
             "max_droplets_per_chunk",
+            "max_chunks_per_session",
             "session_ttl_seconds"
           ],
           "return_type": null,
@@ -57924,7 +58196,7 @@
           "qualified_name": "FountainStreamReceiver.reconstructed_chunks",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py",
-          "lineno": 94,
+          "lineno": 96,
           "args": [],
           "return_type": "Dict[int, bytes]",
           "docstring": "Backwards-compatible view of reconstructed chunks for the most active / recent session.",
@@ -57935,7 +58207,7 @@
           "qualified_name": "FountainStreamReceiver.derive_session_id",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py",
-          "lineno": 106,
+          "lineno": 108,
           "args": [
             "manifest"
           ],
@@ -57948,7 +58220,7 @@
           "qualified_name": "FountainStreamReceiver._evict_stale_or_excess_sessions",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py",
-          "lineno": 113,
+          "lineno": 115,
           "args": [
             "incoming_session"
           ],
@@ -57961,7 +58233,7 @@
           "qualified_name": "FountainStreamReceiver.reset",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py",
-          "lineno": 146,
+          "lineno": 148,
           "args": [
             "session_id"
           ],
@@ -57974,7 +58246,7 @@
           "qualified_name": "FountainStreamReceiver.ingest_packet",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py",
-          "lineno": 175,
+          "lineno": 177,
           "args": [
             "pkt"
           ],
@@ -57987,7 +58259,7 @@
           "qualified_name": "FountainStreamReceiver.ingest_bytes",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py",
-          "lineno": 272,
+          "lineno": 289,
           "args": [
             "raw_bytes"
           ],
@@ -58000,7 +58272,7 @@
           "qualified_name": "FountainStreamReceiver.is_complete",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py",
-          "lineno": 316,
+          "lineno": 351,
           "args": [
             "manifest",
             "session_id"
@@ -58014,7 +58286,7 @@
           "qualified_name": "FountainStreamReceiver.assemble",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py",
-          "lineno": 332,
+          "lineno": 367,
           "args": [
             "manifest",
             "session_id"
@@ -58028,7 +58300,7 @@
           "qualified_name": "FountainStreamReceiver.listen_udp",
           "kind": "async_function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py",
-          "lineno": 356,
+          "lineno": 391,
           "args": [
             "host",
             "port",
@@ -58212,7 +58484,7 @@
       ]
     },
     "tfp-foundation-protocol/tfp_client/lib/media/stream_packager.py": {
-      "loc": 132,
+      "loc": 145,
       "symbols": [
         {
           "name": "MediaManifest",
@@ -58255,7 +58527,7 @@
           "qualified_name": "MediaManifest.to_json",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/stream_packager.py",
-          "lineno": 59,
+          "lineno": 72,
           "args": [],
           "return_type": "str",
           "docstring": null,
@@ -58266,7 +58538,7 @@
           "qualified_name": "MediaManifest.from_json",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/stream_packager.py",
-          "lineno": 63,
+          "lineno": 76,
           "args": [
             "cls",
             "json_str"
@@ -58280,7 +58552,7 @@
           "qualified_name": "MediaManifest.to_bytes",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/stream_packager.py",
-          "lineno": 66,
+          "lineno": 79,
           "args": [],
           "return_type": "bytes",
           "docstring": null,
@@ -58291,7 +58563,7 @@
           "qualified_name": "MediaManifest.from_bytes",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/stream_packager.py",
-          "lineno": 70,
+          "lineno": 83,
           "args": [
             "cls",
             "raw"
@@ -58305,7 +58577,7 @@
           "qualified_name": "MediaStreamPackager",
           "kind": "class",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/stream_packager.py",
-          "lineno": 74,
+          "lineno": 87,
           "args": [],
           "return_type": null,
           "docstring": "Packages continuous or segmented media payloads into content-defined chunks",
@@ -58316,7 +58588,7 @@
           "qualified_name": "MediaStreamPackager.__init__",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/stream_packager.py",
-          "lineno": 80,
+          "lineno": 93,
           "args": [
             "min_chunk_size",
             "target_chunk_size",
@@ -58331,7 +58603,7 @@
           "qualified_name": "MediaStreamPackager.package",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/stream_packager.py",
-          "lineno": 92,
+          "lineno": 105,
           "args": [
             "media_data",
             "media_type",
@@ -58346,7 +58618,7 @@
           "qualified_name": "MediaStreamPackager.verify_chunk",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/stream_packager.py",
-          "lineno": 132,
+          "lineno": 145,
           "args": [
             "chunk",
             "chunk_index",
@@ -58362,7 +58634,7 @@
           "qualified_name": "MediaStreamPackager.assemble",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/stream_packager.py",
-          "lineno": 155,
+          "lineno": 168,
           "args": [
             "manifest",
             "chunk_map"

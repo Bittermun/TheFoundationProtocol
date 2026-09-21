@@ -48,6 +48,44 @@ from tfp_client.lib.search.hybrid_search import HybridSearchEngine
 from tfp_core_v4.node import TFPNode
 
 
+def get_static_assets_dir() -> Path:
+    """
+    Resolve static web assets directory across:
+    1. importlib.resources for installed wheel/package distributions
+    2. Local checkout paths (_repo_root / "tfp-foundation-protocol" / "tfp_demo" / "static")
+    3. Direct parent search fallback across sys.path
+    """
+    try:
+        import importlib.resources as pkg_resources
+        res = pkg_resources.files("tfp_demo").joinpath("static")
+        p = Path(str(res))
+        if p.is_dir() and (p / "visualizer.html").exists():
+            return p
+    except Exception:
+        pass
+
+    candidates = [
+        _tfp_root / "tfp_demo" / "static",
+        _repo_root / "tfp-foundation-protocol" / "tfp_demo" / "static",
+        _repo_root / "tfp_demo" / "static",
+        Path(__file__).resolve().parent.parent / "tfp-foundation-protocol" / "tfp_demo" / "static",
+        Path.cwd() / "tfp-foundation-protocol" / "tfp_demo" / "static",
+    ]
+    for c in candidates:
+        if c.is_dir() and (c / "visualizer.html").exists():
+            return c
+
+    for sp in sys.path:
+        c1 = Path(sp) / "tfp_demo" / "static"
+        if c1.is_dir() and (c1 / "visualizer.html").exists():
+            return c1
+        c2 = Path(sp) / "tfp-foundation-protocol" / "tfp_demo" / "static"
+        if c2.is_dir() and (c2 / "visualizer.html").exists():
+            return c2
+
+    raise FileNotFoundError("Could not locate tfp_demo static assets directory.")
+
+
 def create_visualizer_server(port: int = 8080) -> tuple[Any, int]:
     """Creates a configured TCPServer instance for the visualizer dashboard."""
     import http.server
@@ -58,7 +96,7 @@ def create_visualizer_server(port: int = 8080) -> tuple[Any, int]:
     from tfp_client.lib.media.live_streamer import LiveTransmissionEngine
     from tfp_client.lib.media.telemetry_events import TelemetryEventBus
 
-    static_dir = _tfp_root / "tfp_demo" / "static"
+    static_dir = get_static_assets_dir()
     html_file = static_dir / "visualizer.html"
     if not html_file.exists():
         raise FileNotFoundError(f"Visualizer HTML not found at {html_file}")
@@ -604,7 +642,7 @@ Initiate active core rewarming with warmed IV saline at 39 degrees C.
     return server, actual_port
 
 
-def main():
+def main(argv: list[str] | None = None):
     parser = argparse.ArgumentParser(
         prog="tfp",
         description="The Foundation Protocol (TFP v4.0) Unified CLI",
@@ -630,6 +668,7 @@ def main():
     search_p = subparsers.add_parser("search", help="Execute hybrid BM25 + MinHash search")
     search_p.add_argument("query", help="Text search query")
     search_p.add_argument("--top-k", type=int, default=5, help="Maximum number of results to return (default: 5)")
+    search_p.add_argument("--db", dest="search_db", default=None, help="Path to persistent SQLite node storage")
 
     # Fetch
     fetch_p = subparsers.add_parser("fetch", help="Fetch content by root hash")
@@ -694,7 +733,7 @@ def main():
     # Verify
     subparsers.add_parser("verify", help="Run automated self-verification test battery")
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     if args.command == "publish":
         path = Path(args.file_path)
@@ -758,7 +797,8 @@ def main():
         print("[TFP RADIO] CRC16 verified; reassembly succeeded: 100% MATCH.")
 
     elif args.command == "search":
-        node = TFPNode(db_path=args.db)
+        db_target = getattr(args, "search_db", None) or getattr(args, "db", None)
+        node = TFPNode(db_path=db_target)
         recipes = node.list_recipes()
 
         engine = HybridSearchEngine()
@@ -786,13 +826,17 @@ def main():
             indexed_count += 1
 
         if indexed_count == 0:
-            engine.add_document("doc1", "Emergency field manual for water purification and sanitation.")
-            engine.add_document("doc2", "Triage protocols for trauma and hypothermia resuscitation.")
-            engine.add_document("doc3", "LoRa physical layer modulation and packet radio framing.")
+            db_label = db_target or "local node database"
+            print(f"[TFP SEARCH] Notice: 0 published articles found in '{db_label}'. Searching built-in emergency demonstration corpus:")
+            engine.add_document("[DEMO] doc1", "Emergency field manual for water purification and sanitation.")
+            engine.add_document("[DEMO] doc2", "Triage protocols for trauma and hypothermia resuscitation.")
+            engine.add_document("[DEMO] doc3", "LoRa physical layer modulation and packet radio framing.")
+        else:
+            print(f"[TFP SEARCH] Indexed {indexed_count} persisted document(s) from '{db_target}'.")
 
         top_k = getattr(args, "top_k", 5)
         results = engine.search(args.query, top_k=top_k)
-        print(f"[TFP SEARCH] Found {len(results)} matches for '{args.query}':")
+        print(f"[TFP SEARCH] Found {len(results)} match(es) for '{args.query}':")
         for r in results:
             snippet = r.content.strip().replace("\n", " ")
             if len(snippet) > 120:
@@ -921,7 +965,7 @@ def main():
         import socketserver
         import webbrowser
 
-        static_dir = _repo_root / "tfp-foundation-protocol" / "tfp_demo" / "static"
+        static_dir = get_static_assets_dir()
 
         class AcousticHandler(http.server.SimpleHTTPRequestHandler):
             def __init__(self, *a, **kw):
