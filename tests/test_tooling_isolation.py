@@ -257,11 +257,11 @@ class TestToolingIsolation:
                 # Verify CLI main entry point exists
                 assert "tfp_cli/main.py" in names, "Wheel missing console script target tfp_cli/main.py!"
 
-                # Verify entry_points.txt specifies tfp = tfp_cli.main:main
+                # Verify entry_points.txt specifies tfp = tfp_core_v4.cli:main
                 entry_points = [n for n in names if n.endswith("entry_points.txt")]
                 assert entry_points, "Wheel missing entry_points.txt"
                 ep_content = zf.read(entry_points[0]).decode("utf-8")
-                assert "tfp = tfp_cli.main:main" in ep_content, "entry_points.txt missing tfp = tfp_cli.main:main"
+                assert "tfp = tfp_core_v4.cli:main" in ep_content, "entry_points.txt missing tfp = tfp_core_v4.cli:main"
 
                 # Check for leaked test files and testbeds
                 leaked_test_files = [

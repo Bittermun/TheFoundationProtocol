@@ -139,10 +139,23 @@ class AudioScholarDaemon:
 
     def ingest_raw_packet(self, raw_data: bytes) -> tuple[int, bytes] | None:
         """
-        Ingests a raw UDP packet, unmarshals MediaDropletPacket, feeds into
+        Ingests a raw UDP packet, unmarshals manifests and MediaDropletPackets, feeds into
         FountainStreamReceiver, and triggers speech triage upon Rank K completion.
         """
         self.total_packets_received += 1
+
+        # 1. Check for Manifest announcement packet (FM)
+        if raw_data.startswith(b"FM"):
+            res = self.receiver.ingest_bytes(raw_data)
+            if res is not None:
+                self.event_bus.emit(
+                    "scholar_manifest_received",
+                    session_id=self.receiver._last_active_session,
+                )
+                log.info(f"[AudioScholar] Manifest registered for session {self.receiver._last_active_session}")
+            return res
+
+        # 2. Media droplet packet (FD)
         try:
             pkt = MediaDropletPacket.from_bytes(raw_data, secret_key=self.secret_key)
         except (ValueError, KeyError, struct.error, OSError) as exc:
@@ -160,11 +173,27 @@ class AudioScholarDaemon:
         if res is not None:
             chunk_idx, reconstructed_chunk = res
             self.reconstructed_payloads.append(reconstructed_chunk)
-            log.info(
-                f"[AudioScholar] Chunk {chunk_idx} Reconstructed! "
-                f"({len(reconstructed_chunk)} bytes). Processing acoustic output..."
-            )
-            self._process_reconstructed_content(reconstructed_chunk)
+
+            # Check if this session has a multi-chunk manifest that is now complete
+            target_m = self.receiver.received_manifests.get(pkt.session_id)
+            if target_m and target_m.chunk_count > 1:
+                if self.receiver.is_complete(target_m, session_id=pkt.session_id):
+                    try:
+                        full_payload = self.receiver.assemble(target_m, session_id=pkt.session_id)
+                        log.info(
+                            f"[AudioScholar] Complete Multi-Chunk Guide Assembled ({len(full_payload)} bytes)! "
+                            "Processing acoustic output..."
+                        )
+                        self._process_reconstructed_content(full_payload)
+                    except Exception as e:
+                        log.warning(f"[AudioScholar] Assembly failed: {e}")
+                        self._process_reconstructed_content(reconstructed_chunk)
+            else:
+                log.info(
+                    f"[AudioScholar] Chunk {chunk_idx} Reconstructed! "
+                    f"({len(reconstructed_chunk)} bytes). Processing acoustic output..."
+                )
+                self._process_reconstructed_content(reconstructed_chunk)
             return res
         return None
 

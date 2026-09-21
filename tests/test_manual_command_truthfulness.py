@@ -16,13 +16,13 @@ demo_server = _smoke.demo_server
 
 
 @pytest.mark.parametrize("command", ["fetch", "inspect"])
-def test_unimplemented_v4_action_reports_failure(command, tmp_path):
+def test_nonexistent_v4_action_reports_failure(command, tmp_path):
     args = [sys.executable, "-m", "tfp_core_v4.cli", command, "0" * 64]
     if command == "fetch":
         args += ["--output", str(tmp_path / "output.bin")]
     result = subprocess.run(args, capture_output=True, text=True, timeout=10)
     assert result.returncode != 0
-    assert "not implemented" in result.stderr.lower()
+    assert "not found" in result.stderr.lower() or "no recipe" in result.stderr.lower()
 
 
 def test_ping_succeeds_with_ascii_console():

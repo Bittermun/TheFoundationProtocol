@@ -3,27 +3,27 @@
     "protocol": "The Foundation Protocol (TFP)",
     "protocol_version": "v4.0.0",
     "schema_version": "2.0.0",
-    "generated_at": "2026-09-21T01:24:58.087695+00:00",
-    "git_commit": "b87092ee080a90fd1db5b077a99e3fcb2327776e",
+    "generated_at": "2026-09-21T01:48:20.778445+00:00",
+    "git_commit": "f43b0ee3a708802ac7ee4ce29b868dbb36c933b3",
     "git_branch": "main",
     "repository": "https://github.com/Bittermun/TheFoundationProtocol",
     "ast_engine": "Python standard library ast (deterministic zero-dependency)"
   },
   "stats": {
     "production_files": 308,
-    "production_loc": 52321,
+    "production_loc": 52377,
     "production_classes": 469,
-    "production_functions": 2586,
+    "production_functions": 2587,
     "test_files": 88,
     "test_functions": 667,
-    "total_symbols": 3944
+    "total_symbols": 3945
   },
   "package_breakdown": [
     {
       "package": "tests",
       "role": "Comprehensive test battery spanning unit, hypothesis fuzzing, acceptance, and security verification",
       "files": 149,
-      "loc": 24968,
+      "loc": 24980,
       "classes": 211,
       "functions": 1740
     },
@@ -31,9 +31,9 @@
       "package": "tfp_client",
       "role": "Client library: article ingest, Bell 202 AFSK audio modulation, vocoder, hybrid BM25/LSH search, and fountain codecs",
       "files": 103,
-      "loc": 14565,
+      "loc": 14591,
       "classes": 163,
-      "functions": 638
+      "functions": 639
     },
     {
       "package": "tfp_core",
@@ -63,7 +63,7 @@
       "package": "tfp_core_v4",
       "role": "Core protocol engine: TFPNode storage engine, ContentDefinedChunker, SQLite recipe store, and visualizer server",
       "files": 10,
-      "loc": 2757,
+      "loc": 2787,
       "classes": 16,
       "functions": 88
     },
@@ -4577,6 +4577,7 @@
         "tests/fuzz/test_adversarial_fountain_anti_pollution_challenge.py::TestSeedScheduleCollisionAndRollover.test_multi_session_orthogonality_and_cryptographic_independence",
         "tests/fuzz/test_adversarial_fuzzing.py::TestFountainDropletAndHMACTampering.test_merkle_proof_sibling_hash_tampering",
         "tests/fuzz/test_adversarial_fuzzing.py::TestFountainDropletAndHMACTampering.test_merkleized_raptorq_hmac_tampering",
+        "tests/fuzz/test_adversarial_m2_challenger_stress.py::TestFastCDCAndMerkleAdversarialChallenger.test_fastcdc_corrupted_chunk_hashes_strictly_rejected",
         "tests/fuzz/test_adversarial_m2_challenger_stress.py::TestFastCDCAndMerkleAdversarialChallenger.test_merkle_forged_root_strictly_rejected",
         "tests/fuzz/test_adversarial_m2_challenger_stress.py::TestFastCDCAndMerkleAdversarialChallenger.test_merkle_odd_and_even_leaf_counts_proof_integrity",
         "tests/fuzz/test_adversarial_m2_challenger_stress.py::TestFastCDCAndMerkleAdversarialChallenger.test_merkle_proof_tampered_siblings_rejected",
@@ -7190,7 +7191,7 @@
         "tests/test_compute_and_access.py::TestPluginAccessBoundary.test_no_drm_in_core",
         "tests/test_compute_and_access.py::TestThresholdRelease.test_contribute_signatures",
         "tests/test_compute_and_access.py::TestThresholdRelease.test_unauthorized_key",
-        "tests/test_manual_command_truthfulness.py::test_unimplemented_v4_action_reports_failure",
+        "tests/test_manual_command_truthfulness.py::test_nonexistent_v4_action_reports_failure",
         "tests/test_security.py::TestContentHeuristics.test_high_entropy_detection",
         "tests/test_security.py::TestContentHeuristics.test_mz_header_in_media",
         "tests/test_security.py::TestContentHeuristics.test_signature_detection_pe",
@@ -7562,7 +7563,7 @@
         "tests/test_credit_settlement_recovery.py::test_actual_process_exit_recovers_every_task_reward",
         "tests/test_hybrid_wallet_accounting.py::test_nonpositive_or_nonfinite_spend_is_rejected",
         "tests/test_hybrid_wallet_accounting.py::test_transfer_preserves_each_balance_and_returns_record",
-        "tests/test_manual_command_truthfulness.py::test_unimplemented_v4_action_reports_failure",
+        "tests/test_manual_command_truthfulness.py::test_nonexistent_v4_action_reports_failure",
         "tests/test_media_fountain_stream.py::test_streaming_reconstruction_under_packet_loss",
         "tfp-foundation-protocol/tests/test_e2e_flow.py::test_full_e2e_enroll_task_consensus_mint_spend_retrieve"
       ],
@@ -8769,8 +8770,8 @@
         "tests/test_cli_subcommands.py::test_cli_voice_memo_lifecycle",
         "tests/test_cli_subcommands.py::test_cli_voice_memo_missing_file",
         "tests/test_credit_settlement_recovery.py::test_actual_process_exit_recovers_every_task_reward",
+        "tests/test_manual_command_truthfulness.py::test_nonexistent_v4_action_reports_failure",
         "tests/test_manual_command_truthfulness.py::test_ping_succeeds_with_ascii_console",
-        "tests/test_manual_command_truthfulness.py::test_unimplemented_v4_action_reports_failure",
         "tests/test_real_world_validation.py::TestSecurityScorecard.test_run_security_checks",
         "tests/test_real_world_validation.py::TestSecurityScorecard.test_score_threshold_warning",
         "tests/test_tfp_core_v4.py::TestTFPCoreV4.test_invariant_5_mesh_swarm_and_origin_crash",
@@ -9698,7 +9699,7 @@
         "tests/test_e2e_distribution.py::test_full_lifecycle_e2e",
         "tests/test_honest_fountain_erasure.py::test_sub_rank_droplets_must_fail",
         "tests/test_honest_fountain_erasure.py::test_zero_received_droplets_must_fail",
-        "tests/test_manual_command_truthfulness.py::test_unimplemented_v4_action_reports_failure",
+        "tests/test_manual_command_truthfulness.py::test_nonexistent_v4_action_reports_failure",
         "tests/test_package_asset_resolution.py::test_cli_search_empty_database_transparency",
         "tests/test_package_asset_resolution.py::test_cli_search_persisted_content_reporting",
         "tests/test_playwright_visualization.py::test_acoustic_receiver_page",
@@ -10158,6 +10159,7 @@
         "tests/test_template_engine_and_telemetry.py::test_telemetry_event_bus_pub_sub"
       ],
       "update": [
+        "tests/fuzz/test_adversarial_m2_challenger_stress.py::TestFastCDCAndMerkleAdversarialChallenger.test_fastcdc_corrupted_chunk_hashes_strictly_rejected",
         "tfp-foundation-protocol/tests/test_distribution.py::TestShardManager.test_peer_selection_with_capabilities"
       ],
       "update_accuracy": [
@@ -45467,8 +45469,8 @@
       "loc": 27,
       "symbols": [
         {
-          "name": "test_unimplemented_v4_action_reports_failure",
-          "qualified_name": "test_unimplemented_v4_action_reports_failure",
+          "name": "test_nonexistent_v4_action_reports_failure",
+          "qualified_name": "test_nonexistent_v4_action_reports_failure",
           "kind": "function",
           "file_path": "tests/test_manual_command_truthfulness.py",
           "lineno": 19,
@@ -45532,25 +45534,31 @@
       ],
       "calls": [
         {
-          "caller": "test_unimplemented_v4_action_reports_failure",
+          "caller": "test_nonexistent_v4_action_reports_failure",
           "callee": "str",
           "lineno": 22,
           "file_path": "tests/test_manual_command_truthfulness.py"
         },
         {
-          "caller": "test_unimplemented_v4_action_reports_failure",
+          "caller": "test_nonexistent_v4_action_reports_failure",
           "callee": "run",
           "lineno": 23,
           "file_path": "tests/test_manual_command_truthfulness.py"
         },
         {
-          "caller": "test_unimplemented_v4_action_reports_failure",
+          "caller": "test_nonexistent_v4_action_reports_failure",
           "callee": "lower",
           "lineno": 25,
           "file_path": "tests/test_manual_command_truthfulness.py"
         },
         {
-          "caller": "test_unimplemented_v4_action_reports_failure",
+          "caller": "test_nonexistent_v4_action_reports_failure",
+          "callee": "lower",
+          "lineno": 25,
+          "file_path": "tests/test_manual_command_truthfulness.py"
+        },
+        {
+          "caller": "test_nonexistent_v4_action_reports_failure",
           "callee": "parametrize",
           "lineno": 18,
           "file_path": "tests/test_manual_command_truthfulness.py"
@@ -69365,7 +69373,7 @@
       "calls": []
     },
     "tfp_core_v4/audio_scholar.py": {
-      "loc": 279,
+      "loc": 302,
       "symbols": [
         {
           "name": "AudioScholarDaemon",
@@ -69442,7 +69450,7 @@
             "raw_data"
           ],
           "return_type": "tuple[int, bytes] | None",
-          "docstring": "Ingests a raw UDP packet, unmarshals MediaDropletPacket, feeds into",
+          "docstring": "Ingests a raw UDP packet, unmarshals manifests and MediaDropletPackets, feeds into",
           "bases": []
         },
         {
@@ -69450,7 +69458,7 @@
           "qualified_name": "AudioScholarDaemon._process_reconstructed_content",
           "kind": "function",
           "file_path": "tfp_core_v4/audio_scholar.py",
-          "lineno": 171,
+          "lineno": 200,
           "args": [
             "data"
           ],
@@ -69463,7 +69471,7 @@
           "qualified_name": "AudioScholarDaemon.extract_title_and_narration",
           "kind": "function",
           "file_path": "tfp_core_v4/audio_scholar.py",
-          "lineno": 203,
+          "lineno": 232,
           "args": [
             "data"
           ],
@@ -69476,7 +69484,7 @@
           "qualified_name": "AudioScholarDaemon.play_earcon",
           "kind": "function",
           "file_path": "tfp_core_v4/audio_scholar.py",
-          "lineno": 276,
+          "lineno": 305,
           "args": [
             "earcon_type"
           ],
@@ -69489,7 +69497,7 @@
           "qualified_name": "AudioScholarDaemon.speak",
           "kind": "function",
           "file_path": "tfp_core_v4/audio_scholar.py",
-          "lineno": 303,
+          "lineno": 332,
           "args": [
             "text"
           ],
@@ -69605,13 +69613,13 @@
           "module": "winsound",
           "name": "winsound",
           "alias": "winsound",
-          "lineno": 286
+          "lineno": 315
         },
         {
           "module": "pyttsx3",
           "name": "pyttsx3",
           "alias": "pyttsx3",
-          "lineno": 329
+          "lineno": 358
         }
       ],
       "calls": [
@@ -69731,530 +69739,602 @@
         },
         {
           "caller": "AudioScholarDaemon.ingest_raw_packet",
-          "callee": "from_bytes",
-          "lineno": 147,
+          "callee": "startswith",
+          "lineno": 148,
           "file_path": "tfp_core_v4/audio_scholar.py"
         },
         {
           "caller": "AudioScholarDaemon.ingest_raw_packet",
-          "callee": "debug",
+          "callee": "ingest_bytes",
           "lineno": 149,
           "file_path": "tfp_core_v4/audio_scholar.py"
         },
         {
           "caller": "AudioScholarDaemon.ingest_raw_packet",
           "callee": "emit",
-          "lineno": 152,
-          "file_path": "tfp_core_v4/audio_scholar.py"
-        },
-        {
-          "caller": "AudioScholarDaemon.ingest_raw_packet",
-          "callee": "ingest_packet",
-          "lineno": 159,
-          "file_path": "tfp_core_v4/audio_scholar.py"
-        },
-        {
-          "caller": "AudioScholarDaemon.ingest_raw_packet",
-          "callee": "append",
-          "lineno": 162,
+          "lineno": 151,
           "file_path": "tfp_core_v4/audio_scholar.py"
         },
         {
           "caller": "AudioScholarDaemon.ingest_raw_packet",
           "callee": "info",
-          "lineno": 163,
+          "lineno": 155,
           "file_path": "tfp_core_v4/audio_scholar.py"
         },
         {
           "caller": "AudioScholarDaemon.ingest_raw_packet",
-          "callee": "len",
+          "callee": "from_bytes",
+          "lineno": 160,
+          "file_path": "tfp_core_v4/audio_scholar.py"
+        },
+        {
+          "caller": "AudioScholarDaemon.ingest_raw_packet",
+          "callee": "debug",
+          "lineno": 162,
+          "file_path": "tfp_core_v4/audio_scholar.py"
+        },
+        {
+          "caller": "AudioScholarDaemon.ingest_raw_packet",
+          "callee": "emit",
           "lineno": 165,
           "file_path": "tfp_core_v4/audio_scholar.py"
         },
         {
           "caller": "AudioScholarDaemon.ingest_raw_packet",
+          "callee": "ingest_packet",
+          "lineno": 172,
+          "file_path": "tfp_core_v4/audio_scholar.py"
+        },
+        {
+          "caller": "AudioScholarDaemon.ingest_raw_packet",
+          "callee": "append",
+          "lineno": 175,
+          "file_path": "tfp_core_v4/audio_scholar.py"
+        },
+        {
+          "caller": "AudioScholarDaemon.ingest_raw_packet",
+          "callee": "get",
+          "lineno": 178,
+          "file_path": "tfp_core_v4/audio_scholar.py"
+        },
+        {
+          "caller": "AudioScholarDaemon.ingest_raw_packet",
+          "callee": "is_complete",
+          "lineno": 180,
+          "file_path": "tfp_core_v4/audio_scholar.py"
+        },
+        {
+          "caller": "AudioScholarDaemon.ingest_raw_packet",
+          "callee": "assemble",
+          "lineno": 182,
+          "file_path": "tfp_core_v4/audio_scholar.py"
+        },
+        {
+          "caller": "AudioScholarDaemon.ingest_raw_packet",
+          "callee": "info",
+          "lineno": 183,
+          "file_path": "tfp_core_v4/audio_scholar.py"
+        },
+        {
+          "caller": "AudioScholarDaemon.ingest_raw_packet",
+          "callee": "len",
+          "lineno": 184,
+          "file_path": "tfp_core_v4/audio_scholar.py"
+        },
+        {
+          "caller": "AudioScholarDaemon.ingest_raw_packet",
           "callee": "_process_reconstructed_content",
-          "lineno": 167,
+          "lineno": 187,
+          "file_path": "tfp_core_v4/audio_scholar.py"
+        },
+        {
+          "caller": "AudioScholarDaemon.ingest_raw_packet",
+          "callee": "warning",
+          "lineno": 189,
+          "file_path": "tfp_core_v4/audio_scholar.py"
+        },
+        {
+          "caller": "AudioScholarDaemon.ingest_raw_packet",
+          "callee": "_process_reconstructed_content",
+          "lineno": 190,
+          "file_path": "tfp_core_v4/audio_scholar.py"
+        },
+        {
+          "caller": "AudioScholarDaemon.ingest_raw_packet",
+          "callee": "info",
+          "lineno": 192,
+          "file_path": "tfp_core_v4/audio_scholar.py"
+        },
+        {
+          "caller": "AudioScholarDaemon.ingest_raw_packet",
+          "callee": "len",
+          "lineno": 194,
+          "file_path": "tfp_core_v4/audio_scholar.py"
+        },
+        {
+          "caller": "AudioScholarDaemon.ingest_raw_packet",
+          "callee": "_process_reconstructed_content",
+          "lineno": 196,
           "file_path": "tfp_core_v4/audio_scholar.py"
         },
         {
           "caller": "AudioScholarDaemon._process_reconstructed_content",
           "callee": "extract_title_and_narration",
-          "lineno": 175,
+          "lineno": 204,
           "file_path": "tfp_core_v4/audio_scholar.py"
         },
         {
           "caller": "AudioScholarDaemon._process_reconstructed_content",
           "callee": "append",
-          "lineno": 178,
+          "lineno": 207,
           "file_path": "tfp_core_v4/audio_scholar.py"
         },
         {
           "caller": "AudioScholarDaemon._process_reconstructed_content",
           "callee": "play_earcon",
-          "lineno": 182,
+          "lineno": 211,
           "file_path": "tfp_core_v4/audio_scholar.py"
         },
         {
           "caller": "AudioScholarDaemon._process_reconstructed_content",
           "callee": "speak",
-          "lineno": 185,
+          "lineno": 214,
           "file_path": "tfp_core_v4/audio_scholar.py"
         },
         {
           "caller": "AudioScholarDaemon._process_reconstructed_content",
           "callee": "emit",
-          "lineno": 188,
+          "lineno": 217,
           "file_path": "tfp_core_v4/audio_scholar.py"
         },
         {
           "caller": "AudioScholarDaemon._process_reconstructed_content",
           "callee": "len",
-          "lineno": 192,
+          "lineno": 221,
           "file_path": "tfp_core_v4/audio_scholar.py"
         },
         {
           "caller": "AudioScholarDaemon._process_reconstructed_content",
           "callee": "on_narration_callback",
-          "lineno": 198,
+          "lineno": 227,
           "file_path": "tfp_core_v4/audio_scholar.py"
         },
         {
           "caller": "AudioScholarDaemon._process_reconstructed_content",
           "callee": "warning",
-          "lineno": 200,
+          "lineno": 229,
           "file_path": "tfp_core_v4/audio_scholar.py"
         },
         {
           "caller": "AudioScholarDaemon.extract_title_and_narration",
           "callee": "decode",
-          "lineno": 209,
+          "lineno": 238,
           "file_path": "tfp_core_v4/audio_scholar.py"
         },
         {
           "caller": "AudioScholarDaemon.extract_title_and_narration",
           "callee": "decode",
-          "lineno": 212,
+          "lineno": 241,
           "file_path": "tfp_core_v4/audio_scholar.py"
         },
         {
           "caller": "AudioScholarDaemon.extract_title_and_narration",
           "callee": "debug",
-          "lineno": 214,
+          "lineno": 243,
           "file_path": "tfp_core_v4/audio_scholar.py"
         },
         {
           "caller": "AudioScholarDaemon.extract_title_and_narration",
           "callee": "lower",
-          "lineno": 218,
+          "lineno": 247,
           "file_path": "tfp_core_v4/audio_scholar.py"
         },
         {
           "caller": "AudioScholarDaemon.extract_title_and_narration",
           "callee": "lower",
-          "lineno": 218,
+          "lineno": 247,
           "file_path": "tfp_core_v4/audio_scholar.py"
         },
         {
           "caller": "AudioScholarDaemon.extract_title_and_narration",
           "callee": "lower",
-          "lineno": 218,
+          "lineno": 247,
           "file_path": "tfp_core_v4/audio_scholar.py"
         },
         {
           "caller": "AudioScholarDaemon.extract_title_and_narration",
           "callee": "sub",
-          "lineno": 220,
-          "file_path": "tfp_core_v4/audio_scholar.py"
-        },
-        {
-          "caller": "AudioScholarDaemon.extract_title_and_narration",
-          "callee": "sub",
-          "lineno": 221,
-          "file_path": "tfp_core_v4/audio_scholar.py"
-        },
-        {
-          "caller": "AudioScholarDaemon.extract_title_and_narration",
-          "callee": "search",
-          "lineno": 223,
-          "file_path": "tfp_core_v4/audio_scholar.py"
-        },
-        {
-          "caller": "AudioScholarDaemon.extract_title_and_narration",
-          "callee": "strip",
-          "lineno": 225,
-          "file_path": "tfp_core_v4/audio_scholar.py"
-        },
-        {
-          "caller": "AudioScholarDaemon.extract_title_and_narration",
-          "callee": "unescape",
-          "lineno": 225,
-          "file_path": "tfp_core_v4/audio_scholar.py"
-        },
-        {
-          "caller": "AudioScholarDaemon.extract_title_and_narration",
-          "callee": "sub",
-          "lineno": 225,
-          "file_path": "tfp_core_v4/audio_scholar.py"
-        },
-        {
-          "caller": "AudioScholarDaemon.extract_title_and_narration",
-          "callee": "group",
-          "lineno": 225,
-          "file_path": "tfp_core_v4/audio_scholar.py"
-        },
-        {
-          "caller": "AudioScholarDaemon.extract_title_and_narration",
-          "callee": "search",
-          "lineno": 227,
-          "file_path": "tfp_core_v4/audio_scholar.py"
-        },
-        {
-          "caller": "AudioScholarDaemon.extract_title_and_narration",
-          "callee": "strip",
-          "lineno": 229,
-          "file_path": "tfp_core_v4/audio_scholar.py"
-        },
-        {
-          "caller": "AudioScholarDaemon.extract_title_and_narration",
-          "callee": "unescape",
-          "lineno": 229,
-          "file_path": "tfp_core_v4/audio_scholar.py"
-        },
-        {
-          "caller": "AudioScholarDaemon.extract_title_and_narration",
-          "callee": "sub",
-          "lineno": 229,
-          "file_path": "tfp_core_v4/audio_scholar.py"
-        },
-        {
-          "caller": "AudioScholarDaemon.extract_title_and_narration",
-          "callee": "group",
-          "lineno": 229,
-          "file_path": "tfp_core_v4/audio_scholar.py"
-        },
-        {
-          "caller": "AudioScholarDaemon.extract_title_and_narration",
-          "callee": "search",
-          "lineno": 234,
-          "file_path": "tfp_core_v4/audio_scholar.py"
-        },
-        {
-          "caller": "AudioScholarDaemon.extract_title_and_narration",
-          "callee": "strip",
-          "lineno": 240,
-          "file_path": "tfp_core_v4/audio_scholar.py"
-        },
-        {
-          "caller": "AudioScholarDaemon.extract_title_and_narration",
-          "callee": "sub",
-          "lineno": 240,
-          "file_path": "tfp_core_v4/audio_scholar.py"
-        },
-        {
-          "caller": "AudioScholarDaemon.extract_title_and_narration",
-          "callee": "group",
-          "lineno": 240,
-          "file_path": "tfp_core_v4/audio_scholar.py"
-        },
-        {
-          "caller": "AudioScholarDaemon.extract_title_and_narration",
-          "callee": "strip",
-          "lineno": 241,
-          "file_path": "tfp_core_v4/audio_scholar.py"
-        },
-        {
-          "caller": "AudioScholarDaemon.extract_title_and_narration",
-          "callee": "replace",
-          "lineno": 241,
-          "file_path": "tfp_core_v4/audio_scholar.py"
-        },
-        {
-          "caller": "AudioScholarDaemon.extract_title_and_narration",
-          "callee": "replace",
-          "lineno": 241,
-          "file_path": "tfp_core_v4/audio_scholar.py"
-        },
-        {
-          "caller": "AudioScholarDaemon.extract_title_and_narration",
-          "callee": "unescape",
-          "lineno": 241,
-          "file_path": "tfp_core_v4/audio_scholar.py"
-        },
-        {
-          "caller": "AudioScholarDaemon.extract_title_and_narration",
-          "callee": "findall",
-          "lineno": 246,
-          "file_path": "tfp_core_v4/audio_scholar.py"
-        },
-        {
-          "caller": "AudioScholarDaemon.extract_title_and_narration",
-          "callee": "strip",
-          "lineno": 248,
-          "file_path": "tfp_core_v4/audio_scholar.py"
-        },
-        {
-          "caller": "AudioScholarDaemon.extract_title_and_narration",
-          "callee": "unescape",
-          "lineno": 248,
-          "file_path": "tfp_core_v4/audio_scholar.py"
-        },
-        {
-          "caller": "AudioScholarDaemon.extract_title_and_narration",
-          "callee": "sub",
-          "lineno": 248,
-          "file_path": "tfp_core_v4/audio_scholar.py"
-        },
-        {
-          "caller": "AudioScholarDaemon.extract_title_and_narration",
-          "callee": "join",
           "lineno": 249,
           "file_path": "tfp_core_v4/audio_scholar.py"
         },
         {
           "caller": "AudioScholarDaemon.extract_title_and_narration",
           "callee": "sub",
-          "lineno": 253,
+          "lineno": 250,
           "file_path": "tfp_core_v4/audio_scholar.py"
         },
         {
           "caller": "AudioScholarDaemon.extract_title_and_narration",
-          "callee": "join",
+          "callee": "search",
+          "lineno": 252,
+          "file_path": "tfp_core_v4/audio_scholar.py"
+        },
+        {
+          "caller": "AudioScholarDaemon.extract_title_and_narration",
+          "callee": "strip",
           "lineno": 254,
           "file_path": "tfp_core_v4/audio_scholar.py"
         },
         {
           "caller": "AudioScholarDaemon.extract_title_and_narration",
-          "callee": "split",
+          "callee": "unescape",
           "lineno": 254,
           "file_path": "tfp_core_v4/audio_scholar.py"
         },
         {
           "caller": "AudioScholarDaemon.extract_title_and_narration",
-          "callee": "startswith",
+          "callee": "sub",
+          "lineno": 254,
+          "file_path": "tfp_core_v4/audio_scholar.py"
+        },
+        {
+          "caller": "AudioScholarDaemon.extract_title_and_narration",
+          "callee": "group",
+          "lineno": 254,
+          "file_path": "tfp_core_v4/audio_scholar.py"
+        },
+        {
+          "caller": "AudioScholarDaemon.extract_title_and_narration",
+          "callee": "search",
+          "lineno": 256,
+          "file_path": "tfp_core_v4/audio_scholar.py"
+        },
+        {
+          "caller": "AudioScholarDaemon.extract_title_and_narration",
+          "callee": "strip",
           "lineno": 258,
           "file_path": "tfp_core_v4/audio_scholar.py"
         },
         {
           "caller": "AudioScholarDaemon.extract_title_and_narration",
-          "callee": "strip",
-          "lineno": 259,
+          "callee": "unescape",
+          "lineno": 258,
           "file_path": "tfp_core_v4/audio_scholar.py"
         },
         {
           "caller": "AudioScholarDaemon.extract_title_and_narration",
-          "callee": "splitlines",
-          "lineno": 259,
+          "callee": "sub",
+          "lineno": 258,
           "file_path": "tfp_core_v4/audio_scholar.py"
         },
         {
           "caller": "AudioScholarDaemon.extract_title_and_narration",
-          "callee": "strip",
-          "lineno": 259,
+          "callee": "group",
+          "lineno": 258,
           "file_path": "tfp_core_v4/audio_scholar.py"
         },
         {
           "caller": "AudioScholarDaemon.extract_title_and_narration",
-          "callee": "strip",
-          "lineno": 260,
-          "file_path": "tfp_core_v4/audio_scholar.py"
-        },
-        {
-          "caller": "AudioScholarDaemon.extract_title_and_narration",
-          "callee": "lstrip",
-          "lineno": 260,
-          "file_path": "tfp_core_v4/audio_scholar.py"
-        },
-        {
-          "caller": "AudioScholarDaemon.extract_title_and_narration",
-          "callee": "startswith",
+          "callee": "search",
           "lineno": 263,
           "file_path": "tfp_core_v4/audio_scholar.py"
         },
         {
           "caller": "AudioScholarDaemon.extract_title_and_narration",
-          "callee": "append",
-          "lineno": 264,
+          "callee": "strip",
+          "lineno": 269,
+          "file_path": "tfp_core_v4/audio_scholar.py"
+        },
+        {
+          "caller": "AudioScholarDaemon.extract_title_and_narration",
+          "callee": "sub",
+          "lineno": 269,
+          "file_path": "tfp_core_v4/audio_scholar.py"
+        },
+        {
+          "caller": "AudioScholarDaemon.extract_title_and_narration",
+          "callee": "group",
+          "lineno": 269,
           "file_path": "tfp_core_v4/audio_scholar.py"
         },
         {
           "caller": "AudioScholarDaemon.extract_title_and_narration",
           "callee": "strip",
-          "lineno": 264,
+          "lineno": 270,
           "file_path": "tfp_core_v4/audio_scholar.py"
         },
         {
           "caller": "AudioScholarDaemon.extract_title_and_narration",
-          "callee": "lstrip",
-          "lineno": 264,
+          "callee": "replace",
+          "lineno": 270,
           "file_path": "tfp_core_v4/audio_scholar.py"
         },
         {
           "caller": "AudioScholarDaemon.extract_title_and_narration",
-          "callee": "startswith",
-          "lineno": 265,
+          "callee": "replace",
+          "lineno": 270,
           "file_path": "tfp_core_v4/audio_scholar.py"
         },
         {
           "caller": "AudioScholarDaemon.extract_title_and_narration",
-          "callee": "append",
-          "lineno": 266,
+          "callee": "unescape",
+          "lineno": 270,
+          "file_path": "tfp_core_v4/audio_scholar.py"
+        },
+        {
+          "caller": "AudioScholarDaemon.extract_title_and_narration",
+          "callee": "findall",
+          "lineno": 275,
+          "file_path": "tfp_core_v4/audio_scholar.py"
+        },
+        {
+          "caller": "AudioScholarDaemon.extract_title_and_narration",
+          "callee": "strip",
+          "lineno": 277,
+          "file_path": "tfp_core_v4/audio_scholar.py"
+        },
+        {
+          "caller": "AudioScholarDaemon.extract_title_and_narration",
+          "callee": "unescape",
+          "lineno": 277,
+          "file_path": "tfp_core_v4/audio_scholar.py"
+        },
+        {
+          "caller": "AudioScholarDaemon.extract_title_and_narration",
+          "callee": "sub",
+          "lineno": 277,
           "file_path": "tfp_core_v4/audio_scholar.py"
         },
         {
           "caller": "AudioScholarDaemon.extract_title_and_narration",
           "callee": "join",
-          "lineno": 267,
+          "lineno": 278,
+          "file_path": "tfp_core_v4/audio_scholar.py"
+        },
+        {
+          "caller": "AudioScholarDaemon.extract_title_and_narration",
+          "callee": "sub",
+          "lineno": 282,
           "file_path": "tfp_core_v4/audio_scholar.py"
         },
         {
           "caller": "AudioScholarDaemon.extract_title_and_narration",
           "callee": "join",
-          "lineno": 271,
+          "lineno": 283,
           "file_path": "tfp_core_v4/audio_scholar.py"
         },
         {
           "caller": "AudioScholarDaemon.extract_title_and_narration",
           "callee": "split",
-          "lineno": 271,
+          "lineno": 283,
+          "file_path": "tfp_core_v4/audio_scholar.py"
+        },
+        {
+          "caller": "AudioScholarDaemon.extract_title_and_narration",
+          "callee": "startswith",
+          "lineno": 287,
+          "file_path": "tfp_core_v4/audio_scholar.py"
+        },
+        {
+          "caller": "AudioScholarDaemon.extract_title_and_narration",
+          "callee": "strip",
+          "lineno": 288,
+          "file_path": "tfp_core_v4/audio_scholar.py"
+        },
+        {
+          "caller": "AudioScholarDaemon.extract_title_and_narration",
+          "callee": "splitlines",
+          "lineno": 288,
+          "file_path": "tfp_core_v4/audio_scholar.py"
+        },
+        {
+          "caller": "AudioScholarDaemon.extract_title_and_narration",
+          "callee": "strip",
+          "lineno": 288,
+          "file_path": "tfp_core_v4/audio_scholar.py"
+        },
+        {
+          "caller": "AudioScholarDaemon.extract_title_and_narration",
+          "callee": "strip",
+          "lineno": 289,
+          "file_path": "tfp_core_v4/audio_scholar.py"
+        },
+        {
+          "caller": "AudioScholarDaemon.extract_title_and_narration",
+          "callee": "lstrip",
+          "lineno": 289,
+          "file_path": "tfp_core_v4/audio_scholar.py"
+        },
+        {
+          "caller": "AudioScholarDaemon.extract_title_and_narration",
+          "callee": "startswith",
+          "lineno": 292,
+          "file_path": "tfp_core_v4/audio_scholar.py"
+        },
+        {
+          "caller": "AudioScholarDaemon.extract_title_and_narration",
+          "callee": "append",
+          "lineno": 293,
+          "file_path": "tfp_core_v4/audio_scholar.py"
+        },
+        {
+          "caller": "AudioScholarDaemon.extract_title_and_narration",
+          "callee": "strip",
+          "lineno": 293,
+          "file_path": "tfp_core_v4/audio_scholar.py"
+        },
+        {
+          "caller": "AudioScholarDaemon.extract_title_and_narration",
+          "callee": "lstrip",
+          "lineno": 293,
+          "file_path": "tfp_core_v4/audio_scholar.py"
+        },
+        {
+          "caller": "AudioScholarDaemon.extract_title_and_narration",
+          "callee": "startswith",
+          "lineno": 294,
+          "file_path": "tfp_core_v4/audio_scholar.py"
+        },
+        {
+          "caller": "AudioScholarDaemon.extract_title_and_narration",
+          "callee": "append",
+          "lineno": 295,
+          "file_path": "tfp_core_v4/audio_scholar.py"
+        },
+        {
+          "caller": "AudioScholarDaemon.extract_title_and_narration",
+          "callee": "join",
+          "lineno": 296,
+          "file_path": "tfp_core_v4/audio_scholar.py"
+        },
+        {
+          "caller": "AudioScholarDaemon.extract_title_and_narration",
+          "callee": "join",
+          "lineno": 300,
+          "file_path": "tfp_core_v4/audio_scholar.py"
+        },
+        {
+          "caller": "AudioScholarDaemon.extract_title_and_narration",
+          "callee": "split",
+          "lineno": 300,
           "file_path": "tfp_core_v4/audio_scholar.py"
         },
         {
           "caller": "AudioScholarDaemon.play_earcon",
           "callee": "generate_earcon_pcm",
-          "lineno": 280,
+          "lineno": 309,
           "file_path": "tfp_core_v4/audio_scholar.py"
         },
         {
           "caller": "AudioScholarDaemon.play_earcon",
           "callee": "info",
-          "lineno": 281,
+          "lineno": 310,
           "file_path": "tfp_core_v4/audio_scholar.py"
         },
         {
           "caller": "AudioScholarDaemon.play_earcon",
           "callee": "len",
-          "lineno": 281,
+          "lineno": 310,
           "file_path": "tfp_core_v4/audio_scholar.py"
         },
         {
           "caller": "AudioScholarDaemon.play_earcon",
           "callee": "PlaySound",
-          "lineno": 288,
+          "lineno": 317,
           "file_path": "tfp_core_v4/audio_scholar.py"
         },
         {
           "caller": "AudioScholarDaemon.play_earcon",
           "callee": "debug",
-          "lineno": 291,
+          "lineno": 320,
           "file_path": "tfp_core_v4/audio_scholar.py"
         },
         {
           "caller": "AudioScholarDaemon.play_earcon",
           "callee": "which",
-          "lineno": 294,
+          "lineno": 323,
           "file_path": "tfp_core_v4/audio_scholar.py"
         },
         {
           "caller": "AudioScholarDaemon.play_earcon",
           "callee": "Popen",
-          "lineno": 297,
+          "lineno": 326,
           "file_path": "tfp_core_v4/audio_scholar.py"
         },
         {
           "caller": "AudioScholarDaemon.play_earcon",
           "callee": "communicate",
-          "lineno": 298,
+          "lineno": 327,
           "file_path": "tfp_core_v4/audio_scholar.py"
         },
         {
           "caller": "AudioScholarDaemon.play_earcon",
           "callee": "debug",
-          "lineno": 301,
+          "lineno": 330,
           "file_path": "tfp_core_v4/audio_scholar.py"
         },
         {
           "caller": "AudioScholarDaemon.speak",
           "callee": "info",
-          "lineno": 307,
+          "lineno": 336,
           "file_path": "tfp_core_v4/audio_scholar.py"
         },
         {
           "caller": "AudioScholarDaemon.speak",
           "callee": "which",
-          "lineno": 312,
-          "file_path": "tfp_core_v4/audio_scholar.py"
-        },
-        {
-          "caller": "AudioScholarDaemon.speak",
-          "callee": "run",
-          "lineno": 315,
-          "file_path": "tfp_core_v4/audio_scholar.py"
-        },
-        {
-          "caller": "AudioScholarDaemon.speak",
-          "callee": "str",
-          "lineno": 316,
-          "file_path": "tfp_core_v4/audio_scholar.py"
-        },
-        {
-          "caller": "AudioScholarDaemon.speak",
-          "callee": "debug",
-          "lineno": 324,
-          "file_path": "tfp_core_v4/audio_scholar.py"
-        },
-        {
-          "caller": "AudioScholarDaemon.speak",
-          "callee": "init",
-          "lineno": 331,
-          "file_path": "tfp_core_v4/audio_scholar.py"
-        },
-        {
-          "caller": "AudioScholarDaemon.speak",
-          "callee": "setProperty",
-          "lineno": 332,
-          "file_path": "tfp_core_v4/audio_scholar.py"
-        },
-        {
-          "caller": "AudioScholarDaemon.speak",
-          "callee": "say",
-          "lineno": 333,
-          "file_path": "tfp_core_v4/audio_scholar.py"
-        },
-        {
-          "caller": "AudioScholarDaemon.speak",
-          "callee": "runAndWait",
-          "lineno": 334,
-          "file_path": "tfp_core_v4/audio_scholar.py"
-        },
-        {
-          "caller": "AudioScholarDaemon.speak",
-          "callee": "debug",
-          "lineno": 337,
-          "file_path": "tfp_core_v4/audio_scholar.py"
-        },
-        {
-          "caller": "AudioScholarDaemon.speak",
-          "callee": "print",
-          "lineno": 340,
-          "file_path": "tfp_core_v4/audio_scholar.py"
-        },
-        {
-          "caller": "AudioScholarDaemon.speak",
-          "callee": "print",
           "lineno": 341,
           "file_path": "tfp_core_v4/audio_scholar.py"
         },
         {
           "caller": "AudioScholarDaemon.speak",
-          "callee": "print",
-          "lineno": 342,
+          "callee": "run",
+          "lineno": 344,
+          "file_path": "tfp_core_v4/audio_scholar.py"
+        },
+        {
+          "caller": "AudioScholarDaemon.speak",
+          "callee": "str",
+          "lineno": 345,
+          "file_path": "tfp_core_v4/audio_scholar.py"
+        },
+        {
+          "caller": "AudioScholarDaemon.speak",
+          "callee": "debug",
+          "lineno": 353,
+          "file_path": "tfp_core_v4/audio_scholar.py"
+        },
+        {
+          "caller": "AudioScholarDaemon.speak",
+          "callee": "init",
+          "lineno": 360,
+          "file_path": "tfp_core_v4/audio_scholar.py"
+        },
+        {
+          "caller": "AudioScholarDaemon.speak",
+          "callee": "setProperty",
+          "lineno": 361,
+          "file_path": "tfp_core_v4/audio_scholar.py"
+        },
+        {
+          "caller": "AudioScholarDaemon.speak",
+          "callee": "say",
+          "lineno": 362,
+          "file_path": "tfp_core_v4/audio_scholar.py"
+        },
+        {
+          "caller": "AudioScholarDaemon.speak",
+          "callee": "runAndWait",
+          "lineno": 363,
+          "file_path": "tfp_core_v4/audio_scholar.py"
+        },
+        {
+          "caller": "AudioScholarDaemon.speak",
+          "callee": "debug",
+          "lineno": 366,
           "file_path": "tfp_core_v4/audio_scholar.py"
         },
         {
           "caller": "AudioScholarDaemon.speak",
           "callee": "print",
-          "lineno": 343,
+          "lineno": 369,
+          "file_path": "tfp_core_v4/audio_scholar.py"
+        },
+        {
+          "caller": "AudioScholarDaemon.speak",
+          "callee": "print",
+          "lineno": 370,
+          "file_path": "tfp_core_v4/audio_scholar.py"
+        },
+        {
+          "caller": "AudioScholarDaemon.speak",
+          "callee": "print",
+          "lineno": 371,
+          "file_path": "tfp_core_v4/audio_scholar.py"
+        },
+        {
+          "caller": "AudioScholarDaemon.speak",
+          "callee": "print",
+          "lineno": 372,
           "file_path": "tfp_core_v4/audio_scholar.py"
         }
       ]
@@ -75085,7 +75165,7 @@
       ]
     },
     "tfp_core_v4/node.py": {
-      "loc": 358,
+      "loc": 365,
       "symbols": [
         {
           "name": "TFPNode",
@@ -75175,7 +75255,7 @@
           "qualified_name": "TFPNode.fetch",
           "kind": "function",
           "file_path": "tfp_core_v4/node.py",
-          "lineno": 281,
+          "lineno": 291,
           "args": [
             "root_hash",
             "simulated_loss",
@@ -75190,7 +75270,7 @@
           "qualified_name": "TFPNode.inspect_recipe",
           "kind": "function",
           "file_path": "tfp_core_v4/node.py",
-          "lineno": 367,
+          "lineno": 377,
           "args": [
             "root_hash"
           ],
@@ -75203,7 +75283,7 @@
           "qualified_name": "TFPNode.list_recipes",
           "kind": "function",
           "file_path": "tfp_core_v4/node.py",
-          "lineno": 384,
+          "lineno": 394,
           "args": [],
           "return_type": "list[ChunkRecipe]",
           "docstring": "Return all recipes stored in memory and in the persistent SQLite database.",
@@ -75214,7 +75294,7 @@
           "qualified_name": "TFPNode.get_telemetry",
           "kind": "function",
           "file_path": "tfp_core_v4/node.py",
-          "lineno": 414,
+          "lineno": 424,
           "args": [],
           "return_type": "dict[str, Any]",
           "docstring": "Return real deduplication and throughput metrics.",
@@ -75677,163 +75757,109 @@
         {
           "caller": "TFPNode.publish",
           "callee": "encode",
-          "lineno": 259,
+          "lineno": 269,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.publish",
           "callee": "serialize",
-          "lineno": 263,
+          "lineno": 273,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.publish",
           "callee": "MerkleTree",
-          "lineno": 264,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.publish",
-          "callee": "len",
-          "lineno": 268,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.publish",
-          "callee": "sum",
-          "lineno": 269,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.publish",
-          "callee": "len",
-          "lineno": 269,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.publish",
-          "callee": "len",
-          "lineno": 270,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.publish",
-          "callee": "len",
-          "lineno": 271,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.publish",
-          "callee": "round",
           "lineno": 274,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.publish",
-          "callee": "_persist_content",
+          "callee": "len",
           "lineno": 278,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.publish",
+          "callee": "sum",
+          "lineno": 279,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.publish",
+          "callee": "len",
+          "lineno": 279,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.publish",
+          "callee": "len",
+          "lineno": 280,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.publish",
+          "callee": "len",
+          "lineno": 281,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.publish",
+          "callee": "round",
+          "lineno": 284,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.publish",
+          "callee": "_persist_content",
+          "lineno": 288,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.fetch",
           "callee": "_load_recipe_from_db",
-          "lineno": 292,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.fetch",
-          "callee": "KeyError",
-          "lineno": 293,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.fetch",
-          "callee": "validate",
-          "lineno": 296,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.fetch",
-          "callee": "ValueError",
-          "lineno": 297,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.fetch",
-          "callee": "all",
-          "lineno": 300,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.fetch",
-          "callee": "bytearray",
           "lineno": 302,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.fetch",
-          "callee": "zip",
-          "lineno": 304,
+          "callee": "KeyError",
+          "lineno": 303,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.fetch",
-          "callee": "len",
+          "callee": "validate",
           "lineno": 306,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.fetch",
-          "callee": "compare_digest",
-          "lineno": 306,
+          "callee": "ValueError",
+          "lineno": 307,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.fetch",
-          "callee": "hexdigest",
-          "lineno": 306,
+          "callee": "all",
+          "lineno": 310,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.fetch",
-          "callee": "sha3_256",
-          "lineno": 306,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.fetch",
-          "callee": "extend",
-          "lineno": 309,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.fetch",
-          "callee": "len",
-          "lineno": 311,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.fetch",
-          "callee": "sha3_256",
+          "callee": "bytearray",
           "lineno": 312,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.fetch",
-          "callee": "update",
+          "callee": "zip",
           "lineno": 314,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.fetch",
-          "callee": "encode",
-          "lineno": 314,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.fetch",
-          "callee": "hexdigest",
-          "lineno": 315,
+          "callee": "len",
+          "lineno": 316,
           "file_path": "tfp_core_v4/node.py"
         },
         {
@@ -75844,272 +75870,326 @@
         },
         {
           "caller": "TFPNode.fetch",
-          "callee": "ValueError",
-          "lineno": 317,
+          "callee": "hexdigest",
+          "lineno": 316,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.fetch",
-          "callee": "bytes",
-          "lineno": 320,
+          "callee": "sha3_256",
+          "lineno": 316,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.fetch",
-          "callee": "get",
-          "lineno": 323,
+          "callee": "extend",
+          "lineno": 319,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.fetch",
-          "callee": "get",
+          "callee": "len",
+          "lineno": 321,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.fetch",
+          "callee": "sha3_256",
+          "lineno": 322,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.fetch",
+          "callee": "update",
           "lineno": 324,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.fetch",
-          "callee": "FountainCodec",
+          "callee": "encode",
+          "lineno": 324,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.fetch",
+          "callee": "hexdigest",
+          "lineno": 325,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.fetch",
+          "callee": "compare_digest",
           "lineno": 326,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.fetch",
-          "callee": "list",
-          "lineno": 329,
+          "callee": "ValueError",
+          "lineno": 327,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.fetch",
-          "callee": "RuntimeError",
-          "lineno": 332,
+          "callee": "bytes",
+          "lineno": 330,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.fetch",
-          "callee": "randbelow",
+          "callee": "get",
           "lineno": 333,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.fetch",
-          "callee": "RuntimeError",
+          "callee": "get",
+          "lineno": 334,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.fetch",
+          "callee": "FountainCodec",
           "lineno": 336,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.fetch",
-          "callee": "decode",
+          "callee": "list",
           "lineno": 339,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.fetch",
           "callee": "RuntimeError",
-          "lineno": 345,
+          "lineno": 342,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.fetch",
-          "callee": "len",
+          "callee": "randbelow",
+          "lineno": 343,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.fetch",
+          "callee": "RuntimeError",
           "lineno": 346,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.fetch",
+          "callee": "decode",
+          "lineno": 349,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.fetch",
+          "callee": "RuntimeError",
+          "lineno": 355,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.fetch",
           "callee": "len",
-          "lineno": 346,
+          "lineno": 356,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.fetch",
+          "callee": "len",
+          "lineno": 356,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.fetch",
           "callee": "sha3_256",
-          "lineno": 351,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.fetch",
-          "callee": "zip",
-          "lineno": 352,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.fetch",
-          "callee": "hexdigest",
-          "lineno": 355,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.fetch",
-          "callee": "sha3_256",
-          "lineno": 355,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.fetch",
-          "callee": "ValueError",
-          "lineno": 357,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.fetch",
-          "callee": "update",
-          "lineno": 358,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.fetch",
-          "callee": "encode",
-          "lineno": 358,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.fetch",
-          "callee": "hexdigest",
-          "lineno": 359,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.fetch",
-          "callee": "compare_digest",
           "lineno": 361,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.fetch",
-          "callee": "ValueError",
+          "callee": "zip",
           "lineno": 362,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.fetch",
+          "callee": "hexdigest",
+          "lineno": 365,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.fetch",
+          "callee": "sha3_256",
+          "lineno": 365,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.fetch",
+          "callee": "ValueError",
+          "lineno": 367,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.fetch",
+          "callee": "update",
+          "lineno": 368,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.fetch",
+          "callee": "encode",
+          "lineno": 368,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.fetch",
+          "callee": "hexdigest",
+          "lineno": 369,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.fetch",
+          "callee": "compare_digest",
+          "lineno": 371,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.fetch",
+          "callee": "ValueError",
+          "lineno": 372,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.inspect_recipe",
           "callee": "_load_recipe_from_db",
-          "lineno": 370,
+          "lineno": 380,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.inspect_recipe",
           "callee": "KeyError",
-          "lineno": 371,
+          "lineno": 381,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.inspect_recipe",
           "callee": "get",
-          "lineno": 373,
+          "lineno": 383,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.inspect_recipe",
           "callee": "len",
-          "lineno": 377,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.list_recipes",
-          "callee": "dict",
-          "lineno": 386,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.list_recipes",
-          "callee": "exists",
           "lineno": 387,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.list_recipes",
-          "callee": "connect",
-          "lineno": 388,
+          "callee": "dict",
+          "lineno": 396,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.list_recipes",
-          "callee": "str",
-          "lineno": 388,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.list_recipes",
-          "callee": "cursor",
-          "lineno": 390,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.list_recipes",
-          "callee": "execute",
-          "lineno": 391,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.list_recipes",
-          "callee": "fetchall",
-          "lineno": 394,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.list_recipes",
-          "callee": "ChunkRecipe",
+          "callee": "exists",
           "lineno": 397,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.list_recipes",
-          "callee": "loads",
+          "callee": "connect",
+          "lineno": 398,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.list_recipes",
+          "callee": "str",
+          "lineno": 398,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.list_recipes",
+          "callee": "cursor",
           "lineno": 400,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.list_recipes",
-          "callee": "loads",
+          "callee": "execute",
           "lineno": 401,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.list_recipes",
-          "callee": "loads",
-          "lineno": 402,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.list_recipes",
-          "callee": "validate",
+          "callee": "fetchall",
           "lineno": 404,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.list_recipes",
-          "callee": "warning",
+          "callee": "ChunkRecipe",
           "lineno": 407,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.list_recipes",
-          "callee": "warning",
-          "lineno": 409,
+          "callee": "loads",
+          "lineno": 410,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.list_recipes",
-          "callee": "close",
+          "callee": "loads",
           "lineno": 411,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.list_recipes",
-          "callee": "list",
+          "callee": "loads",
           "lineno": 412,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.list_recipes",
+          "callee": "validate",
+          "lineno": 414,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.list_recipes",
+          "callee": "warning",
+          "lineno": 417,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.list_recipes",
+          "callee": "warning",
+          "lineno": 419,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.list_recipes",
+          "callee": "close",
+          "lineno": 421,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.list_recipes",
+          "callee": "list",
+          "lineno": 422,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.list_recipes",
           "callee": "values",
-          "lineno": 412,
+          "lineno": 422,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.get_telemetry",
           "callee": "dict",
-          "lineno": 416,
+          "lineno": 426,
           "file_path": "tfp_core_v4/node.py"
         }
       ]
@@ -184007,7 +184087,7 @@
       ]
     },
     "tfp-foundation-protocol/tfp_client/lib/media/receiver.py": {
-      "loc": 344,
+      "loc": 370,
       "symbols": [
         {
           "name": "ReceiverStats",
@@ -184114,11 +184194,24 @@
           "bases": []
         },
         {
+          "name": "ingest_manifest",
+          "qualified_name": "FountainStreamReceiver.ingest_manifest",
+          "kind": "function",
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py",
+          "lineno": 302,
+          "args": [
+            "manifest"
+          ],
+          "return_type": "int",
+          "docstring": "Directly register an authentic MediaManifest for a session.",
+          "bases": []
+        },
+        {
           "name": "ingest_bytes",
           "qualified_name": "FountainStreamReceiver.ingest_bytes",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py",
-          "lineno": 289,
+          "lineno": 335,
           "args": [
             "raw_bytes"
           ],
@@ -184131,7 +184224,7 @@
           "qualified_name": "FountainStreamReceiver.is_complete",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py",
-          "lineno": 351,
+          "lineno": 374,
           "args": [
             "manifest",
             "session_id"
@@ -184145,7 +184238,7 @@
           "qualified_name": "FountainStreamReceiver.assemble",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py",
-          "lineno": 367,
+          "lineno": 400,
           "args": [
             "manifest",
             "session_id"
@@ -184159,7 +184252,7 @@
           "qualified_name": "FountainStreamReceiver.listen_udp",
           "kind": "async_function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py",
-          "lineno": 391,
+          "lineno": 424,
           "args": [
             "host",
             "port",
@@ -184621,385 +184714,469 @@
         {
           "caller": "FountainStreamReceiver.ingest_packet",
           "callee": "get",
+          "lineno": 225,
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
+        },
+        {
+          "caller": "FountainStreamReceiver.ingest_packet",
+          "callee": "len",
+          "lineno": 226,
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
+        },
+        {
+          "caller": "FountainStreamReceiver.ingest_packet",
+          "callee": "compare_digest",
           "lineno": 228,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.ingest_packet",
+          "callee": "hexdigest",
+          "lineno": 228,
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
+        },
+        {
+          "caller": "FountainStreamReceiver.ingest_packet",
+          "callee": "sha3_256",
+          "lineno": 228,
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
+        },
+        {
+          "caller": "FountainStreamReceiver.ingest_packet",
+          "callee": "pop",
+          "lineno": 230,
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
+        },
+        {
+          "caller": "FountainStreamReceiver.ingest_packet",
+          "callee": "get",
+          "lineno": 239,
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
+        },
+        {
+          "caller": "FountainStreamReceiver.ingest_packet",
           "callee": "set",
-          "lineno": 235,
+          "lineno": 246,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.ingest_packet",
           "callee": "keys",
-          "lineno": 235,
+          "lineno": 246,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.ingest_packet",
           "callee": "len",
-          "lineno": 238,
+          "lineno": 249,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.ingest_packet",
           "callee": "len",
-          "lineno": 252,
+          "lineno": 263,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.ingest_packet",
           "callee": "to_droplet",
-          "lineno": 255,
+          "lineno": 266,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.ingest_packet",
           "callee": "len",
-          "lineno": 262,
+          "lineno": 273,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.ingest_packet",
           "callee": "list",
-          "lineno": 264,
+          "lineno": 275,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.ingest_packet",
           "callee": "values",
-          "lineno": 264,
+          "lineno": 275,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.ingest_packet",
           "callee": "decode",
-          "lineno": 265,
+          "lineno": 276,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.ingest_packet",
           "callee": "get",
-          "lineno": 268,
+          "lineno": 279,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.ingest_packet",
           "callee": "len",
-          "lineno": 269,
+          "lineno": 280,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.ingest_packet",
           "callee": "hexdigest",
-          "lineno": 271,
+          "lineno": 282,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.ingest_packet",
           "callee": "sha3_256",
-          "lineno": 271,
+          "lineno": 282,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.ingest_packet",
           "callee": "compare_digest",
-          "lineno": 272,
+          "lineno": 283,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.ingest_packet",
           "callee": "warning",
-          "lineno": 273,
+          "lineno": 284,
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
+        },
+        {
+          "caller": "FountainStreamReceiver.ingest_packet",
+          "callee": "pop",
+          "lineno": 288,
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
+        },
+        {
+          "caller": "FountainStreamReceiver.ingest_manifest",
+          "callee": "derive_session_id",
+          "lineno": 308,
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
+        },
+        {
+          "caller": "FountainStreamReceiver.ingest_manifest",
+          "callee": "_evict_stale_or_excess_sessions",
+          "lineno": 309,
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
+        },
+        {
+          "caller": "FountainStreamReceiver.ingest_manifest",
+          "callee": "time",
+          "lineno": 310,
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
+        },
+        {
+          "caller": "FountainStreamReceiver.ingest_manifest",
+          "callee": "pop",
+          "lineno": 321,
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
+        },
+        {
+          "caller": "FountainStreamReceiver.ingest_manifest",
+          "callee": "pop",
+          "lineno": 322,
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
+        },
+        {
+          "caller": "FountainStreamReceiver.ingest_manifest",
+          "callee": "get",
+          "lineno": 324,
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
+        },
+        {
+          "caller": "FountainStreamReceiver.ingest_manifest",
+          "callee": "items",
+          "lineno": 326,
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
+        },
+        {
+          "caller": "FountainStreamReceiver.ingest_manifest",
+          "callee": "compare_digest",
+          "lineno": 328,
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
+        },
+        {
+          "caller": "FountainStreamReceiver.ingest_manifest",
+          "callee": "hexdigest",
+          "lineno": 328,
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
+        },
+        {
+          "caller": "FountainStreamReceiver.ingest_manifest",
+          "callee": "sha3_256",
+          "lineno": 328,
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
+        },
+        {
+          "caller": "FountainStreamReceiver.ingest_manifest",
+          "callee": "pop",
+          "lineno": 331,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.ingest_bytes",
           "callee": "len",
-          "lineno": 295,
+          "lineno": 341,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.ingest_bytes",
           "callee": "startswith",
-          "lineno": 298,
+          "lineno": 344,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.ingest_bytes",
           "callee": "deserialize_manifest_packet",
-          "lineno": 300,
+          "lineno": 346,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.ingest_bytes",
-          "callee": "derive_session_id",
-          "lineno": 305,
-          "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
-        },
-        {
-          "caller": "FountainStreamReceiver.ingest_bytes",
-          "callee": "_evict_stale_or_excess_sessions",
-          "lineno": 306,
-          "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
-        },
-        {
-          "caller": "FountainStreamReceiver.ingest_bytes",
-          "callee": "time",
-          "lineno": 307,
-          "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
-        },
-        {
-          "caller": "FountainStreamReceiver.ingest_bytes",
-          "callee": "pop",
-          "lineno": 318,
-          "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
-        },
-        {
-          "caller": "FountainStreamReceiver.ingest_bytes",
-          "callee": "pop",
-          "lineno": 319,
-          "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
-        },
-        {
-          "caller": "FountainStreamReceiver.ingest_bytes",
-          "callee": "get",
-          "lineno": 321,
-          "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
-        },
-        {
-          "caller": "FountainStreamReceiver.ingest_bytes",
-          "callee": "pop",
-          "lineno": 327,
+          "callee": "ingest_manifest",
+          "lineno": 351,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.ingest_bytes",
           "callee": "warning",
-          "lineno": 334,
+          "lineno": 357,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.ingest_bytes",
           "callee": "from_bytes",
-          "lineno": 338,
+          "lineno": 361,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.ingest_bytes",
           "callee": "ingest_packet",
-          "lineno": 343,
+          "lineno": 366,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.ingest_bytes",
           "callee": "warning",
-          "lineno": 348,
-          "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
-        },
-        {
-          "caller": "FountainStreamReceiver.is_complete",
-          "callee": "get",
-          "lineno": 358,
+          "lineno": 371,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.is_complete",
           "callee": "derive_session_id",
-          "lineno": 360,
+          "lineno": 380,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.is_complete",
           "callee": "get",
-          "lineno": 361,
+          "lineno": 384,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.is_complete",
           "callee": "len",
-          "lineno": 363,
-          "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
-        },
-        {
-          "caller": "FountainStreamReceiver.is_complete",
-          "callee": "all",
-          "lineno": 365,
+          "lineno": 385,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.is_complete",
           "callee": "range",
-          "lineno": 365,
+          "lineno": 388,
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
+        },
+        {
+          "caller": "FountainStreamReceiver.is_complete",
+          "callee": "hexdigest",
+          "lineno": 392,
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
+        },
+        {
+          "caller": "FountainStreamReceiver.is_complete",
+          "callee": "sha3_256",
+          "lineno": 392,
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
+        },
+        {
+          "caller": "FountainStreamReceiver.is_complete",
+          "callee": "compare_digest",
+          "lineno": 393,
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
+        },
+        {
+          "caller": "FountainStreamReceiver.is_complete",
+          "callee": "pop",
+          "lineno": 395,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.assemble",
           "callee": "ValueError",
-          "lineno": 371,
+          "lineno": 404,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.assemble",
           "callee": "derive_session_id",
-          "lineno": 373,
+          "lineno": 406,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.assemble",
           "callee": "is_complete",
-          "lineno": 375,
+          "lineno": 408,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.assemble",
           "callee": "get",
-          "lineno": 376,
+          "lineno": 409,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.assemble",
           "callee": "set",
-          "lineno": 377,
+          "lineno": 410,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.assemble",
           "callee": "range",
-          "lineno": 377,
+          "lineno": 410,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.assemble",
           "callee": "set",
-          "lineno": 377,
+          "lineno": 410,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.assemble",
           "callee": "keys",
-          "lineno": 377,
+          "lineno": 410,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.assemble",
           "callee": "ValueError",
-          "lineno": 378,
+          "lineno": 411,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.assemble",
           "callee": "sorted",
-          "lineno": 378,
+          "lineno": 411,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.assemble",
           "callee": "bytearray",
-          "lineno": 381,
+          "lineno": 414,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.assemble",
           "callee": "range",
-          "lineno": 382,
+          "lineno": 415,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.assemble",
           "callee": "compare_digest",
-          "lineno": 385,
+          "lineno": 418,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.assemble",
           "callee": "hexdigest",
-          "lineno": 385,
+          "lineno": 418,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.assemble",
           "callee": "sha3_256",
-          "lineno": 385,
+          "lineno": 418,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.assemble",
           "callee": "ValueError",
-          "lineno": 386,
+          "lineno": 419,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.assemble",
           "callee": "extend",
-          "lineno": 387,
+          "lineno": 420,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.assemble",
           "callee": "bytes",
-          "lineno": 389,
+          "lineno": 422,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.listen_udp",
           "callee": "get_running_loop",
-          "lineno": 401,
+          "lineno": 434,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.listen_udp",
           "callee": "socket",
-          "lineno": 402,
+          "lineno": 435,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.listen_udp",
           "callee": "setblocking",
-          "lineno": 403,
+          "lineno": 436,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.listen_udp",
           "callee": "bind",
-          "lineno": 404,
+          "lineno": 437,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.listen_udp",
           "callee": "is_set",
-          "lineno": 407,
+          "lineno": 440,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.listen_udp",
           "callee": "sock_recv",
-          "lineno": 409,
+          "lineno": 442,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.listen_udp",
           "callee": "ingest_bytes",
-          "lineno": 410,
+          "lineno": 443,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.listen_udp",
           "callee": "on_chunk",
-          "lineno": 413,
+          "lineno": 446,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.listen_udp",
           "callee": "warning",
-          "lineno": 417,
+          "lineno": 450,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         },
         {
           "caller": "FountainStreamReceiver.listen_udp",
           "callee": "close",
-          "lineno": 419,
+          "lineno": 452,
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py"
         }
       ]
@@ -204431,7 +204608,7 @@
       ]
     },
     "tests/fuzz/test_adversarial_m2_challenger_stress.py": {
-      "loc": 451,
+      "loc": 463,
       "symbols": [
         {
           "name": "TestFastCDCAndMerkleAdversarialChallenger",
@@ -204506,7 +204683,7 @@
           "qualified_name": "TestFastCDCAndMerkleAdversarialChallenger.test_fastcdc_truncated_payload_strictly_rejected",
           "kind": "function",
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py",
-          "lineno": 145,
+          "lineno": 159,
           "args": [],
           "return_type": null,
           "docstring": "Verify truncated chunk payloads raise ValueError (size mismatch).",
@@ -204517,7 +204694,7 @@
           "qualified_name": "TestFastCDCAndMerkleAdversarialChallenger.test_fastcdc_bitflip_payload_strictly_rejected",
           "kind": "function",
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py",
-          "lineno": 158,
+          "lineno": 172,
           "args": [],
           "return_type": null,
           "docstring": "Verify bit-flipped chunk payloads raise ValueError (hash mismatch).",
@@ -204528,7 +204705,7 @@
           "qualified_name": "TestFastCDCAndMerkleAdversarialChallenger.test_merkle_boundary_empty_leaves_rejected",
           "kind": "function",
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py",
-          "lineno": 172,
+          "lineno": 186,
           "args": [],
           "return_type": null,
           "docstring": "Empty leaf list strictly raises ValueError.",
@@ -204539,7 +204716,7 @@
           "qualified_name": "TestFastCDCAndMerkleAdversarialChallenger.test_merkle_boundary_single_leaf",
           "kind": "function",
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py",
-          "lineno": 177,
+          "lineno": 191,
           "args": [],
           "return_type": null,
           "docstring": "Single leaf tree produces valid empty proof verifying against root.",
@@ -204550,7 +204727,7 @@
           "qualified_name": "TestFastCDCAndMerkleAdversarialChallenger.test_merkle_odd_and_even_leaf_counts_proof_integrity",
           "kind": "function",
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py",
-          "lineno": 188,
+          "lineno": 202,
           "args": [
             "count"
           ],
@@ -204563,7 +204740,7 @@
           "qualified_name": "TestFastCDCAndMerkleAdversarialChallenger.test_merkle_forged_root_strictly_rejected",
           "kind": "function",
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py",
-          "lineno": 197,
+          "lineno": 211,
           "args": [],
           "return_type": null,
           "docstring": "Audit proof verification against arbitrary forged roots evaluates to False.",
@@ -204574,7 +204751,7 @@
           "qualified_name": "TestFastCDCAndMerkleAdversarialChallenger.test_merkle_proof_tampered_siblings_rejected",
           "kind": "function",
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py",
-          "lineno": 212,
+          "lineno": 226,
           "args": [],
           "return_type": null,
           "docstring": "Mutating sibling hashes or directions in audit proof evaluates to False.",
@@ -204585,7 +204762,7 @@
           "qualified_name": "TestNostrGossipAdversarialChallenger",
           "kind": "class",
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py",
-          "lineno": 229,
+          "lineno": 243,
           "args": [],
           "return_type": null,
           "docstring": "Adversarial challenge for Nostr gossip protocol.",
@@ -204596,7 +204773,7 @@
           "qualified_name": "TestNostrGossipAdversarialChallenger.test_schnorr_invalid_signatures_strictly_rejected",
           "kind": "function",
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py",
-          "lineno": 232,
+          "lineno": 246,
           "args": [],
           "return_type": null,
           "docstring": "Invalid, bit-flipped, or forged signatures strictly evaluate to False.",
@@ -204607,7 +204784,7 @@
           "qualified_name": "TestNostrGossipAdversarialChallenger.test_nostr_event_id_tamper_rejected",
           "kind": "function",
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py",
-          "lineno": 258,
+          "lineno": 272,
           "args": [],
           "return_type": null,
           "docstring": "Modifying content, created_at, or kind causes recomputed ID mismatch in _verify_nostr_event.",
@@ -204618,7 +204795,7 @@
           "qualified_name": "TestNostrGossipAdversarialChallenger.test_replay_window_boundary_and_exceeded",
           "kind": "function",
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py",
-          "lineno": 300,
+          "lineno": 314,
           "args": [
             "delta",
             "expected"
@@ -204632,7 +204809,7 @@
           "qualified_name": "TestNostrGossipAdversarialChallenger.test_replay_window_malformed_types",
           "kind": "function",
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py",
-          "lineno": 314,
+          "lineno": 328,
           "args": [
             "bad_created_at"
           ],
@@ -204645,7 +204822,7 @@
           "qualified_name": "TestNostrGossipAdversarialChallenger.test_nostr_malformed_kind_30078_30080_zero_500_exceptions",
           "kind": "function",
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py",
-          "lineno": 319,
+          "lineno": 333,
           "args": [],
           "return_type": null,
           "docstring": "Ingesting malformed payloads into _on_nostr_event yields zero unhandled exceptions.",
@@ -204656,7 +204833,7 @@
           "qualified_name": "TestNostrGossipAdversarialChallenger.test_gossip_broadcast_fastapi_zero_500_on_fuzz",
           "kind": "function",
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py",
-          "lineno": 351,
+          "lineno": 365,
           "args": [],
           "return_type": null,
           "docstring": "FastAPI /api/gossip/broadcast returns 4xx and never 500 on malformed bodies.",
@@ -204667,7 +204844,7 @@
           "qualified_name": "TestFountainCodecAdversarialChallenger",
           "kind": "class",
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py",
-          "lineno": 395,
+          "lineno": 409,
           "args": [],
           "return_type": null,
           "docstring": "Adversarial challenge for rateless fountain codec and anti-pollution.",
@@ -204678,7 +204855,7 @@
           "qualified_name": "TestFountainCodecAdversarialChallenger.test_droplet_seed_authenticity_o1_timing",
           "kind": "function",
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py",
-          "lineno": 398,
+          "lineno": 412,
           "args": [],
           "return_type": null,
           "docstring": "Verify verify_droplet_seed_authenticity executes in O(1) time (< 100 microseconds).",
@@ -204689,7 +204866,7 @@
           "qualified_name": "TestFountainCodecAdversarialChallenger.test_byzantine_tampered_repair_seeds_rejected",
           "kind": "function",
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py",
-          "lineno": 422,
+          "lineno": 436,
           "args": [],
           "return_type": null,
           "docstring": "Verify tampered degrees, corrupted indices, or negative seeds are strictly rejected.",
@@ -204700,7 +204877,7 @@
           "qualified_name": "TestFountainCodecAdversarialChallenger.test_packet_drops_40_percent_bit_exact_recovery",
           "kind": "function",
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py",
-          "lineno": 459,
+          "lineno": 473,
           "args": [
             "symbol_size"
           ],
@@ -204713,7 +204890,7 @@
           "qualified_name": "TestFountainCodecAdversarialChallenger.test_packet_drops_50_percent_bit_exact_recovery",
           "kind": "function",
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py",
-          "lineno": 487,
+          "lineno": 501,
           "args": [
             "symbol_size"
           ],
@@ -204726,7 +204903,7 @@
           "qualified_name": "TestFountainCodecAdversarialChallenger.test_tfp_node_packet_drop_resilience_40_and_50",
           "kind": "function",
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py",
-          "lineno": 513,
+          "lineno": 527,
           "args": [],
           "return_type": null,
           "docstring": "Verify TFPNode.fetch successfully reconstructs content under 40% and 50% loss.",
@@ -204737,7 +204914,7 @@
           "qualified_name": "TestFountainCodecAdversarialChallenger.test_insufficient_rank_strictly_raises_value_error",
           "kind": "function",
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py",
-          "lineno": 525,
+          "lineno": 539,
           "args": [],
           "return_type": null,
           "docstring": "When droplet count or rank is strictly < K, decode raises ValueError and never returns corrupt data.",
@@ -205210,1053 +205387,1095 @@
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
-          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_fastcdc_truncated_payload_strictly_rejected",
-          "callee": "ContentDefinedChunker",
-          "lineno": 147,
+          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_fastcdc_corrupted_chunk_hashes_strictly_rejected",
+          "callee": "sha3_256",
+          "lineno": 146,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
-          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_fastcdc_truncated_payload_strictly_rejected",
-          "callee": "urandom",
+          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_fastcdc_corrupted_chunk_hashes_strictly_rejected",
+          "callee": "update",
           "lineno": 148,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
-          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_fastcdc_truncated_payload_strictly_rejected",
-          "callee": "create_recipe",
+          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_fastcdc_corrupted_chunk_hashes_strictly_rejected",
+          "callee": "encode",
+          "lineno": 148,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_fastcdc_corrupted_chunk_hashes_strictly_rejected",
+          "callee": "ChunkRecipe",
           "lineno": 149,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
-          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_fastcdc_truncated_payload_strictly_rejected",
-          "callee": "zip",
+          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_fastcdc_corrupted_chunk_hashes_strictly_rejected",
+          "callee": "hexdigest",
           "lineno": 150,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
-          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_fastcdc_truncated_payload_strictly_rejected",
+          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_fastcdc_corrupted_chunk_hashes_strictly_rejected",
           "callee": "raises",
-          "lineno": 155,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_fastcdc_truncated_payload_strictly_rejected",
-          "callee": "assemble",
           "lineno": 156,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
-          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_fastcdc_bitflip_payload_strictly_rejected",
-          "callee": "ContentDefinedChunker",
-          "lineno": 160,
+          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_fastcdc_corrupted_chunk_hashes_strictly_rejected",
+          "callee": "assemble",
+          "lineno": 157,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
-          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_fastcdc_bitflip_payload_strictly_rejected",
-          "callee": "urandom",
+          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_fastcdc_truncated_payload_strictly_rejected",
+          "callee": "ContentDefinedChunker",
           "lineno": 161,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
-          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_fastcdc_bitflip_payload_strictly_rejected",
-          "callee": "create_recipe",
+          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_fastcdc_truncated_payload_strictly_rejected",
+          "callee": "urandom",
           "lineno": 162,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
-          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_fastcdc_bitflip_payload_strictly_rejected",
-          "callee": "zip",
+          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_fastcdc_truncated_payload_strictly_rejected",
+          "callee": "create_recipe",
           "lineno": 163,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
-          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_fastcdc_bitflip_payload_strictly_rejected",
-          "callee": "bytes",
-          "lineno": 167,
+          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_fastcdc_truncated_payload_strictly_rejected",
+          "callee": "zip",
+          "lineno": 164,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
-          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_fastcdc_bitflip_payload_strictly_rejected",
+          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_fastcdc_truncated_payload_strictly_rejected",
           "callee": "raises",
           "lineno": 169,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
-          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_fastcdc_bitflip_payload_strictly_rejected",
+          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_fastcdc_truncated_payload_strictly_rejected",
           "callee": "assemble",
           "lineno": 170,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
+          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_fastcdc_bitflip_payload_strictly_rejected",
+          "callee": "ContentDefinedChunker",
+          "lineno": 174,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_fastcdc_bitflip_payload_strictly_rejected",
+          "callee": "urandom",
+          "lineno": 175,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_fastcdc_bitflip_payload_strictly_rejected",
+          "callee": "create_recipe",
+          "lineno": 176,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_fastcdc_bitflip_payload_strictly_rejected",
+          "callee": "zip",
+          "lineno": 177,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_fastcdc_bitflip_payload_strictly_rejected",
+          "callee": "bytes",
+          "lineno": 181,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_fastcdc_bitflip_payload_strictly_rejected",
+          "callee": "raises",
+          "lineno": 183,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_fastcdc_bitflip_payload_strictly_rejected",
+          "callee": "assemble",
+          "lineno": 184,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
           "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_merkle_boundary_empty_leaves_rejected",
           "callee": "raises",
-          "lineno": 174,
+          "lineno": 188,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_merkle_boundary_empty_leaves_rejected",
           "callee": "MerkleTree",
-          "lineno": 175,
+          "lineno": 189,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_merkle_boundary_single_leaf",
           "callee": "MerkleTree",
-          "lineno": 180,
+          "lineno": 194,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_merkle_boundary_single_leaf",
           "callee": "sha3_256",
-          "lineno": 181,
+          "lineno": 195,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_merkle_boundary_single_leaf",
           "callee": "get_proof",
-          "lineno": 182,
+          "lineno": 196,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_merkle_boundary_single_leaf",
           "callee": "verify_merkle_proof",
-          "lineno": 184,
+          "lineno": 198,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_merkle_boundary_single_leaf",
           "callee": "verify_merkle_proof",
-          "lineno": 185,
+          "lineno": 199,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_merkle_odd_and_even_leaf_counts_proof_integrity",
           "callee": "encode",
-          "lineno": 190,
+          "lineno": 204,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_merkle_odd_and_even_leaf_counts_proof_integrity",
           "callee": "hex",
-          "lineno": 190,
+          "lineno": 204,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_merkle_odd_and_even_leaf_counts_proof_integrity",
-          "callee": "urandom",
-          "lineno": 190,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_merkle_odd_and_even_leaf_counts_proof_integrity",
-          "callee": "range",
-          "lineno": 190,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_merkle_odd_and_even_leaf_counts_proof_integrity",
-          "callee": "MerkleTree",
-          "lineno": 191,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_merkle_odd_and_even_leaf_counts_proof_integrity",
-          "callee": "enumerate",
-          "lineno": 192,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_merkle_odd_and_even_leaf_counts_proof_integrity",
-          "callee": "get_proof",
-          "lineno": 193,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_merkle_odd_and_even_leaf_counts_proof_integrity",
-          "callee": "verify_merkle_proof",
-          "lineno": 194,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_merkle_odd_and_even_leaf_counts_proof_integrity",
-          "callee": "verify_merkle_proof",
-          "lineno": 195,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_merkle_odd_and_even_leaf_counts_proof_integrity",
-          "callee": "parametrize",
-          "lineno": 187,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_merkle_forged_root_strictly_rejected",
-          "callee": "encode",
-          "lineno": 199,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_merkle_forged_root_strictly_rejected",
-          "callee": "range",
-          "lineno": 199,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_merkle_forged_root_strictly_rejected",
-          "callee": "MerkleTree",
-          "lineno": 200,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_merkle_forged_root_strictly_rejected",
           "callee": "urandom",
           "lineno": 204,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
+          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_merkle_odd_and_even_leaf_counts_proof_integrity",
+          "callee": "range",
+          "lineno": 204,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_merkle_odd_and_even_leaf_counts_proof_integrity",
+          "callee": "MerkleTree",
+          "lineno": 205,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_merkle_odd_and_even_leaf_counts_proof_integrity",
+          "callee": "enumerate",
+          "lineno": 206,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_merkle_odd_and_even_leaf_counts_proof_integrity",
+          "callee": "get_proof",
+          "lineno": 207,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_merkle_odd_and_even_leaf_counts_proof_integrity",
+          "callee": "verify_merkle_proof",
+          "lineno": 208,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_merkle_odd_and_even_leaf_counts_proof_integrity",
+          "callee": "verify_merkle_proof",
+          "lineno": 209,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_merkle_odd_and_even_leaf_counts_proof_integrity",
+          "callee": "parametrize",
+          "lineno": 201,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_merkle_forged_root_strictly_rejected",
+          "callee": "encode",
+          "lineno": 213,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_merkle_forged_root_strictly_rejected",
+          "callee": "range",
+          "lineno": 213,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_merkle_forged_root_strictly_rejected",
+          "callee": "MerkleTree",
+          "lineno": 214,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_merkle_forged_root_strictly_rejected",
+          "callee": "urandom",
+          "lineno": 218,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
           "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_merkle_forged_root_strictly_rejected",
           "callee": "bytes",
-          "lineno": 205,
+          "lineno": 219,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_merkle_forged_root_strictly_rejected",
           "callee": "enumerate",
-          "lineno": 208,
+          "lineno": 222,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_merkle_forged_root_strictly_rejected",
           "callee": "get_proof",
-          "lineno": 209,
+          "lineno": 223,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_merkle_forged_root_strictly_rejected",
           "callee": "verify_merkle_proof",
-          "lineno": 210,
+          "lineno": 224,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_merkle_proof_tampered_siblings_rejected",
           "callee": "encode",
-          "lineno": 214,
+          "lineno": 228,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_merkle_proof_tampered_siblings_rejected",
           "callee": "range",
-          "lineno": 214,
+          "lineno": 228,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_merkle_proof_tampered_siblings_rejected",
           "callee": "MerkleTree",
-          "lineno": 215,
+          "lineno": 229,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_merkle_proof_tampered_siblings_rejected",
           "callee": "enumerate",
-          "lineno": 216,
+          "lineno": 230,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_merkle_proof_tampered_siblings_rejected",
           "callee": "get_proof",
-          "lineno": 217,
+          "lineno": 231,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_merkle_proof_tampered_siblings_rejected",
           "callee": "bytes",
-          "lineno": 220,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_merkle_proof_tampered_siblings_rejected",
-          "callee": "verify_merkle_proof",
-          "lineno": 222,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_merkle_proof_tampered_siblings_rejected",
-          "callee": "verify_merkle_proof",
-          "lineno": 226,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestNostrGossipAdversarialChallenger.test_schnorr_invalid_signatures_strictly_rejected",
-          "callee": "urandom",
           "lineno": 234,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
-          "caller": "TestNostrGossipAdversarialChallenger.test_schnorr_invalid_signatures_strictly_rejected",
-          "callee": "from_bytes",
-          "lineno": 235,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestNostrGossipAdversarialChallenger.test_schnorr_invalid_signatures_strictly_rejected",
-          "callee": "to_bytes",
+          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_merkle_proof_tampered_siblings_rejected",
+          "callee": "verify_merkle_proof",
           "lineno": 236,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
-          "caller": "TestNostrGossipAdversarialChallenger.test_schnorr_invalid_signatures_strictly_rejected",
-          "callee": "hex",
-          "lineno": 237,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestNostrGossipAdversarialChallenger.test_schnorr_invalid_signatures_strictly_rejected",
-          "callee": "_derive_pubkey_bytes",
-          "lineno": 237,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestNostrGossipAdversarialChallenger.test_schnorr_invalid_signatures_strictly_rejected",
-          "callee": "digest",
-          "lineno": 239,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestNostrGossipAdversarialChallenger.test_schnorr_invalid_signatures_strictly_rejected",
-          "callee": "sha256",
-          "lineno": 239,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestNostrGossipAdversarialChallenger.test_schnorr_invalid_signatures_strictly_rejected",
-          "callee": "hex",
+          "caller": "TestFastCDCAndMerkleAdversarialChallenger.test_merkle_proof_tampered_siblings_rejected",
+          "callee": "verify_merkle_proof",
           "lineno": 240,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestNostrGossipAdversarialChallenger.test_schnorr_invalid_signatures_strictly_rejected",
-          "callee": "_schnorr_sign",
-          "lineno": 241,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestNostrGossipAdversarialChallenger.test_schnorr_invalid_signatures_strictly_rejected",
-          "callee": "hex",
-          "lineno": 242,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestNostrGossipAdversarialChallenger.test_schnorr_invalid_signatures_strictly_rejected",
-          "callee": "_schnorr_verify",
-          "lineno": 244,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestNostrGossipAdversarialChallenger.test_schnorr_invalid_signatures_strictly_rejected",
-          "callee": "bytes",
-          "lineno": 246,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestNostrGossipAdversarialChallenger.test_schnorr_invalid_signatures_strictly_rejected",
-          "callee": "_schnorr_verify",
-          "lineno": 247,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestNostrGossipAdversarialChallenger.test_schnorr_invalid_signatures_strictly_rejected",
-          "callee": "hex",
-          "lineno": 247,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestNostrGossipAdversarialChallenger.test_schnorr_invalid_signatures_strictly_rejected",
-          "callee": "_schnorr_verify",
-          "lineno": 249,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestNostrGossipAdversarialChallenger.test_schnorr_invalid_signatures_strictly_rejected",
-          "callee": "hex",
-          "lineno": 249,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestNostrGossipAdversarialChallenger.test_schnorr_invalid_signatures_strictly_rejected",
           "callee": "urandom",
+          "lineno": 248,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestNostrGossipAdversarialChallenger.test_schnorr_invalid_signatures_strictly_rejected",
+          "callee": "from_bytes",
           "lineno": 249,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestNostrGossipAdversarialChallenger.test_schnorr_invalid_signatures_strictly_rejected",
-          "callee": "hexdigest",
-          "lineno": 251,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestNostrGossipAdversarialChallenger.test_schnorr_invalid_signatures_strictly_rejected",
-          "callee": "sha256",
-          "lineno": 251,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestNostrGossipAdversarialChallenger.test_schnorr_invalid_signatures_strictly_rejected",
-          "callee": "_schnorr_verify",
-          "lineno": 252,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestNostrGossipAdversarialChallenger.test_schnorr_invalid_signatures_strictly_rejected",
           "callee": "to_bytes",
+          "lineno": 250,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestNostrGossipAdversarialChallenger.test_schnorr_invalid_signatures_strictly_rejected",
+          "callee": "hex",
+          "lineno": 251,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestNostrGossipAdversarialChallenger.test_schnorr_invalid_signatures_strictly_rejected",
+          "callee": "_derive_pubkey_bytes",
+          "lineno": 251,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestNostrGossipAdversarialChallenger.test_schnorr_invalid_signatures_strictly_rejected",
+          "callee": "digest",
+          "lineno": 253,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestNostrGossipAdversarialChallenger.test_schnorr_invalid_signatures_strictly_rejected",
+          "callee": "sha256",
+          "lineno": 253,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestNostrGossipAdversarialChallenger.test_schnorr_invalid_signatures_strictly_rejected",
+          "callee": "hex",
           "lineno": 254,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestNostrGossipAdversarialChallenger.test_schnorr_invalid_signatures_strictly_rejected",
-          "callee": "hex",
+          "callee": "_schnorr_sign",
           "lineno": 255,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestNostrGossipAdversarialChallenger.test_schnorr_invalid_signatures_strictly_rejected",
-          "callee": "_derive_pubkey_bytes",
-          "lineno": 255,
+          "callee": "hex",
+          "lineno": 256,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestNostrGossipAdversarialChallenger.test_schnorr_invalid_signatures_strictly_rejected",
           "callee": "_schnorr_verify",
-          "lineno": 256,
+          "lineno": 258,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestNostrGossipAdversarialChallenger.test_schnorr_invalid_signatures_strictly_rejected",
+          "callee": "bytes",
+          "lineno": 260,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestNostrGossipAdversarialChallenger.test_schnorr_invalid_signatures_strictly_rejected",
+          "callee": "_schnorr_verify",
+          "lineno": 261,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestNostrGossipAdversarialChallenger.test_schnorr_invalid_signatures_strictly_rejected",
+          "callee": "hex",
+          "lineno": 261,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestNostrGossipAdversarialChallenger.test_schnorr_invalid_signatures_strictly_rejected",
+          "callee": "_schnorr_verify",
+          "lineno": 263,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestNostrGossipAdversarialChallenger.test_schnorr_invalid_signatures_strictly_rejected",
+          "callee": "hex",
+          "lineno": 263,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestNostrGossipAdversarialChallenger.test_schnorr_invalid_signatures_strictly_rejected",
+          "callee": "urandom",
+          "lineno": 263,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestNostrGossipAdversarialChallenger.test_schnorr_invalid_signatures_strictly_rejected",
+          "callee": "hexdigest",
+          "lineno": 265,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestNostrGossipAdversarialChallenger.test_schnorr_invalid_signatures_strictly_rejected",
+          "callee": "sha256",
+          "lineno": 265,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestNostrGossipAdversarialChallenger.test_schnorr_invalid_signatures_strictly_rejected",
+          "callee": "_schnorr_verify",
+          "lineno": 266,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestNostrGossipAdversarialChallenger.test_schnorr_invalid_signatures_strictly_rejected",
+          "callee": "to_bytes",
+          "lineno": 268,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestNostrGossipAdversarialChallenger.test_schnorr_invalid_signatures_strictly_rejected",
+          "callee": "hex",
+          "lineno": 269,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestNostrGossipAdversarialChallenger.test_schnorr_invalid_signatures_strictly_rejected",
+          "callee": "_derive_pubkey_bytes",
+          "lineno": 269,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestNostrGossipAdversarialChallenger.test_schnorr_invalid_signatures_strictly_rejected",
+          "callee": "_schnorr_verify",
+          "lineno": 270,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestNostrGossipAdversarialChallenger.test_nostr_event_id_tamper_rejected",
           "callee": "to_bytes",
-          "lineno": 261,
+          "lineno": 275,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestNostrGossipAdversarialChallenger.test_nostr_event_id_tamper_rejected",
           "callee": "hex",
-          "lineno": 262,
+          "lineno": 276,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestNostrGossipAdversarialChallenger.test_nostr_event_id_tamper_rejected",
           "callee": "_derive_pubkey_bytes",
-          "lineno": 262,
+          "lineno": 276,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestNostrGossipAdversarialChallenger.test_nostr_event_id_tamper_rejected",
           "callee": "int",
-          "lineno": 266,
+          "lineno": 280,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestNostrGossipAdversarialChallenger.test_nostr_event_id_tamper_rejected",
           "callee": "time",
-          "lineno": 266,
+          "lineno": 280,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestNostrGossipAdversarialChallenger.test_nostr_event_id_tamper_rejected",
           "callee": "dumps",
-          "lineno": 269,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestNostrGossipAdversarialChallenger.test_nostr_event_id_tamper_rejected",
-          "callee": "dumps",
-          "lineno": 271,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestNostrGossipAdversarialChallenger.test_nostr_event_id_tamper_rejected",
-          "callee": "hexdigest",
-          "lineno": 276,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestNostrGossipAdversarialChallenger.test_nostr_event_id_tamper_rejected",
-          "callee": "sha256",
-          "lineno": 276,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestNostrGossipAdversarialChallenger.test_nostr_event_id_tamper_rejected",
-          "callee": "encode",
-          "lineno": 276,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestNostrGossipAdversarialChallenger.test_nostr_event_id_tamper_rejected",
-          "callee": "hex",
-          "lineno": 277,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestNostrGossipAdversarialChallenger.test_nostr_event_id_tamper_rejected",
-          "callee": "_schnorr_sign",
-          "lineno": 277,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestNostrGossipAdversarialChallenger.test_nostr_event_id_tamper_rejected",
-          "callee": "fromhex",
-          "lineno": 277,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestNostrGossipAdversarialChallenger.test_nostr_event_id_tamper_rejected",
-          "callee": "_verify_nostr_event",
-          "lineno": 279,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestNostrGossipAdversarialChallenger.test_nostr_event_id_tamper_rejected",
-          "callee": "dict",
-          "lineno": 281,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestNostrGossipAdversarialChallenger.test_nostr_event_id_tamper_rejected",
-          "callee": "dumps",
-          "lineno": 282,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestNostrGossipAdversarialChallenger.test_nostr_event_id_tamper_rejected",
-          "callee": "_verify_nostr_event",
           "lineno": 283,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestNostrGossipAdversarialChallenger.test_nostr_event_id_tamper_rejected",
-          "callee": "dict",
+          "callee": "dumps",
           "lineno": 285,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestNostrGossipAdversarialChallenger.test_nostr_event_id_tamper_rejected",
+          "callee": "hexdigest",
+          "lineno": 290,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestNostrGossipAdversarialChallenger.test_nostr_event_id_tamper_rejected",
+          "callee": "sha256",
+          "lineno": 290,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestNostrGossipAdversarialChallenger.test_nostr_event_id_tamper_rejected",
+          "callee": "encode",
+          "lineno": 290,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestNostrGossipAdversarialChallenger.test_nostr_event_id_tamper_rejected",
+          "callee": "hex",
+          "lineno": 291,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestNostrGossipAdversarialChallenger.test_nostr_event_id_tamper_rejected",
+          "callee": "_schnorr_sign",
+          "lineno": 291,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestNostrGossipAdversarialChallenger.test_nostr_event_id_tamper_rejected",
+          "callee": "fromhex",
+          "lineno": 291,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestNostrGossipAdversarialChallenger.test_nostr_event_id_tamper_rejected",
           "callee": "_verify_nostr_event",
-          "lineno": 287,
+          "lineno": 293,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestNostrGossipAdversarialChallenger.test_nostr_event_id_tamper_rejected",
+          "callee": "dict",
+          "lineno": 295,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestNostrGossipAdversarialChallenger.test_nostr_event_id_tamper_rejected",
+          "callee": "dumps",
+          "lineno": 296,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestNostrGossipAdversarialChallenger.test_nostr_event_id_tamper_rejected",
+          "callee": "_verify_nostr_event",
+          "lineno": 297,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestNostrGossipAdversarialChallenger.test_nostr_event_id_tamper_rejected",
+          "callee": "dict",
+          "lineno": 299,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestNostrGossipAdversarialChallenger.test_nostr_event_id_tamper_rejected",
+          "callee": "_verify_nostr_event",
+          "lineno": 301,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestNostrGossipAdversarialChallenger.test_replay_window_boundary_and_exceeded",
           "callee": "int",
-          "lineno": 302,
+          "lineno": 316,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestNostrGossipAdversarialChallenger.test_replay_window_boundary_and_exceeded",
           "callee": "time",
-          "lineno": 302,
+          "lineno": 316,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestNostrGossipAdversarialChallenger.test_replay_window_boundary_and_exceeded",
           "callee": "_check_replay_window",
-          "lineno": 304,
+          "lineno": 318,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestNostrGossipAdversarialChallenger.test_replay_window_boundary_and_exceeded",
           "callee": "parametrize",
-          "lineno": 289,
+          "lineno": 303,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestNostrGossipAdversarialChallenger.test_replay_window_malformed_types",
           "callee": "_check_replay_window",
-          "lineno": 317,
+          "lineno": 331,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestNostrGossipAdversarialChallenger.test_replay_window_malformed_types",
           "callee": "parametrize",
-          "lineno": 306,
+          "lineno": 320,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestNostrGossipAdversarialChallenger.test_nostr_malformed_kind_30078_30080_zero_500_exceptions",
           "callee": "hexdigest",
-          "lineno": 338,
+          "lineno": 352,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestNostrGossipAdversarialChallenger.test_nostr_malformed_kind_30078_30080_zero_500_exceptions",
           "callee": "sha256",
-          "lineno": 338,
+          "lineno": 352,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestNostrGossipAdversarialChallenger.test_nostr_malformed_kind_30078_30080_zero_500_exceptions",
           "callee": "urandom",
-          "lineno": 338,
+          "lineno": 352,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestNostrGossipAdversarialChallenger.test_nostr_malformed_kind_30078_30080_zero_500_exceptions",
           "callee": "int",
-          "lineno": 340,
+          "lineno": 354,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestNostrGossipAdversarialChallenger.test_nostr_malformed_kind_30078_30080_zero_500_exceptions",
           "callee": "time",
-          "lineno": 340,
+          "lineno": 354,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestNostrGossipAdversarialChallenger.test_nostr_malformed_kind_30078_30080_zero_500_exceptions",
           "callee": "_on_nostr_event",
-          "lineno": 347,
+          "lineno": 361,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestNostrGossipAdversarialChallenger.test_nostr_malformed_kind_30078_30080_zero_500_exceptions",
           "callee": "fail",
-          "lineno": 349,
+          "lineno": 363,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestNostrGossipAdversarialChallenger.test_gossip_broadcast_fastapi_zero_500_on_fuzz",
           "callee": "NamedTemporaryFile",
-          "lineno": 353,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestNostrGossipAdversarialChallenger.test_gossip_broadcast_fastapi_zero_500_on_fuzz",
-          "callee": "close",
-          "lineno": 354,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestNostrGossipAdversarialChallenger.test_gossip_broadcast_fastapi_zero_500_on_fuzz",
-          "callee": "get",
-          "lineno": 355,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestNostrGossipAdversarialChallenger.test_gossip_broadcast_fastapi_zero_500_on_fuzz",
-          "callee": "TestClient",
-          "lineno": 358,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestNostrGossipAdversarialChallenger.test_gossip_broadcast_fastapi_zero_500_on_fuzz",
-          "callee": "post",
           "lineno": 367,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestNostrGossipAdversarialChallenger.test_gossip_broadcast_fastapi_zero_500_on_fuzz",
+          "callee": "close",
+          "lineno": 368,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestNostrGossipAdversarialChallenger.test_gossip_broadcast_fastapi_zero_500_on_fuzz",
+          "callee": "get",
+          "lineno": 369,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestNostrGossipAdversarialChallenger.test_gossip_broadcast_fastapi_zero_500_on_fuzz",
+          "callee": "TestClient",
+          "lineno": 372,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestNostrGossipAdversarialChallenger.test_gossip_broadcast_fastapi_zero_500_on_fuzz",
           "callee": "post",
-          "lineno": 375,
+          "lineno": 381,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestNostrGossipAdversarialChallenger.test_gossip_broadcast_fastapi_zero_500_on_fuzz",
-          "callee": "pop",
-          "lineno": 387,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestNostrGossipAdversarialChallenger.test_gossip_broadcast_fastapi_zero_500_on_fuzz",
-          "callee": "exists",
+          "callee": "post",
           "lineno": 389,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestNostrGossipAdversarialChallenger.test_gossip_broadcast_fastapi_zero_500_on_fuzz",
+          "callee": "pop",
+          "lineno": 401,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestNostrGossipAdversarialChallenger.test_gossip_broadcast_fastapi_zero_500_on_fuzz",
+          "callee": "exists",
+          "lineno": 403,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestNostrGossipAdversarialChallenger.test_gossip_broadcast_fastapi_zero_500_on_fuzz",
           "callee": "remove",
-          "lineno": 390,
+          "lineno": 404,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestFountainCodecAdversarialChallenger.test_droplet_seed_authenticity_o1_timing",
           "callee": "derive_repair_seed_schedule",
-          "lineno": 401,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestFountainCodecAdversarialChallenger.test_droplet_seed_authenticity_o1_timing",
-          "callee": "perf_counter",
-          "lineno": 405,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestFountainCodecAdversarialChallenger.test_droplet_seed_authenticity_o1_timing",
-          "callee": "Random",
-          "lineno": 406,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestFountainCodecAdversarialChallenger.test_droplet_seed_authenticity_o1_timing",
-          "callee": "_sample_soliton_degree",
-          "lineno": 407,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestFountainCodecAdversarialChallenger.test_droplet_seed_authenticity_o1_timing",
-          "callee": "sorted",
-          "lineno": 408,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestFountainCodecAdversarialChallenger.test_droplet_seed_authenticity_o1_timing",
-          "callee": "sample",
-          "lineno": 408,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestFountainCodecAdversarialChallenger.test_droplet_seed_authenticity_o1_timing",
-          "callee": "range",
-          "lineno": 408,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestFountainCodecAdversarialChallenger.test_droplet_seed_authenticity_o1_timing",
-          "callee": "verify_droplet_seed_authenticity",
-          "lineno": 409,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestFountainCodecAdversarialChallenger.test_droplet_seed_authenticity_o1_timing",
-          "callee": "perf_counter",
           "lineno": 415,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestFountainCodecAdversarialChallenger.test_droplet_seed_authenticity_o1_timing",
+          "callee": "perf_counter",
+          "lineno": 419,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestFountainCodecAdversarialChallenger.test_droplet_seed_authenticity_o1_timing",
+          "callee": "Random",
+          "lineno": 420,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestFountainCodecAdversarialChallenger.test_droplet_seed_authenticity_o1_timing",
+          "callee": "_sample_soliton_degree",
+          "lineno": 421,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestFountainCodecAdversarialChallenger.test_droplet_seed_authenticity_o1_timing",
+          "callee": "sorted",
+          "lineno": 422,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestFountainCodecAdversarialChallenger.test_droplet_seed_authenticity_o1_timing",
+          "callee": "sample",
+          "lineno": 422,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestFountainCodecAdversarialChallenger.test_droplet_seed_authenticity_o1_timing",
+          "callee": "range",
+          "lineno": 422,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestFountainCodecAdversarialChallenger.test_droplet_seed_authenticity_o1_timing",
+          "callee": "verify_droplet_seed_authenticity",
+          "lineno": 423,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestFountainCodecAdversarialChallenger.test_droplet_seed_authenticity_o1_timing",
+          "callee": "perf_counter",
+          "lineno": 429,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestFountainCodecAdversarialChallenger.test_droplet_seed_authenticity_o1_timing",
           "callee": "append",
-          "lineno": 416,
+          "lineno": 430,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestFountainCodecAdversarialChallenger.test_droplet_seed_authenticity_o1_timing",
           "callee": "sum",
-          "lineno": 419,
+          "lineno": 433,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestFountainCodecAdversarialChallenger.test_droplet_seed_authenticity_o1_timing",
           "callee": "len",
-          "lineno": 419,
+          "lineno": 433,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestFountainCodecAdversarialChallenger.test_byzantine_tampered_repair_seeds_rejected",
           "callee": "derive_repair_seed_schedule",
-          "lineno": 425,
+          "lineno": 439,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestFountainCodecAdversarialChallenger.test_byzantine_tampered_repair_seeds_rejected",
           "callee": "Random",
-          "lineno": 428,
+          "lineno": 442,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestFountainCodecAdversarialChallenger.test_byzantine_tampered_repair_seeds_rejected",
           "callee": "_sample_soliton_degree",
-          "lineno": 429,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestFountainCodecAdversarialChallenger.test_byzantine_tampered_repair_seeds_rejected",
-          "callee": "sorted",
-          "lineno": 430,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestFountainCodecAdversarialChallenger.test_byzantine_tampered_repair_seeds_rejected",
-          "callee": "sample",
-          "lineno": 430,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestFountainCodecAdversarialChallenger.test_byzantine_tampered_repair_seeds_rejected",
-          "callee": "range",
-          "lineno": 430,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestFountainCodecAdversarialChallenger.test_byzantine_tampered_repair_seeds_rejected",
-          "callee": "verify_droplet_seed_authenticity",
-          "lineno": 432,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestFountainCodecAdversarialChallenger.test_byzantine_tampered_repair_seeds_rejected",
-          "callee": "verify_droplet_seed_authenticity",
-          "lineno": 436,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestFountainCodecAdversarialChallenger.test_byzantine_tampered_repair_seeds_rejected",
-          "callee": "list",
           "lineno": 443,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestFountainCodecAdversarialChallenger.test_byzantine_tampered_repair_seeds_rejected",
           "callee": "sorted",
-          "lineno": 445,
+          "lineno": 444,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestFountainCodecAdversarialChallenger.test_byzantine_tampered_repair_seeds_rejected",
+          "callee": "sample",
+          "lineno": 444,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestFountainCodecAdversarialChallenger.test_byzantine_tampered_repair_seeds_rejected",
+          "callee": "range",
+          "lineno": 444,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestFountainCodecAdversarialChallenger.test_byzantine_tampered_repair_seeds_rejected",
+          "callee": "verify_droplet_seed_authenticity",
+          "lineno": 446,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestFountainCodecAdversarialChallenger.test_byzantine_tampered_repair_seeds_rejected",
+          "callee": "verify_droplet_seed_authenticity",
+          "lineno": 450,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestFountainCodecAdversarialChallenger.test_byzantine_tampered_repair_seeds_rejected",
           "callee": "list",
-          "lineno": 445,
+          "lineno": 457,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestFountainCodecAdversarialChallenger.test_byzantine_tampered_repair_seeds_rejected",
+          "callee": "sorted",
+          "lineno": 459,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestFountainCodecAdversarialChallenger.test_byzantine_tampered_repair_seeds_rejected",
+          "callee": "list",
+          "lineno": 459,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestFountainCodecAdversarialChallenger.test_byzantine_tampered_repair_seeds_rejected",
           "callee": "set",
-          "lineno": 445,
+          "lineno": 459,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestFountainCodecAdversarialChallenger.test_byzantine_tampered_repair_seeds_rejected",
           "callee": "verify_droplet_seed_authenticity",
-          "lineno": 447,
+          "lineno": 461,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestFountainCodecAdversarialChallenger.test_byzantine_tampered_repair_seeds_rejected",
           "callee": "verify_droplet_seed_authenticity",
-          "lineno": 454,
+          "lineno": 468,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestFountainCodecAdversarialChallenger.test_byzantine_tampered_repair_seeds_rejected",
           "callee": "verify_droplet_seed_authenticity",
-          "lineno": 455,
+          "lineno": 469,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestFountainCodecAdversarialChallenger.test_byzantine_tampered_repair_seeds_rejected",
           "callee": "verify_droplet_seed_authenticity",
-          "lineno": 456,
+          "lineno": 470,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestFountainCodecAdversarialChallenger.test_packet_drops_40_percent_bit_exact_recovery",
           "callee": "bytes",
-          "lineno": 461,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestFountainCodecAdversarialChallenger.test_packet_drops_40_percent_bit_exact_recovery",
-          "callee": "range",
-          "lineno": 461,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestFountainCodecAdversarialChallenger.test_packet_drops_40_percent_bit_exact_recovery",
-          "callee": "hexdigest",
-          "lineno": 462,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestFountainCodecAdversarialChallenger.test_packet_drops_40_percent_bit_exact_recovery",
-          "callee": "sha3_256",
-          "lineno": 462,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestFountainCodecAdversarialChallenger.test_packet_drops_40_percent_bit_exact_recovery",
-          "callee": "FountainCodec",
-          "lineno": 464,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestFountainCodecAdversarialChallenger.test_packet_drops_40_percent_bit_exact_recovery",
-          "callee": "encode",
-          "lineno": 465,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestFountainCodecAdversarialChallenger.test_packet_drops_40_percent_bit_exact_recovery",
-          "callee": "Random",
-          "lineno": 468,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestFountainCodecAdversarialChallenger.test_packet_drops_40_percent_bit_exact_recovery",
-          "callee": "random",
-          "lineno": 469,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestFountainCodecAdversarialChallenger.test_packet_drops_40_percent_bit_exact_recovery",
-          "callee": "append",
           "lineno": 475,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestFountainCodecAdversarialChallenger.test_packet_drops_40_percent_bit_exact_recovery",
-          "callee": "len",
+          "callee": "range",
+          "lineno": 475,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestFountainCodecAdversarialChallenger.test_packet_drops_40_percent_bit_exact_recovery",
+          "callee": "hexdigest",
           "lineno": 476,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestFountainCodecAdversarialChallenger.test_packet_drops_40_percent_bit_exact_recovery",
-          "callee": "decode",
+          "callee": "sha3_256",
+          "lineno": 476,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestFountainCodecAdversarialChallenger.test_packet_drops_40_percent_bit_exact_recovery",
+          "callee": "FountainCodec",
           "lineno": 478,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestFountainCodecAdversarialChallenger.test_packet_drops_40_percent_bit_exact_recovery",
+          "callee": "encode",
+          "lineno": 479,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestFountainCodecAdversarialChallenger.test_packet_drops_40_percent_bit_exact_recovery",
+          "callee": "Random",
+          "lineno": 482,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestFountainCodecAdversarialChallenger.test_packet_drops_40_percent_bit_exact_recovery",
+          "callee": "random",
+          "lineno": 483,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestFountainCodecAdversarialChallenger.test_packet_drops_40_percent_bit_exact_recovery",
+          "callee": "append",
+          "lineno": 489,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestFountainCodecAdversarialChallenger.test_packet_drops_40_percent_bit_exact_recovery",
+          "callee": "len",
+          "lineno": 490,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestFountainCodecAdversarialChallenger.test_packet_drops_40_percent_bit_exact_recovery",
+          "callee": "decode",
+          "lineno": 492,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestFountainCodecAdversarialChallenger.test_packet_drops_40_percent_bit_exact_recovery",
           "callee": "parametrize",
-          "lineno": 458,
+          "lineno": 472,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestFountainCodecAdversarialChallenger.test_packet_drops_50_percent_bit_exact_recovery",
           "callee": "bytes",
-          "lineno": 489,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestFountainCodecAdversarialChallenger.test_packet_drops_50_percent_bit_exact_recovery",
-          "callee": "range",
-          "lineno": 489,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestFountainCodecAdversarialChallenger.test_packet_drops_50_percent_bit_exact_recovery",
-          "callee": "hexdigest",
-          "lineno": 490,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestFountainCodecAdversarialChallenger.test_packet_drops_50_percent_bit_exact_recovery",
-          "callee": "sha3_256",
-          "lineno": 490,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestFountainCodecAdversarialChallenger.test_packet_drops_50_percent_bit_exact_recovery",
-          "callee": "FountainCodec",
-          "lineno": 492,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestFountainCodecAdversarialChallenger.test_packet_drops_50_percent_bit_exact_recovery",
-          "callee": "encode",
-          "lineno": 493,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestFountainCodecAdversarialChallenger.test_packet_drops_50_percent_bit_exact_recovery",
-          "callee": "Random",
-          "lineno": 496,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestFountainCodecAdversarialChallenger.test_packet_drops_50_percent_bit_exact_recovery",
-          "callee": "random",
-          "lineno": 497,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestFountainCodecAdversarialChallenger.test_packet_drops_50_percent_bit_exact_recovery",
-          "callee": "append",
-          "lineno": 502,
-          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
-        },
-        {
-          "caller": "TestFountainCodecAdversarialChallenger.test_packet_drops_50_percent_bit_exact_recovery",
-          "callee": "len",
           "lineno": 503,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestFountainCodecAdversarialChallenger.test_packet_drops_50_percent_bit_exact_recovery",
+          "callee": "range",
+          "lineno": 503,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestFountainCodecAdversarialChallenger.test_packet_drops_50_percent_bit_exact_recovery",
+          "callee": "hexdigest",
+          "lineno": 504,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestFountainCodecAdversarialChallenger.test_packet_drops_50_percent_bit_exact_recovery",
+          "callee": "sha3_256",
+          "lineno": 504,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestFountainCodecAdversarialChallenger.test_packet_drops_50_percent_bit_exact_recovery",
+          "callee": "FountainCodec",
+          "lineno": 506,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestFountainCodecAdversarialChallenger.test_packet_drops_50_percent_bit_exact_recovery",
+          "callee": "encode",
+          "lineno": 507,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestFountainCodecAdversarialChallenger.test_packet_drops_50_percent_bit_exact_recovery",
+          "callee": "Random",
+          "lineno": 510,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestFountainCodecAdversarialChallenger.test_packet_drops_50_percent_bit_exact_recovery",
+          "callee": "random",
+          "lineno": 511,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestFountainCodecAdversarialChallenger.test_packet_drops_50_percent_bit_exact_recovery",
+          "callee": "append",
+          "lineno": 516,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestFountainCodecAdversarialChallenger.test_packet_drops_50_percent_bit_exact_recovery",
+          "callee": "len",
+          "lineno": 517,
+          "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
+        },
+        {
+          "caller": "TestFountainCodecAdversarialChallenger.test_packet_drops_50_percent_bit_exact_recovery",
           "callee": "decode",
-          "lineno": 505,
+          "lineno": 519,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestFountainCodecAdversarialChallenger.test_packet_drops_50_percent_bit_exact_recovery",
           "callee": "parametrize",
-          "lineno": 486,
+          "lineno": 500,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestFountainCodecAdversarialChallenger.test_tfp_node_packet_drop_resilience_40_and_50",
           "callee": "TFPNode",
-          "lineno": 516,
+          "lineno": 530,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestFountainCodecAdversarialChallenger.test_tfp_node_packet_drop_resilience_40_and_50",
           "callee": "publish",
-          "lineno": 517,
+          "lineno": 531,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestFountainCodecAdversarialChallenger.test_tfp_node_packet_drop_resilience_40_and_50",
           "callee": "fetch",
-          "lineno": 519,
+          "lineno": 533,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestFountainCodecAdversarialChallenger.test_tfp_node_packet_drop_resilience_40_and_50",
           "callee": "fetch",
-          "lineno": 522,
+          "lineno": 536,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestFountainCodecAdversarialChallenger.test_insufficient_rank_strictly_raises_value_error",
           "callee": "urandom",
-          "lineno": 527,
+          "lineno": 541,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestFountainCodecAdversarialChallenger.test_insufficient_rank_strictly_raises_value_error",
           "callee": "hexdigest",
-          "lineno": 528,
+          "lineno": 542,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestFountainCodecAdversarialChallenger.test_insufficient_rank_strictly_raises_value_error",
           "callee": "sha3_256",
-          "lineno": 528,
+          "lineno": 542,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestFountainCodecAdversarialChallenger.test_insufficient_rank_strictly_raises_value_error",
           "callee": "FountainEncoder",
-          "lineno": 529,
+          "lineno": 543,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestFountainCodecAdversarialChallenger.test_insufficient_rank_strictly_raises_value_error",
           "callee": "encode",
-          "lineno": 530,
+          "lineno": 544,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestFountainCodecAdversarialChallenger.test_insufficient_rank_strictly_raises_value_error",
           "callee": "FountainDecoder",
-          "lineno": 532,
+          "lineno": 546,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestFountainCodecAdversarialChallenger.test_insufficient_rank_strictly_raises_value_error",
           "callee": "raises",
-          "lineno": 534,
+          "lineno": 548,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         },
         {
           "caller": "TestFountainCodecAdversarialChallenger.test_insufficient_rank_strictly_raises_value_error",
           "callee": "decode",
-          "lineno": 535,
+          "lineno": 549,
           "file_path": "tests/fuzz/test_adversarial_m2_challenger_stress.py"
         }
       ]

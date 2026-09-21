@@ -221,8 +221,19 @@ class FountainStreamReceiver:
 
         # Already completed for this chunk in this session?
         if chunk_idx in session_chunks:
-            self.stats.packets_duplicate += 1
-            return None
+            # If manifest is known, ensure existing chunk is actually valid
+            target_m = self.received_manifests.get(session_id)
+            if target_m and chunk_idx < len(target_m.chunk_hashes):
+                expected_hash = target_m.chunk_hashes[chunk_idx]
+                if not hmac.compare_digest(hashlib.sha3_256(session_chunks[chunk_idx]).hexdigest(), expected_hash):
+                    # Existing chunk was corrupted (e.g. decoded before manifest arrived) - purge it
+                    session_chunks.pop(chunk_idx, None)
+                else:
+                    self.stats.packets_duplicate += 1
+                    return None
+            else:
+                self.stats.packets_duplicate += 1
+                return None
 
         # Strict single-transfer bounding:
         target_m = self.received_manifests.get(session_id)
@@ -273,6 +284,8 @@ class FountainStreamReceiver:
                         log.warning(
                             f"Reconstructed chunk {chunk_idx} failed integrity for session {session_id}"
                         )
+                        # Remove the offending droplet that caused corrupted decode
+                        buf.pop(pkt.seed, None)
                         return None
 
                 session_chunks[chunk_idx] = reconstructed
@@ -285,6 +298,39 @@ class FountainStreamReceiver:
                 pass
 
         return None
+
+    def ingest_manifest(self, manifest: MediaManifest) -> int:
+        """
+        Directly register an authentic MediaManifest for a session.
+        Prunes any out-of-bounds or corrupted speculative chunks and buffers.
+        Returns the derived session_id.
+        """
+        sess_id = self.derive_session_id(manifest)
+        self._evict_stale_or_excess_sessions(sess_id)
+        self._session_timestamps[sess_id] = time.time()
+        self.received_manifests[sess_id] = manifest
+        self.latest_manifest = manifest
+        self._last_active_session = sess_id
+
+        # Prune any speculative out-of-bounds chunk buffers for this session
+        stale_keys = [
+            k for k in self._droplet_buffers
+            if k[0] == sess_id and (k[1] < 0 or k[1] >= manifest.chunk_count)
+        ]
+        for k in stale_keys:
+            self._droplet_buffers.pop(k, None)
+            self._chunk_meta.pop(k, None)
+
+        session_reconstructed = self.reconstructed_chunks_by_session.get(sess_id, {})
+        invalid_chunks = [
+            c_idx for c_idx, data in session_reconstructed.items()
+            if c_idx < 0 or c_idx >= manifest.chunk_count
+            or not hmac.compare_digest(hashlib.sha3_256(data).hexdigest(), manifest.chunk_hashes[c_idx])
+        ]
+        for c_idx in invalid_chunks:
+            session_reconstructed.pop(c_idx, None)
+
+        return sess_id
 
     def ingest_bytes(self, raw_bytes: bytes) -> Optional[Tuple[int, bytes]]:
         """
@@ -302,30 +348,7 @@ class FountainStreamReceiver:
                     secret_key=self.secret_key,
                     verify_tag=self.verify_tag,
                 )
-                sess_id = self.derive_session_id(manifest)
-                self._evict_stale_or_excess_sessions(sess_id)
-                self._session_timestamps[sess_id] = time.time()
-                self.received_manifests[sess_id] = manifest
-                self.latest_manifest = manifest
-                self._last_active_session = sess_id
-
-                # Prune any speculative out-of-bounds chunk buffers for this session
-                stale_keys = [
-                    k for k in self._droplet_buffers
-                    if k[0] == sess_id and (k[1] < 0 or k[1] >= manifest.chunk_count)
-                ]
-                for k in stale_keys:
-                    self._droplet_buffers.pop(k, None)
-                    self._chunk_meta.pop(k, None)
-
-                session_reconstructed = self.reconstructed_chunks_by_session.get(sess_id, {})
-                stale_chunks = [
-                    c_idx for c_idx in session_reconstructed
-                    if c_idx < 0 or c_idx >= manifest.chunk_count
-                ]
-                for c_idx in stale_chunks:
-                    session_reconstructed.pop(c_idx, None)
-
+                self.ingest_manifest(manifest)
                 return (-1, b"")
             except AntiPollutionError:
                 self.stats.packets_rejected_auth += 1
@@ -354,15 +377,25 @@ class FountainStreamReceiver:
         if target_manifest is None:
             return False
 
-        if session_id is not None:
-            chunks = self.reconstructed_chunks_by_session.get(session_id, {})
-        else:
-            derived = self.derive_session_id(target_manifest)
-            chunks = self.reconstructed_chunks_by_session.get(derived, {})
+        target_session = session_id if session_id is not None else self.derive_session_id(target_manifest)
+        if target_manifest and target_session not in self.received_manifests:
+            self.received_manifests[target_session] = target_manifest
 
+        chunks = self.reconstructed_chunks_by_session.get(target_session, {})
         if len(chunks) < target_manifest.chunk_count:
             return False
-        return all(idx in chunks for idx in range(target_manifest.chunk_count))
+
+        for idx in range(target_manifest.chunk_count):
+            if idx not in chunks:
+                return False
+            expected_hash = target_manifest.chunk_hashes[idx]
+            actual_hash = hashlib.sha3_256(chunks[idx]).hexdigest()
+            if not hmac.compare_digest(actual_hash, expected_hash):
+                # Corrupted speculative chunk! Purge it so the receiver can re-decode from droplets
+                chunks.pop(idx, None)
+                return False
+
+        return True
 
     def assemble(self, manifest: Optional[MediaManifest] = None, session_id: Optional[int] = None) -> bytes:
         """Reassemble full media payload from reconstructed chunks belonging strictly to this session."""

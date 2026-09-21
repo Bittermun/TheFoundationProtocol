@@ -1,4 +1,4 @@
-﻿# SPDX-License-Identifier: Apache-2.0
+# SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 The Foundation Protocol Contributors
 
 """
@@ -129,18 +129,32 @@ class TestFastCDCAndMerkleAdversarialChallenger:
         with pytest.raises(KeyError, match="Missing required chunk"):
             chunker.assemble(recipe, missing_map)
 
-        # Forged hash in recipe
+        # Forged hash in recipe (mismatched root hash triggers recipe validation failure)
         forged_hashes = list(recipe.chunk_hashes)
         forged_hashes[0] = hashlib.sha3_256(b"forged").hexdigest()
-        forged_recipe = ChunkRecipe(
+        forged_recipe_bad_root = ChunkRecipe(
             root_hash=recipe.root_hash,
             total_size=recipe.total_size,
             chunk_hashes=forged_hashes,
             chunk_sizes=recipe.chunk_sizes,
             metadata={},
         )
+        with pytest.raises(ValueError, match="Invalid recipe"):
+            chunker.assemble(forged_recipe_bad_root, chunk_map)
+
+        # Forged hash with aligned root hash triggers missing chunk in chunk_map
+        hasher = hashlib.sha3_256()
+        for chash in forged_hashes:
+            hasher.update(chash.encode("utf-8"))
+        forged_recipe_valid_root = ChunkRecipe(
+            root_hash=hasher.hexdigest(),
+            total_size=recipe.total_size,
+            chunk_hashes=forged_hashes,
+            chunk_sizes=recipe.chunk_sizes,
+            metadata={},
+        )
         with pytest.raises(KeyError, match="Missing required chunk"):
-            chunker.assemble(forged_recipe, chunk_map)
+            chunker.assemble(forged_recipe_valid_root, chunk_map)
 
     def test_fastcdc_truncated_payload_strictly_rejected(self):
         """Verify truncated chunk payloads raise ValueError (size mismatch)."""

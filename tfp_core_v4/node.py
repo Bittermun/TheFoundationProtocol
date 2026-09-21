@@ -253,8 +253,18 @@ class TFPNode:
         if redundancy is not None:
             effective_redundancy = max(0.0, float(redundancy))
         else:
-            # Automatic policy based on block count
-            effective_redundancy = 3.0 if k_blocks <= 16 else 0.50
+            # Automatic policy calibrated for rateless loss resilience:
+            # Small payloads (<=32 blocks) survive >=50% loss (Shannon limit requires >=1.0)
+            # Medium payloads (<=128 blocks) survive >=25-33% loss
+            # Large payloads (>128 blocks) maintain 100% redundancy baseline
+            if k_blocks <= 8:
+                effective_redundancy = 5.0
+            elif k_blocks <= 32:
+                effective_redundancy = 3.0
+            elif k_blocks <= 128:
+                effective_redundancy = 2.0
+            else:
+                effective_redundancy = 1.0
 
         droplets, _k, _orig_len = self.codec.encode(data, redundancy=effective_redundancy)
         self.droplet_store[root_hash] = droplets
