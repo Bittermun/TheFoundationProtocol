@@ -1,12 +1,12 @@
 {
   "stats": {
-    "production_files": 301,
-    "production_loc": 50111,
-    "production_classes": 464,
-    "production_functions": 2530,
-    "test_files": 70,
-    "test_functions": 607,
-    "total_symbols": 3809
+    "production_files": 307,
+    "production_loc": 52026,
+    "production_classes": 469,
+    "production_functions": 2580,
+    "test_files": 84,
+    "test_functions": 654,
+    "total_symbols": 3925
   },
   "files": {
     "benchmark_comparative.py": {
@@ -3037,6 +3037,375 @@
         }
       ]
     },
+    "scripts/run_experiment.py": {
+      "loc": 468,
+      "symbols": [
+        {
+          "name": "DroppingProxyProtocol",
+          "qualified_name": "DroppingProxyProtocol",
+          "kind": "class",
+          "file_path": "scripts/run_experiment.py",
+          "lineno": 58,
+          "args": [],
+          "return_type": null,
+          "docstring": "Intermediary proxy protocol that intercepts UDP datagrams and drops a recorded percentage.",
+          "bases": [
+            "asyncio.DatagramProtocol"
+          ]
+        },
+        {
+          "name": "__init__",
+          "qualified_name": "DroppingProxyProtocol.__init__",
+          "kind": "function",
+          "file_path": "scripts/run_experiment.py",
+          "lineno": 61,
+          "args": [
+            "target_port",
+            "drop_rate",
+            "seed"
+          ],
+          "return_type": null,
+          "docstring": null,
+          "bases": []
+        },
+        {
+          "name": "connection_made",
+          "qualified_name": "DroppingProxyProtocol.connection_made",
+          "kind": "function",
+          "file_path": "scripts/run_experiment.py",
+          "lineno": 70,
+          "args": [
+            "transport"
+          ],
+          "return_type": null,
+          "docstring": null,
+          "bases": []
+        },
+        {
+          "name": "datagram_received",
+          "qualified_name": "DroppingProxyProtocol.datagram_received",
+          "kind": "function",
+          "file_path": "scripts/run_experiment.py",
+          "lineno": 73,
+          "args": [
+            "data",
+            "addr"
+          ],
+          "return_type": null,
+          "docstring": null,
+          "bases": []
+        },
+        {
+          "name": "run_e2e_fountain_loss_experiment",
+          "qualified_name": "run_e2e_fountain_loss_experiment",
+          "kind": "async_function",
+          "file_path": "scripts/run_experiment.py",
+          "lineno": 83,
+          "args": [
+            "loss_rate",
+            "seed"
+          ],
+          "return_type": "Dict[str, Any]",
+          "docstring": "Runs end-to-end fountain stream over OS UDP loopback with a dropping proxy.",
+          "bases": []
+        },
+        {
+          "name": "ReceiverProtocol",
+          "qualified_name": "ReceiverProtocol",
+          "kind": "class",
+          "file_path": "scripts/run_experiment.py",
+          "lineno": 113,
+          "args": [],
+          "return_type": null,
+          "docstring": null,
+          "bases": [
+            "asyncio.DatagramProtocol"
+          ]
+        },
+        {
+          "name": "datagram_received",
+          "qualified_name": "ReceiverProtocol.datagram_received",
+          "kind": "function",
+          "file_path": "scripts/run_experiment.py",
+          "lineno": 114,
+          "args": [
+            "data",
+            "addr"
+          ],
+          "return_type": null,
+          "docstring": null,
+          "bases": []
+        },
+        {
+          "name": "run_consecutive_streams_experiment",
+          "qualified_name": "run_consecutive_streams_experiment",
+          "kind": "async_function",
+          "file_path": "scripts/run_experiment.py",
+          "lineno": 174,
+          "args": [],
+          "return_type": "Dict[str, Any]",
+          "docstring": "Sends two independent streams sequentially and verifies zero chunk cross-contamination.",
+          "bases": []
+        },
+        {
+          "name": "run_interleaved_multiplex_experiment",
+          "qualified_name": "run_interleaved_multiplex_experiment",
+          "kind": "async_function",
+          "file_path": "scripts/run_experiment.py",
+          "lineno": 231,
+          "args": [],
+          "return_type": "Dict[str, Any]",
+          "docstring": "Multiplexes two concurrent streams in random order to verify concurrent stream isolation.",
+          "bases": []
+        },
+        {
+          "name": "run_daemon_reboot_persistence_experiment",
+          "qualified_name": "run_daemon_reboot_persistence_experiment",
+          "kind": "function",
+          "file_path": "scripts/run_experiment.py",
+          "lineno": 280,
+          "args": [
+            "sandbox_dir"
+          ],
+          "return_type": "Dict[str, Any]",
+          "docstring": "Tests cold storage persistence across simulated reboot in an isolated sandbox directory.",
+          "bases": []
+        },
+        {
+          "name": "run_acoustic_afsk_airgap_experiment",
+          "qualified_name": "run_acoustic_afsk_airgap_experiment",
+          "kind": "function",
+          "file_path": "scripts/run_experiment.py",
+          "lineno": 344,
+          "args": [],
+          "return_type": "Dict[str, Any]",
+          "docstring": "Tests 1200 baud Bell 202 audio modulation, channel attenuation, and AGC demodulation.",
+          "bases": []
+        },
+        {
+          "name": "run_voice_memo_airgap_experiment",
+          "qualified_name": "run_voice_memo_airgap_experiment",
+          "kind": "function",
+          "file_path": "scripts/run_experiment.py",
+          "lineno": 372,
+          "args": [],
+          "return_type": "Dict[str, Any]",
+          "docstring": "Tests Audio-Pocket VoiceMemo packaging, sync chirp, channel simulator, and bit-exact recovery.",
+          "bases": []
+        },
+        {
+          "name": "run_acoustic_multipath_sweep_experiment",
+          "qualified_name": "run_acoustic_multipath_sweep_experiment",
+          "kind": "function",
+          "file_path": "scripts/run_experiment.py",
+          "lineno": 422,
+          "args": [],
+          "return_type": "Dict[str, Any]",
+          "docstring": "Sweeps acoustic multipath room reflections and background noise across 1200 baud",
+          "bases": []
+        },
+        {
+          "name": "main_async",
+          "qualified_name": "main_async",
+          "kind": "async_function",
+          "file_path": "scripts/run_experiment.py",
+          "lineno": 490,
+          "args": [
+            "args"
+          ],
+          "return_type": "int",
+          "docstring": null,
+          "bases": []
+        },
+        {
+          "name": "main",
+          "qualified_name": "main",
+          "kind": "function",
+          "file_path": "scripts/run_experiment.py",
+          "lineno": 570,
+          "args": [],
+          "return_type": null,
+          "docstring": null,
+          "bases": []
+        }
+      ],
+      "imports": [
+        {
+          "module": "argparse",
+          "name": "argparse",
+          "alias": "argparse",
+          "lineno": 21
+        },
+        {
+          "module": "asyncio",
+          "name": "asyncio",
+          "alias": "asyncio",
+          "lineno": 22
+        },
+        {
+          "module": "datetime",
+          "name": "datetime",
+          "alias": "datetime",
+          "lineno": 23
+        },
+        {
+          "module": "datetime",
+          "name": "timezone",
+          "alias": "timezone",
+          "lineno": 23
+        },
+        {
+          "module": "hashlib",
+          "name": "hashlib",
+          "alias": "hashlib",
+          "lineno": 24
+        },
+        {
+          "module": "io",
+          "name": "io",
+          "alias": "io",
+          "lineno": 25
+        },
+        {
+          "module": "json",
+          "name": "json",
+          "alias": "json",
+          "lineno": 26
+        },
+        {
+          "module": "math",
+          "name": "math",
+          "alias": "math",
+          "lineno": 27
+        },
+        {
+          "module": "pathlib",
+          "name": "Path",
+          "alias": "Path",
+          "lineno": 28
+        },
+        {
+          "module": "random",
+          "name": "random",
+          "alias": "random",
+          "lineno": 29
+        },
+        {
+          "module": "shutil",
+          "name": "shutil",
+          "alias": "shutil",
+          "lineno": 30
+        },
+        {
+          "module": "socket",
+          "name": "socket",
+          "alias": "socket",
+          "lineno": 31
+        },
+        {
+          "module": "struct",
+          "name": "struct",
+          "alias": "struct",
+          "lineno": 32
+        },
+        {
+          "module": "sys",
+          "name": "sys",
+          "alias": "sys",
+          "lineno": 33
+        },
+        {
+          "module": "tempfile",
+          "name": "tempfile",
+          "alias": "tempfile",
+          "lineno": 34
+        },
+        {
+          "module": "time",
+          "name": "time",
+          "alias": "time",
+          "lineno": 35
+        },
+        {
+          "module": "typing",
+          "name": "Any",
+          "alias": "Any",
+          "lineno": 36
+        },
+        {
+          "module": "typing",
+          "name": "Dict",
+          "alias": "Dict",
+          "lineno": 36
+        },
+        {
+          "module": "typing",
+          "name": "List",
+          "alias": "List",
+          "lineno": 36
+        },
+        {
+          "module": "typing",
+          "name": "Optional",
+          "alias": "Optional",
+          "lineno": 36
+        },
+        {
+          "module": "wave",
+          "name": "wave",
+          "alias": "wave",
+          "lineno": 37
+        },
+        {
+          "module": "tfp_client.lib.media.stream_packager",
+          "name": "MediaStreamPackager",
+          "alias": "MediaStreamPackager",
+          "lineno": 48
+        },
+        {
+          "module": "tfp_client.lib.media.fountain_streamer",
+          "name": "FountainStreamer",
+          "alias": "FountainStreamer",
+          "lineno": 49
+        },
+        {
+          "module": "tfp_client.lib.media.receiver",
+          "name": "FountainStreamReceiver",
+          "alias": "FountainStreamReceiver",
+          "lineno": 50
+        },
+        {
+          "module": "tfp_client.lib.audio.afsk_modulator",
+          "name": "AFSKModulator",
+          "alias": "AFSKModulator",
+          "lineno": 51
+        },
+        {
+          "module": "tfp_client.lib.audio.afsk_demodulator",
+          "name": "AFSKDemodulator",
+          "alias": "AFSKDemodulator",
+          "lineno": 52
+        },
+        {
+          "module": "tfp_client.lib.audio.voice_memo",
+          "name": "VoiceMemo",
+          "alias": "VoiceMemo",
+          "lineno": 53
+        },
+        {
+          "module": "tfp_client.lib.audio.channel_simulator",
+          "name": "AcousticChannelSimulator",
+          "alias": "AcousticChannelSimulator",
+          "lineno": 54
+        },
+        {
+          "module": "tfp_client.lib.search.hybrid_search",
+          "name": "HybridSearchEngine",
+          "alias": "HybridSearchEngine",
+          "lineno": 55
+        }
+      ]
+    },
     "scripts/run_mesh_simulation.py": {
       "loc": 112,
       "symbols": [
@@ -3235,6 +3604,159 @@
           "name": "zstandard",
           "alias": "zstd",
           "lineno": 23
+        }
+      ]
+    },
+    "scripts/verify_offline_lifecycle.py": {
+      "loc": 186,
+      "symbols": [
+        {
+          "name": "run_lifecycle",
+          "qualified_name": "run_lifecycle",
+          "kind": "function",
+          "file_path": "scripts/verify_offline_lifecycle.py",
+          "lineno": 62,
+          "args": [
+            "db_path",
+            "zim_out",
+            "loss_rate"
+          ],
+          "return_type": "dict[str, bool]",
+          "docstring": null,
+          "bases": []
+        },
+        {
+          "name": "main",
+          "qualified_name": "main",
+          "kind": "function",
+          "file_path": "scripts/verify_offline_lifecycle.py",
+          "lineno": 233,
+          "args": [],
+          "return_type": null,
+          "docstring": null,
+          "bases": []
+        }
+      ],
+      "imports": [
+        {
+          "module": "__future__",
+          "name": "annotations",
+          "alias": "annotations",
+          "lineno": 18
+        },
+        {
+          "module": "argparse",
+          "name": "argparse",
+          "alias": "argparse",
+          "lineno": 20
+        },
+        {
+          "module": "hashlib",
+          "name": "hashlib",
+          "alias": "hashlib",
+          "lineno": 21
+        },
+        {
+          "module": "json",
+          "name": "json",
+          "alias": "json",
+          "lineno": 22
+        },
+        {
+          "module": "pathlib",
+          "name": "Path",
+          "alias": "Path",
+          "lineno": 23
+        },
+        {
+          "module": "sqlite3",
+          "name": "sqlite3",
+          "alias": "sqlite3",
+          "lineno": 24
+        },
+        {
+          "module": "sys",
+          "name": "sys",
+          "alias": "sys",
+          "lineno": 25
+        },
+        {
+          "module": "tempfile",
+          "name": "tempfile",
+          "alias": "tempfile",
+          "lineno": 26
+        },
+        {
+          "module": "time",
+          "name": "time",
+          "alias": "time",
+          "lineno": 27
+        },
+        {
+          "module": "tfp_client.lib.audio.voice_memo",
+          "name": "VoiceMemo",
+          "alias": "VoiceMemo",
+          "lineno": 37
+        },
+        {
+          "module": "tfp_client.lib.ingest.article_packager",
+          "name": "ArticlePackager",
+          "alias": "ArticlePackager",
+          "lineno": 38
+        },
+        {
+          "module": "tfp_client.lib.ingest.article_packager",
+          "name": "PackagedArticleBundle",
+          "alias": "PackagedArticleBundle",
+          "lineno": 38
+        },
+        {
+          "module": "tfp_client.lib.ingest.zim_exporter",
+          "name": "ZimDirectoryExporter",
+          "alias": "ZimDirectoryExporter",
+          "lineno": 39
+        },
+        {
+          "module": "tfp_client.lib.media.fountain_streamer",
+          "name": "FountainStreamer",
+          "alias": "FountainStreamer",
+          "lineno": 40
+        },
+        {
+          "module": "tfp_client.lib.media.receiver",
+          "name": "FountainStreamReceiver",
+          "alias": "FountainStreamReceiver",
+          "lineno": 41
+        },
+        {
+          "module": "tfp_client.lib.media.stream_packager",
+          "name": "MediaStreamPackager",
+          "alias": "MediaStreamPackager",
+          "lineno": 42
+        },
+        {
+          "module": "tfp_core_v4.cdc",
+          "name": "ContentDefinedChunker",
+          "alias": "ContentDefinedChunker",
+          "lineno": 43
+        },
+        {
+          "module": "random",
+          "name": "random",
+          "alias": "random",
+          "lineno": 101
+        },
+        {
+          "module": "subprocess",
+          "name": "subprocess",
+          "alias": "subprocess",
+          "lineno": 157
+        },
+        {
+          "module": "tfp_client.lib.search.hybrid_search",
+          "name": "HybridSearchEngine",
+          "alias": "HybridSearchEngine",
+          "lineno": 190
         }
       ]
     },
@@ -3559,6 +4081,243 @@
           "name": "httpx",
           "alias": "httpx",
           "lineno": 20
+        }
+      ]
+    },
+    "tests/test_acoustic_bulletin_verification.py": {
+      "loc": 115,
+      "symbols": [
+        {
+          "name": "_synthesize_wav",
+          "qualified_name": "_synthesize_wav",
+          "kind": "function",
+          "file_path": "tests/test_acoustic_bulletin_verification.py",
+          "lineno": 32,
+          "args": [
+            "samples",
+            "sample_rate"
+          ],
+          "return_type": "bytes",
+          "docstring": "Helper to pack int16 samples into a WAV byte stream.",
+          "bases": []
+        },
+        {
+          "name": "TestAcousticPhysicalChannelVerification",
+          "qualified_name": "TestAcousticPhysicalChannelVerification",
+          "kind": "class",
+          "file_path": "tests/test_acoustic_bulletin_verification.py",
+          "lineno": 44,
+          "args": [],
+          "return_type": null,
+          "docstring": "Comprehensive acoustic physical layer verification suite.",
+          "bases": []
+        },
+        {
+          "name": "test_pure_silence_produces_zero_packets",
+          "qualified_name": "TestAcousticPhysicalChannelVerification.test_pure_silence_produces_zero_packets",
+          "kind": "function",
+          "file_path": "tests/test_acoustic_bulletin_verification.py",
+          "lineno": 47,
+          "args": [],
+          "return_type": null,
+          "docstring": "Silence must never produce hallucinated packets.",
+          "bases": []
+        },
+        {
+          "name": "test_ambient_white_noise_produces_zero_packets",
+          "qualified_name": "TestAcousticPhysicalChannelVerification.test_ambient_white_noise_produces_zero_packets",
+          "kind": "function",
+          "file_path": "tests/test_acoustic_bulletin_verification.py",
+          "lineno": 58,
+          "args": [],
+          "return_type": null,
+          "docstring": "Gaussian ambient acoustic noise must never trigger false CRC matches.",
+          "bases": []
+        },
+        {
+          "name": "test_corrupted_transmission_rejected_by_crc",
+          "qualified_name": "TestAcousticPhysicalChannelVerification.test_corrupted_transmission_rejected_by_crc",
+          "kind": "function",
+          "file_path": "tests/test_acoustic_bulletin_verification.py",
+          "lineno": 73,
+          "args": [],
+          "return_type": null,
+          "docstring": "Audio transmission with corrupted bits must be rejected by CRC16.",
+          "bases": []
+        },
+        {
+          "name": "test_novel_text_bulletin_delivery_through_room_acoustics",
+          "qualified_name": "TestAcousticPhysicalChannelVerification.test_novel_text_bulletin_delivery_through_room_acoustics",
+          "kind": "function",
+          "file_path": "tests/test_acoustic_bulletin_verification.py",
+          "lineno": 100,
+          "args": [
+            "tmp_path"
+          ],
+          "return_type": null,
+          "docstring": "End-to-end verification of novel text bulletin delivery:",
+          "bases": []
+        }
+      ],
+      "imports": [
+        {
+          "module": "__future__",
+          "name": "annotations",
+          "alias": "annotations",
+          "lineno": 15
+        },
+        {
+          "module": "io",
+          "name": "io",
+          "alias": "io",
+          "lineno": 17
+        },
+        {
+          "module": "math",
+          "name": "math",
+          "alias": "math",
+          "lineno": 18
+        },
+        {
+          "module": "random",
+          "name": "random",
+          "alias": "random",
+          "lineno": 19
+        },
+        {
+          "module": "struct",
+          "name": "struct",
+          "alias": "struct",
+          "lineno": 20
+        },
+        {
+          "module": "wave",
+          "name": "wave",
+          "alias": "wave",
+          "lineno": 21
+        },
+        {
+          "module": "pathlib",
+          "name": "Path",
+          "alias": "Path",
+          "lineno": 22
+        },
+        {
+          "module": "pytest",
+          "name": "pytest",
+          "alias": "pytest",
+          "lineno": 24
+        },
+        {
+          "module": "tfp_client.lib.audio.afsk_demodulator",
+          "name": "AFSKDemodulator",
+          "alias": "AFSKDemodulator",
+          "lineno": 26
+        },
+        {
+          "module": "tfp_client.lib.audio.afsk_demodulator",
+          "name": "MAX_AFSK_PAYLOAD_SIZE",
+          "alias": "MAX_AFSK_PAYLOAD_SIZE",
+          "lineno": 26
+        },
+        {
+          "module": "tfp_client.lib.audio.afsk_modulator",
+          "name": "AFSKModulator",
+          "alias": "AFSKModulator",
+          "lineno": 27
+        },
+        {
+          "module": "tfp_client.lib.audio.channel_simulator",
+          "name": "AcousticChannelSimulator",
+          "alias": "AcousticChannelSimulator",
+          "lineno": 28
+        },
+        {
+          "module": "tfp_core_v4.node",
+          "name": "TFPNode",
+          "alias": "TFPNode",
+          "lineno": 29
+        }
+      ]
+    },
+    "tests/test_acoustic_multipath_sweep.py": {
+      "loc": 68,
+      "symbols": [
+        {
+          "name": "test_multipath_sweep_cliff_and_fallback_recovery",
+          "qualified_name": "test_multipath_sweep_cliff_and_fallback_recovery",
+          "kind": "function",
+          "file_path": "tests/test_acoustic_multipath_sweep.py",
+          "lineno": 21,
+          "args": [],
+          "return_type": null,
+          "docstring": "Verify acoustic multipath sweep identifies 1200-baud cliff and validates 300-baud recovery.",
+          "bases": []
+        },
+        {
+          "name": "test_bell103_300_baud_roundtrip",
+          "qualified_name": "test_bell103_300_baud_roundtrip",
+          "kind": "function",
+          "file_path": "tests/test_acoustic_multipath_sweep.py",
+          "lineno": 42,
+          "args": [],
+          "return_type": null,
+          "docstring": "Verify Bell 103 standard (1270 Hz / 1070 Hz @ 300 baud) modulates and demodulates.",
+          "bases": []
+        },
+        {
+          "name": "test_afsk_demodulator_adaptive_fallback",
+          "qualified_name": "test_afsk_demodulator_adaptive_fallback",
+          "kind": "function",
+          "file_path": "tests/test_acoustic_multipath_sweep.py",
+          "lineno": 64,
+          "args": [],
+          "return_type": null,
+          "docstring": "Verify 1200-baud demodulator automatically rescues 300-baud transmission when fallback_300=True.",
+          "bases": []
+        },
+        {
+          "name": "test_afsk_clock_drift_tolerance",
+          "qualified_name": "test_afsk_clock_drift_tolerance",
+          "kind": "function",
+          "file_path": "tests/test_acoustic_multipath_sweep.py",
+          "lineno": 81,
+          "args": [],
+          "return_type": null,
+          "docstring": "Verifies that AFSKDemodulator recovers packets when transmitter clock drifts by \u00b11.5%.",
+          "bases": []
+        }
+      ],
+      "imports": [
+        {
+          "module": "pytest",
+          "name": "pytest",
+          "alias": "pytest",
+          "lineno": 14
+        },
+        {
+          "module": "scripts.run_experiment",
+          "name": "run_acoustic_multipath_sweep_experiment",
+          "alias": "run_acoustic_multipath_sweep_experiment",
+          "lineno": 15
+        },
+        {
+          "module": "tfp_client.lib.audio.afsk_modulator",
+          "name": "AFSKModulator",
+          "alias": "AFSKModulator",
+          "lineno": 16
+        },
+        {
+          "module": "tfp_client.lib.audio.afsk_demodulator",
+          "name": "AFSKDemodulator",
+          "alias": "AFSKDemodulator",
+          "lineno": 17
+        },
+        {
+          "module": "tfp_client.lib.audio.channel_simulator",
+          "name": "AcousticChannelSimulator",
+          "alias": "AcousticChannelSimulator",
+          "lineno": 18
         }
       ]
     },
@@ -5318,6 +6077,226 @@
           "name": "ed25519",
           "alias": "ed25519",
           "lineno": 607
+        }
+      ]
+    },
+    "tests/test_cli_persistent_search.py": {
+      "loc": 85,
+      "symbols": [
+        {
+          "name": "test_cli_search_empty_db_fallback",
+          "qualified_name": "test_cli_search_empty_db_fallback",
+          "kind": "function",
+          "file_path": "tests/test_cli_persistent_search.py",
+          "lineno": 14,
+          "args": [
+            "tmp_path"
+          ],
+          "return_type": null,
+          "docstring": "Verify that search falls back to demo corpus if database is empty.",
+          "bases": []
+        },
+        {
+          "name": "test_cli_publish_then_persistent_body_search",
+          "qualified_name": "test_cli_publish_then_persistent_body_search",
+          "kind": "function",
+          "file_path": "tests/test_cli_persistent_search.py",
+          "lineno": 34,
+          "args": [
+            "tmp_path"
+          ],
+          "return_type": null,
+          "docstring": "Verify full offline journey:",
+          "bases": []
+        }
+      ],
+      "imports": [
+        {
+          "module": "subprocess",
+          "name": "subprocess",
+          "alias": "subprocess",
+          "lineno": 9
+        },
+        {
+          "module": "sys",
+          "name": "sys",
+          "alias": "sys",
+          "lineno": 10
+        },
+        {
+          "module": "pathlib",
+          "name": "Path",
+          "alias": "Path",
+          "lineno": 11
+        }
+      ]
+    },
+    "tests/test_cli_subcommands.py": {
+      "loc": 172,
+      "symbols": [
+        {
+          "name": "_create_sine_wav",
+          "qualified_name": "_create_sine_wav",
+          "kind": "function",
+          "file_path": "tests/test_cli_subcommands.py",
+          "lineno": 18,
+          "args": [
+            "path",
+            "duration_s",
+            "freq",
+            "rate"
+          ],
+          "return_type": "None",
+          "docstring": null,
+          "bases": []
+        },
+        {
+          "name": "test_cli_export_zim_from_directory",
+          "qualified_name": "test_cli_export_zim_from_directory",
+          "kind": "function",
+          "file_path": "tests/test_cli_subcommands.py",
+          "lineno": 31,
+          "args": [
+            "tmp_path"
+          ],
+          "return_type": null,
+          "docstring": null,
+          "bases": []
+        },
+        {
+          "name": "test_cli_voice_memo_lifecycle",
+          "qualified_name": "test_cli_voice_memo_lifecycle",
+          "kind": "function",
+          "file_path": "tests/test_cli_subcommands.py",
+          "lineno": 50,
+          "args": [
+            "tmp_path"
+          ],
+          "return_type": null,
+          "docstring": null,
+          "bases": []
+        },
+        {
+          "name": "test_cli_voice_memo_missing_file",
+          "qualified_name": "test_cli_voice_memo_missing_file",
+          "kind": "function",
+          "file_path": "tests/test_cli_subcommands.py",
+          "lineno": 97,
+          "args": [],
+          "return_type": null,
+          "docstring": null,
+          "bases": []
+        },
+        {
+          "name": "test_cli_publish_inspect_fetch_roundtrip",
+          "qualified_name": "test_cli_publish_inspect_fetch_roundtrip",
+          "kind": "function",
+          "file_path": "tests/test_cli_subcommands.py",
+          "lineno": 108,
+          "args": [
+            "tmp_path"
+          ],
+          "return_type": null,
+          "docstring": "Verify publish -> process exit -> inspect -> process exit -> fetch cross-process journey.",
+          "bases": []
+        },
+        {
+          "name": "test_cli_export_zim_plain_text_fallback",
+          "qualified_name": "test_cli_export_zim_plain_text_fallback",
+          "kind": "function",
+          "file_path": "tests/test_cli_subcommands.py",
+          "lineno": 173,
+          "args": [
+            "tmp_path"
+          ],
+          "return_type": null,
+          "docstring": "Verify export-zim does not fail with NameError on hashlib when exporting plain text.",
+          "bases": []
+        },
+        {
+          "name": "test_afsk_packet_size_symmetric_limit",
+          "qualified_name": "test_afsk_packet_size_symmetric_limit",
+          "kind": "function",
+          "file_path": "tests/test_cli_subcommands.py",
+          "lineno": 196,
+          "args": [],
+          "return_type": null,
+          "docstring": "Verify that AFSK modulator and demodulator enforce symmetric 4096-byte packet limits.",
+          "bases": []
+        }
+      ],
+      "imports": [
+        {
+          "module": "math",
+          "name": "math",
+          "alias": "math",
+          "lineno": 8
+        },
+        {
+          "module": "subprocess",
+          "name": "subprocess",
+          "alias": "subprocess",
+          "lineno": 9
+        },
+        {
+          "module": "struct",
+          "name": "struct",
+          "alias": "struct",
+          "lineno": 10
+        },
+        {
+          "module": "sys",
+          "name": "sys",
+          "alias": "sys",
+          "lineno": 11
+        },
+        {
+          "module": "wave",
+          "name": "wave",
+          "alias": "wave",
+          "lineno": 12
+        },
+        {
+          "module": "pathlib",
+          "name": "Path",
+          "alias": "Path",
+          "lineno": 13
+        },
+        {
+          "module": "pytest",
+          "name": "pytest",
+          "alias": "pytest",
+          "lineno": 15
+        },
+        {
+          "module": "json",
+          "name": "json",
+          "alias": "json",
+          "lineno": 150
+        },
+        {
+          "module": "tfp_client.lib.audio.afsk_modulator",
+          "name": "AFSKModulator",
+          "alias": "AFSKModulator",
+          "lineno": 198
+        },
+        {
+          "module": "tfp_client.lib.audio.afsk_modulator",
+          "name": "MAX_AFSK_PAYLOAD_SIZE",
+          "alias": "MAX_AFSK_PAYLOAD_SIZE",
+          "lineno": 198
+        },
+        {
+          "module": "tfp_client.lib.audio.afsk_demodulator",
+          "name": "MAX_AFSK_PAYLOAD_SIZE",
+          "alias": "RX_MAX",
+          "lineno": 199
+        },
+        {
+          "module": "pytest",
+          "name": "pytest",
+          "alias": "pytest",
+          "lineno": 210
         }
       ]
     },
@@ -7632,6 +8611,71 @@
         }
       ]
     },
+    "tests/test_flute_late_join.py": {
+      "loc": 64,
+      "symbols": [
+        {
+          "name": "test_flute_manifest_interleaving_distribution",
+          "qualified_name": "test_flute_manifest_interleaving_distribution",
+          "kind": "function",
+          "file_path": "tests/test_flute_late_join.py",
+          "lineno": 22,
+          "args": [],
+          "return_type": null,
+          "docstring": "Verify that manifests are transmitted initially, periodically, and at stream close.",
+          "bases": []
+        },
+        {
+          "name": "test_late_joining_receiver_reconstruction",
+          "qualified_name": "test_late_joining_receiver_reconstruction",
+          "kind": "function",
+          "file_path": "tests/test_flute_late_join.py",
+          "lineno": 49,
+          "args": [],
+          "return_type": null,
+          "docstring": "Simulate a late-joining receiver:",
+          "bases": []
+        }
+      ],
+      "imports": [
+        {
+          "module": "sys",
+          "name": "sys",
+          "alias": "sys",
+          "lineno": 10
+        },
+        {
+          "module": "pathlib",
+          "name": "Path",
+          "alias": "Path",
+          "lineno": 11
+        },
+        {
+          "module": "tfp_client.lib.media.fountain_streamer",
+          "name": "FountainStreamer",
+          "alias": "FountainStreamer",
+          "lineno": 17
+        },
+        {
+          "module": "tfp_client.lib.media.fountain_streamer",
+          "name": "MANIFEST_MAGIC",
+          "alias": "MANIFEST_MAGIC",
+          "lineno": 17
+        },
+        {
+          "module": "tfp_client.lib.media.stream_packager",
+          "name": "MediaStreamPackager",
+          "alias": "MediaStreamPackager",
+          "lineno": 18
+        },
+        {
+          "module": "tfp_client.lib.media.receiver",
+          "name": "FountainStreamReceiver",
+          "alias": "FountainStreamReceiver",
+          "lineno": 19
+        }
+      ]
+    },
     "tests/test_freivalds_asymmetric_work.py": {
       "loc": 108,
       "symbols": [
@@ -9312,8 +10356,59 @@
         }
       ]
     },
+    "tests/test_offline_lifecycle_e2e.py": {
+      "loc": 35,
+      "symbols": [
+        {
+          "name": "test_offline_delivery_lifecycle_full_mission",
+          "qualified_name": "test_offline_delivery_lifecycle_full_mission",
+          "kind": "function",
+          "file_path": "tests/test_offline_lifecycle_e2e.py",
+          "lineno": 21,
+          "args": [
+            "tmp_path"
+          ],
+          "return_type": null,
+          "docstring": null,
+          "bases": []
+        },
+        {
+          "name": "test_offline_delivery_lifecycle_high_loss",
+          "qualified_name": "test_offline_delivery_lifecycle_high_loss",
+          "kind": "function",
+          "file_path": "tests/test_offline_lifecycle_e2e.py",
+          "lineno": 43,
+          "args": [
+            "tmp_path"
+          ],
+          "return_type": null,
+          "docstring": null,
+          "bases": []
+        }
+      ],
+      "imports": [
+        {
+          "module": "pathlib",
+          "name": "Path",
+          "alias": "Path",
+          "lineno": 15
+        },
+        {
+          "module": "pytest",
+          "name": "pytest",
+          "alias": "pytest",
+          "lineno": 16
+        },
+        {
+          "module": "scripts.verify_offline_lifecycle",
+          "name": "run_lifecycle",
+          "alias": "run_lifecycle",
+          "lineno": 18
+        }
+      ]
+    },
     "tests/test_playwright_visualization.py": {
-      "loc": 172,
+      "loc": 195,
       "symbols": [
         {
           "name": "live_visualizer_server",
@@ -9350,6 +10445,19 @@
           ],
           "return_type": null,
           "docstring": null,
+          "bases": []
+        },
+        {
+          "name": "test_acoustic_receiver_page",
+          "qualified_name": "test_acoustic_receiver_page",
+          "kind": "function",
+          "file_path": "tests/test_playwright_visualization.py",
+          "lineno": 254,
+          "args": [
+            "live_visualizer_server"
+          ],
+          "return_type": null,
+          "docstring": "Verifies that the acoustic demodulator and voice memo UI functions correctly with zero console errors.",
           "bases": []
         }
       ],
@@ -10345,6 +11453,100 @@
         }
       ]
     },
+    "tests/test_receiver_comprehensive_bounds.py": {
+      "loc": 101,
+      "symbols": [
+        {
+          "name": "test_manifest_only_burst_bounded_by_max_sessions",
+          "qualified_name": "test_manifest_only_burst_bounded_by_max_sessions",
+          "kind": "function",
+          "file_path": "tests/test_receiver_comprehensive_bounds.py",
+          "lineno": 23,
+          "args": [],
+          "return_type": null,
+          "docstring": "Verify that a burst of manifest-only wire packets does not leak memory or exceed max_sessions.",
+          "bases": []
+        },
+        {
+          "name": "test_chunk_meta_cleaned_on_reset_and_eviction",
+          "qualified_name": "test_chunk_meta_cleaned_on_reset_and_eviction",
+          "kind": "function",
+          "file_path": "tests/test_receiver_comprehensive_bounds.py",
+          "lineno": 51,
+          "args": [],
+          "return_type": null,
+          "docstring": "Verify that _chunk_meta does not leave orphan entries when chunks are reconstructed",
+          "bases": []
+        },
+        {
+          "name": "test_lru_eviction_prunes_reconstructed_and_meta",
+          "qualified_name": "test_lru_eviction_prunes_reconstructed_and_meta",
+          "kind": "function",
+          "file_path": "tests/test_receiver_comprehensive_bounds.py",
+          "lineno": 99,
+          "args": [],
+          "return_type": null,
+          "docstring": "Verify that LRU eviction cleanly purges completed sessions and their metadata.",
+          "bases": []
+        }
+      ],
+      "imports": [
+        {
+          "module": "hashlib",
+          "name": "hashlib",
+          "alias": "hashlib",
+          "lineno": 9
+        },
+        {
+          "module": "sys",
+          "name": "sys",
+          "alias": "sys",
+          "lineno": 10
+        },
+        {
+          "module": "time",
+          "name": "time",
+          "alias": "time",
+          "lineno": 11
+        },
+        {
+          "module": "pathlib",
+          "name": "Path",
+          "alias": "Path",
+          "lineno": 12
+        },
+        {
+          "module": "tfp_client.lib.media.stream_packager",
+          "name": "MediaManifest",
+          "alias": "MediaManifest",
+          "lineno": 18
+        },
+        {
+          "module": "tfp_client.lib.media.stream_packager",
+          "name": "MediaStreamPackager",
+          "alias": "MediaStreamPackager",
+          "lineno": 18
+        },
+        {
+          "module": "tfp_client.lib.media.fountain_streamer",
+          "name": "FountainStreamer",
+          "alias": "FountainStreamer",
+          "lineno": 19
+        },
+        {
+          "module": "tfp_client.lib.media.fountain_streamer",
+          "name": "serialize_manifest_packet",
+          "alias": "serialize_manifest_packet",
+          "lineno": 19
+        },
+        {
+          "module": "tfp_client.lib.media.receiver",
+          "name": "FountainStreamReceiver",
+          "alias": "FountainStreamReceiver",
+          "lineno": 20
+        }
+      ]
+    },
     "tests/test_search_api_endpoint.py": {
       "loc": 87,
       "symbols": [
@@ -10877,6 +12079,59 @@
         }
       ]
     },
+    "tests/test_security_auth.py": {
+      "loc": 23,
+      "symbols": [
+        {
+          "name": "test_fallback_shard_without_hmac_rejected_when_key_supplied",
+          "qualified_name": "test_fallback_shard_without_hmac_rejected_when_key_supplied",
+          "kind": "function",
+          "file_path": "tests/test_security_auth.py",
+          "lineno": 8,
+          "args": [],
+          "return_type": null,
+          "docstring": "Security verification: A forged packet prefixed with b'fallback_shard_'",
+          "bases": []
+        },
+        {
+          "name": "test_fallback_shard_with_valid_hmac_accepted_when_key_supplied",
+          "qualified_name": "test_fallback_shard_with_valid_hmac_accepted_when_key_supplied",
+          "kind": "function",
+          "file_path": "tests/test_security_auth.py",
+          "lineno": 24,
+          "args": [],
+          "return_type": null,
+          "docstring": "Legitimate NDN fallback shard carrying a valid HMAC tag is accepted.",
+          "bases": []
+        }
+      ],
+      "imports": [
+        {
+          "module": "pytest",
+          "name": "pytest",
+          "alias": "pytest",
+          "lineno": 4
+        },
+        {
+          "module": "tfp_client.lib.fountain.raptorq_ffi",
+          "name": "RealRaptorQAdapter",
+          "alias": "RealRaptorQAdapter",
+          "lineno": 5
+        },
+        {
+          "module": "tfp_client.lib.fountain.raptorq_ffi",
+          "name": "IntegrityError",
+          "alias": "IntegrityError",
+          "lineno": 5
+        },
+        {
+          "module": "tfp_client.lib.fountain.raptorq_ffi",
+          "name": "_shard_hmac",
+          "alias": "_shard_hmac",
+          "lineno": 5
+        }
+      ]
+    },
     "tests/test_simulator.py": {
       "loc": 280,
       "symbols": [
@@ -11174,8 +12429,58 @@
         }
       ]
     },
+    "tests/test_storage_reader_independence.py": {
+      "loc": 27,
+      "symbols": [
+        {
+          "name": "test_stored_content_retrieval_independent_of_reader_settings",
+          "qualified_name": "test_stored_content_retrieval_independent_of_reader_settings",
+          "kind": "function",
+          "file_path": "tests/test_storage_reader_independence.py",
+          "lineno": 11,
+          "args": [
+            "tmp_path"
+          ],
+          "return_type": null,
+          "docstring": "Verifies that stored content remains readable even when the reader node",
+          "bases": []
+        }
+      ],
+      "imports": [
+        {
+          "module": "pathlib",
+          "name": "Path",
+          "alias": "Path",
+          "lineno": 4
+        },
+        {
+          "module": "pytest",
+          "name": "pytest",
+          "alias": "pytest",
+          "lineno": 5
+        },
+        {
+          "module": "tfp_core_v4.node",
+          "name": "TFPNode",
+          "alias": "TFPNode",
+          "lineno": 6
+        },
+        {
+          "module": "tfp_core_v4.cdc",
+          "name": "ContentDefinedChunker",
+          "alias": "ContentDefinedChunker",
+          "lineno": 7
+        },
+        {
+          "module": "tfp_core_v4.fountain",
+          "name": "FountainCodec",
+          "alias": "FountainCodec",
+          "lineno": 8
+        }
+      ]
+    },
     "tests/test_stream_lifecycle.py": {
-      "loc": 100,
+      "loc": 176,
       "symbols": [
         {
           "name": "test_consecutive_stream_isolation",
@@ -11208,6 +12513,39 @@
           "args": [],
           "return_type": null,
           "docstring": "Verify reset(session_id) selectively evicts one session while preserving another.",
+          "bases": []
+        },
+        {
+          "name": "test_shared_first_chunk_cross_session_isolation",
+          "qualified_name": "test_shared_first_chunk_cross_session_isolation",
+          "kind": "function",
+          "file_path": "tests/test_stream_lifecycle.py",
+          "lineno": 155,
+          "args": [],
+          "return_type": null,
+          "docstring": "Regression test: Two different transfers sharing their first chunk.",
+          "bases": []
+        },
+        {
+          "name": "test_receiver_lru_session_eviction_bounded_memory",
+          "qualified_name": "test_receiver_lru_session_eviction_bounded_memory",
+          "kind": "function",
+          "file_path": "tests/test_stream_lifecycle.py",
+          "lineno": 202,
+          "args": [],
+          "return_type": null,
+          "docstring": "Verify receiver evicts oldest LRU sessions when max_sessions threshold is reached.",
+          "bases": []
+        },
+        {
+          "name": "test_receiver_max_droplets_per_chunk_bound",
+          "qualified_name": "test_receiver_max_droplets_per_chunk_bound",
+          "kind": "function",
+          "file_path": "tests/test_stream_lifecycle.py",
+          "lineno": 240,
+          "args": [],
+          "return_type": null,
+          "docstring": "Verify receiver bounds droplet buffer size per chunk to prevent memory exhaustion.",
           "bases": []
         }
       ],
@@ -11253,6 +12591,18 @@
           "name": "FountainStreamReceiver",
           "alias": "FountainStreamReceiver",
           "lineno": 29
+        },
+        {
+          "module": "tfp_client.lib.media.fountain_streamer",
+          "name": "MediaDropletPacket",
+          "alias": "MediaDropletPacket",
+          "lineno": 205
+        },
+        {
+          "module": "tfp_client.lib.media.fountain_streamer",
+          "name": "MediaDropletPacket",
+          "alias": "MediaDropletPacket",
+          "lineno": 243
         }
       ]
     },
@@ -12858,6 +14208,257 @@
           "name": "UITestRunner",
           "alias": "UITestRunner",
           "lineno": 13
+        }
+      ]
+    },
+    "tests/test_voice_memo_and_acoustic_channel.py": {
+      "loc": 193,
+      "symbols": [
+        {
+          "name": "test_voice_memo_roundtrip",
+          "qualified_name": "test_voice_memo_roundtrip",
+          "kind": "function",
+          "file_path": "tests/test_voice_memo_and_acoustic_channel.py",
+          "lineno": 25,
+          "args": [],
+          "return_type": null,
+          "docstring": "Verify VoiceMemo creates bit-exact wire representations and recovers correctly.",
+          "bases": []
+        },
+        {
+          "name": "test_voice_memo_corrupted_crc_rejection",
+          "qualified_name": "test_voice_memo_corrupted_crc_rejection",
+          "kind": "function",
+          "file_path": "tests/test_voice_memo_and_acoustic_channel.py",
+          "lineno": 53,
+          "args": [],
+          "return_type": null,
+          "docstring": "Verify tampered voice memo bytes fail CRC16 check.",
+          "bases": []
+        },
+        {
+          "name": "test_voice_memo_wav_conversion",
+          "qualified_name": "test_voice_memo_wav_conversion",
+          "kind": "function",
+          "file_path": "tests/test_voice_memo_and_acoustic_channel.py",
+          "lineno": 69,
+          "args": [],
+          "return_type": null,
+          "docstring": "Verify VoiceMemo converts to and from playable WAV files.",
+          "bases": []
+        },
+        {
+          "name": "test_acoustic_channel_simulation_impairments",
+          "qualified_name": "test_acoustic_channel_simulation_impairments",
+          "kind": "function",
+          "file_path": "tests/test_voice_memo_and_acoustic_channel.py",
+          "lineno": 86,
+          "args": [],
+          "return_type": null,
+          "docstring": "Verify channel simulator applies echo, noise, attenuation, and clipping.",
+          "bases": []
+        },
+        {
+          "name": "test_afsk_preamble_chirp_demodulation_through_multipath",
+          "qualified_name": "test_afsk_preamble_chirp_demodulation_through_multipath",
+          "kind": "function",
+          "file_path": "tests/test_voice_memo_and_acoustic_channel.py",
+          "lineno": 112,
+          "args": [],
+          "return_type": null,
+          "docstring": "Verify AFSK demodulator recovers packet with preamble chirp through room echo and attenuation.",
+          "bases": []
+        },
+        {
+          "name": "test_vocoder_compression_ratio_and_decompression",
+          "qualified_name": "test_vocoder_compression_ratio_and_decompression",
+          "kind": "function",
+          "file_path": "tests/test_voice_memo_and_acoustic_channel.py",
+          "lineno": 137,
+          "args": [],
+          "return_type": null,
+          "docstring": "Verify 1200 bps vocoder achieves > 95% data reduction on speech audio.",
+          "bases": []
+        },
+        {
+          "name": "test_voice_memo_vocoder_roundtrip_and_wav_generation",
+          "qualified_name": "test_voice_memo_vocoder_roundtrip_and_wav_generation",
+          "kind": "function",
+          "file_path": "tests/test_voice_memo_and_acoustic_channel.py",
+          "lineno": 185,
+          "args": [],
+          "return_type": null,
+          "docstring": "Verify VoiceMemo handles vocoder compression, deserialization, and WAV playback.",
+          "bases": []
+        },
+        {
+          "name": "test_vocoder_transmission_over_acoustic_channel",
+          "qualified_name": "test_vocoder_transmission_over_acoustic_channel",
+          "kind": "function",
+          "file_path": "tests/test_voice_memo_and_acoustic_channel.py",
+          "lineno": 231,
+          "args": [],
+          "return_type": null,
+          "docstring": "Verify vocoder voice memo transmits through simulated room acoustics over Bell 202 tones.",
+          "bases": []
+        }
+      ],
+      "imports": [
+        {
+          "module": "io",
+          "name": "io",
+          "alias": "io",
+          "lineno": 13
+        },
+        {
+          "module": "math",
+          "name": "math",
+          "alias": "math",
+          "lineno": 14
+        },
+        {
+          "module": "struct",
+          "name": "struct",
+          "alias": "struct",
+          "lineno": 15
+        },
+        {
+          "module": "wave",
+          "name": "wave",
+          "alias": "wave",
+          "lineno": 16
+        },
+        {
+          "module": "pytest",
+          "name": "pytest",
+          "alias": "pytest",
+          "lineno": 17
+        },
+        {
+          "module": "tfp_client.lib.audio.voice_memo",
+          "name": "VoiceMemo",
+          "alias": "VoiceMemo",
+          "lineno": 19
+        },
+        {
+          "module": "tfp_client.lib.audio.channel_simulator",
+          "name": "AcousticChannelSimulator",
+          "alias": "AcousticChannelSimulator",
+          "lineno": 20
+        },
+        {
+          "module": "tfp_client.lib.audio.afsk_modulator",
+          "name": "AFSKModulator",
+          "alias": "AFSKModulator",
+          "lineno": 21
+        },
+        {
+          "module": "tfp_client.lib.audio.afsk_demodulator",
+          "name": "AFSKDemodulator",
+          "alias": "AFSKDemodulator",
+          "lineno": 22
+        },
+        {
+          "module": "tfp_client.lib.audio.vocoder",
+          "name": "compress_speech",
+          "alias": "compress_speech",
+          "lineno": 139
+        },
+        {
+          "module": "tfp_client.lib.audio.vocoder",
+          "name": "decompress_speech",
+          "alias": "decompress_speech",
+          "lineno": 139
+        },
+        {
+          "module": "numpy",
+          "name": "numpy",
+          "alias": "np",
+          "lineno": 169
+        }
+      ]
+    },
+    "tests/test_zim_exporter.py": {
+      "loc": 116,
+      "symbols": [
+        {
+          "name": "test_slugify",
+          "qualified_name": "test_slugify",
+          "kind": "function",
+          "file_path": "tests/test_zim_exporter.py",
+          "lineno": 23,
+          "args": [],
+          "return_type": null,
+          "docstring": null,
+          "bases": []
+        },
+        {
+          "name": "test_zim_directory_export_layout",
+          "qualified_name": "test_zim_directory_export_layout",
+          "kind": "function",
+          "file_path": "tests/test_zim_exporter.py",
+          "lineno": 29,
+          "args": [],
+          "return_type": null,
+          "docstring": null,
+          "bases": []
+        },
+        {
+          "name": "test_slug_collision_disambiguation_zero_data_loss",
+          "qualified_name": "test_slug_collision_disambiguation_zero_data_loss",
+          "kind": "function",
+          "file_path": "tests/test_zim_exporter.py",
+          "lineno": 97,
+          "args": [
+            "tmp_path"
+          ],
+          "return_type": null,
+          "docstring": "Regression test: Exporting articles titled 'A B' and 'A-B' must generate",
+          "bases": []
+        }
+      ],
+      "imports": [
+        {
+          "module": "json",
+          "name": "json",
+          "alias": "json",
+          "lineno": 14
+        },
+        {
+          "module": "pathlib",
+          "name": "Path",
+          "alias": "Path",
+          "lineno": 15
+        },
+        {
+          "module": "tempfile",
+          "name": "tempfile",
+          "alias": "tempfile",
+          "lineno": 16
+        },
+        {
+          "module": "pytest",
+          "name": "pytest",
+          "alias": "pytest",
+          "lineno": 17
+        },
+        {
+          "module": "tfp_client.lib.ingest.article_packager",
+          "name": "PackagedArticleBundle",
+          "alias": "PackagedArticleBundle",
+          "lineno": 19
+        },
+        {
+          "module": "tfp_client.lib.ingest.zim_exporter",
+          "name": "ZimDirectoryExporter",
+          "alias": "ZimDirectoryExporter",
+          "lineno": 20
+        },
+        {
+          "module": "tfp_client.lib.ingest.zim_exporter",
+          "name": "slugify",
+          "alias": "slugify",
+          "lineno": 20
         }
       ]
     },
@@ -15014,14 +16615,14 @@
       ]
     },
     "tfp_core_v4/cli.py": {
-      "loc": 767,
+      "loc": 944,
       "symbols": [
         {
           "name": "create_visualizer_server",
           "qualified_name": "create_visualizer_server",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 48,
+          "lineno": 51,
           "args": [
             "port"
           ],
@@ -15034,7 +16635,7 @@
           "qualified_name": "persist_bundle",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 160,
+          "lineno": 163,
           "args": [
             "bundle_to_save"
           ],
@@ -15047,7 +16648,7 @@
           "qualified_name": "generate_live_protocol_telemetry",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 213,
+          "lineno": 218,
           "args": [],
           "return_type": "dict[str, Any]",
           "docstring": null,
@@ -15058,7 +16659,7 @@
           "qualified_name": "VisualizerHandler",
           "kind": "class",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 288,
+          "lineno": 293,
           "args": [],
           "return_type": null,
           "docstring": null,
@@ -15071,7 +16672,7 @@
           "qualified_name": "VisualizerHandler.__init__",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 289,
+          "lineno": 294,
           "args": [],
           "return_type": null,
           "docstring": null,
@@ -15082,7 +16683,7 @@
           "qualified_name": "VisualizerHandler._send_json",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 292,
+          "lineno": 297,
           "args": [
             "data",
             "status"
@@ -15096,7 +16697,7 @@
           "qualified_name": "VisualizerHandler.do_OPTIONS",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 301,
+          "lineno": 306,
           "args": [],
           "return_type": null,
           "docstring": null,
@@ -15107,7 +16708,7 @@
           "qualified_name": "VisualizerHandler.do_GET",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 308,
+          "lineno": 313,
           "args": [],
           "return_type": null,
           "docstring": null,
@@ -15118,7 +16719,7 @@
           "qualified_name": "VisualizerHandler.do_POST",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 403,
+          "lineno": 408,
           "args": [],
           "return_type": null,
           "docstring": null,
@@ -15129,7 +16730,7 @@
           "qualified_name": "VisualizerHandler.run_short",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 449,
+          "lineno": 454,
           "args": [],
           "return_type": null,
           "docstring": null,
@@ -15140,7 +16741,7 @@
           "qualified_name": "VisualizerHandler.run_audio",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 463,
+          "lineno": 468,
           "args": [],
           "return_type": null,
           "docstring": null,
@@ -15151,7 +16752,7 @@
           "qualified_name": "VisualizerHandler.run_video",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 477,
+          "lineno": 482,
           "args": [],
           "return_type": null,
           "docstring": null,
@@ -15162,7 +16763,7 @@
           "qualified_name": "VisualizerHandler.run_atlas",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 491,
+          "lineno": 496,
           "args": [],
           "return_type": null,
           "docstring": null,
@@ -15173,7 +16774,7 @@
           "qualified_name": "VisualizerHandler.run_upload",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 520,
+          "lineno": 525,
           "args": [],
           "return_type": null,
           "docstring": null,
@@ -15184,7 +16785,7 @@
           "qualified_name": "VisualizerHandler._stream_events",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 539,
+          "lineno": 544,
           "args": [],
           "return_type": null,
           "docstring": null,
@@ -15195,7 +16796,7 @@
           "qualified_name": "VisualizerHandler.listener",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 542,
+          "lineno": 547,
           "args": [
             "ev"
           ],
@@ -15208,7 +16809,7 @@
           "qualified_name": "VisualizerHandler._init_run",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 553,
+          "lineno": 558,
           "args": [],
           "return_type": null,
           "docstring": null,
@@ -15219,7 +16820,7 @@
           "qualified_name": "VisualizerHandler._send_sse",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 582,
+          "lineno": 587,
           "args": [
             "event",
             "data"
@@ -15233,7 +16834,7 @@
           "qualified_name": "VisualizerHandler.log_message",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 590,
+          "lineno": 595,
           "args": [
             "format"
           ],
@@ -15246,7 +16847,7 @@
           "qualified_name": "ThreadedTCPServer",
           "kind": "class",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 593,
+          "lineno": 598,
           "args": [],
           "return_type": null,
           "docstring": null,
@@ -15260,7 +16861,7 @@
           "qualified_name": "main",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 602,
+          "lineno": 607,
           "args": [],
           "return_type": null,
           "docstring": null,
@@ -15271,7 +16872,7 @@
           "qualified_name": "AcousticHandler",
           "kind": "class",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 862,
+          "lineno": 926,
           "args": [],
           "return_type": null,
           "docstring": null,
@@ -15284,7 +16885,7 @@
           "qualified_name": "AcousticHandler.__init__",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 863,
+          "lineno": 927,
           "args": [],
           "return_type": null,
           "docstring": null,
@@ -15295,7 +16896,7 @@
           "qualified_name": "AcousticHandler.do_GET",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 866,
+          "lineno": 930,
           "args": [],
           "return_type": null,
           "docstring": null,
@@ -15306,7 +16907,7 @@
           "qualified_name": "AcousticHandler.log_message",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 871,
+          "lineno": 935,
           "args": [
             "format"
           ],
@@ -15335,189 +16936,225 @@
           "lineno": 19
         },
         {
+          "module": "hashlib",
+          "name": "hashlib",
+          "alias": "hashlib",
+          "lineno": 20
+        },
+        {
           "module": "json",
           "name": "json",
           "alias": "json",
-          "lineno": 20
+          "lineno": 21
+        },
+        {
+          "module": "os",
+          "name": "os",
+          "alias": "os",
+          "lineno": 22
+        },
+        {
+          "module": "re",
+          "name": "re",
+          "alias": "re",
+          "lineno": 23
         },
         {
           "module": "sys",
           "name": "sys",
           "alias": "sys",
-          "lineno": 21
+          "lineno": 24
         },
         {
           "module": "urllib.parse",
           "name": "urllib.parse",
           "alias": "urllib.parse",
-          "lineno": 22
+          "lineno": 25
         },
         {
           "module": "pathlib",
           "name": "Path",
           "alias": "Path",
-          "lineno": 23
+          "lineno": 26
         },
         {
           "module": "typing",
           "name": "Any",
           "alias": "Any",
-          "lineno": 24
+          "lineno": 27
         },
         {
           "module": "tfp_client.lib.audio.afsk_demodulator",
           "name": "AFSKDemodulator",
           "alias": "AFSKDemodulator",
-          "lineno": 34
+          "lineno": 37
         },
         {
           "module": "tfp_client.lib.audio.afsk_modulator",
           "name": "AFSKModulator",
           "alias": "AFSKModulator",
-          "lineno": 35
+          "lineno": 38
         },
         {
           "module": "tfp_client.lib.ingest.article_ingester",
           "name": "ArticleIngester",
           "alias": "ArticleIngester",
-          "lineno": 36
+          "lineno": 39
         },
         {
           "module": "tfp_client.lib.ingest.article_packager",
           "name": "ArticlePackager",
           "alias": "ArticlePackager",
-          "lineno": 37
+          "lineno": 40
         },
         {
           "module": "tfp_client.lib.ingest.article_packager",
           "name": "PackagedArticleBundle",
           "alias": "PackagedArticleBundle",
-          "lineno": 37
+          "lineno": 40
         },
         {
           "module": "tfp_client.lib.media.fountain_streamer",
           "name": "FountainStreamer",
           "alias": "FountainStreamer",
-          "lineno": 38
+          "lineno": 41
         },
         {
           "module": "tfp_client.lib.media.receiver",
           "name": "FountainStreamReceiver",
           "alias": "FountainStreamReceiver",
-          "lineno": 39
+          "lineno": 42
         },
         {
           "module": "tfp_client.lib.media.stream_packager",
           "name": "MediaStreamPackager",
           "alias": "MediaStreamPackager",
-          "lineno": 40
+          "lineno": 43
         },
         {
           "module": "tfp_client.lib.media.template_engine",
           "name": "TemplateParser",
           "alias": "TemplateParser",
-          "lineno": 41
+          "lineno": 44
         },
         {
           "module": "tfp_client.lib.radio.framing",
           "name": "RadioFramePacker",
           "alias": "RadioFramePacker",
-          "lineno": 42
+          "lineno": 45
         },
         {
           "module": "tfp_client.lib.radio.framing",
           "name": "RadioFrameReassembler",
           "alias": "RadioFrameReassembler",
-          "lineno": 42
+          "lineno": 45
         },
         {
           "module": "tfp_client.lib.search.hybrid_search",
           "name": "HybridSearchEngine",
           "alias": "HybridSearchEngine",
-          "lineno": 43
+          "lineno": 46
         },
         {
           "module": "tfp_core_v4.node",
           "name": "TFPNode",
           "alias": "TFPNode",
-          "lineno": 45
+          "lineno": 48
         },
         {
           "module": "http.server",
           "name": "http.server",
           "alias": "http.server",
-          "lineno": 50
+          "lineno": 53
         },
         {
           "module": "queue",
           "name": "queue",
           "alias": "queue",
-          "lineno": 51
+          "lineno": 54
         },
         {
           "module": "socketserver",
           "name": "socketserver",
           "alias": "socketserver",
-          "lineno": 52
+          "lineno": 55
         },
         {
           "module": "threading",
           "name": "threading",
           "alias": "threading",
-          "lineno": 53
+          "lineno": 56
         },
         {
           "module": "tfp_client.lib.media.live_streamer",
           "name": "LiveTransmissionEngine",
           "alias": "LiveTransmissionEngine",
-          "lineno": 55
+          "lineno": 58
         },
         {
           "module": "tfp_client.lib.media.telemetry_events",
           "name": "TelemetryEventBus",
           "alias": "TelemetryEventBus",
-          "lineno": 56
+          "lineno": 59
         },
         {
           "module": "scripts.run_mesh_simulation",
           "name": "run_simulation",
           "alias": "run_simulation",
-          "lineno": 739
+          "lineno": 803
         },
         {
           "module": "webbrowser",
           "name": "webbrowser",
           "alias": "webbrowser",
-          "lineno": 743
+          "lineno": 807
         },
         {
           "module": "http.server",
           "name": "http.server",
           "alias": "http.server",
-          "lineno": 856
+          "lineno": 920
         },
         {
           "module": "socketserver",
           "name": "socketserver",
           "alias": "socketserver",
-          "lineno": 857
+          "lineno": 921
         },
         {
           "module": "webbrowser",
           "name": "webbrowser",
           "alias": "webbrowser",
-          "lineno": 858
+          "lineno": 922
         },
         {
           "module": "tfp_core_v4.audio_scholar",
           "name": "AudioScholarDaemon",
           "alias": "AudioScholarDaemon",
-          "lineno": 896
+          "lineno": 960
+        },
+        {
+          "module": "tfp_client.lib.ingest.article_packager",
+          "name": "PackagedArticleBundle",
+          "alias": "PackagedArticleBundle",
+          "lineno": 1005
+        },
+        {
+          "module": "tfp_client.lib.ingest.zim_exporter",
+          "name": "ZimDirectoryExporter",
+          "alias": "ZimDirectoryExporter",
+          "lineno": 1006
+        },
+        {
+          "module": "tfp_client.lib.audio.voice_memo",
+          "name": "VoiceMemo",
+          "alias": "VoiceMemo",
+          "lineno": 1062
         }
       ]
     },
     "tfp_core_v4/fountain.py": {
-      "loc": 328,
+      "loc": 353,
       "symbols": [
         {
           "name": "_sample_soliton_degree",
@@ -15696,7 +17333,7 @@
           "qualified_name": "FountainCodec",
           "kind": "class",
           "file_path": "tfp_core_v4/fountain.py",
-          "lineno": 379,
+          "lineno": 407,
           "args": [],
           "return_type": null,
           "docstring": "Vectorized rateless fountain encoder and decoder.",
@@ -15710,7 +17347,7 @@
           "qualified_name": "FountainCodec.__init__",
           "kind": "function",
           "file_path": "tfp_core_v4/fountain.py",
-          "lineno": 382,
+          "lineno": 410,
           "args": [
             "symbol_size",
             "root_hash",
@@ -15726,7 +17363,7 @@
           "qualified_name": "FountainCodec._sample_degree",
           "kind": "function",
           "file_path": "tfp_core_v4/fountain.py",
-          "lineno": 404,
+          "lineno": 432,
           "args": [
             "k",
             "rng"
@@ -16109,17 +17746,17 @@
       ]
     },
     "tfp_core_v4/node.py": {
-      "loc": 129,
+      "loc": 336,
       "symbols": [
         {
           "name": "TFPNode",
           "qualified_name": "TFPNode",
           "kind": "class",
           "file_path": "tfp_core_v4/node.py",
-          "lineno": 21,
+          "lineno": 29,
           "args": [],
           "return_type": null,
-          "docstring": "A self-contained Foundation Protocol node instance.",
+          "docstring": "A self-contained Foundation Protocol node instance with optional SQLite persistence.",
           "bases": []
         },
         {
@@ -16127,14 +17764,56 @@
           "qualified_name": "TFPNode.__init__",
           "kind": "function",
           "file_path": "tfp_core_v4/node.py",
-          "lineno": 24,
+          "lineno": 32,
           "args": [
             "node_id",
             "target_chunk_size",
-            "symbol_size"
+            "symbol_size",
+            "db_path",
+            "chunker",
+            "codec"
           ],
           "return_type": null,
           "docstring": null,
+          "bases": []
+        },
+        {
+          "name": "_init_db",
+          "qualified_name": "TFPNode._init_db",
+          "kind": "function",
+          "file_path": "tfp_core_v4/node.py",
+          "lineno": 74,
+          "args": [],
+          "return_type": "None",
+          "docstring": "Initialize SQLite schema for persistent node storage.",
+          "bases": []
+        },
+        {
+          "name": "_persist_content",
+          "qualified_name": "TFPNode._persist_content",
+          "kind": "function",
+          "file_path": "tfp_core_v4/node.py",
+          "lineno": 116,
+          "args": [
+            "recipe",
+            "chunks",
+            "droplets"
+          ],
+          "return_type": "None",
+          "docstring": "Persist recipe, chunks, and droplets to SQLite database.",
+          "bases": []
+        },
+        {
+          "name": "_load_recipe_from_db",
+          "qualified_name": "TFPNode._load_recipe_from_db",
+          "kind": "function",
+          "file_path": "tfp_core_v4/node.py",
+          "lineno": 159,
+          "args": [
+            "root_hash"
+          ],
+          "return_type": "bool",
+          "docstring": "Attempt to restore recipe, chunks, and droplets for root_hash from SQLite.",
           "bases": []
         },
         {
@@ -16142,7 +17821,7 @@
           "qualified_name": "TFPNode.publish",
           "kind": "function",
           "file_path": "tfp_core_v4/node.py",
-          "lineno": 49,
+          "lineno": 216,
           "args": [
             "data",
             "metadata",
@@ -16157,7 +17836,7 @@
           "qualified_name": "TFPNode.fetch",
           "kind": "function",
           "file_path": "tfp_core_v4/node.py",
-          "lineno": 94,
+          "lineno": 272,
           "args": [
             "root_hash",
             "simulated_loss",
@@ -16172,7 +17851,7 @@
           "qualified_name": "TFPNode.inspect_recipe",
           "kind": "function",
           "file_path": "tfp_core_v4/node.py",
-          "lineno": 145,
+          "lineno": 349,
           "args": [
             "root_hash"
           ],
@@ -16181,11 +17860,22 @@
           "bases": []
         },
         {
+          "name": "list_recipes",
+          "qualified_name": "TFPNode.list_recipes",
+          "kind": "function",
+          "file_path": "tfp_core_v4/node.py",
+          "lineno": 366,
+          "args": [],
+          "return_type": "list[ChunkRecipe]",
+          "docstring": "Return all recipes stored in memory and in the persistent SQLite database.",
+          "bases": []
+        },
+        {
           "name": "get_telemetry",
           "qualified_name": "TFPNode.get_telemetry",
           "kind": "function",
           "file_path": "tfp_core_v4/node.py",
-          "lineno": 161,
+          "lineno": 389,
           "args": [],
           "return_type": "dict[str, Any]",
           "docstring": "Return real deduplication and throughput metrics.",
@@ -16206,46 +17896,82 @@
           "lineno": 12
         },
         {
+          "module": "json",
+          "name": "json",
+          "alias": "json",
+          "lineno": 13
+        },
+        {
+          "module": "os",
+          "name": "os",
+          "alias": "os",
+          "lineno": 14
+        },
+        {
           "module": "secrets",
           "name": "secrets",
           "alias": "secrets",
-          "lineno": 13
+          "lineno": 15
+        },
+        {
+          "module": "sqlite3",
+          "name": "sqlite3",
+          "alias": "sqlite3",
+          "lineno": 16
+        },
+        {
+          "module": "time",
+          "name": "time",
+          "alias": "time",
+          "lineno": 17
+        },
+        {
+          "module": "logging",
+          "name": "logging",
+          "alias": "logging",
+          "lineno": 18
+        },
+        {
+          "module": "pathlib",
+          "name": "Path",
+          "alias": "Path",
+          "lineno": 19
         },
         {
           "module": "typing",
           "name": "Any",
           "alias": "Any",
-          "lineno": 14
+          "lineno": 20
         },
         {
           "module": "cdc",
           "name": "ChunkRecipe",
           "alias": "ChunkRecipe",
-          "lineno": 16
+          "lineno": 22
         },
         {
           "module": "cdc",
           "name": "ContentDefinedChunker",
           "alias": "ContentDefinedChunker",
-          "lineno": 16
+          "lineno": 22
         },
         {
           "module": "fountain",
           "name": "FountainCodec",
           "alias": "FountainCodec",
-          "lineno": 17
+          "lineno": 23
         },
         {
           "module": "fountain",
           "name": "FountainDroplet",
           "alias": "FountainDroplet",
-          "lineno": 17
+          "lineno": 23
         },
         {
           "module": "merkle",
           "name": "MerkleTree",
           "alias": "MerkleTree",
-          "lineno": 18
+          "lineno": 24
         }
       ]
     },
@@ -48086,7 +49812,7 @@
       "imports": []
     },
     "tfp-foundation-protocol/tfp_client/lib/audio/afsk_demodulator.py": {
-      "loc": 157,
+      "loc": 179,
       "symbols": [
         {
           "name": "GoertzelDetector",
@@ -48155,16 +49881,59 @@
           "bases": []
         },
         {
+          "name": "bell202_1200",
+          "qualified_name": "AFSKDemodulator.bell202_1200",
+          "kind": "function",
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/audio/afsk_demodulator.py",
+          "lineno": 62,
+          "args": [
+            "cls",
+            "sample_rate"
+          ],
+          "return_type": "'AFSKDemodulator'",
+          "docstring": "Standard Bell 202: 1200 baud, 1200 Hz mark / 2200 Hz space.",
+          "bases": []
+        },
+        {
+          "name": "bell202_300",
+          "qualified_name": "AFSKDemodulator.bell202_300",
+          "kind": "function",
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/audio/afsk_demodulator.py",
+          "lineno": 67,
+          "args": [
+            "cls",
+            "sample_rate"
+          ],
+          "return_type": "'AFSKDemodulator'",
+          "docstring": "Bell 202 Robust Acoustic Fallback: 300 baud, 1200 Hz mark / 2200 Hz space.",
+          "bases": []
+        },
+        {
+          "name": "bell103_300",
+          "qualified_name": "AFSKDemodulator.bell103_300",
+          "kind": "function",
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/audio/afsk_demodulator.py",
+          "lineno": 72,
+          "args": [
+            "cls",
+            "sample_rate"
+          ],
+          "return_type": "'AFSKDemodulator'",
+          "docstring": "Standard Bell 103: 300 baud, 1270 Hz mark / 1070 Hz space.",
+          "bases": []
+        },
+        {
           "name": "decode_wav",
           "qualified_name": "AFSKDemodulator.decode_wav",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/audio/afsk_demodulator.py",
-          "lineno": 64,
+          "lineno": 76,
           "args": [
-            "wav_bytes"
+            "wav_bytes",
+            "fallback_300"
           ],
           "return_type": "list[bytes]",
-          "docstring": "Reads a WAV file buffer and extracts all valid packets.",
+          "docstring": "Reads a WAV file buffer and extracts all valid packets, optionally falling back to 300 baud.",
           "bases": []
         },
         {
@@ -48172,7 +49941,7 @@
           "qualified_name": "AFSKDemodulator.demodulate_samples",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/audio/afsk_demodulator.py",
-          "lineno": 91,
+          "lineno": 112,
           "args": [
             "samples"
           ],
@@ -48185,7 +49954,7 @@
           "qualified_name": "AFSKDemodulator._extract_packets_from_bits",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/audio/afsk_demodulator.py",
-          "lineno": 150,
+          "lineno": 176,
           "args": [
             "bits"
           ],
@@ -48198,7 +49967,7 @@
           "qualified_name": "AFSKDemodulator._scan_bytes_at_offset",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/audio/afsk_demodulator.py",
-          "lineno": 166,
+          "lineno": 192,
           "args": [
             "bits"
           ],
@@ -48234,6 +50003,12 @@
         },
         {
           "module": "afsk_modulator",
+          "name": "MAX_AFSK_PAYLOAD_SIZE",
+          "alias": "MAX_AFSK_PAYLOAD_SIZE",
+          "lineno": 17
+        },
+        {
+          "module": "afsk_modulator",
           "name": "crc16_ccitt",
           "alias": "crc16_ccitt",
           "lineno": 17
@@ -48241,7 +50016,7 @@
       ]
     },
     "tfp-foundation-protocol/tfp_client/lib/audio/afsk_modulator.py": {
-      "loc": 102,
+      "loc": 146,
       "symbols": [
         {
           "name": "crc16_ccitt",
@@ -48262,7 +50037,7 @@
           "qualified_name": "AFSKModulator",
           "kind": "class",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/audio/afsk_modulator.py",
-          "lineno": 35,
+          "lineno": 36,
           "args": [],
           "return_type": null,
           "docstring": "Continuous-Phase Audio Frequency Shift Keying (CPFSK) Modulator.",
@@ -48273,7 +50048,7 @@
           "qualified_name": "AFSKModulator.__init__",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/audio/afsk_modulator.py",
-          "lineno": 47,
+          "lineno": 48,
           "args": [
             "sample_rate",
             "baud_rate",
@@ -48286,11 +50061,56 @@
           "bases": []
         },
         {
+          "name": "bell202_1200",
+          "qualified_name": "AFSKModulator.bell202_1200",
+          "kind": "function",
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/audio/afsk_modulator.py",
+          "lineno": 64,
+          "args": [
+            "cls",
+            "sample_rate",
+            "preamble_flags"
+          ],
+          "return_type": "'AFSKModulator'",
+          "docstring": "Standard Bell 202: 1200 baud, 1200 Hz mark / 2200 Hz space.",
+          "bases": []
+        },
+        {
+          "name": "bell202_300",
+          "qualified_name": "AFSKModulator.bell202_300",
+          "kind": "function",
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/audio/afsk_modulator.py",
+          "lineno": 69,
+          "args": [
+            "cls",
+            "sample_rate",
+            "preamble_flags"
+          ],
+          "return_type": "'AFSKModulator'",
+          "docstring": "Bell 202 Robust Acoustic Fallback: 300 baud, 1200 Hz mark / 2200 Hz space (3.33ms symbol).",
+          "bases": []
+        },
+        {
+          "name": "bell103_300",
+          "qualified_name": "AFSKModulator.bell103_300",
+          "kind": "function",
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/audio/afsk_modulator.py",
+          "lineno": 74,
+          "args": [
+            "cls",
+            "sample_rate",
+            "preamble_flags"
+          ],
+          "return_type": "'AFSKModulator'",
+          "docstring": "Standard Bell 103: 300 baud, 1270 Hz mark / 1070 Hz space.",
+          "bases": []
+        },
+        {
           "name": "frame_packet",
           "qualified_name": "AFSKModulator.frame_packet",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/audio/afsk_modulator.py",
-          "lineno": 62,
+          "lineno": 78,
           "args": [
             "payload"
           ],
@@ -48303,7 +50123,7 @@
           "qualified_name": "AFSKModulator.modulate_bits",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/audio/afsk_modulator.py",
-          "lineno": 79,
+          "lineno": 95,
           "args": [
             "bits",
             "amplitude"
@@ -48317,7 +50137,7 @@
           "qualified_name": "AFSKModulator.modulate_bytes",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/audio/afsk_modulator.py",
-          "lineno": 107,
+          "lineno": 123,
           "args": [
             "data",
             "amplitude"
@@ -48327,14 +50147,31 @@
           "bases": []
         },
         {
+          "name": "synthesize_sync_chirp",
+          "qualified_name": "AFSKModulator.synthesize_sync_chirp",
+          "kind": "function",
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/audio/afsk_modulator.py",
+          "lineno": 132,
+          "args": [
+            "duration_ms",
+            "start_freq",
+            "end_freq",
+            "amplitude"
+          ],
+          "return_type": "bytes",
+          "docstring": "Synthesizes a linear frequency sweep (chirp) from start_freq to end_freq.",
+          "bases": []
+        },
+        {
           "name": "synthesize_wav",
           "qualified_name": "AFSKModulator.synthesize_wav",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/audio/afsk_modulator.py",
-          "lineno": 116,
+          "lineno": 165,
           "args": [
             "payload",
-            "amplitude"
+            "amplitude",
+            "include_chirp"
           ],
           "return_type": "bytes",
           "docstring": "Convenience method: frames packet and encodes into a valid PCM WAV buffer.",
@@ -48365,6 +50202,467 @@
           "name": "wave",
           "alias": "wave",
           "lineno": 16
+        }
+      ]
+    },
+    "tfp-foundation-protocol/tfp_client/lib/audio/channel_simulator.py": {
+      "loc": 126,
+      "symbols": [
+        {
+          "name": "AcousticChannelSimulator",
+          "qualified_name": "AcousticChannelSimulator",
+          "kind": "class",
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/audio/channel_simulator.py",
+          "lineno": 22,
+          "args": [],
+          "return_type": null,
+          "docstring": "Applies physical audio channel impairments to 16-bit PCM WAV audio.",
+          "bases": []
+        },
+        {
+          "name": "__init__",
+          "qualified_name": "AcousticChannelSimulator.__init__",
+          "kind": "function",
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/audio/channel_simulator.py",
+          "lineno": 27,
+          "args": [
+            "seed"
+          ],
+          "return_type": null,
+          "docstring": null,
+          "bases": []
+        },
+        {
+          "name": "apply_multipath_reverberation",
+          "qualified_name": "AcousticChannelSimulator.apply_multipath_reverberation",
+          "kind": "function",
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/audio/channel_simulator.py",
+          "lineno": 30,
+          "args": [
+            "samples",
+            "sample_rate",
+            "reflections"
+          ],
+          "return_type": "List[float]",
+          "docstring": "Simulates room acoustic echo.",
+          "bases": []
+        },
+        {
+          "name": "apply_awgn_noise",
+          "qualified_name": "AcousticChannelSimulator.apply_awgn_noise",
+          "kind": "function",
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/audio/channel_simulator.py",
+          "lineno": 59,
+          "args": [
+            "samples",
+            "snr_db"
+          ],
+          "return_type": "List[float]",
+          "docstring": "Adds Additive White Gaussian Noise (AWGN) to achieve target SNR (dB).",
+          "bases": []
+        },
+        {
+          "name": "apply_clipping",
+          "qualified_name": "AcousticChannelSimulator.apply_clipping",
+          "kind": "function",
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/audio/channel_simulator.py",
+          "lineno": 85,
+          "args": [
+            "samples",
+            "max_amplitude"
+          ],
+          "return_type": "List[float]",
+          "docstring": "Simulates microphone overdrive / saturation clipping.",
+          "bases": []
+        },
+        {
+          "name": "apply_attenuation",
+          "qualified_name": "AcousticChannelSimulator.apply_attenuation",
+          "kind": "function",
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/audio/channel_simulator.py",
+          "lineno": 95,
+          "args": [
+            "samples",
+            "factor"
+          ],
+          "return_type": "List[float]",
+          "docstring": "Simulates distance-based acoustic attenuation (-14 dB at 0.20 factor).",
+          "bases": []
+        },
+        {
+          "name": "impair_wav",
+          "qualified_name": "AcousticChannelSimulator.impair_wav",
+          "kind": "function",
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/audio/channel_simulator.py",
+          "lineno": 105,
+          "args": [
+            "wav_bytes",
+            "attenuation",
+            "snr_db",
+            "reverberation",
+            "clipping",
+            "reflections"
+          ],
+          "return_type": "bytes",
+          "docstring": "Reads input 16-bit PCM WAV, applies specified acoustic impairments,",
+          "bases": []
+        }
+      ],
+      "imports": [
+        {
+          "module": "io",
+          "name": "io",
+          "alias": "io",
+          "lineno": 14
+        },
+        {
+          "module": "math",
+          "name": "math",
+          "alias": "math",
+          "lineno": 15
+        },
+        {
+          "module": "random",
+          "name": "random",
+          "alias": "random",
+          "lineno": 16
+        },
+        {
+          "module": "struct",
+          "name": "struct",
+          "alias": "struct",
+          "lineno": 17
+        },
+        {
+          "module": "typing",
+          "name": "List",
+          "alias": "List",
+          "lineno": 18
+        },
+        {
+          "module": "typing",
+          "name": "Tuple",
+          "alias": "Tuple",
+          "lineno": 18
+        },
+        {
+          "module": "wave",
+          "name": "wave",
+          "alias": "wave",
+          "lineno": 19
+        }
+      ]
+    },
+    "tfp-foundation-protocol/tfp_client/lib/audio/vocoder.py": {
+      "loc": 196,
+      "symbols": [
+        {
+          "name": "VocoderCodec",
+          "qualified_name": "VocoderCodec",
+          "kind": "class",
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/audio/vocoder.py",
+          "lineno": 28,
+          "args": [],
+          "return_type": null,
+          "docstring": "Parametric Speech Compressor and Synthesizer operating at 1200 bps (50 fps * 24 bits).",
+          "bases": []
+        },
+        {
+          "name": "__init__",
+          "qualified_name": "VocoderCodec.__init__",
+          "kind": "function",
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/audio/vocoder.py",
+          "lineno": 33,
+          "args": [
+            "sample_rate"
+          ],
+          "return_type": null,
+          "docstring": null,
+          "bases": []
+        },
+        {
+          "name": "compress",
+          "qualified_name": "VocoderCodec.compress",
+          "kind": "function",
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/audio/vocoder.py",
+          "lineno": 37,
+          "args": [
+            "pcm_bytes"
+          ],
+          "return_type": "bytes",
+          "docstring": "Compresses 16-bit mono PCM bytes into 1200 bps vocoder bitstream.",
+          "bases": []
+        },
+        {
+          "name": "decompress",
+          "qualified_name": "VocoderCodec.decompress",
+          "kind": "function",
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/audio/vocoder.py",
+          "lineno": 80,
+          "args": [
+            "vocoder_bytes"
+          ],
+          "return_type": "bytes",
+          "docstring": "Decompresses 1200 bps vocoder bitstream back into 16-bit mono PCM.",
+          "bases": []
+        },
+        {
+          "name": "_encode_frame",
+          "qualified_name": "VocoderCodec._encode_frame",
+          "kind": "function",
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/audio/vocoder.py",
+          "lineno": 114,
+          "args": [
+            "frame_raw",
+            "frame_pe"
+          ],
+          "return_type": "bytes",
+          "docstring": "Encodes a single 160-sample frame into 24 bits (3 bytes).",
+          "bases": []
+        },
+        {
+          "name": "_decode_frame",
+          "qualified_name": "VocoderCodec._decode_frame",
+          "kind": "function",
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/audio/vocoder.py",
+          "lineno": 203,
+          "args": [
+            "chunk",
+            "phase"
+          ],
+          "return_type": "Tuple[np.ndarray, float]",
+          "docstring": "Decodes 3 bytes back into a synthesized 160-sample frame.",
+          "bases": []
+        },
+        {
+          "name": "compress_speech",
+          "qualified_name": "compress_speech",
+          "kind": "function",
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/audio/vocoder.py",
+          "lineno": 281,
+          "args": [
+            "pcm_bytes",
+            "sample_rate"
+          ],
+          "return_type": "bytes",
+          "docstring": "Convenience helper to compress raw 16-bit mono PCM into 1200 bps vocoder bitstream.",
+          "bases": []
+        },
+        {
+          "name": "decompress_speech",
+          "qualified_name": "decompress_speech",
+          "kind": "function",
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/audio/vocoder.py",
+          "lineno": 287,
+          "args": [
+            "vocoder_bytes",
+            "sample_rate"
+          ],
+          "return_type": "bytes",
+          "docstring": "Convenience helper to decompress 1200 bps vocoder bitstream into raw 16-bit mono PCM.",
+          "bases": []
+        }
+      ],
+      "imports": [
+        {
+          "module": "math",
+          "name": "math",
+          "alias": "math",
+          "lineno": 15
+        },
+        {
+          "module": "struct",
+          "name": "struct",
+          "alias": "struct",
+          "lineno": 16
+        },
+        {
+          "module": "typing",
+          "name": "List",
+          "alias": "List",
+          "lineno": 17
+        },
+        {
+          "module": "typing",
+          "name": "Tuple",
+          "alias": "Tuple",
+          "lineno": 17
+        },
+        {
+          "module": "numpy",
+          "name": "numpy",
+          "alias": "np",
+          "lineno": 18
+        }
+      ]
+    },
+    "tfp-foundation-protocol/tfp_client/lib/audio/voice_memo.py": {
+      "loc": 187,
+      "symbols": [
+        {
+          "name": "VoiceMemo",
+          "qualified_name": "VoiceMemo",
+          "kind": "class",
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/audio/voice_memo.py",
+          "lineno": 33,
+          "args": [],
+          "return_type": null,
+          "docstring": "Compact voice note container tailored for rural health workers,",
+          "bases": []
+        },
+        {
+          "name": "__post_init__",
+          "qualified_name": "VoiceMemo.__post_init__",
+          "kind": "function",
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/audio/voice_memo.py",
+          "lineno": 47,
+          "args": [],
+          "return_type": null,
+          "docstring": null,
+          "bases": []
+        },
+        {
+          "name": "to_bytes",
+          "qualified_name": "VoiceMemo.to_bytes",
+          "kind": "function",
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/audio/voice_memo.py",
+          "lineno": 64,
+          "args": [],
+          "return_type": "bytes",
+          "docstring": "Serializes VoiceMemo to authenticated binary network wire format with CRC16.",
+          "bases": []
+        },
+        {
+          "name": "from_bytes",
+          "qualified_name": "VoiceMemo.from_bytes",
+          "kind": "function",
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/audio/voice_memo.py",
+          "lineno": 97,
+          "args": [
+            "cls",
+            "data",
+            "auto_decompress"
+          ],
+          "return_type": "'VoiceMemo'",
+          "docstring": "Deserializes binary wire format and verifies CRC16 checksum.",
+          "bases": []
+        },
+        {
+          "name": "compress",
+          "qualified_name": "VoiceMemo.compress",
+          "kind": "function",
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/audio/voice_memo.py",
+          "lineno": 157,
+          "args": [],
+          "return_type": "'VoiceMemo'",
+          "docstring": "Returns a new VoiceMemo compressed with the 1200 bps vocoder.",
+          "bases": []
+        },
+        {
+          "name": "decompress",
+          "qualified_name": "VoiceMemo.decompress",
+          "kind": "function",
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/audio/voice_memo.py",
+          "lineno": 172,
+          "args": [],
+          "return_type": "'VoiceMemo'",
+          "docstring": "Returns a new VoiceMemo decompressed into 16-bit PCM.",
+          "bases": []
+        },
+        {
+          "name": "to_wav",
+          "qualified_name": "VoiceMemo.to_wav",
+          "kind": "function",
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/audio/voice_memo.py",
+          "lineno": 187,
+          "args": [],
+          "return_type": "bytes",
+          "docstring": "Converts internal PCM samples to standard playable 16-bit mono WAV audio.",
+          "bases": []
+        },
+        {
+          "name": "from_wav",
+          "qualified_name": "VoiceMemo.from_wav",
+          "kind": "function",
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/audio/voice_memo.py",
+          "lineno": 202,
+          "args": [
+            "cls",
+            "wav_bytes",
+            "callsign",
+            "compress_vocoder"
+          ],
+          "return_type": "'VoiceMemo'",
+          "docstring": "Constructs a VoiceMemo from standard WAV bytes, optionally compressing via vocoder.",
+          "bases": []
+        }
+      ],
+      "imports": [
+        {
+          "module": "dataclasses",
+          "name": "dataclass",
+          "alias": "dataclass",
+          "lineno": 12
+        },
+        {
+          "module": "io",
+          "name": "io",
+          "alias": "io",
+          "lineno": 13
+        },
+        {
+          "module": "struct",
+          "name": "struct",
+          "alias": "struct",
+          "lineno": 14
+        },
+        {
+          "module": "time",
+          "name": "time",
+          "alias": "time",
+          "lineno": 15
+        },
+        {
+          "module": "typing",
+          "name": "Optional",
+          "alias": "Optional",
+          "lineno": 16
+        },
+        {
+          "module": "typing",
+          "name": "Tuple",
+          "alias": "Tuple",
+          "lineno": 16
+        },
+        {
+          "module": "wave",
+          "name": "wave",
+          "alias": "wave",
+          "lineno": 17
+        },
+        {
+          "module": "afsk_modulator",
+          "name": "crc16_ccitt",
+          "alias": "crc16_ccitt",
+          "lineno": 19
+        },
+        {
+          "module": "vocoder",
+          "name": "VOCODER_MAGIC",
+          "alias": "VOCODER_MAGIC",
+          "lineno": 20
+        },
+        {
+          "module": "vocoder",
+          "name": "compress_speech",
+          "alias": "compress_speech",
+          "lineno": 20
+        },
+        {
+          "module": "vocoder",
+          "name": "decompress_speech",
+          "alias": "decompress_speech",
+          "lineno": 20
         }
       ]
     },
@@ -52659,7 +54957,7 @@
           "lineno": 8,
           "args": [],
           "return_type": null,
-          "docstring": "Production systematic fountain erasure code adapter with Gaussian elimination.",
+          "docstring": "Production systematic fountain erasure code adapter with Rust FFI or Python fallback.",
           "bases": [
             "RealRaptorQAdapter"
           ]
@@ -52679,7 +54977,7 @@
           "lineno": 4
         },
         {
-          "module": "fountain_real",
+          "module": "raptorq_ffi",
           "name": "RealRaptorQAdapter",
           "alias": "RealRaptorQAdapter",
           "lineno": 5
@@ -52687,14 +54985,14 @@
       ]
     },
     "tfp-foundation-protocol/tfp_client/lib/fountain/cdc.py": {
-      "loc": 232,
+      "loc": 167,
       "symbols": [
         {
           "name": "ChunkRecipe",
           "qualified_name": "ChunkRecipe",
           "kind": "class",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/fountain/cdc.py",
-          "lineno": 95,
+          "lineno": 30,
           "args": [],
           "return_type": null,
           "docstring": "Metadata representation of an assembled piece of content.",
@@ -52705,7 +55003,7 @@
           "qualified_name": "ChunkRecipe.to_dict",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/fountain/cdc.py",
-          "lineno": 105,
+          "lineno": 40,
           "args": [],
           "return_type": "Dict[str, Any]",
           "docstring": null,
@@ -52716,7 +55014,7 @@
           "qualified_name": "ChunkRecipe.to_json",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/fountain/cdc.py",
-          "lineno": 108,
+          "lineno": 43,
           "args": [],
           "return_type": "str",
           "docstring": null,
@@ -52727,7 +55025,7 @@
           "qualified_name": "ChunkRecipe.from_dict",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/fountain/cdc.py",
-          "lineno": 112,
+          "lineno": 47,
           "args": [
             "cls",
             "data"
@@ -52741,7 +55039,7 @@
           "qualified_name": "ChunkRecipe.from_json",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/fountain/cdc.py",
-          "lineno": 121,
+          "lineno": 56,
           "args": [
             "cls",
             "json_str"
@@ -52755,7 +55053,7 @@
           "qualified_name": "ContentDefinedChunker",
           "kind": "class",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/fountain/cdc.py",
-          "lineno": 125,
+          "lineno": 60,
           "args": [],
           "return_type": null,
           "docstring": "Splits binary data into variable-sized chunks using the FastCDC algorithm.",
@@ -52766,7 +55064,7 @@
           "qualified_name": "ContentDefinedChunker.__init__",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/fountain/cdc.py",
-          "lineno": 131,
+          "lineno": 66,
           "args": [
             "min_size",
             "max_size",
@@ -52782,7 +55080,7 @@
           "qualified_name": "ContentDefinedChunker.chunk_data",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/fountain/cdc.py",
-          "lineno": 156,
+          "lineno": 91,
           "args": [
             "data"
           ],
@@ -52795,7 +55093,7 @@
           "qualified_name": "ContentDefinedChunker.create_recipe",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/fountain/cdc.py",
-          "lineno": 245,
+          "lineno": 180,
           "args": [
             "data"
           ],
@@ -52808,7 +55106,7 @@
           "qualified_name": "ContentDefinedChunker.assemble_from_chunks",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/fountain/cdc.py",
-          "lineno": 261,
+          "lineno": 196,
           "args": [
             "recipe",
             "chunk_store"
@@ -52878,11 +55176,17 @@
           "name": "Tuple",
           "alias": "Tuple",
           "lineno": 21
+        },
+        {
+          "module": "tfp_core_v4.cdc",
+          "name": "_GEAR_MATRIX_64",
+          "alias": "_GEAR_MATRIX_64",
+          "lineno": 24
         }
       ]
     },
     "tfp-foundation-protocol/tfp_client/lib/fountain/fountain_real.py": {
-      "loc": 278,
+      "loc": 282,
       "symbols": [
         {
           "name": "IntegrityError",
@@ -53180,23 +55484,10 @@
           "qualified_name": "RaptorQError",
           "kind": "class",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/fountain/raptorq_ffi.py",
-          "lineno": 39,
+          "lineno": 42,
           "args": [],
           "return_type": null,
           "docstring": "Raised when RaptorQ library operations fail.",
-          "bases": [
-            "Exception"
-          ]
-        },
-        {
-          "name": "IntegrityError",
-          "qualified_name": "IntegrityError",
-          "kind": "class",
-          "file_path": "tfp-foundation-protocol/tfp_client/lib/fountain/raptorq_ffi.py",
-          "lineno": 45,
-          "args": [],
-          "return_type": null,
-          "docstring": "Raised when a per-shard HMAC verification fails.",
           "bases": [
             "Exception"
           ]
@@ -53206,7 +55497,7 @@
           "qualified_name": "_pad",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/fountain/raptorq_ffi.py",
-          "lineno": 51,
+          "lineno": 48,
           "args": [
             "data",
             "shard_size"
@@ -53220,7 +55511,7 @@
           "qualified_name": "_shard_hmac",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/fountain/raptorq_ffi.py",
-          "lineno": 59,
+          "lineno": 56,
           "args": [
             "key",
             "payload"
@@ -53234,7 +55525,7 @@
           "qualified_name": "RealRaptorQAdapter",
           "kind": "class",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/fountain/raptorq_ffi.py",
-          "lineno": 64,
+          "lineno": 61,
           "args": [],
           "return_type": null,
           "docstring": "RFC 6330-compliant RaptorQ erasure code adapter.",
@@ -53245,7 +55536,7 @@
           "qualified_name": "RealRaptorQAdapter.__init__",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/fountain/raptorq_ffi.py",
-          "lineno": 72,
+          "lineno": 69,
           "args": [
             "shard_size"
           ],
@@ -53258,7 +55549,7 @@
           "qualified_name": "RealRaptorQAdapter.encode",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/fountain/raptorq_ffi.py",
-          "lineno": 79,
+          "lineno": 76,
           "args": [
             "data",
             "redundancy",
@@ -53273,7 +55564,7 @@
           "qualified_name": "RealRaptorQAdapter.decode",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/fountain/raptorq_ffi.py",
-          "lineno": 121,
+          "lineno": 118,
           "args": [
             "shards",
             "k",
@@ -53288,7 +55579,7 @@
           "qualified_name": "shutdown_encode_executor",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/fountain/raptorq_ffi.py",
-          "lineno": 198,
+          "lineno": 195,
           "args": [],
           "return_type": null,
           "docstring": "Graceful shutdown hook (kept for API compatibility).",
@@ -53348,6 +55639,12 @@
           "module": "tfp_client.lib.fountain.fountain_real",
           "name": "RealRaptorQAdapter",
           "alias": "PurePythonFountainAdapter",
+          "lineno": 28
+        },
+        {
+          "module": "tfp_client.lib.fountain.fountain_real",
+          "name": "IntegrityError",
+          "alias": "IntegrityError",
           "lineno": 28
         }
       ]
@@ -54250,6 +56547,127 @@
         }
       ]
     },
+    "tfp-foundation-protocol/tfp_client/lib/ingest/zim_exporter.py": {
+      "loc": 246,
+      "symbols": [
+        {
+          "name": "slugify",
+          "qualified_name": "slugify",
+          "kind": "function",
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/ingest/zim_exporter.py",
+          "lineno": 21,
+          "args": [
+            "text"
+          ],
+          "return_type": "str",
+          "docstring": "Converts title to a safe URL and filesystem slug.",
+          "bases": []
+        },
+        {
+          "name": "ZimDirectoryExporter",
+          "qualified_name": "ZimDirectoryExporter",
+          "kind": "class",
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/ingest/zim_exporter.py",
+          "lineno": 162,
+          "args": [],
+          "return_type": null,
+          "docstring": "Exports Foundation Protocol articles into standard ZIM directory hierarchies.",
+          "bases": []
+        },
+        {
+          "name": "__init__",
+          "qualified_name": "ZimDirectoryExporter.__init__",
+          "kind": "function",
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/ingest/zim_exporter.py",
+          "lineno": 167,
+          "args": [
+            "publisher",
+            "language"
+          ],
+          "return_type": null,
+          "docstring": null,
+          "bases": []
+        },
+        {
+          "name": "export_bundles",
+          "qualified_name": "ZimDirectoryExporter.export_bundles",
+          "kind": "function",
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/ingest/zim_exporter.py",
+          "lineno": 171,
+          "args": [
+            "bundles",
+            "target_dir",
+            "library_title",
+            "description"
+          ],
+          "return_type": "Path",
+          "docstring": "Exports a collection of PackagedArticleBundles into a ZIM directory tree.",
+          "bases": []
+        }
+      ],
+      "imports": [
+        {
+          "module": "datetime",
+          "name": "datetime",
+          "alias": "datetime",
+          "lineno": 12
+        },
+        {
+          "module": "datetime",
+          "name": "timezone",
+          "alias": "timezone",
+          "lineno": 12
+        },
+        {
+          "module": "json",
+          "name": "json",
+          "alias": "json",
+          "lineno": 13
+        },
+        {
+          "module": "pathlib",
+          "name": "Path",
+          "alias": "Path",
+          "lineno": 14
+        },
+        {
+          "module": "re",
+          "name": "re",
+          "alias": "re",
+          "lineno": 15
+        },
+        {
+          "module": "typing",
+          "name": "Any",
+          "alias": "Any",
+          "lineno": 16
+        },
+        {
+          "module": "typing",
+          "name": "Dict",
+          "alias": "Dict",
+          "lineno": 16
+        },
+        {
+          "module": "typing",
+          "name": "List",
+          "alias": "List",
+          "lineno": 16
+        },
+        {
+          "module": "typing",
+          "name": "Optional",
+          "alias": "Optional",
+          "lineno": 16
+        },
+        {
+          "module": "article_packager",
+          "name": "PackagedArticleBundle",
+          "alias": "PackagedArticleBundle",
+          "lineno": 18
+        }
+      ]
+    },
     "tfp-foundation-protocol/tfp_client/lib/ingest/__init__.py": {
       "loc": 11,
       "symbols": [],
@@ -54773,7 +57191,7 @@
       "imports": []
     },
     "tfp-foundation-protocol/tfp_client/lib/media/fountain_streamer.py": {
-      "loc": 346,
+      "loc": 354,
       "symbols": [
         {
           "name": "serialize_manifest_packet",
@@ -54982,7 +57400,8 @@
             "chunks",
             "redundancy",
             "session_id",
-            "repeat_manifest"
+            "repeat_manifest",
+            "manifest_interval"
           ],
           "return_type": "Generator[bytes, None, None]",
           "docstring": "Yields raw wire datagram bytes for both the manifest and fountain droplets.",
@@ -54993,7 +57412,7 @@
           "qualified_name": "FountainStreamer.broadcast_udp",
           "kind": "async_function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/fountain_streamer.py",
-          "lineno": 378,
+          "lineno": 388,
           "args": [
             "packets",
             "host",
@@ -55458,14 +57877,14 @@
       ]
     },
     "tfp-foundation-protocol/tfp_client/lib/media/receiver.py": {
-      "loc": 234,
+      "loc": 318,
       "symbols": [
         {
           "name": "ReceiverStats",
           "qualified_name": "ReceiverStats",
           "kind": "class",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py",
-          "lineno": 43,
+          "lineno": 47,
           "args": [],
           "return_type": null,
           "docstring": "Real-time reception statistics.",
@@ -55476,7 +57895,7 @@
           "qualified_name": "FountainStreamReceiver",
           "kind": "class",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py",
-          "lineno": 54,
+          "lineno": 58,
           "args": [],
           "return_type": null,
           "docstring": "Asynchronous receiver and decoder for rateless media fountain streams.",
@@ -55487,11 +57906,14 @@
           "qualified_name": "FountainStreamReceiver.__init__",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py",
-          "lineno": 59,
+          "lineno": 63,
           "args": [
             "symbol_size",
             "secret_key",
-            "verify_tag"
+            "verify_tag",
+            "max_sessions",
+            "max_droplets_per_chunk",
+            "session_ttl_seconds"
           ],
           "return_type": null,
           "docstring": null,
@@ -55502,7 +57924,7 @@
           "qualified_name": "FountainStreamReceiver.reconstructed_chunks",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py",
-          "lineno": 83,
+          "lineno": 94,
           "args": [],
           "return_type": "Dict[int, bytes]",
           "docstring": "Backwards-compatible view of reconstructed chunks for the most active / recent session.",
@@ -55513,7 +57935,7 @@
           "qualified_name": "FountainStreamReceiver.derive_session_id",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py",
-          "lineno": 95,
+          "lineno": 106,
           "args": [
             "manifest"
           ],
@@ -55522,11 +57944,24 @@
           "bases": []
         },
         {
+          "name": "_evict_stale_or_excess_sessions",
+          "qualified_name": "FountainStreamReceiver._evict_stale_or_excess_sessions",
+          "kind": "function",
+          "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py",
+          "lineno": 113,
+          "args": [
+            "incoming_session"
+          ],
+          "return_type": "None",
+          "docstring": "Evicts sessions exceeding max_sessions (LRU) or older than session_ttl_seconds.",
+          "bases": []
+        },
+        {
           "name": "reset",
           "qualified_name": "FountainStreamReceiver.reset",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py",
-          "lineno": 102,
+          "lineno": 146,
           "args": [
             "session_id"
           ],
@@ -55539,7 +57974,7 @@
           "qualified_name": "FountainStreamReceiver.ingest_packet",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py",
-          "lineno": 122,
+          "lineno": 175,
           "args": [
             "pkt"
           ],
@@ -55552,7 +57987,7 @@
           "qualified_name": "FountainStreamReceiver.ingest_bytes",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py",
-          "lineno": 178,
+          "lineno": 272,
           "args": [
             "raw_bytes"
           ],
@@ -55565,7 +58000,7 @@
           "qualified_name": "FountainStreamReceiver.is_complete",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py",
-          "lineno": 220,
+          "lineno": 316,
           "args": [
             "manifest",
             "session_id"
@@ -55579,7 +58014,7 @@
           "qualified_name": "FountainStreamReceiver.assemble",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py",
-          "lineno": 234,
+          "lineno": 332,
           "args": [
             "manifest",
             "session_id"
@@ -55593,7 +58028,7 @@
           "qualified_name": "FountainStreamReceiver.listen_udp",
           "kind": "async_function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/receiver.py",
-          "lineno": 259,
+          "lineno": 356,
           "args": [
             "host",
             "port",
@@ -55661,94 +58096,118 @@
           "lineno": 20
         },
         {
+          "module": "struct",
+          "name": "struct",
+          "alias": "struct",
+          "lineno": 21
+        },
+        {
           "module": "sys",
           "name": "sys",
           "alias": "sys",
-          "lineno": 21
+          "lineno": 22
+        },
+        {
+          "module": "time",
+          "name": "time",
+          "alias": "time",
+          "lineno": 23
         },
         {
           "module": "typing",
           "name": "Callable",
           "alias": "Callable",
-          "lineno": 22
+          "lineno": 24
         },
         {
           "module": "typing",
           "name": "Dict",
           "alias": "Dict",
-          "lineno": 22
+          "lineno": 24
         },
         {
           "module": "typing",
           "name": "List",
           "alias": "List",
-          "lineno": 22
+          "lineno": 24
         },
         {
           "module": "typing",
           "name": "Optional",
           "alias": "Optional",
-          "lineno": 22
+          "lineno": 24
         },
         {
           "module": "typing",
           "name": "Set",
           "alias": "Set",
-          "lineno": 22
+          "lineno": 24
         },
         {
           "module": "typing",
           "name": "Tuple",
           "alias": "Tuple",
-          "lineno": 22
+          "lineno": 24
         },
         {
           "module": "tfp_core_v4.fountain",
           "name": "FountainCodec",
           "alias": "FountainCodec",
-          "lineno": 29
+          "lineno": 31
         },
         {
           "module": "tfp_core_v4.fountain",
           "name": "FountainDroplet",
           "alias": "FountainDroplet",
-          "lineno": 29
+          "lineno": 31
         },
         {
           "module": "fountain_streamer",
           "name": "AntiPollutionError",
           "alias": "AntiPollutionError",
-          "lineno": 30
+          "lineno": 32
         },
         {
           "module": "fountain_streamer",
           "name": "MediaDropletPacket",
           "alias": "MediaDropletPacket",
-          "lineno": 30
+          "lineno": 32
         },
         {
           "module": "fountain_streamer",
           "name": "MediaStreamError",
           "alias": "MediaStreamError",
-          "lineno": 30
+          "lineno": 32
         },
         {
           "module": "fountain_streamer",
           "name": "MANIFEST_MAGIC",
           "alias": "MANIFEST_MAGIC",
-          "lineno": 30
+          "lineno": 32
+        },
+        {
+          "module": "fountain_streamer",
+          "name": "PACKET_MAGIC",
+          "alias": "PACKET_MAGIC",
+          "lineno": 32
+        },
+        {
+          "module": "fountain_streamer",
+          "name": "PACKET_VERSION",
+          "alias": "PACKET_VERSION",
+          "lineno": 32
         },
         {
           "module": "fountain_streamer",
           "name": "deserialize_manifest_packet",
           "alias": "deserialize_manifest_packet",
-          "lineno": 30
+          "lineno": 32
         },
         {
           "module": "stream_packager",
           "name": "MediaManifest",
           "alias": "MediaManifest",
-          "lineno": 37
+          "lineno": 41
         }
       ]
     },
@@ -65571,7 +68030,7 @@
       ]
     },
     "tests/fuzz/test_adversarial_stress_empirical.py": {
-      "loc": 297,
+      "loc": 298,
       "symbols": [
         {
           "name": "_make_sig",
@@ -65882,7 +68341,7 @@
           "qualified_name": "TestSessionTokenAndAccessGatesAdversarial.test_zkp_access_token_boundaries_and_forgery_rejection",
           "kind": "function",
           "file_path": "tests/fuzz/test_adversarial_stress_empirical.py",
-          "lineno": 401,
+          "lineno": 402,
           "args": [],
           "return_type": null,
           "docstring": "Verify ZKP proof generation, length checking, and structural validation.",
@@ -66141,6 +68600,12 @@
           "name": "_RateLimiter",
           "alias": "_RateLimiter",
           "lineno": 52
+        },
+        {
+          "module": "uuid",
+          "name": "uuid",
+          "alias": "uuid",
+          "lineno": 361
         }
       ]
     },
@@ -66953,6 +69418,450 @@
           "name": "_seen_nostr_ids_lock",
           "alias": "_seen_nostr_ids_lock",
           "lineno": 31
+        }
+      ]
+    },
+    "tests/fuzz/test_stateful_stream_fuzz.py": {
+      "loc": 162,
+      "symbols": [
+        {
+          "name": "StreamReceiverStateMachine",
+          "qualified_name": "StreamReceiverStateMachine",
+          "kind": "class",
+          "file_path": "tests/fuzz/test_stateful_stream_fuzz.py",
+          "lineno": 36,
+          "args": [],
+          "return_type": null,
+          "docstring": "Stateful model tracking active streams, delivered packets, and receiver state.",
+          "bases": [
+            "RuleBasedStateMachine"
+          ]
+        },
+        {
+          "name": "__init__",
+          "qualified_name": "StreamReceiverStateMachine.__init__",
+          "kind": "function",
+          "file_path": "tests/fuzz/test_stateful_stream_fuzz.py",
+          "lineno": 43,
+          "args": [],
+          "return_type": null,
+          "docstring": null,
+          "bases": []
+        },
+        {
+          "name": "create_new_stream",
+          "qualified_name": "StreamReceiverStateMachine.create_new_stream",
+          "kind": "function",
+          "file_path": "tests/fuzz/test_stateful_stream_fuzz.py",
+          "lineno": 60,
+          "args": [
+            "payload"
+          ],
+          "return_type": null,
+          "docstring": "Create a new media stream session with packaged chunks and fountain droplets.",
+          "bases": []
+        },
+        {
+          "name": "deliver_valid_packet",
+          "qualified_name": "StreamReceiverStateMachine.deliver_valid_packet",
+          "kind": "function",
+          "file_path": "tests/fuzz/test_stateful_stream_fuzz.py",
+          "lineno": 91,
+          "args": [
+            "session_id"
+          ],
+          "return_type": null,
+          "docstring": "Deliver next available authentic droplet packet to receiver.",
+          "bases": []
+        },
+        {
+          "name": "deliver_duplicate_packet",
+          "qualified_name": "StreamReceiverStateMachine.deliver_duplicate_packet",
+          "kind": "function",
+          "file_path": "tests/fuzz/test_stateful_stream_fuzz.py",
+          "lineno": 111,
+          "args": [
+            "session_id"
+          ],
+          "return_type": null,
+          "docstring": "Replay an already delivered droplet packet (verifying idempotency).",
+          "bases": []
+        },
+        {
+          "name": "deliver_corrupted_packet",
+          "qualified_name": "StreamReceiverStateMachine.deliver_corrupted_packet",
+          "kind": "function",
+          "file_path": "tests/fuzz/test_stateful_stream_fuzz.py",
+          "lineno": 125,
+          "args": [
+            "session_id"
+          ],
+          "return_type": null,
+          "docstring": "Inject a tampered droplet (corrupted payload or modified seed).",
+          "bases": []
+        },
+        {
+          "name": "reset_stream",
+          "qualified_name": "StreamReceiverStateMachine.reset_stream",
+          "kind": "function",
+          "file_path": "tests/fuzz/test_stateful_stream_fuzz.py",
+          "lineno": 154,
+          "args": [
+            "session_id"
+          ],
+          "return_type": null,
+          "docstring": "Reset a specific stream session and verify isolated cleanup.",
+          "bases": []
+        },
+        {
+          "name": "verify_completed_stream_integrity",
+          "qualified_name": "StreamReceiverStateMachine.verify_completed_stream_integrity",
+          "kind": "function",
+          "file_path": "tests/fuzz/test_stateful_stream_fuzz.py",
+          "lineno": 167,
+          "args": [],
+          "return_type": null,
+          "docstring": "Critical invariant: If receiver reports complete for a session,",
+          "bases": []
+        },
+        {
+          "name": "verify_stream_isolation",
+          "qualified_name": "StreamReceiverStateMachine.verify_stream_isolation",
+          "kind": "function",
+          "file_path": "tests/fuzz/test_stateful_stream_fuzz.py",
+          "lineno": 187,
+          "args": [],
+          "return_type": null,
+          "docstring": "Critical invariant: Chunks from Session A must NEVER satisfy or leak into Session B.",
+          "bases": []
+        }
+      ],
+      "imports": [
+        {
+          "module": "copy",
+          "name": "copy",
+          "alias": "copy",
+          "lineno": 14
+        },
+        {
+          "module": "hashlib",
+          "name": "hashlib",
+          "alias": "hashlib",
+          "lineno": 15
+        },
+        {
+          "module": "pathlib",
+          "name": "Path",
+          "alias": "Path",
+          "lineno": 16
+        },
+        {
+          "module": "random",
+          "name": "random",
+          "alias": "random",
+          "lineno": 17
+        },
+        {
+          "module": "sys",
+          "name": "sys",
+          "alias": "sys",
+          "lineno": 18
+        },
+        {
+          "module": "pytest",
+          "name": "pytest",
+          "alias": "pytest",
+          "lineno": 19
+        },
+        {
+          "module": "hypothesis",
+          "name": "settings",
+          "alias": "settings",
+          "lineno": 20
+        },
+        {
+          "module": "hypothesis",
+          "name": "strategies",
+          "alias": "st",
+          "lineno": 20
+        },
+        {
+          "module": "hypothesis.stateful",
+          "name": "Bundle",
+          "alias": "Bundle",
+          "lineno": 21
+        },
+        {
+          "module": "hypothesis.stateful",
+          "name": "RuleBasedStateMachine",
+          "alias": "RuleBasedStateMachine",
+          "lineno": 21
+        },
+        {
+          "module": "hypothesis.stateful",
+          "name": "invariant",
+          "alias": "invariant",
+          "lineno": 21
+        },
+        {
+          "module": "hypothesis.stateful",
+          "name": "rule",
+          "alias": "rule",
+          "lineno": 21
+        },
+        {
+          "module": "tfp_client.lib.media.stream_packager",
+          "name": "MediaStreamPackager",
+          "alias": "MediaStreamPackager",
+          "lineno": 31
+        },
+        {
+          "module": "tfp_client.lib.media.fountain_streamer",
+          "name": "FountainStreamer",
+          "alias": "FountainStreamer",
+          "lineno": 32
+        },
+        {
+          "module": "tfp_client.lib.media.fountain_streamer",
+          "name": "MediaDropletPacket",
+          "alias": "MediaDropletPacket",
+          "lineno": 32
+        },
+        {
+          "module": "tfp_client.lib.media.receiver",
+          "name": "FountainStreamReceiver",
+          "alias": "FountainStreamReceiver",
+          "lineno": 33
+        }
+      ]
+    },
+    "tests/fuzz/test_vocoder_fuzz.py": {
+      "loc": 85,
+      "symbols": [
+        {
+          "name": "TestVocoderHypothesisFuzz",
+          "qualified_name": "TestVocoderHypothesisFuzz",
+          "kind": "class",
+          "file_path": "tests/fuzz/test_vocoder_fuzz.py",
+          "lineno": 26,
+          "args": [],
+          "return_type": null,
+          "docstring": "Property-based verification of VocoderCodec.",
+          "bases": []
+        },
+        {
+          "name": "test_compress_arbitrary_bytes_safety",
+          "qualified_name": "TestVocoderHypothesisFuzz.test_compress_arbitrary_bytes_safety",
+          "kind": "function",
+          "file_path": "tests/fuzz/test_vocoder_fuzz.py",
+          "lineno": 31,
+          "args": [
+            "raw_bytes"
+          ],
+          "return_type": null,
+          "docstring": "Invariant: compress_speech handles arbitrary byte streams safely.",
+          "bases": []
+        },
+        {
+          "name": "test_decompress_malformed_bitstream_rejection",
+          "qualified_name": "TestVocoderHypothesisFuzz.test_decompress_malformed_bitstream_rejection",
+          "kind": "function",
+          "file_path": "tests/fuzz/test_vocoder_fuzz.py",
+          "lineno": 45,
+          "args": [
+            "garbage"
+          ],
+          "return_type": null,
+          "docstring": "Invariant: decompress_speech cleanly rejects non-vocoder payloads.",
+          "bases": []
+        },
+        {
+          "name": "test_extreme_audio_signals",
+          "qualified_name": "TestVocoderHypothesisFuzz.test_extreme_audio_signals",
+          "kind": "function",
+          "file_path": "tests/fuzz/test_vocoder_fuzz.py",
+          "lineno": 63,
+          "args": [
+            "n_samples",
+            "amplitude"
+          ],
+          "return_type": null,
+          "docstring": "Invariant: Flat DC offset or extreme clipping never produces NaN/Inf.",
+          "bases": []
+        },
+        {
+          "name": "test_signal_fidelity_tone_survives_roundtrip",
+          "qualified_name": "TestVocoderHypothesisFuzz.test_signal_fidelity_tone_survives_roundtrip",
+          "kind": "function",
+          "file_path": "tests/fuzz/test_vocoder_fuzz.py",
+          "lineno": 79,
+          "args": [],
+          "return_type": null,
+          "docstring": "Regression: vocoder must preserve audio energy, not produce silence.",
+          "bases": []
+        }
+      ],
+      "imports": [
+        {
+          "module": "struct",
+          "name": "struct",
+          "alias": "struct",
+          "lineno": 14
+        },
+        {
+          "module": "hypothesis",
+          "name": "given",
+          "alias": "given",
+          "lineno": 15
+        },
+        {
+          "module": "hypothesis",
+          "name": "settings",
+          "alias": "settings",
+          "lineno": 15
+        },
+        {
+          "module": "hypothesis",
+          "name": "strategies",
+          "alias": "st",
+          "lineno": 15
+        },
+        {
+          "module": "pytest",
+          "name": "pytest",
+          "alias": "pytest",
+          "lineno": 16
+        },
+        {
+          "module": "tfp_client.lib.audio.vocoder",
+          "name": "VOCODER_MAGIC",
+          "alias": "VOCODER_MAGIC",
+          "lineno": 18
+        },
+        {
+          "module": "tfp_client.lib.audio.vocoder",
+          "name": "VocoderCodec",
+          "alias": "VocoderCodec",
+          "lineno": 18
+        },
+        {
+          "module": "tfp_client.lib.audio.vocoder",
+          "name": "compress_speech",
+          "alias": "compress_speech",
+          "lineno": 18
+        },
+        {
+          "module": "tfp_client.lib.audio.vocoder",
+          "name": "decompress_speech",
+          "alias": "decompress_speech",
+          "lineno": 18
+        },
+        {
+          "module": "numpy",
+          "name": "numpy",
+          "alias": "np",
+          "lineno": 86
+        }
+      ]
+    },
+    "tests/fuzz/test_zim_exporter_fuzz.py": {
+      "loc": 61,
+      "symbols": [
+        {
+          "name": "TestZimExporterHypothesisFuzz",
+          "qualified_name": "TestZimExporterHypothesisFuzz",
+          "kind": "class",
+          "file_path": "tests/fuzz/test_zim_exporter_fuzz.py",
+          "lineno": 23,
+          "args": [],
+          "return_type": null,
+          "docstring": "Property-based verification of ZimDirectoryExporter.",
+          "bases": []
+        },
+        {
+          "name": "test_slugify_path_traversal_immunity",
+          "qualified_name": "TestZimExporterHypothesisFuzz.test_slugify_path_traversal_immunity",
+          "kind": "function",
+          "file_path": "tests/fuzz/test_zim_exporter_fuzz.py",
+          "lineno": 28,
+          "args": [
+            "raw_title"
+          ],
+          "return_type": null,
+          "docstring": "Invariant: slugify output cannot traverse directories or contain path separators.",
+          "bases": []
+        },
+        {
+          "name": "test_export_bundles_arbitrary_metadata_safety",
+          "qualified_name": "TestZimExporterHypothesisFuzz.test_export_bundles_arbitrary_metadata_safety",
+          "kind": "function",
+          "file_path": "tests/fuzz/test_zim_exporter_fuzz.py",
+          "lineno": 43,
+          "args": [
+            "tmp_path_factory",
+            "title",
+            "category",
+            "html_payload"
+          ],
+          "return_type": null,
+          "docstring": "Invariant: export_bundles safely creates valid ZIM directory hierarchy.",
+          "bases": []
+        }
+      ],
+      "imports": [
+        {
+          "module": "json",
+          "name": "json",
+          "alias": "json",
+          "lineno": 14
+        },
+        {
+          "module": "pathlib",
+          "name": "Path",
+          "alias": "Path",
+          "lineno": 15
+        },
+        {
+          "module": "hypothesis",
+          "name": "given",
+          "alias": "given",
+          "lineno": 16
+        },
+        {
+          "module": "hypothesis",
+          "name": "settings",
+          "alias": "settings",
+          "lineno": 16
+        },
+        {
+          "module": "hypothesis",
+          "name": "strategies",
+          "alias": "st",
+          "lineno": 16
+        },
+        {
+          "module": "pytest",
+          "name": "pytest",
+          "alias": "pytest",
+          "lineno": 17
+        },
+        {
+          "module": "tfp_client.lib.ingest.article_packager",
+          "name": "PackagedArticleBundle",
+          "alias": "PackagedArticleBundle",
+          "lineno": 19
+        },
+        {
+          "module": "tfp_client.lib.ingest.zim_exporter",
+          "name": "ZimDirectoryExporter",
+          "alias": "ZimDirectoryExporter",
+          "lineno": 20
+        },
+        {
+          "module": "tfp_client.lib.ingest.zim_exporter",
+          "name": "slugify",
+          "alias": "slugify",
+          "lineno": 20
         }
       ]
     },
