@@ -1,0 +1,31 @@
+### The Foundation Protocol (TFP v4.0.0) Integration & Code Graph Commentary
+
+Commit: 65b5225
+Branch: main
+Date: 2026-09-21
+
+#### 1. Repository Topology & Subsystem Metrics
+- **Production Code**: 309 files, 52,509 LOC, 469 classes, 2,592 functions.
+- **Test Battery**: 90 test files, 682 test functions (798 total tests including parameterized cases & fuzzing).
+- **Total Symbols**: 3,968 indexed AST symbols.
+- **Automated Verification**: 798 / 798 tests passing (100% pass rate: 200 fuzz tests + 598 unit/acceptance/integration tests, 0 failures, zero mocks).
+
+#### 2. Harmonized Innovations & Security Protections
+1. **Visualizer Storage Isolation**:
+   - 	fp_core_v4/visualizer_server.py: Added explicit \data_dir\ parameter defaulting to \~/.tfp/visualizer/articles\ or \TFP_VISUALIZER_DATA_DIR\.
+   - Guaranteed compatibility with read-only package installations (e.g. system site-packages in Docker/Nix/wheel runtimes).
+   - CLI \isualize\ subcommand now accepts \--data-dir\ for custom root storage path.
+   - All visualizer tests now isolate articles in dedicated \	mp_path\ fixtures.
+2. **Receiver Local Resource Bounding & Pre-allocation Defense**:
+   - \FountainStreamReceiver\: Strict nonpositive parameter rejection for \max_sessions\, \max_droplets_per_chunk\, and \max_chunks_per_session\.
+   - Wire packet dimension validation before session allocation or LRU timestamp touch.
+   - O(1) HMAC auth tag validation precedes session touch to defeat denial-of-service and state-exhaustion attacks.
+   - Per-session active chunk bounding: untrusted packets cannot allocate beyond \max_chunks_per_session\.
+   - Chunk metadata immutability: prevents conflicting \(k, orig_len)\ parameters from poisoning active chunk buffers.
+3. **Defense-in-Depth Cryptographic Integrity**:
+   - Preserved real SHA3-256 Merkle & chunk hash verification during dynamic Gaussian elimination and manifest ingestion.
+   - Pruning out-of-bounds or corrupted speculative chunks and buffers upon manifest registration.
+   - \is_complete()\ cryptographically validates all chunk hashes against authentic manifest before signaling transfer completion.
+4. **Distribution Quality**:
+   - Validated \scripts/check_distribution.py\ against complete demo assets.
+   - Added \scripts/check_installed_visualizer.py\ for audit-hook-based read-only installation enforcement.
