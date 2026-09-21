@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-09-10T14:05:11.849852+00:00",
+  "timestamp": "2026-09-21T01:21:11.942952+00:00",
   "milestone": "Milestone 3 (Requirement R3)",
   "audit_gate": "Autonomous Adversarial Fault Injection",
   "overall_status": "CERTIFIED",
@@ -17,6 +17,18 @@
       "description": "Forces fixed-interval chunking in FastCDC to break content-defined boundary shift resistance.",
       "detected": true,
       "exit_code": 1,
+      "timed_out": false,
+      "pytest_outcome": {
+        "collected": 1,
+        "failures": [
+          {
+            "nodeid": "tests/fuzz/test_fastcdc_hypothesis.py::TestFastCDCHypothesis::test_boundary_shift_resistance",
+            "phase": "call",
+            "assertion": true
+          }
+        ],
+        "session_exit": 1
+      },
       "reason": "FAILED tests/fuzz/test_fastcdc_hypothesis.py::TestFastCDCHypothesis::test_boundary_shift_resistance"
     },
     {
@@ -26,6 +38,18 @@
       "description": "Flips a bit in the root hash level to invalidate all audit path proofs.",
       "detected": true,
       "exit_code": 1,
+      "timed_out": false,
+      "pytest_outcome": {
+        "collected": 1,
+        "failures": [
+          {
+            "nodeid": "tests/fuzz/test_merkle_hypothesis.py::TestMerkleHypothesis::test_audit_path_correctness_all_leaves",
+            "phase": "call",
+            "assertion": true
+          }
+        ],
+        "session_exit": 1
+      },
       "reason": "FAILED tests/fuzz/test_merkle_hypothesis.py::TestMerkleHypothesis::test_audit_path_correctness_all_leaves"
     },
     {
@@ -35,6 +59,18 @@
       "description": "Bypasses timestamp replay guard to allow events outside the 300s replay window.",
       "detected": true,
       "exit_code": 1,
+      "timed_out": false,
+      "pytest_outcome": {
+        "collected": 1,
+        "failures": [
+          {
+            "nodeid": "tests/fuzz/test_nostr_hypothesis.py::TestNostrHypothesis::test_replay_window_guard",
+            "phase": "call",
+            "assertion": true
+          }
+        ],
+        "session_exit": 1
+      },
       "reason": "FAILED tests/fuzz/test_nostr_hypothesis.py::TestNostrHypothesis::test_replay_window_guard"
     },
     {
@@ -44,6 +80,18 @@
       "description": "Suppresses rank deficit ValueError and silently returns corrupted bytes instead of raising an error.",
       "detected": true,
       "exit_code": 1,
+      "timed_out": false,
+      "pytest_outcome": {
+        "collected": 1,
+        "failures": [
+          {
+            "nodeid": "tests/fuzz/test_fountain_hypothesis.py::TestFountainHypothesis::test_gf2_decodability_with_repair_droplets",
+            "phase": "call",
+            "assertion": true
+          }
+        ],
+        "session_exit": 1
+      },
       "reason": "FAILED tests/fuzz/test_fountain_hypothesis.py::TestFountainHypothesis::test_gf2_decodability_with_repair_droplets"
     },
     {
@@ -53,18 +101,31 @@
       "description": "Disables O(1) anti-pollution pre-filter check, accepting arbitrary forged seeds and tampered degrees.",
       "detected": true,
       "exit_code": 1,
+      "timed_out": false,
+      "pytest_outcome": {
+        "collected": 1,
+        "failures": [
+          {
+            "nodeid": "tests/fuzz/test_fountain_hypothesis.py::TestFountainHypothesis::test_anti_pollution_prefilter_o1_rejection",
+            "phase": "call",
+            "assertion": true
+          }
+        ],
+        "session_exit": 1
+      },
       "reason": "FAILED tests/fuzz/test_fountain_hypothesis.py::TestFountainHypothesis::test_anti_pollution_prefilter_o1_rejection"
     }
   ],
   "clean_baseline": {
     "passed": true,
     "exit_code": 0,
+    "timed_out": false,
     "suites": [
       "tests/fuzz/test_fastcdc_hypothesis.py",
       "tests/fuzz/test_merkle_hypothesis.py",
       "tests/fuzz/test_nostr_hypothesis.py",
       "tests/fuzz/test_fountain_hypothesis.py"
     ],
-    "summary": "25 passed, 922 warnings in 5.93s"
+    "summary": "25 passed, 915 warnings in 6.22s"
   }
 }
