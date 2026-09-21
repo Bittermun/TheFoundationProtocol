@@ -1,0 +1,34 @@
+### The Foundation Protocol (TFP v4.0.0) Architecture & Code Graph Commentary
+
+Commit: f43b0ee
+Branch: main
+Date: 2026-09-21
+
+#### 1. Repository Topology & Subsystem Metrics
+- **Production Code**: 308 files, 52,314 LOC, 469 classes, 2,586 functions.
+- **Test Battery**: 88 test files, 667 test functions, 13,886 test LOC.
+- **Total Symbols**: 3,944 indexed AST symbols.
+- **Automated Verification**: 68 / 68 core tests passing across 17 test suites (0 failures, zero mocks).
+- **Adversarial Invariant Gate**: 5 / 5 mutants detected (100% negative proof certification).
+
+#### 2. Package Breakdown & Responsibilities
+- `tfp_client` (32,732 LOC, 300 classes, 1,878 functions): Client library containing FastCDC chunking, Bell 202 AFSK audio modulation, vocoder, hybrid BM25/LSH search, and fountain codecs.
+- `tests` (13,886 LOC, 115 classes, 774 functions): Comprehensive unit, acceptance, hypothesis fuzzing, and adversarial fault injection suites.
+- `tfp_core` (5,871 LOC, 74 classes, 251 functions): Legacy protocol components v1-v3.
+- `scripts` (2,900 LOC, 8 classes, 81 functions): AST code graph extractor, adversarial mutation runner, and audit harnesses.
+- `tfp_core_v4` (2,757 LOC, 16 classes, 88 functions): Modular core engine: TFPNode storage engine, SQLite recipe store, and visualizer server.
+- `tfp_cli` (1,172 LOC, 5 classes, 50 functions): Backward-compatible unified CLI entrypoint.
+- `tfp_ui` (1,086 LOC, 13 classes, 42 functions): Interface assets and web components.
+- `tfp_transport` (826 LOC, 13 classes, 30 functions): KISS TNC serial framing, UDP broadcast, and LoRa interfaces.
+- `tfp_security` (556 LOC, 6 classes, 21 functions): Post-quantum crypto wrappers, BIP39 seed generation, and Ed25519 signing.
+- `tfp_simulator` (490 LOC, 8 classes, 22 functions): Offline Wi-Fi mesh network simulator, latency/jitter injection, and swarm modeling.
+
+#### 3. Core Architectural Invariants
+1. **Content-Defined Chunking (FastCDC)**: 256-entry 64-bit random gear matrix rolling hash; normalized bitmasks (512B min, 1-4KB target, 8KB max) guarantee boundary-shift resistance under byte insertions and deletions.
+2. **Dual-Engine Erasure Coding**:
+   - `BinaryLinearErasureCodec`: Systematic pure-Python GF(2) XOR Cauchy linear erasure code with Gaussian elimination decoding.
+   - `FountainStreamer`: Luby Transform rateless Soliton code for broadcast recovery over lossy physical channels.
+3. **Cryptographic Integrity**: SHA3-256 Merkle audit path proofs, Ed25519 digital signatures on manifests, and per-shard HMAC-SHA3-256 tamper rejection.
+4. **Physical Layer Modulation**: Bell 202 AFSK audio modulation (1200 Hz Mark / 2200 Hz Space) at 1200/300 baud with CRC-16 checksums for analog radios, PA speakers, and audio cables.
+5. **Durable Persistence**: SQLite-backed storage (`TFPNode`) ensuring storage self-sufficiency and decoupling reader configuration from stored recipes.
+6. **Zero-Touch Appliances**: Audio Scholar headless daemon (UDP/sound) and zero-install browser acoustic microphone receiver for broken-screen and low-literacy triage.
