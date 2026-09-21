@@ -132,6 +132,18 @@ def shutdown_encode_executor():
 class RealRaptorQAdapter:
     """
     Real systematic erasure code adapter.
+
+    Technical Architecture Note:
+        This pure-Python implementation uses a systematic XOR-based linear erasure
+        code over GF(2) with deterministic Cauchy/LDPC-like generator matrices and
+        vectorized Gaussian elimination decoding. While historically named
+        RealRaptorQAdapter for drop-in compatibility with external RaptorQ interfaces,
+        its underlying mathematical model is a Binary Linear Erasure Code over GF(2)
+        rather than RFC 6330 RaptorQ (which requires GF(256) pre-coding and LT inner codes).
+
+        For architectural transparency and precise protocol taxonomy, this class is
+        aliased as ``BinaryLinearErasureCodec``.
+
     encode: splits data into k source shards, generates redundancy shards via XOR combos.
     decode: recovers original from any k of the received shards using Gaussian elimination.
 
@@ -360,3 +372,15 @@ class RealRaptorQAdapter:
         recovered = [p[pivots[c]].to_bytes(self.shard_size, "big") for c in range(src_k)]
         result = b"".join(recovered)
         return result[:orig_len]
+
+
+# Architectural alias reflecting pure-Python systematic GF(2) linear erasure coding
+BinaryLinearErasureCodec = RealRaptorQAdapter
+
+__all__ = [
+    "BinaryLinearErasureCodec",
+    "IntegrityError",
+    "RealRaptorQAdapter",
+    "shutdown_encode_executor",
+]
+

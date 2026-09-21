@@ -1,12 +1,12 @@
 {
   "stats": {
-    "production_files": 307,
-    "production_loc": 52161,
+    "production_files": 308,
+    "production_loc": 52222,
     "production_classes": 469,
     "production_functions": 2583,
-    "test_files": 87,
-    "test_functions": 663,
-    "total_symbols": 3937
+    "test_files": 88,
+    "test_functions": 667,
+    "total_symbols": 3941
   },
   "files": {
     "benchmark_comparative.py": {
@@ -14439,6 +14439,105 @@
         }
       ]
     },
+    "tests/test_visualizer_modularization_and_codec_alias.py": {
+      "loc": 71,
+      "symbols": [
+        {
+          "name": "test_visualizer_server_modularization_and_compatibility",
+          "qualified_name": "test_visualizer_server_modularization_and_compatibility",
+          "kind": "function",
+          "file_path": "tests/test_visualizer_modularization_and_codec_alias.py",
+          "lineno": 34,
+          "args": [],
+          "return_type": null,
+          "docstring": "Verify clean modularization and 100% backward compatibility.",
+          "bases": []
+        },
+        {
+          "name": "test_binary_linear_erasure_codec_alias",
+          "qualified_name": "test_binary_linear_erasure_codec_alias",
+          "kind": "function",
+          "file_path": "tests/test_visualizer_modularization_and_codec_alias.py",
+          "lineno": 48,
+          "args": [],
+          "return_type": null,
+          "docstring": "Verify that BinaryLinearErasureCodec is the architectural alias of RealRaptorQAdapter.",
+          "bases": []
+        },
+        {
+          "name": "test_binary_linear_erasure_codec_erasure_recovery",
+          "qualified_name": "test_binary_linear_erasure_codec_erasure_recovery",
+          "kind": "function",
+          "file_path": "tests/test_visualizer_modularization_and_codec_alias.py",
+          "lineno": 55,
+          "args": [],
+          "return_type": null,
+          "docstring": "Verify real GF(2) XOR Gaussian elimination recovery across packet loss.",
+          "bases": []
+        },
+        {
+          "name": "test_binary_linear_erasure_codec_hmac_tamper_detection",
+          "qualified_name": "test_binary_linear_erasure_codec_hmac_tamper_detection",
+          "kind": "function",
+          "file_path": "tests/test_visualizer_modularization_and_codec_alias.py",
+          "lineno": 76,
+          "args": [],
+          "return_type": null,
+          "docstring": "Verify per-shard HMAC-SHA3-256 integrity verification rejects tampered packets.",
+          "bases": []
+        }
+      ],
+      "imports": [
+        {
+          "module": "pytest",
+          "name": "pytest",
+          "alias": "pytest",
+          "lineno": 18
+        },
+        {
+          "module": "tfp_core_v4.visualizer_server",
+          "name": "create_visualizer_server",
+          "alias": "vs_create_server",
+          "lineno": 19
+        },
+        {
+          "module": "tfp_core_v4.visualizer_server",
+          "name": "get_static_assets_dir",
+          "alias": "vs_get_assets",
+          "lineno": 19
+        },
+        {
+          "module": "tfp_core_v4.cli",
+          "name": "create_visualizer_server",
+          "alias": "cli_create_server",
+          "lineno": 23
+        },
+        {
+          "module": "tfp_core_v4.cli",
+          "name": "get_static_assets_dir",
+          "alias": "cli_get_assets",
+          "lineno": 23
+        },
+        {
+          "module": "tfp_client.lib.fountain",
+          "name": "BinaryLinearErasureCodec",
+          "alias": "BinaryLinearErasureCodec",
+          "lineno": 27
+        },
+        {
+          "module": "tfp_client.lib.fountain",
+          "name": "IntegrityError",
+          "alias": "IntegrityError",
+          "lineno": 27
+        },
+        {
+          "module": "tfp_client.lib.fountain",
+          "name": "RealRaptorQAdapter",
+          "alias": "RealRaptorQAdapter",
+          "lineno": 27
+        }
+      ]
+    },
     "tests/test_voice_memo_and_acoustic_channel.py": {
       "loc": 193,
       "symbols": [
@@ -16867,264 +16966,14 @@
       ]
     },
     "tfp_core_v4/cli.py": {
-      "loc": 985,
+      "loc": 481,
       "symbols": [
-        {
-          "name": "get_static_assets_dir",
-          "qualified_name": "get_static_assets_dir",
-          "kind": "function",
-          "file_path": "tfp_core_v4/cli.py",
-          "lineno": 54,
-          "args": [],
-          "return_type": "Path",
-          "docstring": "Resolve static web assets directory across:",
-          "bases": []
-        },
-        {
-          "name": "create_visualizer_server",
-          "qualified_name": "create_visualizer_server",
-          "kind": "function",
-          "file_path": "tfp_core_v4/cli.py",
-          "lineno": 92,
-          "args": [
-            "port"
-          ],
-          "return_type": "tuple[Any, int]",
-          "docstring": "Creates a configured TCPServer instance for the visualizer dashboard.",
-          "bases": []
-        },
-        {
-          "name": "persist_bundle",
-          "qualified_name": "persist_bundle",
-          "kind": "function",
-          "file_path": "tfp_core_v4/cli.py",
-          "lineno": 204,
-          "args": [
-            "bundle_to_save"
-          ],
-          "return_type": null,
-          "docstring": null,
-          "bases": []
-        },
-        {
-          "name": "generate_live_protocol_telemetry",
-          "qualified_name": "generate_live_protocol_telemetry",
-          "kind": "function",
-          "file_path": "tfp_core_v4/cli.py",
-          "lineno": 259,
-          "args": [],
-          "return_type": "dict[str, Any]",
-          "docstring": null,
-          "bases": []
-        },
-        {
-          "name": "VisualizerHandler",
-          "qualified_name": "VisualizerHandler",
-          "kind": "class",
-          "file_path": "tfp_core_v4/cli.py",
-          "lineno": 334,
-          "args": [],
-          "return_type": null,
-          "docstring": null,
-          "bases": [
-            "http.server.SimpleHTTPRequestHandler"
-          ]
-        },
-        {
-          "name": "__init__",
-          "qualified_name": "VisualizerHandler.__init__",
-          "kind": "function",
-          "file_path": "tfp_core_v4/cli.py",
-          "lineno": 335,
-          "args": [],
-          "return_type": null,
-          "docstring": null,
-          "bases": []
-        },
-        {
-          "name": "_send_json",
-          "qualified_name": "VisualizerHandler._send_json",
-          "kind": "function",
-          "file_path": "tfp_core_v4/cli.py",
-          "lineno": 338,
-          "args": [
-            "data",
-            "status"
-          ],
-          "return_type": null,
-          "docstring": null,
-          "bases": []
-        },
-        {
-          "name": "do_OPTIONS",
-          "qualified_name": "VisualizerHandler.do_OPTIONS",
-          "kind": "function",
-          "file_path": "tfp_core_v4/cli.py",
-          "lineno": 347,
-          "args": [],
-          "return_type": null,
-          "docstring": null,
-          "bases": []
-        },
-        {
-          "name": "do_GET",
-          "qualified_name": "VisualizerHandler.do_GET",
-          "kind": "function",
-          "file_path": "tfp_core_v4/cli.py",
-          "lineno": 354,
-          "args": [],
-          "return_type": null,
-          "docstring": null,
-          "bases": []
-        },
-        {
-          "name": "do_POST",
-          "qualified_name": "VisualizerHandler.do_POST",
-          "kind": "function",
-          "file_path": "tfp_core_v4/cli.py",
-          "lineno": 449,
-          "args": [],
-          "return_type": null,
-          "docstring": null,
-          "bases": []
-        },
-        {
-          "name": "run_short",
-          "qualified_name": "VisualizerHandler.run_short",
-          "kind": "function",
-          "file_path": "tfp_core_v4/cli.py",
-          "lineno": 495,
-          "args": [],
-          "return_type": null,
-          "docstring": null,
-          "bases": []
-        },
-        {
-          "name": "run_audio",
-          "qualified_name": "VisualizerHandler.run_audio",
-          "kind": "function",
-          "file_path": "tfp_core_v4/cli.py",
-          "lineno": 509,
-          "args": [],
-          "return_type": null,
-          "docstring": null,
-          "bases": []
-        },
-        {
-          "name": "run_video",
-          "qualified_name": "VisualizerHandler.run_video",
-          "kind": "function",
-          "file_path": "tfp_core_v4/cli.py",
-          "lineno": 523,
-          "args": [],
-          "return_type": null,
-          "docstring": null,
-          "bases": []
-        },
-        {
-          "name": "run_atlas",
-          "qualified_name": "VisualizerHandler.run_atlas",
-          "kind": "function",
-          "file_path": "tfp_core_v4/cli.py",
-          "lineno": 537,
-          "args": [],
-          "return_type": null,
-          "docstring": null,
-          "bases": []
-        },
-        {
-          "name": "run_upload",
-          "qualified_name": "VisualizerHandler.run_upload",
-          "kind": "function",
-          "file_path": "tfp_core_v4/cli.py",
-          "lineno": 566,
-          "args": [],
-          "return_type": null,
-          "docstring": null,
-          "bases": []
-        },
-        {
-          "name": "_stream_events",
-          "qualified_name": "VisualizerHandler._stream_events",
-          "kind": "function",
-          "file_path": "tfp_core_v4/cli.py",
-          "lineno": 585,
-          "args": [],
-          "return_type": null,
-          "docstring": null,
-          "bases": []
-        },
-        {
-          "name": "listener",
-          "qualified_name": "VisualizerHandler.listener",
-          "kind": "function",
-          "file_path": "tfp_core_v4/cli.py",
-          "lineno": 588,
-          "args": [
-            "ev"
-          ],
-          "return_type": null,
-          "docstring": null,
-          "bases": []
-        },
-        {
-          "name": "_init_run",
-          "qualified_name": "VisualizerHandler._init_run",
-          "kind": "function",
-          "file_path": "tfp_core_v4/cli.py",
-          "lineno": 599,
-          "args": [],
-          "return_type": null,
-          "docstring": null,
-          "bases": []
-        },
-        {
-          "name": "_send_sse",
-          "qualified_name": "VisualizerHandler._send_sse",
-          "kind": "function",
-          "file_path": "tfp_core_v4/cli.py",
-          "lineno": 628,
-          "args": [
-            "event",
-            "data"
-          ],
-          "return_type": null,
-          "docstring": null,
-          "bases": []
-        },
-        {
-          "name": "log_message",
-          "qualified_name": "VisualizerHandler.log_message",
-          "kind": "function",
-          "file_path": "tfp_core_v4/cli.py",
-          "lineno": 636,
-          "args": [
-            "format"
-          ],
-          "return_type": null,
-          "docstring": null,
-          "bases": []
-        },
-        {
-          "name": "ThreadedTCPServer",
-          "qualified_name": "ThreadedTCPServer",
-          "kind": "class",
-          "file_path": "tfp_core_v4/cli.py",
-          "lineno": 639,
-          "args": [],
-          "return_type": null,
-          "docstring": null,
-          "bases": [
-            "socketserver.ThreadingMixIn",
-            "socketserver.TCPServer"
-          ]
-        },
         {
           "name": "main",
           "qualified_name": "main",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 648,
+          "lineno": 58,
           "args": [
             "argv"
           ],
@@ -17137,7 +16986,7 @@
           "qualified_name": "AcousticHandler",
           "kind": "class",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 973,
+          "lineno": 383,
           "args": [],
           "return_type": null,
           "docstring": null,
@@ -17150,7 +16999,7 @@
           "qualified_name": "AcousticHandler.__init__",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 974,
+          "lineno": 384,
           "args": [],
           "return_type": null,
           "docstring": null,
@@ -17161,7 +17010,7 @@
           "qualified_name": "AcousticHandler.do_GET",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 977,
+          "lineno": 387,
           "args": [],
           "return_type": null,
           "docstring": null,
@@ -17172,7 +17021,7 @@
           "qualified_name": "AcousticHandler.log_message",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 982,
+          "lineno": 392,
           "args": [
             "format"
           ],
@@ -17333,100 +17182,70 @@
           "lineno": 51
         },
         {
-          "module": "importlib.resources",
-          "name": "importlib.resources",
-          "alias": "pkg_resources",
-          "lineno": 62
+          "module": "tfp_core_v4.visualizer_server",
+          "name": "create_visualizer_server",
+          "alias": "create_visualizer_server",
+          "lineno": 52
         },
         {
-          "module": "http.server",
-          "name": "http.server",
-          "alias": "http.server",
-          "lineno": 94
-        },
-        {
-          "module": "queue",
-          "name": "queue",
-          "alias": "queue",
-          "lineno": 95
-        },
-        {
-          "module": "socketserver",
-          "name": "socketserver",
-          "alias": "socketserver",
-          "lineno": 96
-        },
-        {
-          "module": "threading",
-          "name": "threading",
-          "alias": "threading",
-          "lineno": 97
-        },
-        {
-          "module": "tfp_client.lib.media.live_streamer",
-          "name": "LiveTransmissionEngine",
-          "alias": "LiveTransmissionEngine",
-          "lineno": 99
-        },
-        {
-          "module": "tfp_client.lib.media.telemetry_events",
-          "name": "TelemetryEventBus",
-          "alias": "TelemetryEventBus",
-          "lineno": 100
+          "module": "tfp_core_v4.visualizer_server",
+          "name": "get_static_assets_dir",
+          "alias": "get_static_assets_dir",
+          "lineno": 52
         },
         {
           "module": "scripts.run_mesh_simulation",
           "name": "run_simulation",
           "alias": "run_simulation",
-          "lineno": 850
+          "lineno": 260
         },
         {
           "module": "webbrowser",
           "name": "webbrowser",
           "alias": "webbrowser",
-          "lineno": 854
+          "lineno": 264
         },
         {
           "module": "http.server",
           "name": "http.server",
           "alias": "http.server",
-          "lineno": 967
+          "lineno": 377
         },
         {
           "module": "socketserver",
           "name": "socketserver",
           "alias": "socketserver",
-          "lineno": 968
+          "lineno": 378
         },
         {
           "module": "webbrowser",
           "name": "webbrowser",
           "alias": "webbrowser",
-          "lineno": 969
+          "lineno": 379
         },
         {
           "module": "tfp_core_v4.audio_scholar",
           "name": "AudioScholarDaemon",
           "alias": "AudioScholarDaemon",
-          "lineno": 1007
+          "lineno": 417
         },
         {
           "module": "tfp_client.lib.ingest.article_packager",
           "name": "PackagedArticleBundle",
           "alias": "PackagedArticleBundle",
-          "lineno": 1052
+          "lineno": 462
         },
         {
           "module": "tfp_client.lib.ingest.zim_exporter",
           "name": "ZimDirectoryExporter",
           "alias": "ZimDirectoryExporter",
-          "lineno": 1053
+          "lineno": 463
         },
         {
           "module": "tfp_client.lib.audio.voice_memo",
           "name": "VoiceMemo",
           "alias": "VoiceMemo",
-          "lineno": 1109
+          "lineno": 519
         }
       ]
     },
@@ -18249,6 +18068,401 @@
           "name": "MerkleTree",
           "alias": "MerkleTree",
           "lineno": 24
+        }
+      ]
+    },
+    "tfp_core_v4/visualizer_server.py": {
+      "loc": 536,
+      "symbols": [
+        {
+          "name": "get_static_assets_dir",
+          "qualified_name": "get_static_assets_dir",
+          "kind": "function",
+          "file_path": "tfp_core_v4/visualizer_server.py",
+          "lineno": 47,
+          "args": [],
+          "return_type": "Path",
+          "docstring": "Resolve static web assets directory across:",
+          "bases": []
+        },
+        {
+          "name": "create_visualizer_server",
+          "qualified_name": "create_visualizer_server",
+          "kind": "function",
+          "file_path": "tfp_core_v4/visualizer_server.py",
+          "lineno": 86,
+          "args": [
+            "port"
+          ],
+          "return_type": "tuple[Any, int]",
+          "docstring": "Creates a configured TCPServer instance for the visualizer dashboard.",
+          "bases": []
+        },
+        {
+          "name": "persist_bundle",
+          "qualified_name": "persist_bundle",
+          "kind": "function",
+          "file_path": "tfp_core_v4/visualizer_server.py",
+          "lineno": 190,
+          "args": [
+            "bundle_to_save"
+          ],
+          "return_type": null,
+          "docstring": null,
+          "bases": []
+        },
+        {
+          "name": "generate_live_protocol_telemetry",
+          "qualified_name": "generate_live_protocol_telemetry",
+          "kind": "function",
+          "file_path": "tfp_core_v4/visualizer_server.py",
+          "lineno": 245,
+          "args": [],
+          "return_type": "dict[str, Any]",
+          "docstring": null,
+          "bases": []
+        },
+        {
+          "name": "VisualizerHandler",
+          "qualified_name": "VisualizerHandler",
+          "kind": "class",
+          "file_path": "tfp_core_v4/visualizer_server.py",
+          "lineno": 320,
+          "args": [],
+          "return_type": null,
+          "docstring": null,
+          "bases": [
+            "http.server.SimpleHTTPRequestHandler"
+          ]
+        },
+        {
+          "name": "__init__",
+          "qualified_name": "VisualizerHandler.__init__",
+          "kind": "function",
+          "file_path": "tfp_core_v4/visualizer_server.py",
+          "lineno": 321,
+          "args": [],
+          "return_type": null,
+          "docstring": null,
+          "bases": []
+        },
+        {
+          "name": "_send_json",
+          "qualified_name": "VisualizerHandler._send_json",
+          "kind": "function",
+          "file_path": "tfp_core_v4/visualizer_server.py",
+          "lineno": 324,
+          "args": [
+            "data",
+            "status"
+          ],
+          "return_type": null,
+          "docstring": null,
+          "bases": []
+        },
+        {
+          "name": "do_OPTIONS",
+          "qualified_name": "VisualizerHandler.do_OPTIONS",
+          "kind": "function",
+          "file_path": "tfp_core_v4/visualizer_server.py",
+          "lineno": 333,
+          "args": [],
+          "return_type": null,
+          "docstring": null,
+          "bases": []
+        },
+        {
+          "name": "do_GET",
+          "qualified_name": "VisualizerHandler.do_GET",
+          "kind": "function",
+          "file_path": "tfp_core_v4/visualizer_server.py",
+          "lineno": 340,
+          "args": [],
+          "return_type": null,
+          "docstring": null,
+          "bases": []
+        },
+        {
+          "name": "do_POST",
+          "qualified_name": "VisualizerHandler.do_POST",
+          "kind": "function",
+          "file_path": "tfp_core_v4/visualizer_server.py",
+          "lineno": 435,
+          "args": [],
+          "return_type": null,
+          "docstring": null,
+          "bases": []
+        },
+        {
+          "name": "run_short",
+          "qualified_name": "VisualizerHandler.run_short",
+          "kind": "function",
+          "file_path": "tfp_core_v4/visualizer_server.py",
+          "lineno": 481,
+          "args": [],
+          "return_type": null,
+          "docstring": null,
+          "bases": []
+        },
+        {
+          "name": "run_audio",
+          "qualified_name": "VisualizerHandler.run_audio",
+          "kind": "function",
+          "file_path": "tfp_core_v4/visualizer_server.py",
+          "lineno": 495,
+          "args": [],
+          "return_type": null,
+          "docstring": null,
+          "bases": []
+        },
+        {
+          "name": "run_video",
+          "qualified_name": "VisualizerHandler.run_video",
+          "kind": "function",
+          "file_path": "tfp_core_v4/visualizer_server.py",
+          "lineno": 509,
+          "args": [],
+          "return_type": null,
+          "docstring": null,
+          "bases": []
+        },
+        {
+          "name": "run_atlas",
+          "qualified_name": "VisualizerHandler.run_atlas",
+          "kind": "function",
+          "file_path": "tfp_core_v4/visualizer_server.py",
+          "lineno": 523,
+          "args": [],
+          "return_type": null,
+          "docstring": null,
+          "bases": []
+        },
+        {
+          "name": "run_upload",
+          "qualified_name": "VisualizerHandler.run_upload",
+          "kind": "function",
+          "file_path": "tfp_core_v4/visualizer_server.py",
+          "lineno": 552,
+          "args": [],
+          "return_type": null,
+          "docstring": null,
+          "bases": []
+        },
+        {
+          "name": "_stream_events",
+          "qualified_name": "VisualizerHandler._stream_events",
+          "kind": "function",
+          "file_path": "tfp_core_v4/visualizer_server.py",
+          "lineno": 571,
+          "args": [],
+          "return_type": null,
+          "docstring": null,
+          "bases": []
+        },
+        {
+          "name": "listener",
+          "qualified_name": "VisualizerHandler.listener",
+          "kind": "function",
+          "file_path": "tfp_core_v4/visualizer_server.py",
+          "lineno": 574,
+          "args": [
+            "ev"
+          ],
+          "return_type": null,
+          "docstring": null,
+          "bases": []
+        },
+        {
+          "name": "_init_run",
+          "qualified_name": "VisualizerHandler._init_run",
+          "kind": "function",
+          "file_path": "tfp_core_v4/visualizer_server.py",
+          "lineno": 585,
+          "args": [],
+          "return_type": null,
+          "docstring": null,
+          "bases": []
+        },
+        {
+          "name": "_send_sse",
+          "qualified_name": "VisualizerHandler._send_sse",
+          "kind": "function",
+          "file_path": "tfp_core_v4/visualizer_server.py",
+          "lineno": 614,
+          "args": [
+            "event",
+            "data"
+          ],
+          "return_type": null,
+          "docstring": null,
+          "bases": []
+        },
+        {
+          "name": "log_message",
+          "qualified_name": "VisualizerHandler.log_message",
+          "kind": "function",
+          "file_path": "tfp_core_v4/visualizer_server.py",
+          "lineno": 622,
+          "args": [
+            "format"
+          ],
+          "return_type": null,
+          "docstring": null,
+          "bases": []
+        },
+        {
+          "name": "ThreadedTCPServer",
+          "qualified_name": "ThreadedTCPServer",
+          "kind": "class",
+          "file_path": "tfp_core_v4/visualizer_server.py",
+          "lineno": 625,
+          "args": [],
+          "return_type": null,
+          "docstring": null,
+          "bases": [
+            "socketserver.ThreadingMixIn",
+            "socketserver.TCPServer"
+          ]
+        }
+      ],
+      "imports": [
+        {
+          "module": "__future__",
+          "name": "annotations",
+          "alias": "annotations",
+          "lineno": 12
+        },
+        {
+          "module": "http.server",
+          "name": "http.server",
+          "alias": "http.server",
+          "lineno": 14
+        },
+        {
+          "module": "json",
+          "name": "json",
+          "alias": "json",
+          "lineno": 15
+        },
+        {
+          "module": "logging",
+          "name": "logging",
+          "alias": "logging",
+          "lineno": 16
+        },
+        {
+          "module": "os",
+          "name": "os",
+          "alias": "os",
+          "lineno": 17
+        },
+        {
+          "module": "queue",
+          "name": "queue",
+          "alias": "queue",
+          "lineno": 18
+        },
+        {
+          "module": "re",
+          "name": "re",
+          "alias": "re",
+          "lineno": 19
+        },
+        {
+          "module": "socketserver",
+          "name": "socketserver",
+          "alias": "socketserver",
+          "lineno": 20
+        },
+        {
+          "module": "sys",
+          "name": "sys",
+          "alias": "sys",
+          "lineno": 21
+        },
+        {
+          "module": "threading",
+          "name": "threading",
+          "alias": "threading",
+          "lineno": 22
+        },
+        {
+          "module": "urllib.parse",
+          "name": "urllib.parse",
+          "alias": "urllib.parse",
+          "lineno": 23
+        },
+        {
+          "module": "pathlib",
+          "name": "Path",
+          "alias": "Path",
+          "lineno": 24
+        },
+        {
+          "module": "typing",
+          "name": "Any",
+          "alias": "Any",
+          "lineno": 25
+        },
+        {
+          "module": "tfp_client.lib.ingest.article_ingester",
+          "name": "ArticleIngester",
+          "alias": "ArticleIngester",
+          "lineno": 37
+        },
+        {
+          "module": "tfp_client.lib.ingest.article_packager",
+          "name": "ArticlePackager",
+          "alias": "ArticlePackager",
+          "lineno": 38
+        },
+        {
+          "module": "tfp_client.lib.ingest.article_packager",
+          "name": "PackagedArticleBundle",
+          "alias": "PackagedArticleBundle",
+          "lineno": 38
+        },
+        {
+          "module": "tfp_client.lib.media.fountain_streamer",
+          "name": "FountainStreamer",
+          "alias": "FountainStreamer",
+          "lineno": 39
+        },
+        {
+          "module": "tfp_client.lib.media.live_streamer",
+          "name": "LiveTransmissionEngine",
+          "alias": "LiveTransmissionEngine",
+          "lineno": 40
+        },
+        {
+          "module": "tfp_client.lib.media.stream_packager",
+          "name": "MediaStreamPackager",
+          "alias": "MediaStreamPackager",
+          "lineno": 41
+        },
+        {
+          "module": "tfp_client.lib.media.telemetry_events",
+          "name": "TelemetryEventBus",
+          "alias": "TelemetryEventBus",
+          "lineno": 42
+        },
+        {
+          "module": "tfp_client.lib.media.template_engine",
+          "name": "TemplateParser",
+          "alias": "TemplateParser",
+          "lineno": 43
+        },
+        {
+          "module": "tfp_client.lib.search.hybrid_search",
+          "name": "HybridSearchEngine",
+          "alias": "HybridSearchEngine",
+          "lineno": 44
+        },
+        {
+          "module": "importlib.resources",
+          "name": "importlib.resources",
+          "alias": "pkg_resources",
+          "lineno": 55
         }
       ]
     },
@@ -55463,7 +55677,7 @@
       ]
     },
     "tfp-foundation-protocol/tfp_client/lib/fountain/fountain_real.py": {
-      "loc": 282,
+      "loc": 298,
       "symbols": [
         {
           "name": "IntegrityError",
@@ -55602,7 +55816,7 @@
           "qualified_name": "RealRaptorQAdapter.__init__",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/fountain/fountain_real.py",
-          "lineno": 144,
+          "lineno": 156,
           "args": [
             "shard_size"
           ],
@@ -55615,7 +55829,7 @@
           "qualified_name": "RealRaptorQAdapter.encode",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/fountain/fountain_real.py",
-          "lineno": 147,
+          "lineno": 159,
           "args": [
             "data",
             "redundancy",
@@ -55630,7 +55844,7 @@
           "qualified_name": "RealRaptorQAdapter._encode_repair_parallel",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/fountain/fountain_real.py",
-          "lineno": 187,
+          "lineno": 199,
           "args": [
             "n_repair",
             "k",
@@ -55645,7 +55859,7 @@
           "qualified_name": "RealRaptorQAdapter._encode_repair_sequential",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/fountain/fountain_real.py",
-          "lineno": 231,
+          "lineno": 243,
           "args": [
             "n_repair",
             "k",
@@ -55661,7 +55875,7 @@
           "qualified_name": "RealRaptorQAdapter.decode",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/fountain/fountain_real.py",
-          "lineno": 245,
+          "lineno": 257,
           "args": [
             "shards",
             "k",
@@ -55743,13 +55957,13 @@
           "module": "pickle",
           "name": "pickle",
           "alias": "pickle",
-          "lineno": 203
+          "lineno": 215
         },
         {
           "module": "concurrent.futures",
           "name": "concurrent.futures",
           "alias": "concurrent.futures",
-          "lineno": 204
+          "lineno": 216
         }
       ]
     },
@@ -56033,9 +56247,28 @@
       ]
     },
     "tfp-foundation-protocol/tfp_client/lib/fountain/__init__.py": {
-      "loc": 0,
+      "loc": 13,
       "symbols": [],
-      "imports": []
+      "imports": [
+        {
+          "module": "tfp_client.lib.fountain.fountain_real",
+          "name": "BinaryLinearErasureCodec",
+          "alias": "BinaryLinearErasureCodec",
+          "lineno": 8
+        },
+        {
+          "module": "tfp_client.lib.fountain.fountain_real",
+          "name": "IntegrityError",
+          "alias": "IntegrityError",
+          "lineno": 8
+        },
+        {
+          "module": "tfp_client.lib.fountain.fountain_real",
+          "name": "RealRaptorQAdapter",
+          "alias": "RealRaptorQAdapter",
+          "lineno": 8
+        }
+      ]
     },
     "tfp-foundation-protocol/tfp_client/lib/gossip/gossip_protocol.py": {
       "loc": 362,
