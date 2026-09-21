@@ -103,6 +103,16 @@ tfp stream path/to/video.mp4 --redundancy 0.30
 tfp visualize --port 8080
 ```
 
+The visualizer saves articles in `~/.tfp/visualizer/articles`, outside the installed
+package. Choose another storage directory with `--data-dir` or
+`TFP_VISUALIZER_DATA_DIR`. To keep using an existing checkout archive, pass
+`--data-dir /absolute/path/to/TheFoundationProtocol/data`; existing files are not moved.
+
+Receiver limits apply both before and after a manifest arrives. A transfer that
+exceeds `max_chunks_per_session` or whose chunks require more than
+`max_droplets_per_chunk` source symbols is rejected. Increase these limits explicitly
+when accepting larger transfers; completed chunks remain in memory until reset or eviction.
+
 ### 3. Persistent Search & Retrieval
 ```bash
 # Search stored articles using hybrid BM25 + MinHash LSH across SQLite

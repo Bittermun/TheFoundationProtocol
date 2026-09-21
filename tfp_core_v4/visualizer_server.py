@@ -83,8 +83,12 @@ def get_static_assets_dir() -> Path:
     raise FileNotFoundError("Could not locate tfp_demo static assets directory.")
 
 
-def create_visualizer_server(port: int = 8080) -> tuple[Any, int]:
-    """Creates a configured TCPServer instance for the visualizer dashboard."""
+def create_visualizer_server(port: int = 8080, *, data_dir: Path | str | None = None) -> tuple[Any, int]:
+    """Create the dashboard, storing articles outside the installed code.
+
+    Storage defaults to ~/.tfp/visualizer; an explicit data_dir takes precedence
+    over TFP_VISUALIZER_DATA_DIR. Existing archives can be selected with either.
+    """
     static_dir = get_static_assets_dir()
     html_file = static_dir / "visualizer.html"
     if not html_file.exists():
@@ -184,7 +188,9 @@ def create_visualizer_server(port: int = 8080) -> tuple[Any, int]:
 """
     ]
 
-    articles_dir = _repo_root / "data" / "articles"
+    if data_dir is None:
+        data_dir = os.environ.get("TFP_VISUALIZER_DATA_DIR") or Path.home() / ".tfp" / "visualizer"
+    articles_dir = Path(data_dir).expanduser().resolve() / "articles"
     articles_dir.mkdir(parents=True, exist_ok=True)
 
     def persist_bundle(bundle_to_save: PackagedArticleBundle):

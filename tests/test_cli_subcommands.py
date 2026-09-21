@@ -14,6 +14,9 @@ from pathlib import Path
 
 import pytest
 
+from tfp_client.lib.ingest.article_ingester import ArticleIngester
+from tfp_client.lib.ingest.article_packager import ArticlePackager
+
 
 def _create_sine_wav(path: Path, duration_s: float = 1.0, freq: float = 400.0, rate: int = 8000) -> None:
     frames = bytearray()
@@ -30,8 +33,17 @@ def _create_sine_wav(path: Path, duration_s: float = 1.0, freq: float = 400.0, r
 
 def test_cli_export_zim_from_directory(tmp_path: Path):
     zim_out = tmp_path / "zim_output"
-    articles_dir = Path("data/articles")
-    assert articles_dir.exists()
+    articles_dir = tmp_path / "articles"
+    articles_dir.mkdir()
+    # Supply this test's own archive; it must work before any dashboard has run.
+    import json
+    packager = ArticlePackager()
+    for idx in range(3):
+        article = ArticleIngester.ingest_markdown(f"# Offline guide {idx}\n\nLocal test article {idx}.")
+        bundle = packager.package_article(article)
+        (articles_dir / f"{bundle.merkle_root}.json").write_text(
+            json.dumps(bundle.to_dict(include_html=True)), encoding="utf-8",
+        )
 
     result = subprocess.run(
         [sys.executable, "-m", "tfp_core_v4.cli", "export-zim", str(articles_dir), "--out", str(zim_out)],

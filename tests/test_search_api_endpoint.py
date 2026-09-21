@@ -15,8 +15,8 @@ from tfp_core_v4.cli import create_visualizer_server
 
 
 @pytest.fixture(scope="module")
-def api_server():
-    server, port = create_visualizer_server(port=0)
+def api_server(tmp_path_factory):
+    server, port = create_visualizer_server(port=0, data_dir=tmp_path_factory.mktemp("search-api"))
     t = threading.Thread(target=server.serve_forever, daemon=True)
     t.start()
     time.sleep(0.3)

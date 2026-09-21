@@ -102,6 +102,7 @@ def main(argv: list[str] | None = None):
     vis_p = subparsers.add_parser("visualize", help="Launch interactive protocol visualizer in browser")
     vis_p.add_argument("--port", type=int, default=8080, help="Port to serve visualizer (default: 8080)")
     vis_p.add_argument("--no-browser", action="store_true", help="Do not auto-open browser")
+    vis_p.add_argument("--data-dir", default=None, help="Article storage directory (default: ~/.tfp/visualizer or $TFP_VISUALIZER_DATA_DIR)")
 
     # Ingest Article (Weak Phone Reader)
     ingest_p = subparsers.add_parser("ingest-article", help="Ingest and compress web article into offline mobile bundle")
@@ -265,7 +266,7 @@ def main(argv: list[str] | None = None):
 
         port = args.port
         try:
-            httpd, actual_port = create_visualizer_server(port)
+            httpd, actual_port = create_visualizer_server(port, data_dir=args.data_dir)
         except FileNotFoundError as e:
             print(f"Error: {e}", file=sys.stderr)
             sys.exit(1)

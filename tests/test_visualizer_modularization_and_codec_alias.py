@@ -31,7 +31,7 @@ from tfp_client.lib.fountain import (
 )
 
 
-def test_visualizer_server_modularization_and_compatibility():
+def test_visualizer_server_modularization_and_compatibility(tmp_path):
     """Verify clean modularization and 100% backward compatibility."""
     assert vs_create_server is cli_create_server
     assert vs_get_assets is cli_get_assets
@@ -40,7 +40,7 @@ def test_visualizer_server_modularization_and_compatibility():
     assert assets_dir.is_dir()
     assert (assets_dir / "visualizer.html").is_file()
 
-    server, port = vs_create_server(port=0)
+    server, port = vs_create_server(port=0, data_dir=tmp_path)
     assert port > 0
     server.server_close()
 

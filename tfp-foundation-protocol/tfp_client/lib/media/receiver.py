@@ -70,6 +70,13 @@ class FountainStreamReceiver:
         max_chunks_per_session: int = 128,
         session_ttl_seconds: float = 600.0,
     ):
+        for name, limit in (
+            ("max_sessions", max_sessions),
+            ("max_droplets_per_chunk", max_droplets_per_chunk),
+            ("max_chunks_per_session", max_chunks_per_session),
+        ):
+            if type(limit) is not int or limit <= 0:
+                raise ValueError(f"{name} must be a positive integer")
         self.symbol_size = symbol_size
         self.secret_key = secret_key
         self.verify_tag = verify_tag
@@ -186,15 +193,22 @@ class FountainStreamReceiver:
         self.stats.packets_received += 1
         session_id = pkt.session_id
         chunk_idx = pkt.chunk_index
-        self._last_active_session = session_id
 
-        self._evict_stale_or_excess_sessions(session_id)
-        self._session_timestamps[session_id] = time.time()
-
-        if session_id not in self.reconstructed_chunks_by_session:
-            self.reconstructed_chunks_by_session[session_id] = {}
-
-        session_chunks = self.reconstructed_chunks_by_session[session_id]
+        # Reject incompatible dimensions before any session eviction or allocation.
+        # The droplet cap also bounds the decoder's source-symbol matrix width.
+        if (
+            any(type(value) is not int for value in (
+                session_id, chunk_idx, pkt.k, pkt.orig_len, pkt.symbol_size, pkt.seed,
+            ))
+            or not 0 <= session_id <= 0xFFFFFFFF
+            or not 0 <= chunk_idx <= 0xFFFFFFFF
+            or not 0 <= pkt.seed <= 0xFFFFFFFF
+            or not 0 < pkt.k <= min(self.max_droplets_per_chunk, 0xFFFF)
+            or not 0 < pkt.orig_len <= pkt.k * self.symbol_size
+            or pkt.symbol_size != self.symbol_size
+            or len(pkt.payload) != self.symbol_size
+        ):
+            return None
 
         # O(1) Anti-pollution verification of droplet packet HMAC if configured
         if self.verify_tag and self.secret_key and pkt.auth_tag:
@@ -219,11 +233,32 @@ class FountainStreamReceiver:
                 self.stats.packets_rejected_auth += 1
                 return None
 
+        # A manifest cannot relax the receiver's local resource limits.
+        target_m = self.received_manifests.get(session_id)
+        if target_m is not None and (
+            chunk_idx >= target_m.chunk_count or pkt.orig_len != target_m.chunk_sizes[chunk_idx]
+        ):
+            return None
+
+        buf_key = (session_id, chunk_idx)
+        if buf_key in self._chunk_meta and self._chunk_meta[buf_key] != (pkt.k, pkt.orig_len):
+            return None
+        session_chunks = self.reconstructed_chunks_by_session.get(session_id, {})
+        active_chunk_indices = set(session_chunks) | {
+            c_idx for s_id, c_idx in self._chunk_meta if s_id == session_id
+        }
+        if chunk_idx not in active_chunk_indices and len(active_chunk_indices) >= self.max_chunks_per_session:
+            return None
+
+        self._evict_stale_or_excess_sessions(session_id)
+        self._session_timestamps[session_id] = time.time()
+        self._last_active_session = session_id
+        session_chunks = self.reconstructed_chunks_by_session.setdefault(session_id, {})
+
         # Already completed for this chunk in this session?
         if chunk_idx in session_chunks:
             # If manifest is known, ensure existing chunk is actually valid
-            target_m = self.received_manifests.get(session_id)
-            if target_m and chunk_idx < len(target_m.chunk_hashes):
+            if target_m is not None and chunk_idx < len(target_m.chunk_hashes):
                 expected_hash = target_m.chunk_hashes[chunk_idx]
                 if not hmac.compare_digest(hashlib.sha3_256(session_chunks[chunk_idx]).hexdigest(), expected_hash):
                     # Existing chunk was corrupted (e.g. decoded before manifest arrived) - purge it
@@ -235,22 +270,6 @@ class FountainStreamReceiver:
                 self.stats.packets_duplicate += 1
                 return None
 
-        # Strict single-transfer bounding:
-        target_m = self.received_manifests.get(session_id)
-        if target_m is not None:
-            if chunk_idx < 0 or chunk_idx >= target_m.chunk_count:
-                # Reject packet: out-of-bounds chunk index for known manifest
-                return None
-        else:
-            # Manifest not yet received: bound total distinct chunks per session
-            active_chunk_indices = set(session_chunks.keys()) | {
-                c_idx for (s_id, c_idx) in self._droplet_buffers if s_id == session_id
-            }
-            if chunk_idx not in active_chunk_indices and len(active_chunk_indices) >= self.max_chunks_per_session:
-                # Reject packet: exceeded maximum untrusted chunk allocations in session
-                return None
-
-        buf_key = (session_id, chunk_idx)
         if buf_key not in self._droplet_buffers:
             self._droplet_buffers[buf_key] = {}
             self._chunk_meta[buf_key] = (pkt.k, pkt.orig_len)
@@ -299,12 +318,18 @@ class FountainStreamReceiver:
 
         return None
 
-    def ingest_manifest(self, manifest: MediaManifest) -> int:
+    def ingest_manifest(self, manifest: MediaManifest) -> Optional[int]:
         """
         Directly register an authentic MediaManifest for a session.
         Prunes any out-of-bounds or corrupted speculative chunks and buffers.
-        Returns the derived session_id.
+        Returns the derived session_id, or None if the manifest exceeds receiver resource limits.
         """
+        if manifest.chunk_count > self.max_chunks_per_session or any(
+            size > self.max_droplets_per_chunk * self.symbol_size
+            for size in manifest.chunk_sizes
+        ):
+            return None
+
         sess_id = self.derive_session_id(manifest)
         self._evict_stale_or_excess_sessions(sess_id)
         self._session_timestamps[sess_id] = time.time()
@@ -312,23 +337,29 @@ class FountainStreamReceiver:
         self.latest_manifest = manifest
         self._last_active_session = sess_id
 
-        # Prune any speculative out-of-bounds chunk buffers for this session
+        # Prune metadata as well as buffers: completed speculative chunks
+        # no longer have a droplet buffer but still have metadata.
         stale_keys = [
-            k for k in self._droplet_buffers
-            if k[0] == sess_id and (k[1] < 0 or k[1] >= manifest.chunk_count)
+            key for key, (_, size) in self._chunk_meta.items()
+            if key[0] == sess_id and (
+                key[1] < 0 or key[1] >= manifest.chunk_count
+                or size != manifest.chunk_sizes[key[1]]
+            )
         ]
         for k in stale_keys:
             self._droplet_buffers.pop(k, None)
             self._chunk_meta.pop(k, None)
 
         session_reconstructed = self.reconstructed_chunks_by_session.get(sess_id, {})
-        invalid_chunks = [
-            c_idx for c_idx, data in session_reconstructed.items()
+        stale_chunks = [
+            c_idx for c_idx, chunk in session_reconstructed.items()
             if c_idx < 0 or c_idx >= manifest.chunk_count
-            or not hmac.compare_digest(hashlib.sha3_256(data).hexdigest(), manifest.chunk_hashes[c_idx])
+            or len(chunk) != manifest.chunk_sizes[c_idx]
+            or not hmac.compare_digest(hashlib.sha3_256(chunk).hexdigest(), manifest.chunk_hashes[c_idx])
         ]
-        for c_idx in invalid_chunks:
+        for c_idx in stale_chunks:
             session_reconstructed.pop(c_idx, None)
+            self._chunk_meta.pop((sess_id, c_idx), None)
 
         return sess_id
 
@@ -348,7 +379,9 @@ class FountainStreamReceiver:
                     secret_key=self.secret_key,
                     verify_tag=self.verify_tag,
                 )
-                self.ingest_manifest(manifest)
+                res = self.ingest_manifest(manifest)
+                if res is None:
+                    return None
                 return (-1, b"")
             except AntiPollutionError:
                 self.stats.packets_rejected_auth += 1
@@ -393,6 +426,7 @@ class FountainStreamReceiver:
             if not hmac.compare_digest(actual_hash, expected_hash):
                 # Corrupted speculative chunk! Purge it so the receiver can re-decode from droplets
                 chunks.pop(idx, None)
+                self._chunk_meta.pop((target_session, idx), None)
                 return False
 
         return True
