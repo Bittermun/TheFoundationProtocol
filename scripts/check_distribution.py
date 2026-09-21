@@ -10,6 +10,9 @@ REQUIRED = {
     "tfp_cli/operational_smoke.py",
     "tfp_demo/server.py", "tfp_demo/samples.py",
     "tfp_client/lib/core/tfp_engine.py", "tfp_core_v4/cdc.py",
+    "tfp_core_v4/visualizer_server.py",
+    "tfp_demo/static/visualizer.html", "tfp_demo/static/legacy_visualizer_v1.html",
+    "tfp_demo/static/acoustic_receiver.html", "tfp_demo/static/sample_motion.webm",
     "demo/index.html", "demo/manifest.json", "demo/service-worker.js",
     "demo/assets/app.js", "demo/assets/app.css", "demo/assets/icon.svg",
 }

@@ -101,3 +101,31 @@ def test_sqlite_tampered_order_rejected_by_node_fetch(tmp_path):
     node1.recipes[root_hash] = bad_recipe
     with pytest.raises(ValueError, match="does not match root hash"):
         node1.fetch(root_hash)
+
+
+@pytest.mark.parametrize("cold_reader", [False, True])
+@pytest.mark.parametrize("use_fountain", [False, True])
+def test_reordered_recipe_rejected_on_every_retrieval_path(tmp_path, cold_reader, use_fountain):
+    """Both retrieval paths bind content to the requested identity, also after restart."""
+    db = tmp_path / "identity.db"
+    writer = TFPNode(db_path=db, chunker=ContentDefinedChunker(128, 256, 128))
+    payload = b"A" * 256 + b"B" * 256 + b"C" * 256
+    recipe = writer.publish(payload)
+    droplets = writer.droplet_store[recipe.root_hash]
+    assert writer.fetch(recipe.root_hash, received_droplets=droplets if use_fountain else None) == payload
+    reversed_hashes = recipe.chunk_hashes[::-1]
+    reversed_sizes = recipe.chunk_sizes[::-1]
+    if cold_reader:
+        with sqlite3.connect(db) as conn:
+            conn.execute(
+                "UPDATE recipes SET chunk_hashes_json=?, chunk_sizes_json=? WHERE root_hash=?",
+                (json.dumps(reversed_hashes), json.dumps(reversed_sizes), recipe.root_hash),
+            )
+        reader = TFPNode(db_path=db, symbol_size=512)
+    else:
+        reader = writer
+        reader.recipes[recipe.root_hash] = ChunkRecipe(
+            recipe.root_hash, recipe.total_size, reversed_hashes, reversed_sizes, recipe.metadata,
+        )
+    with pytest.raises((KeyError, ValueError)):
+        reader.fetch(recipe.root_hash, received_droplets=droplets if use_fountain else None)

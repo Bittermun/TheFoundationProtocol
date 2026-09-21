@@ -49,6 +49,8 @@ class MediaManifest:
         chunk_sizes = [int(s) for s in d["chunk_sizes"]]
         chunk_count = int(d["chunk_count"])
         total_size = int(d["total_size"])
+        if chunk_count <= 0 or total_size <= 0 or any(size <= 0 for size in chunk_sizes):
+            raise ValueError("Manifest chunk_count, total_size and chunk_sizes must be positive")
         if chunk_count != len(chunk_hashes) or chunk_count != len(chunk_sizes):
             raise ValueError(
                 f"Manifest chunk_count ({chunk_count}) does not match chunk_hashes length ({len(chunk_hashes)}) "

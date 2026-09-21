@@ -24,9 +24,9 @@ from tfp_core_v4.cli import create_visualizer_server
 
 
 @pytest.fixture(scope="module")
-def live_visualizer_server():
+def live_visualizer_server(tmp_path_factory):
     """Spawns an isolated visualizer server on an ephemeral OS port for tests."""
-    server, port = create_visualizer_server(port=0)
+    server, port = create_visualizer_server(port=0, data_dir=tmp_path_factory.mktemp("browser-visualizer"))
     server_thread = threading.Thread(target=server.serve_forever, daemon=True)
     server_thread.start()
 

@@ -95,8 +95,8 @@ class TestVisualizerServerEndpoints:
 
     @pytest.fixture(scope="class")
     @classmethod
-    def visualizer_server(cls):
-        server, port = create_visualizer_server(port=0)
+    def visualizer_server(cls, tmp_path_factory):
+        server, port = create_visualizer_server(port=0, data_dir=tmp_path_factory.mktemp("live-stream"))
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
 

@@ -81,7 +81,9 @@ jobs:
         run: |
           python -m venv "$RUNNER_TEMP/tfp-runtime"
           "$RUNNER_TEMP/tfp-runtime/bin/python" -m pip install dist/*.whl
+          cp scripts/check_installed_visualizer.py "$RUNNER_TEMP/check_installed_visualizer.py"
           cd "$RUNNER_TEMP"
+          "$RUNNER_TEMP/tfp-runtime/bin/python" -I -B check_installed_visualizer.py
           env -u PYTHONPATH "$RUNNER_TEMP/tfp-runtime/bin/python" -m tfp_cli.smoke --json
           env -u PYTHONPATH "$RUNNER_TEMP/tfp-runtime/bin/python" -m tfp_cli.operational_smoke
       - uses: actions/upload-artifact@v4
