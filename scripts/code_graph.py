@@ -24,9 +24,11 @@ import argparse
 import ast
 from collections import defaultdict
 from dataclasses import asdict, dataclass, field
+from datetime import datetime, timezone
 import json
 from pathlib import Path
 import re
+import subprocess
 import sys
 from typing import Any, Dict, List, Optional, Set, Tuple
 
@@ -45,6 +47,39 @@ EXCLUDED_DIRS = {
     ".ast-grep",
     "egg-info",
 }
+
+PACKAGE_ROLES = {
+    "tfp_core_v4": "Core protocol engine: TFPNode storage engine, ContentDefinedChunker, SQLite recipe store, and visualizer server",
+    "tfp_client": "Client library: article ingest, Bell 202 AFSK audio modulation, vocoder, hybrid BM25/LSH search, and fountain codecs",
+    "tfp_transport": "Physical transport layer: KISS TNC serial framing, UDP broadcast, and LoRa interfaces",
+    "tfp_security": "Cryptographic security layer: Post-quantum crypto wrappers, BIP39 root-of-trust, and Ed25519 signing",
+    "tfp_simulator": "Offline Wi-Fi mesh network simulator, latency/jitter injection, and community swarm modeling",
+    "tfp_testbed": "Adversarial fault injection fixtures, mutant runners, and stress test harnesses",
+    "tests": "Comprehensive test battery spanning unit, hypothesis fuzzing, acceptance, and security verification",
+    "scripts": "Developer automation tooling: AST code graph generator, adversarial mutation runner, and audit helpers",
+    "tfp_cli": "Legacy CLI entrypoint maintained for backward compatibility",
+    "tfp_core": "Legacy protocol core v1-v3 components",
+    "tfp_ui": "User interface assets and web components",
+    "tfp_demo": "Demonstration dashboards, acoustic microphone receiver portals, and static web assets",
+    "tfp_plugins": "Extensible plugin subsystem for protocol extensions",
+    "tfp_plugin_sdk": "Software development kit for third-party transport and codec plugins",
+}
+
+
+def _get_git_info(repo_root: Path) -> Dict[str, str]:
+    commit = "unknown"
+    branch = "unknown"
+    try:
+        res_c = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo_root, capture_output=True, text=True, timeout=5)
+        if res_c.returncode == 0:
+            commit = res_c.stdout.strip()
+        res_b = subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=repo_root, capture_output=True, text=True, timeout=5)
+        if res_b.returncode == 0:
+            branch = res_b.stdout.strip()
+    except Exception:
+        pass
+    return {"commit": commit, "branch": branch}
+
 
 
 @dataclass
@@ -399,6 +434,90 @@ class CodeGraph:
             "total_symbols": sum(len(f.symbols) for f in self.files.values()),
         }
 
+    def package_breakdown(self) -> List[Dict[str, Any]]:
+        """Computes per-package metrics across the repository."""
+        pkgs: Dict[str, Dict[str, Any]] = defaultdict(lambda: {
+            "files": 0, "loc": 0, "classes": 0, "functions": 0
+        })
+        for f, node in self.files.items():
+            parts = f.split("/")
+            if parts[0] == "tfp-foundation-protocol" and len(parts) > 1:
+                top = parts[1]
+            elif "/" in f:
+                top = parts[0]
+            else:
+                top = "root"
+            pkgs[top]["files"] += 1
+            pkgs[top]["loc"] += node.loc
+            for s in node.symbols:
+                if s.kind == "class":
+                    pkgs[top]["classes"] += 1
+                elif s.kind in ("function", "async_function"):
+                    pkgs[top]["functions"] += 1
+
+        result = []
+        for pkg, data in sorted(pkgs.items(), key=lambda x: -x[1]["loc"]):
+            result.append({
+                "package": pkg,
+                "role": PACKAGE_ROLES.get(pkg, "Subsystem module"),
+                "files": data["files"],
+                "loc": data["loc"],
+                "classes": data["classes"],
+                "functions": data["functions"],
+            })
+        return result
+
+    def detailed_export(self) -> Dict[str, Any]:
+        """Exports enriched code graph with metadata, package breakdown, test coverage, and architectural commentary."""
+        git_info = _get_git_info(self.root_dir)
+        now_utc = datetime.now(timezone.utc).isoformat()
+
+        # Test coverage mapping for tested symbols
+        test_coverage = {
+            sym: sorted(list(tests))
+            for sym, tests in sorted(self.tests_by_symbol.items())
+            if tests
+        }
+
+        return {
+            "metadata": {
+                "protocol": "The Foundation Protocol (TFP)",
+                "protocol_version": "v4.0.0",
+                "schema_version": "2.0.0",
+                "generated_at": now_utc,
+                "git_commit": git_info["commit"],
+                "git_branch": git_info["branch"],
+                "repository": "https://github.com/Bittermun/TheFoundationProtocol",
+                "ast_engine": "Python standard library ast (deterministic zero-dependency)",
+            },
+            "stats": self.stats(),
+            "package_breakdown": self.package_breakdown(),
+            "architectural_commentary": {
+                "mission": "Zero-infrastructure, physical-layer resilient knowledge dissemination for disaster recovery, grid failure, and off-grid triage.",
+                "fountain_erasure_coding": "Dual-engine architecture: BinaryLinearErasureCodec (pure-Python systematic GF(2) XOR Cauchy linear erasure code with Gaussian elimination) and FountainStreamer (Luby Transform rateless Soliton code for broadcast loss recovery).",
+                "content_defined_chunking": "FastCDC boundary-shift resistant chunking using a 256-entry 64-bit gear matrix and normalized sub-chunk masks (min: 512B, avg: 1-4KB, max: 8KB).",
+                "cryptographic_integrity": "SHA3-256 Merkle audit path proofs, Ed25519 manifest digital signatures, and per-shard HMAC-SHA3-256 integrity checks.",
+                "physical_modulation": "Bell 202 Audio Frequency Shift Keying (1200/2200 Hz Mark/Space) at 1200/300 baud with CRC-16 checksums for analog radios and audio cables.",
+                "durable_persistence": "SQLite persistent database store (TFPNode) decoupling reader chunking configuration from on-disk Content Defined Chunk recipes.",
+                "modular_visualizer": "Isolated multi-threaded visualizer server (visualizer_server.py) providing real-time Server-Sent Events (SSE) telemetry and 60 FPS GPU-accelerated canvas visualization.",
+                "zero_touch_appliances": "Audio Scholar headless triage daemon (UDP/sound) and zero-install browser acoustic microphone receiver for broken-screen and weak mobile devices.",
+                "adversarial_certification": "Autonomous adversarial fault injection runner (scripts/run_adversarial_audit.py) verifying invariants across mutants M1-M5 with certified negative proof.",
+            },
+            "test_coverage_index": {
+                "tested_symbol_count": len(test_coverage),
+                "coverage_map": test_coverage,
+            },
+            "files": {
+                f: {
+                    "loc": node.loc,
+                    "symbols": [asdict(s) for s in node.symbols],
+                    "imports": node.imports,
+                    "calls": node.calls,
+                }
+                for f, node in self.files.items()
+            },
+        }
+
 
 def main():
     parser = argparse.ArgumentParser(description="AST Code Graph Harness for The Foundation Protocol")
@@ -421,17 +540,7 @@ def main():
     elif args.mermaid:
         out_content = graph.mermaid()
     elif args.json:
-        data = {
-            "stats": graph.stats(),
-            "files": {
-                f: {
-                    "loc": node.loc,
-                    "symbols": [asdict(s) for s in node.symbols],
-                    "imports": node.imports,
-                }
-                for f, node in graph.files.items()
-            },
-        }
+        data = graph.detailed_export()
         out_content = json.dumps(data, indent=2)
     elif args.stats:
         out_content = json.dumps(graph.stats(), indent=2)
