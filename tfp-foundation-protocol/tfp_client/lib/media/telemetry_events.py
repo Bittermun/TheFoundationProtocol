@@ -15,9 +15,13 @@ import asyncio
 from collections import deque
 from dataclasses import asdict, dataclass, field
 import json
+import logging
+import queue
 import threading
 import time
 from typing import Any, Callable, Deque, Dict, List, Optional, Set
+
+log = logging.getLogger("tfp.telemetry")
 
 
 # Core Protocol Event Types
@@ -85,15 +89,17 @@ class TelemetryEventBus:
             for cb in list(self._callbacks):
                 try:
                     cb(event)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    log.warning(f"Telemetry callback failed for event '{event_type}': {exc}")
 
             # Notify async queues
             for q in list(self._async_queues):
                 try:
                     q.put_nowait(event)
-                except Exception:
-                    pass
+                except queue.Full:
+                    log.debug(f"Telemetry async queue full, dropping event '{event_type}'")
+                except Exception as exc:
+                    log.warning(f"Telemetry queue put failed for event '{event_type}': {exc}")
 
         return event
 

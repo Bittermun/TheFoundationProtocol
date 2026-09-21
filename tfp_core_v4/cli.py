@@ -19,12 +19,15 @@ import argparse
 import asyncio
 import hashlib
 import json
+import logging
 import os
 import re
 import sys
 import urllib.parse
 from pathlib import Path
 from typing import Any
+
+log = logging.getLogger("tfp.cli")
 
 _repo_root = Path(__file__).resolve().parent.parent
 if str(_repo_root) not in sys.path:
@@ -61,8 +64,8 @@ def get_static_assets_dir() -> Path:
         p = Path(str(res))
         if p.is_dir() and (p / "visualizer.html").exists():
             return p
-    except Exception:
-        pass
+    except Exception as exc:
+        log.debug(f"importlib.resources asset lookup skipped: {exc}")
 
     candidates = [
         _tfp_root / "tfp_demo" / "static",
@@ -354,8 +357,8 @@ Initiate active core rewarming with warmed IV saline at 39 degrees C.
                 if "rate" in query:
                     try:
                         active_loss_rate[0] = max(0.0, min(0.9, float(query["rate"][0])))
-                    except (ValueError, IndexError, KeyError):
-                        pass
+                    except (ValueError, IndexError, KeyError) as exc:
+                        log.debug(f"Invalid rate parameter ignored in /api/set-loss: {exc}")
                 self._send_json({"ok": True, "rate": active_loss_rate[0]})
                 return
 

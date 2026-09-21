@@ -1,7 +1,7 @@
 {
   "stats": {
     "production_files": 307,
-    "production_loc": 52154,
+    "production_loc": 52161,
     "production_classes": 469,
     "production_functions": 2583,
     "test_files": 87,
@@ -16867,14 +16867,14 @@
       ]
     },
     "tfp_core_v4/cli.py": {
-      "loc": 983,
+      "loc": 985,
       "symbols": [
         {
           "name": "get_static_assets_dir",
           "qualified_name": "get_static_assets_dir",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 51,
+          "lineno": 54,
           "args": [],
           "return_type": "Path",
           "docstring": "Resolve static web assets directory across:",
@@ -16885,7 +16885,7 @@
           "qualified_name": "create_visualizer_server",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 89,
+          "lineno": 92,
           "args": [
             "port"
           ],
@@ -16898,7 +16898,7 @@
           "qualified_name": "persist_bundle",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 201,
+          "lineno": 204,
           "args": [
             "bundle_to_save"
           ],
@@ -16911,7 +16911,7 @@
           "qualified_name": "generate_live_protocol_telemetry",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 256,
+          "lineno": 259,
           "args": [],
           "return_type": "dict[str, Any]",
           "docstring": null,
@@ -16922,7 +16922,7 @@
           "qualified_name": "VisualizerHandler",
           "kind": "class",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 331,
+          "lineno": 334,
           "args": [],
           "return_type": null,
           "docstring": null,
@@ -16935,7 +16935,7 @@
           "qualified_name": "VisualizerHandler.__init__",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 332,
+          "lineno": 335,
           "args": [],
           "return_type": null,
           "docstring": null,
@@ -16946,7 +16946,7 @@
           "qualified_name": "VisualizerHandler._send_json",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 335,
+          "lineno": 338,
           "args": [
             "data",
             "status"
@@ -16960,7 +16960,7 @@
           "qualified_name": "VisualizerHandler.do_OPTIONS",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 344,
+          "lineno": 347,
           "args": [],
           "return_type": null,
           "docstring": null,
@@ -16971,7 +16971,7 @@
           "qualified_name": "VisualizerHandler.do_GET",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 351,
+          "lineno": 354,
           "args": [],
           "return_type": null,
           "docstring": null,
@@ -16982,7 +16982,7 @@
           "qualified_name": "VisualizerHandler.do_POST",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 446,
+          "lineno": 449,
           "args": [],
           "return_type": null,
           "docstring": null,
@@ -16993,7 +16993,7 @@
           "qualified_name": "VisualizerHandler.run_short",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 492,
+          "lineno": 495,
           "args": [],
           "return_type": null,
           "docstring": null,
@@ -17004,7 +17004,7 @@
           "qualified_name": "VisualizerHandler.run_audio",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 506,
+          "lineno": 509,
           "args": [],
           "return_type": null,
           "docstring": null,
@@ -17015,7 +17015,7 @@
           "qualified_name": "VisualizerHandler.run_video",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 520,
+          "lineno": 523,
           "args": [],
           "return_type": null,
           "docstring": null,
@@ -17026,7 +17026,7 @@
           "qualified_name": "VisualizerHandler.run_atlas",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 534,
+          "lineno": 537,
           "args": [],
           "return_type": null,
           "docstring": null,
@@ -17037,7 +17037,7 @@
           "qualified_name": "VisualizerHandler.run_upload",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 563,
+          "lineno": 566,
           "args": [],
           "return_type": null,
           "docstring": null,
@@ -17048,7 +17048,7 @@
           "qualified_name": "VisualizerHandler._stream_events",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 582,
+          "lineno": 585,
           "args": [],
           "return_type": null,
           "docstring": null,
@@ -17059,7 +17059,7 @@
           "qualified_name": "VisualizerHandler.listener",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 585,
+          "lineno": 588,
           "args": [
             "ev"
           ],
@@ -17072,7 +17072,7 @@
           "qualified_name": "VisualizerHandler._init_run",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 596,
+          "lineno": 599,
           "args": [],
           "return_type": null,
           "docstring": null,
@@ -17083,7 +17083,7 @@
           "qualified_name": "VisualizerHandler._send_sse",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 625,
+          "lineno": 628,
           "args": [
             "event",
             "data"
@@ -17097,7 +17097,7 @@
           "qualified_name": "VisualizerHandler.log_message",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 633,
+          "lineno": 636,
           "args": [
             "format"
           ],
@@ -17110,7 +17110,7 @@
           "qualified_name": "ThreadedTCPServer",
           "kind": "class",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 636,
+          "lineno": 639,
           "args": [],
           "return_type": null,
           "docstring": null,
@@ -17124,7 +17124,7 @@
           "qualified_name": "main",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 645,
+          "lineno": 648,
           "args": [
             "argv"
           ],
@@ -17137,7 +17137,7 @@
           "qualified_name": "AcousticHandler",
           "kind": "class",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 970,
+          "lineno": 973,
           "args": [],
           "return_type": null,
           "docstring": null,
@@ -17150,7 +17150,7 @@
           "qualified_name": "AcousticHandler.__init__",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 971,
+          "lineno": 974,
           "args": [],
           "return_type": null,
           "docstring": null,
@@ -17161,7 +17161,7 @@
           "qualified_name": "AcousticHandler.do_GET",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 974,
+          "lineno": 977,
           "args": [],
           "return_type": null,
           "docstring": null,
@@ -17172,7 +17172,7 @@
           "qualified_name": "AcousticHandler.log_message",
           "kind": "function",
           "file_path": "tfp_core_v4/cli.py",
-          "lineno": 979,
+          "lineno": 982,
           "args": [
             "format"
           ],
@@ -17213,214 +17213,220 @@
           "lineno": 21
         },
         {
+          "module": "logging",
+          "name": "logging",
+          "alias": "logging",
+          "lineno": 22
+        },
+        {
           "module": "os",
           "name": "os",
           "alias": "os",
-          "lineno": 22
+          "lineno": 23
         },
         {
           "module": "re",
           "name": "re",
           "alias": "re",
-          "lineno": 23
+          "lineno": 24
         },
         {
           "module": "sys",
           "name": "sys",
           "alias": "sys",
-          "lineno": 24
+          "lineno": 25
         },
         {
           "module": "urllib.parse",
           "name": "urllib.parse",
           "alias": "urllib.parse",
-          "lineno": 25
+          "lineno": 26
         },
         {
           "module": "pathlib",
           "name": "Path",
           "alias": "Path",
-          "lineno": 26
+          "lineno": 27
         },
         {
           "module": "typing",
           "name": "Any",
           "alias": "Any",
-          "lineno": 27
+          "lineno": 28
         },
         {
           "module": "tfp_client.lib.audio.afsk_demodulator",
           "name": "AFSKDemodulator",
           "alias": "AFSKDemodulator",
-          "lineno": 37
+          "lineno": 40
         },
         {
           "module": "tfp_client.lib.audio.afsk_modulator",
           "name": "AFSKModulator",
           "alias": "AFSKModulator",
-          "lineno": 38
+          "lineno": 41
         },
         {
           "module": "tfp_client.lib.ingest.article_ingester",
           "name": "ArticleIngester",
           "alias": "ArticleIngester",
-          "lineno": 39
+          "lineno": 42
         },
         {
           "module": "tfp_client.lib.ingest.article_packager",
           "name": "ArticlePackager",
           "alias": "ArticlePackager",
-          "lineno": 40
+          "lineno": 43
         },
         {
           "module": "tfp_client.lib.ingest.article_packager",
           "name": "PackagedArticleBundle",
           "alias": "PackagedArticleBundle",
-          "lineno": 40
+          "lineno": 43
         },
         {
           "module": "tfp_client.lib.media.fountain_streamer",
           "name": "FountainStreamer",
           "alias": "FountainStreamer",
-          "lineno": 41
+          "lineno": 44
         },
         {
           "module": "tfp_client.lib.media.receiver",
           "name": "FountainStreamReceiver",
           "alias": "FountainStreamReceiver",
-          "lineno": 42
+          "lineno": 45
         },
         {
           "module": "tfp_client.lib.media.stream_packager",
           "name": "MediaStreamPackager",
           "alias": "MediaStreamPackager",
-          "lineno": 43
+          "lineno": 46
         },
         {
           "module": "tfp_client.lib.media.template_engine",
           "name": "TemplateParser",
           "alias": "TemplateParser",
-          "lineno": 44
+          "lineno": 47
         },
         {
           "module": "tfp_client.lib.radio.framing",
           "name": "RadioFramePacker",
           "alias": "RadioFramePacker",
-          "lineno": 45
+          "lineno": 48
         },
         {
           "module": "tfp_client.lib.radio.framing",
           "name": "RadioFrameReassembler",
           "alias": "RadioFrameReassembler",
-          "lineno": 45
+          "lineno": 48
         },
         {
           "module": "tfp_client.lib.search.hybrid_search",
           "name": "HybridSearchEngine",
           "alias": "HybridSearchEngine",
-          "lineno": 46
+          "lineno": 49
         },
         {
           "module": "tfp_core_v4.node",
           "name": "TFPNode",
           "alias": "TFPNode",
-          "lineno": 48
+          "lineno": 51
         },
         {
           "module": "importlib.resources",
           "name": "importlib.resources",
           "alias": "pkg_resources",
-          "lineno": 59
+          "lineno": 62
         },
         {
           "module": "http.server",
           "name": "http.server",
           "alias": "http.server",
-          "lineno": 91
+          "lineno": 94
         },
         {
           "module": "queue",
           "name": "queue",
           "alias": "queue",
-          "lineno": 92
+          "lineno": 95
         },
         {
           "module": "socketserver",
           "name": "socketserver",
           "alias": "socketserver",
-          "lineno": 93
+          "lineno": 96
         },
         {
           "module": "threading",
           "name": "threading",
           "alias": "threading",
-          "lineno": 94
+          "lineno": 97
         },
         {
           "module": "tfp_client.lib.media.live_streamer",
           "name": "LiveTransmissionEngine",
           "alias": "LiveTransmissionEngine",
-          "lineno": 96
+          "lineno": 99
         },
         {
           "module": "tfp_client.lib.media.telemetry_events",
           "name": "TelemetryEventBus",
           "alias": "TelemetryEventBus",
-          "lineno": 97
+          "lineno": 100
         },
         {
           "module": "scripts.run_mesh_simulation",
           "name": "run_simulation",
           "alias": "run_simulation",
-          "lineno": 847
+          "lineno": 850
         },
         {
           "module": "webbrowser",
           "name": "webbrowser",
           "alias": "webbrowser",
-          "lineno": 851
+          "lineno": 854
         },
         {
           "module": "http.server",
           "name": "http.server",
           "alias": "http.server",
-          "lineno": 964
+          "lineno": 967
         },
         {
           "module": "socketserver",
           "name": "socketserver",
           "alias": "socketserver",
-          "lineno": 965
+          "lineno": 968
         },
         {
           "module": "webbrowser",
           "name": "webbrowser",
           "alias": "webbrowser",
-          "lineno": 966
+          "lineno": 969
         },
         {
           "module": "tfp_core_v4.audio_scholar",
           "name": "AudioScholarDaemon",
           "alias": "AudioScholarDaemon",
-          "lineno": 1004
+          "lineno": 1007
         },
         {
           "module": "tfp_client.lib.ingest.article_packager",
           "name": "PackagedArticleBundle",
           "alias": "PackagedArticleBundle",
-          "lineno": 1049
+          "lineno": 1052
         },
         {
           "module": "tfp_client.lib.ingest.zim_exporter",
           "name": "ZimDirectoryExporter",
           "alias": "ZimDirectoryExporter",
-          "lineno": 1050
+          "lineno": 1053
         },
         {
           "module": "tfp_client.lib.audio.voice_memo",
           "name": "VoiceMemo",
           "alias": "VoiceMemo",
-          "lineno": 1106
+          "lineno": 1109
         }
       ]
     },
@@ -58768,14 +58774,14 @@
       ]
     },
     "tfp-foundation-protocol/tfp_client/lib/media/telemetry_events.py": {
-      "loc": 100,
+      "loc": 105,
       "symbols": [
         {
           "name": "TelemetryEvent",
           "qualified_name": "TelemetryEvent",
           "kind": "class",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/telemetry_events.py",
-          "lineno": 34,
+          "lineno": 38,
           "args": [],
           "return_type": null,
           "docstring": "A single immutable protocol lifecycle event.",
@@ -58786,7 +58792,7 @@
           "qualified_name": "TelemetryEvent.to_json",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/telemetry_events.py",
-          "lineno": 41,
+          "lineno": 45,
           "args": [],
           "return_type": "str",
           "docstring": null,
@@ -58797,7 +58803,7 @@
           "qualified_name": "TelemetryEventBus",
           "kind": "class",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/telemetry_events.py",
-          "lineno": 49,
+          "lineno": 53,
           "args": [],
           "return_type": null,
           "docstring": "High-throughput, non-blocking telemetry event bus.",
@@ -58808,7 +58814,7 @@
           "qualified_name": "TelemetryEventBus.__init__",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/telemetry_events.py",
-          "lineno": 59,
+          "lineno": 63,
           "args": [
             "history_size"
           ],
@@ -58821,7 +58827,7 @@
           "qualified_name": "TelemetryEventBus.get_instance",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/telemetry_events.py",
-          "lineno": 67,
+          "lineno": 71,
           "args": [
             "cls"
           ],
@@ -58834,7 +58840,7 @@
           "qualified_name": "TelemetryEventBus.emit",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/telemetry_events.py",
-          "lineno": 74,
+          "lineno": 78,
           "args": [
             "event_type"
           ],
@@ -58847,7 +58853,7 @@
           "qualified_name": "TelemetryEventBus.subscribe",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/telemetry_events.py",
-          "lineno": 100,
+          "lineno": 106,
           "args": [
             "callback"
           ],
@@ -58860,7 +58866,7 @@
           "qualified_name": "TelemetryEventBus.unsubscribe",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/telemetry_events.py",
-          "lineno": 105,
+          "lineno": 111,
           "args": [
             "callback"
           ],
@@ -58873,7 +58879,7 @@
           "qualified_name": "TelemetryEventBus.create_async_subscription",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/telemetry_events.py",
-          "lineno": 110,
+          "lineno": 116,
           "args": [],
           "return_type": "asyncio.Queue",
           "docstring": "Create an asyncio queue receiving real-time events.",
@@ -58884,7 +58890,7 @@
           "qualified_name": "TelemetryEventBus.remove_async_subscription",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/telemetry_events.py",
-          "lineno": 117,
+          "lineno": 123,
           "args": [
             "q"
           ],
@@ -58897,7 +58903,7 @@
           "qualified_name": "TelemetryEventBus.get_recent_events",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/telemetry_events.py",
-          "lineno": 122,
+          "lineno": 128,
           "args": [
             "count"
           ],
@@ -58910,7 +58916,7 @@
           "qualified_name": "TelemetryEventBus.clear",
           "kind": "function",
           "file_path": "tfp-foundation-protocol/tfp_client/lib/media/telemetry_events.py",
-          "lineno": 127,
+          "lineno": 133,
           "args": [],
           "return_type": null,
           "docstring": "Reset the history buffer.",
@@ -58961,58 +58967,70 @@
           "lineno": 17
         },
         {
+          "module": "logging",
+          "name": "logging",
+          "alias": "logging",
+          "lineno": 18
+        },
+        {
+          "module": "queue",
+          "name": "queue",
+          "alias": "queue",
+          "lineno": 19
+        },
+        {
           "module": "threading",
           "name": "threading",
           "alias": "threading",
-          "lineno": 18
+          "lineno": 20
         },
         {
           "module": "time",
           "name": "time",
           "alias": "time",
-          "lineno": 19
+          "lineno": 21
         },
         {
           "module": "typing",
           "name": "Any",
           "alias": "Any",
-          "lineno": 20
+          "lineno": 22
         },
         {
           "module": "typing",
           "name": "Callable",
           "alias": "Callable",
-          "lineno": 20
+          "lineno": 22
         },
         {
           "module": "typing",
           "name": "Deque",
           "alias": "Deque",
-          "lineno": 20
+          "lineno": 22
         },
         {
           "module": "typing",
           "name": "Dict",
           "alias": "Dict",
-          "lineno": 20
+          "lineno": 22
         },
         {
           "module": "typing",
           "name": "List",
           "alias": "List",
-          "lineno": 20
+          "lineno": 22
         },
         {
           "module": "typing",
           "name": "Optional",
           "alias": "Optional",
-          "lineno": 20
+          "lineno": 22
         },
         {
           "module": "typing",
           "name": "Set",
           "alias": "Set",
-          "lineno": 20
+          "lineno": 22
         }
       ]
     },

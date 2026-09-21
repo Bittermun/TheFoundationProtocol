@@ -216,8 +216,8 @@ class NostrSubscriber:
             # Graceful NIP-01 CLOSE before disconnecting
             try:
                 ws.send(json.dumps(["CLOSE", _SUB_ID], separators=(",", ":")))
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug(f"NIP-01 CLOSE handshake omitted on disconnect: {exc}")
 
     def _handle_message(self, raw: str) -> None:
         """Parse a NIP-01 message and invoke the callback for TFP EVENT messages."""
