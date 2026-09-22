@@ -4,7 +4,7 @@
 """
 Broadcast Bulletin Packaging & Verification Module for TFP v4.0.
 
-Provides cohesive preparation, atomic export, signature verification,
+Provides cohesive preparation, recoverable export, signature verification,
 airtime budgeting, and audio recovery for broadcast bulletins.
 """
 
@@ -14,70 +14,37 @@ import datetime
 import hashlib
 import json
 import logging
-from pathlib import Path
 import shutil
-import tempfile
 import time
-from typing import Any
 import uuid
+from pathlib import Path
+from typing import Any
 
 from tfp_client.lib.audio.afsk_demodulator import AFSKDemodulator
-from tfp_client.lib.audio.afsk_modulator import AFSKModulator, MAX_AFSK_PAYLOAD_SIZE
+from tfp_client.lib.audio.afsk_modulator import MAX_AFSK_PAYLOAD_SIZE, AFSKModulator
+
+from tfp_core_v4.bulletin_identity import (
+    SIGNATURE_VERSION,
+    sign_bulletin_content,
+    validate_identity,
+    verify_bulletin_signature,
+)
 from tfp_core_v4.node import TFPNode
 
 log = logging.getLogger("tfp.bulletin")
 
+__all__ = [
+    "AirtimeLimitExceededError",
+    "estimate_bulletin_airtime",
+    "import_bulletin_package",
+    "prepare_bulletin_package",
+    "sign_bulletin_content",
+    "verify_bulletin_signature",
+]
+
 
 class AirtimeLimitExceededError(ValueError):
     """Raised when a bulletin payload exceeds the configured airtime limit."""
-    pass
-
-
-def sign_bulletin_content(
-    bulletin_id: str,
-    revision: int,
-    content_hash: str,
-    private_key: Any,
-) -> tuple[str, str]:
-    """
-    Signs a canonical bulletin envelope using an Ed25519 private key.
-    Returns (publisher_id_hex, signature_hex).
-    """
-    from cryptography.hazmat.primitives.asymmetric import ed25519
-
-    if isinstance(private_key, (bytes, bytearray)):
-        sk = ed25519.Ed25519PrivateKey.from_private_bytes(bytes(private_key[:32]))
-    else:
-        sk = private_key
-
-    pub_bytes = sk.public_key().public_bytes_raw()
-    envelope = f"TFP_BULLETIN:{bulletin_id}:{revision}:{content_hash}".encode("utf-8")
-    sig_bytes = sk.sign(envelope)
-    return pub_bytes.hex(), sig_bytes.hex()
-
-
-def verify_bulletin_signature(
-    bulletin_id: str,
-    revision: int,
-    content_hash: str,
-    publisher_id_hex: str,
-    signature_hex: str,
-) -> bool:
-    """
-    Verifies an Ed25519 signature against a canonical bulletin envelope.
-    """
-    try:
-        from cryptography.hazmat.primitives.asymmetric import ed25519
-
-        pub_bytes = bytes.fromhex(publisher_id_hex)
-        sig_bytes = bytes.fromhex(signature_hex)
-        pub_key = ed25519.Ed25519PublicKey.from_public_bytes(pub_bytes)
-        envelope = f"TFP_BULLETIN:{bulletin_id}:{revision}:{content_hash}".encode("utf-8")
-        pub_key.verify(sig_bytes, envelope)
-        return True
-    except Exception as exc:
-        log.warning(f"Bulletin signature check failed: {exc}")
-        return False
 
 
 def estimate_bulletin_airtime(
@@ -106,10 +73,10 @@ def prepare_bulletin_package(
     sample_rate: int = 16000,
     preamble_flags: int = 16,
     metadata_extra: dict[str, Any] | None = None,
-    overwrite: bool = True,
+    overwrite: bool = False,
 ) -> dict[str, Any]:
     """
-    Atomically prepares and exports a complete broadcast bulletin package.
+    Prepares a complete package and retains a backup during explicit replacement.
 
     Enforces airtime budget limits before synthesis.
     Outputs:
@@ -121,14 +88,23 @@ def prepare_bulletin_package(
     """
     if not bulletin_id or not bulletin_id.strip():
         raise ValueError("bulletin_id cannot be empty")
-    if revision < 1:
-        raise ValueError(f"revision must be positive integer (got {revision})")
+    validate_identity(bulletin_id, revision, title)
     if not content_text:
         raise ValueError("content_text cannot be empty")
 
-    target_path = Path(output_dir).resolve()
+    requested_path = Path(output_dir).absolute()
+    if requested_path.is_symlink():
+        raise ValueError("Refusing to replace a symbolic-link destination")
+    target_path = requested_path.resolve()
     if target_path.exists() and not overwrite:
         raise FileExistsError(f"Target package directory already exists: {target_path}")
+    if target_path.exists():
+        try:
+            previous_record = json.loads((target_path / "preparation_record.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            raise ValueError("Replacement requires an existing TFP bulletin package") from exc
+        if previous_record.get("operation") != "bulletin_package_export":
+            raise ValueError("Replacement requires an existing TFP bulletin package")
 
     # 1. Compute content hash over raw UTF-8 text
     content_bytes = content_text.encode("utf-8")
@@ -140,13 +116,13 @@ def prepare_bulletin_package(
     verification_status = "unsigned"
     if private_key is not None:
         publisher_id, signature_hex = sign_bulletin_content(
-            bulletin_id, revision, content_hash, private_key
+            bulletin_id, revision, content_hash, private_key, title=title or bulletin_id
         )
         verification_status = "signed"
 
     # 3. Construct wire payload
     wire_dict: dict[str, Any] = {
-        "v": 1,
+        "v": SIGNATURE_VERSION,
         "id": bulletin_id,
         "rev": revision,
         "title": title or bulletin_id,
@@ -182,7 +158,7 @@ def prepare_bulletin_package(
 
     # 6. Build metadata and preparation records
     now_ts = time.time()
-    now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    now_iso = datetime.datetime.now(datetime.UTC).isoformat()
     meta: dict[str, Any] = {
         "bulletin_id": bulletin_id,
         "revision": revision,
@@ -191,6 +167,8 @@ def prepare_bulletin_package(
         "publisher_id": publisher_id,
         "signature_hex": signature_hex,
         "verification_status": verification_status,
+        "signature_version": SIGNATURE_VERSION,
+        "publisher_trust": "not_established",
         "encoding_profile": f"bell202_{baud_rate}",
         "sample_rate": sample_rate,
         "baud_rate": baud_rate,
@@ -229,7 +207,7 @@ def prepare_bulletin_package(
         "signed": bool(signature_hex),
     }
 
-    # 7. Write atomically via temporary directory and atomic swap
+    # 7. Stage complete files before installation; replacement keeps a backup.
     parent_dir = target_path.parent
     parent_dir.mkdir(parents=True, exist_ok=True)
     temp_dir = parent_dir / f".tmp_{target_path.name}_{uuid.uuid4().hex[:8]}"
@@ -242,9 +220,25 @@ def prepare_bulletin_package(
         (temp_dir / "instructions.txt").write_text(instructions, encoding="utf-8")
         (temp_dir / "preparation_record.json").write_text(json.dumps(prep_record, indent=2), encoding="utf-8")
 
+        backup = None
         if target_path.exists():
-            shutil.rmtree(target_path, ignore_errors=True)
-        temp_dir.rename(target_path)
+            if not overwrite:
+                raise FileExistsError(f"Target package directory already exists: {target_path}")
+            # Move, never delete, an existing destination. Keep the previous
+            # package recoverable even if installation or rollback fails.
+            backup = parent_dir / f".previous_{target_path.name}_{uuid.uuid4().hex}"
+            target_path.rename(backup)
+        try:
+            temp_dir.rename(target_path)
+        except OSError:
+            if backup is not None and not target_path.exists():
+                try:
+                    backup.rename(target_path)
+                except OSError as rollback_error:
+                    log.error("Previous package retained at %s: %s", backup, rollback_error)
+            raise
+        if backup is not None:
+            meta["previous_package_path"] = str(backup)
     except Exception:
         if temp_dir.exists():
             shutil.rmtree(temp_dir, ignore_errors=True)
@@ -289,6 +283,8 @@ def import_bulletin_package(
             log.warning(f"Skipping non-bulletin packet payload: {exc}")
             continue
 
+        if not isinstance(wire_data, dict):
+            continue
         b_id = wire_data.get("id")
         rev = wire_data.get("rev", 1)
         title = wire_data.get("title", b_id)
@@ -296,19 +292,12 @@ def import_bulletin_package(
         pub_id = wire_data.get("pub") or "unsigned"
         sig_hex = wire_data.get("sig")
 
-        if not b_id or not body:
-            continue
+        if not isinstance(body, str) or not body:
+            raise ValueError("Bulletin body must be a nonempty string")
+        validate_identity(b_id, rev, title)
 
         body_bytes = body.encode("utf-8")
         c_hash = hashlib.sha3_256(body_bytes).hexdigest()
-
-        # Check signature if provided
-        verified_status = "unsigned"
-        if pub_id != "unsigned" and sig_hex:
-            if verify_bulletin_signature(b_id, rev, c_hash, pub_id, sig_hex):
-                verified_status = "verified_ed25519"
-            else:
-                verified_status = "signature_mismatch"
 
         # Durably persist into authoritative node storage
         recipe = node.store_bulletin(
@@ -318,7 +307,7 @@ def import_bulletin_package(
             title=title,
             publisher_id=pub_id,
             signature_hex=sig_hex,
-            verified_status=verified_status,
+            signature_version=wire_data.get("v", 1),
             metadata={"origin": "broadcast_audio", "source_file": p.name},
         )
 
@@ -330,7 +319,8 @@ def import_bulletin_package(
             "root_hash": recipe.root_hash,
             "publisher_id": pub_id,
             "signature_hex": sig_hex,
-            "verified_status": verified_status,
+            "verified_status": recipe.metadata["verified_status"],
+            "publisher_trust": "not_established",
             "data_size": len(body_bytes),
         })
 

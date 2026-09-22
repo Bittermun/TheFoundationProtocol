@@ -92,6 +92,7 @@ def main(argv: list[str] | None = None):
     bprep_p.add_argument("--revision", type=int, default=1, help="Bulletin revision (default: 1)")
     bprep_p.add_argument("--title", default=None, help="Bulletin title")
     bprep_p.add_argument("--out-dir", default="bulletin_package", help="Target output directory (default: bulletin_package)")
+    bprep_p.add_argument("--replace", action="store_true", help="Replace an existing bulletin package, retaining a recoverable backup")
     bprep_p.add_argument("--airtime-limit", type=float, default=None, help="Maximum allowed transmission airtime in seconds")
     bprep_p.add_argument("--baud", type=int, default=1200, help="Baud rate (default: 1200, or 300 for long-range)")
     bprep_p.add_argument("--key", default=None, help="Optional hex private key for Ed25519 signing")
@@ -327,6 +328,7 @@ def main(argv: list[str] | None = None):
             private_key=priv_key,
             airtime_limit_seconds=args.airtime_limit,
             baud_rate=args.baud,
+            overwrite=args.replace,
         )
 
         print("=" * 65)
@@ -340,6 +342,8 @@ def main(argv: list[str] | None = None):
         print(f"  Audio Duration : {meta['audio_duration_seconds']:.2f}s (@ {meta['baud_rate']} Baud)")
         print(f"  Payload Size   : {meta['payload_bytes']} bytes")
         print(f"  Package Output : {Path(args.out_dir).resolve()}")
+        if "previous_package_path" in meta:
+            print(f"  Previous Copy  : {meta['previous_package_path']}")
         print("=" * 65)
 
     elif args.command == "bulletin-import":
@@ -354,6 +358,7 @@ def main(argv: list[str] | None = None):
         print(f"  Root Hash      : {imported['root_hash']}")
         print(f"  Publisher ID   : {imported['publisher_id']}")
         print(f"  Verification   : {imported['verified_status']}")
+        print("  Publisher Trust: Not established (signature validity is separate)")
         print(f"  Payload Size   : {imported['data_size']} bytes")
         print("  Status         : Durably stored in authoritative node store")
         print("=" * 65)
@@ -373,6 +378,7 @@ def main(argv: list[str] | None = None):
                 print(f"    Hash      : {b['content_hash']}")
                 print(f"    Publisher : {b['publisher_id']}")
                 print(f"    Status    : {b['verified_status']} | Size: {b['data_size']}B")
+                print("    Publisher trust: Not established")
         print("=" * 65)
 
     elif args.command == "bulletin-read":
@@ -385,6 +391,7 @@ def main(argv: list[str] | None = None):
         print("=" * 65)
         print(f"  BULLETIN: {meta['title']} (ID: {meta['bulletin_id']}, Rev: {meta['revision']})")
         print(f"  Publisher: {meta['publisher_id']} | Status: {meta['verified_status']}")
+        print("  Publisher trust: Not established")
         print("=" * 65)
         print(content.decode("utf-8", errors="replace"))
         print("=" * 65)

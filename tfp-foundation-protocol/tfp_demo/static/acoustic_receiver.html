@@ -145,7 +145,7 @@
     <h1>TFP Acoustic Demodulator</h1>
     <p class="subtitle">Decodes Bell 202 data tones from classroom loudspeakers and FM radios</p>
     <div style="background: rgba(245, 158, 11, 0.12); border: 1px solid var(--warning); border-radius: 8px; padding: 8px 12px; font-size: 11px; color: #fcd34d; margin-top: 10px; text-align: left; line-height: 1.4;">
-      ℹ️ <b>Demonstration & Lab Mode</b>: The microphone input performs live Goertzel spectral tone power detection (1200/2200 Hz). The <i>[SIMULATION]</i> buttons play synthesized AFSK audio through the speaker and demonstrate UI layout with predetermined payloads.
+      ℹ️ <b>Demonstration & Lab Mode</b>: Receive 1200 baud text bulletins (up to 4096 bytes). CRC checks detect transmission errors; signatures are not verified here. The <i>[SIMULATION]</i> buttons demonstrate the layout with predetermined content.
     </div>
   </div>
 
@@ -181,7 +181,7 @@
     </div>
     <div id="contentArea">
       <div class="empty-state">
-        Hold this phone near a radio speaker or classroom PA system broadcasting TFP audio tones. Received bulletins and voice notes will decode here automatically.
+        Start listening near a speaker playing a TFP 1200 baud text bulletin, or open its WAV file. Reception depends on your audio equipment and environment.
       </div>
     </div>
   </div>
@@ -204,6 +204,7 @@
   </div>
 </div>
 
+<script src="acoustic_stream.js"></script>
 <script>
 let audioCtx = null;
 let micStream = null;
@@ -293,28 +294,15 @@ async function toggleMicrophone() {
     source.connect(processor);
     processor.connect(audioCtx.destination);
 
-    let micSampleBuffer = [];
-    let samplesSinceLastDemod = 0;
-
+    const decoder = new IncrementalAFSKReceiver(audioCtx.sampleRate,
+      pkt => handleDecodedPacket(pkt, "Live Microphone"));
+    window.liveAcousticDiagnostics = () => ({bufferedSamples: decoder.buffer.length,
+      maxBufferedSamples: decoder.maxBufferedSamples});
     processor.onaudioprocess = (e) => {
       if (!isListening) return;
       const input = e.inputBuffer.getChannelData(0);
       detectAcousticTones(input, audioCtx.sampleRate);
-
-      for (let i = 0; i < input.length; i++) micSampleBuffer.push(input[i]);
-      const maxKeep = Math.round(audioCtx.sampleRate * 2.5);
-      if (micSampleBuffer.length > maxKeep) {
-        micSampleBuffer = micSampleBuffer.slice(micSampleBuffer.length - maxKeep);
-      }
-
-      samplesSinceLastDemod += input.length;
-      if (samplesSinceLastDemod >= 4096 && micSampleBuffer.length >= audioCtx.sampleRate * 0.8) {
-        samplesSinceLastDemod = 0;
-        const pkts = demodulateSamples(micSampleBuffer, audioCtx.sampleRate);
-        for (const pkt of pkts) {
-          handleDecodedPacket(pkt, "Live Microphone");
-        }
-      }
+      decoder.push(input);
     };
 
     isListening = true;
@@ -344,135 +332,73 @@ function crc16Ccitt(bytes) {
   return crc;
 }
 
-function extractPacketsFromBits(bits) {
-  const packets = [];
-  if (bits.length < 40) return packets;
-  for (let offset = 0; offset < 8; offset++) {
-    const rawBytes = [];
-    const nFullBytes = Math.floor((bits.length - offset) / 8);
-    for (let i = 0; i < nFullBytes; i++) {
-      let b = 0;
-      for (let bitIdx = 0; bitIdx < 8; bitIdx++) {
-        b |= (bits[offset + i * 8 + bitIdx] << bitIdx);
-      }
-      rawBytes.push(b);
-    }
-
-    let idx = 0;
-    while (idx < rawBytes.length - 6) {
-      if (rawBytes[idx] === 0x7E) {
-        while (idx < rawBytes.length && rawBytes[idx] === 0x7E) idx++;
-        if (idx + 4 >= rawBytes.length) break;
-
-        const len = (rawBytes[idx] << 8) | rawBytes[idx + 1];
-        idx += 2;
-        if (len > 0 && len <= 4096 && idx + len + 2 <= rawBytes.length) {
-          const payload = new Uint8Array(rawBytes.slice(idx, idx + len));
-          idx += len;
-          const expectedCrc = (rawBytes[idx] << 8) | rawBytes[idx + 1];
-          idx += 2;
-          if (crc16Ccitt(payload) === expectedCrc) {
-            packets.push(payload);
-          }
-        } else {
-          idx++;
-        }
-      } else {
-        idx++;
-      }
-    }
-  }
-  return packets;
-}
-
 function demodulateSamples(samples, sampleRate) {
-  if (!samples || samples.length === 0) return [];
-
-  let maxAbs = 0;
-  for (let i = 0; i < samples.length; i++) {
-    const a = Math.abs(samples[i]);
-    if (a > maxAbs) maxAbs = a;
-  }
-  if (maxAbs < 0.001) return [];
-
-  const normSamples = new Float32Array(samples.length);
-  const scale = 1.0 / maxAbs;
-  for (let i = 0; i < samples.length; i++) normSamples[i] = samples[i] * scale;
-
-  const baudRate = 1200;
-  const samplesPerBit = sampleRate / baudRate;
-  const dt = 1.0 / sampleRate;
-  const twoPi = 2.0 * Math.PI;
-  const wMark = twoPi * 1200.0;
-  const wSpace = twoPi * 2200.0;
-  const nSamples = normSamples.length;
-
-  const driftFactors = [0.0, -0.015, 0.015];
-  for (const drift of driftFactors) {
-    const step = samplesPerBit * (1.0 + drift);
-    const stepInt = Math.max(1, Math.round(step));
-    const stride = Math.max(1, Math.round(stepInt / 8));
-
-    for (let offset = 0; offset < stepInt; offset += stride) {
-      const totalBits = Math.floor((nSamples - offset) / step);
-      if (totalBits < 32) continue;
-
-      const bits = new Uint8Array(totalBits);
-      for (let i = 0; i < totalBits; i++) {
-        const start = Math.round(offset + i * step);
-        const end = Math.round(offset + (i + 1) * step);
-        if (end > nSamples) break;
-
-        let iM = 0, qM = 0, iS = 0, qS = 0;
-        for (let j = start; j < end; j++) {
-          const x = normSamples[j];
-          const t = j * dt;
-          iM += x * Math.cos(wMark * t);
-          qM += x * Math.sin(wMark * t);
-          iS += x * Math.cos(wSpace * t);
-          qS += x * Math.sin(wSpace * t);
-        }
-        bits[i] = (iM * iM + qM * qM >= iS * iS + qS * qS) ? 1 : 0;
-      }
-
-      const pkts = extractPacketsFromBits(bits);
-      if (pkts.length > 0) return pkts;
-    }
-  }
-  return [];
+  const packets = [];
+  const decoder = new IncrementalAFSKReceiver(sampleRate, packet => packets.push(packet));
+  decoder.push(samples);
+  return packets;
 }
 
 const seenPacketHashes = new Set();
 
-function handleDecodedPacket(payloadBytes, origin = "Acoustic Audio") {
-  // Simple hash to avoid spamming the UI with identical packets from continuous stream
-  let hashStr = "";
-  for (let i = 0; i < Math.min(32, payloadBytes.length); i++) hashStr += payloadBytes[i].toString(16);
-  if (seenPacketHashes.has(hashStr)) return;
-  seenPacketHashes.add(hashStr);
+function readArchive() {
+  try {
+    const value = JSON.parse(localStorage.getItem('tfp_transmissions') || '[]');
+    return Array.isArray(value) ? value.slice(0, 20) : [];
+  } catch (_) { return []; }
+}
 
+function handleDecodedPacket(payloadBytes, origin = "Acoustic Audio") {
+  // Full, unambiguous byte identity; bounded to avoid growing with listening time.
+  const payloadKey = Array.from(payloadBytes, b => b.toString(16).padStart(2, '0')).join('');
+  const archive = readArchive();
+  if (seenPacketHashes.has(payloadKey) || archive.some(item => item.payloadKey === payloadKey)) return;
+  seenPacketHashes.add(payloadKey);
+  if (seenPacketHashes.size > 128) seenPacketHashes.delete(seenPacketHashes.values().next().value);
   packetCount++;
   validCrcCount++;
   document.getElementById('packetCount').innerText = `Packets: ${packetCount} | CRC Valid: ${validCrcCount}`;
 
-  const text = new TextDecoder('utf-8').decode(payloadBytes);
-  let title = "Received Radio Bulletin";
-  let body = text;
-  let isVoice = false;
-
-  try {
-    const data = JSON.parse(text);
-    if (data.title || data.id) title = data.title || data.id;
-    if (data.body) body = data.body;
-    if (data.type === 'voice') isVoice = true;
-  } catch (e) {
-    // Plain text transmission
+  const text = new TextDecoder('utf-8', {fatal: false}).decode(payloadBytes);
+  let data;
+  try { data = JSON.parse(text); } catch (_) { data = null; }
+  const structured = data && typeof data === 'object' && !Array.isArray(data);
+  if (structured && (typeof data.id !== 'string' || !data.id.trim() ||
+      !Number.isSafeInteger(data.rev) || data.rev < 1 || typeof data.body !== 'string' ||
+      (data.title !== undefined && typeof data.title !== 'string'))) {
+    logPacket('Rejected malformed bulletin fields; previous content retained.');
+    return;
   }
-
-  displayReceivedArticle(title, body, false);
+  const title = structured ? (data.title || data.id) : 'Received Radio Bulletin';
+  const body = structured ? data.body : text;
+  const record = {
+    bulletinId: structured ? data.id : null, revision: structured ? data.rev : null,
+    publisher: structured ? (data.pub || 'unsigned') : 'unsigned',
+    signature: structured ? (data.sig || null) : null,
+    wireVersion: structured ? (data.v || 1) : null, payloadKey,
+    provenance: {simulation: false, origin, crcValid: true,
+      verification: structured && (data.pub || data.sig) ? 'signature_unverified' : 'unsigned',
+      publisherTrust: 'not_established'},
+  };
+  // Local ID/revision policy mirrors the accepted-store rules. Signatures are
+  // explicitly unverified here; this browser does not establish publisher trust.
+  const previous = archive.filter(item => !item.provenance?.simulation && record.bulletinId && item.bulletinId === record.bulletinId);
+  for (const item of previous) {
+    if (item.publisher !== record.publisher) {
+      logPacket('Publisher identity conflict; previous content retained.'); return;
+    }
+    if (item.revision === record.revision) {
+      if (item.title !== title || item.snippet !== body) logPacket('Revision conflict; previous content retained.');
+      return;
+    }
+  }
+  if (previous.some(item => item.revision > record.revision)) {
+    logPacket('Older revision ignored; latest content retained.'); return;
+  }
+  displayReceivedArticle(title, body, false, record);
   triggerHaptic('complete');
-  saveToOfflineArchive(isVoice ? 'voice' : 'text', title, body);
-  logPacket(`[AUTHENTIC DECODE] 100% Valid CRC16 from ${origin}: ${title} (${payloadBytes.length} bytes)`);
+  saveToOfflineArchive('text', title, body, record);
+  logPacket(`[CRC VALID] Transport error check passed from ${origin}: ${title}. Publisher trust not established.`);
 }
 
 function parseWavSamples(buffer) {
@@ -563,7 +489,7 @@ async function handleFileUpload(event) {
     const arrayBuffer = await file.arrayBuffer();
     const res = window.decodeAcousticWav(arrayBuffer);
     if (res.count > 0) {
-      logPacket(`Decoded ${res.count} authentic packet(s) from ${file.name}`);
+      logPacket(`Decoded ${res.count} CRC-valid packet(s) from ${file.name}`);
     } else {
       logPacket(`No valid AFSK packets found in ${file.name}`);
       alert('Demodulation completed: 0 valid CRC16 packets recovered.');
@@ -660,7 +586,7 @@ function playTestTone() {
   setTimeout(() => {
     displayReceivedArticle("[SIMULATED] Emergency Medical Advisory", testText, true);
     triggerHaptic('complete');
-    saveToOfflineArchive('text', '[SIMULATED] Emergency Medical Advisory', testText);
+    saveToOfflineArchive('text', '[SIMULATED] Emergency Medical Advisory', testText, {provenance: {simulation: true, origin: 'Simulation demo', verification: 'simulation', crcValid: false}});
     logPacket(`[SIMULATION DEMO] Displayed predetermined test payload (simulation mode, real counters untouched).`);
   }, 1200);
 }
@@ -709,7 +635,7 @@ function playTestVoiceMemo() {
   setTimeout(() => {
     displayReceivedVoiceMemo("CLINIC_NORTH (SIMULATED)", 1850, "Patient triage complete. Supply request dispatched.", true);
     triggerHaptic('complete');
-    saveToOfflineArchive('voice', '[SIMULATED] Voice Memo from CLINIC_NORTH', '1.85s Audio Note: Patient triage complete.');
+    saveToOfflineArchive('voice', '[SIMULATED] Voice Memo from CLINIC_NORTH', '1.85s Audio Note: Patient triage complete.', {provenance: {simulation: true, origin: 'Simulation demo', verification: 'simulation', crcValid: false}});
     logPacket(`[SIMULATION DEMO] Displayed predetermined voice note payload (simulation mode, real counters untouched).`);
   }, 1000);
 }
@@ -729,7 +655,7 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
-function displayReceivedArticle(title, body, isSimulation = false) {
+function displayReceivedArticle(title, body, isSimulation = false, record = {}) {
   currentArticleText = `${title}. ${body}`;
   const area = document.getElementById('contentArea');
   const bannerHtml = isSimulation ? `
@@ -737,18 +663,19 @@ function displayReceivedArticle(title, body, isSimulation = false) {
       ⚠️ [SIMULATION DEMO] Displaying pre-recorded demo payload for layout preview. Real CRC/packet counters are not incremented.
     </div>` : `
     <div style="margin-bottom: 8px;">
-      <span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid #10b981;">[AUTHENTIC BROADCAST DECODED]</span>
+      <span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid #10b981;">${provenanceLabel(record)}</span>
     </div>`;
 
   area.innerHTML = `
     ${bannerHtml}
+    ${provenanceDetails(record)}
     <h2 class="content-title">${escapeHtml(title)}</h2>
     <div class="content-body">${escapeHtml(body)}</div>
   `;
   document.getElementById('speakBtn').disabled = false;
 }
 
-function displayReceivedVoiceMemo(callsign, durationMs, transcript, isSimulation = false) {
+function displayReceivedVoiceMemo(callsign, durationMs, transcript, isSimulation = false, record = {}) {
   currentArticleText = `Voice note from ${callsign}. ${transcript}`;
   const area = document.getElementById('contentArea');
   const bannerHtml = isSimulation ? `
@@ -756,11 +683,12 @@ function displayReceivedVoiceMemo(callsign, durationMs, transcript, isSimulation
       ⚠️ [SIMULATION DEMO] Displaying pre-recorded voice note for layout preview. Real CRC/packet counters are not incremented.
     </div>` : `
     <div style="margin-bottom: 8px;">
-      <span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid #10b981;">[AUTHENTIC BROADCAST DECODED]</span>
+      <span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid #10b981;">${provenanceLabel(record)}</span>
     </div>`;
 
   area.innerHTML = `
     ${bannerHtml}
+    ${provenanceDetails(record)}
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
       <h2 class="content-title" style="margin:0;">📻 Voice Memo</h2>
       <span class="badge" style="background:#0284c7; color:#fff;">[${escapeHtml(callsign)}]</span>
@@ -790,7 +718,7 @@ function playSimulatedVoicePcm() {
   src.buffer = buffer;
   src.connect(ctx.destination);
   src.start();
-  logPacket(`Playing decoded 8 kHz voice memo through speaker.`);
+  logPacket(`Playing simulated voice audio for demonstration.`);
 }
 
 function speakCurrentContent() {
@@ -804,22 +732,36 @@ function speakCurrentContent() {
   window.speechSynthesis.speak(utter);
 }
 
-function saveToOfflineArchive(type, title, snippet) {
+function provenanceLabel(record) {
+  if (record.provenance?.simulation) return '[SIMULATION DEMO]';
+  if (!record.provenance?.crcValid) return '[ARCHIVED · PROVENANCE UNKNOWN]';
+  return record.provenance.verification === 'signature_unverified'
+    ? '[CRC VALID · SIGNATURE UNVERIFIED]' : '[CRC VALID · UNSIGNED]';
+}
+
+function provenanceDetails(record) {
+  if (!record.bulletinId) return '';
+  return `<div class="provenance" style="font-size:12px; overflow-wrap:anywhere; margin-bottom:10px;">
+    Bulletin: ${escapeHtml(record.bulletinId)} · Revision: ${escapeHtml(String(record.revision))}<br>
+    Publisher: ${escapeHtml(record.publisher)}<br>
+    Source: ${escapeHtml(record.provenance?.origin || 'Unknown')}<br>
+    Publisher trust not established. CRC checks transmission errors, not authorship.</div>`;
+}
+
+function saveToOfflineArchive(type, title, snippet, record = {}) {
   try {
-    const raw = localStorage.getItem('tfp_transmissions') || '[]';
-    const list = JSON.parse(raw);
-    list.unshift({ type, title, snippet, time: new Date().toLocaleTimeString() });
+    const list = readArchive();
+    list.unshift({...record, type, title, snippet, time: new Date().toISOString()});
     localStorage.setItem('tfp_transmissions', JSON.stringify(list.slice(0, 20)));
     loadOfflineArchive();
-  } catch (e) {}
+  } catch (_) { logPacket('Archive could not be saved; this message is not stored offline.'); }
 }
 
 function loadOfflineArchive() {
   const feed = document.getElementById('historyFeed');
   const countSpan = document.getElementById('archiveCount');
   try {
-    const raw = localStorage.getItem('tfp_transmissions') || '[]';
-    const list = JSON.parse(raw);
+    const list = readArchive();
     countSpan.innerText = list.length;
     if (list.length === 0) {
       feed.innerHTML = '<div class="packet-line" style="color:var(--muted)">No transmissions stored yet.</div>';
@@ -832,10 +774,11 @@ function loadOfflineArchive() {
       line.style.cursor = 'pointer';
       line.innerHTML = `<span style="color:#00e5ff;">[${escapeHtml(item.time)}]</span> <b>${escapeHtml(item.title)}</b>: ${escapeHtml((item.snippet || '').slice(0, 50))}...`;
       line.onclick = () => {
+        const simulated = item.provenance?.simulation === true || /\[SIMULATED\]/i.test(item.title || '');
         if (item.type === 'voice') {
-          displayReceivedVoiceMemo(item.title, 1850, item.snippet);
+          displayReceivedVoiceMemo(item.title, 1850, item.snippet, simulated, item);
         } else {
-          displayReceivedArticle(item.title, item.snippet);
+          displayReceivedArticle(item.title, item.snippet, simulated, item);
         }
       };
       feed.appendChild(line);

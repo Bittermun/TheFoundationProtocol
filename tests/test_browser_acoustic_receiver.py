@@ -9,19 +9,20 @@ Verifies:
 2. Initial telemetry: 0 packets, 0 valid CRC.
 3. Simulation decoupling: Simulation demo button renders explicit amber [SIMULATION DEMO]
    banner and does NOT inflate real CRC or packet counters.
-4. Authentic Web Audio demodulation: Unseen AFSK WAV audio payload synthesized by
+4. Web Audio demodulation: Unseen AFSK WAV audio payload synthesized by
    Python AFSKModulator is decoded by the in-browser JavaScript quadrature demodulator,
    recovering bit-exact content, incrementing real packet & CRC counters, displaying
-   [AUTHENTIC BROADCAST DECODED] badge, and persisting to offline localStorage archive.
+   CRC VALID and UNSIGNED labels, and persisting to offline localStorage archive.
 """
 
 import base64
 import json
 from pathlib import Path
 import pytest
-from playwright.sync_api import sync_playwright
 
 from tfp_client.lib.audio.afsk_modulator import AFSKModulator
+
+sync_playwright = pytest.importorskip("playwright.sync_api").sync_playwright
 
 
 def test_browser_acoustic_receiver_end_to_end(tmp_path: Path):
@@ -42,7 +43,7 @@ def test_browser_acoustic_receiver_end_to_end(tmp_path: Path):
 
         # 1. Verify Initial UI State
         assert "Packets: 0 | CRC Valid: 0" in page.locator("#packetCount").inner_text()
-        assert "Hold this phone near a radio speaker" in page.locator("#contentArea").inner_text()
+        assert "1200 baud text bulletin" in page.locator("#contentArea").inner_text()
 
         # 2. Verify Simulation Decoupling
         # Click [SIMULATION] Demo Bulletin button
@@ -91,7 +92,9 @@ def test_browser_acoustic_receiver_end_to_end(tmp_path: Path):
         assert "Pediatric oxygen concentrators operational." in content_text
 
         # Authentic badge must be present, and NO simulation banner for authentic transmission
-        assert "[AUTHENTIC BROADCAST DECODED]" in content_text
+        assert "CRC VALID" in content_text
+        assert "UNSIGNED" in content_text
+        assert "AUTHENTIC" not in content_text
         # The contentArea should not contain the amber simulation banner for this authentic packet
         assert page.locator("#contentArea .simulation-banner").count() == 0
 

@@ -10,11 +10,14 @@ Foundation Protocol packets from analog radio recordings or microphone audio.
 """
 
 import io
+import logging
 import math
 import struct
 import wave
 
 from .afsk_modulator import MAX_AFSK_PAYLOAD_SIZE, crc16_ccitt
+
+log = logging.getLogger(__name__)
 
 
 class GoertzelDetector:
