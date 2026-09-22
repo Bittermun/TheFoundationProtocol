@@ -15,13 +15,17 @@ import asyncio
 from dataclasses import dataclass, field
 import hashlib
 import hmac
+import json
 import logging
+import os
 from pathlib import Path
+import shutil
 import socket
 import struct
 import sys
 import time
 from typing import Callable, Dict, List, Optional, Set, Tuple
+import uuid
 
 # Ensure tfp_core_v4 is importable
 _repo_root = Path(__file__).resolve().parent.parent.parent.parent.parent
@@ -69,6 +73,7 @@ class FountainStreamReceiver:
         max_droplets_per_chunk: int = 512,
         max_chunks_per_session: int = 128,
         session_ttl_seconds: float = 600.0,
+        checkpoint_dir: Path | str | None = None,
     ):
         for name, limit in (
             ("max_sessions", max_sessions),
@@ -85,6 +90,7 @@ class FountainStreamReceiver:
         self.max_chunks_per_session = max_chunks_per_session
         self.session_ttl_seconds = session_ttl_seconds
         self.codec = FountainCodec(symbol_size=symbol_size)
+        self.checkpoint_dir = Path(checkpoint_dir).resolve() if checkpoint_dir else None
 
         # Droplet buffers: (session_id, chunk_index) -> {seed: FountainDroplet}
         self._droplet_buffers: Dict[Tuple[int, int], Dict[int, FountainDroplet]] = {}
@@ -98,6 +104,119 @@ class FountainStreamReceiver:
         self._session_timestamps: Dict[int, float] = {}
         # Reception statistics
         self.stats = ReceiverStats()
+
+        if self.checkpoint_dir:
+            self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
+            self._load_checkpoints()
+
+    def _save_chunk_checkpoint(self, session_id: int, chunk_idx: int, chunk_data: bytes) -> None:
+        """Persist a verified completed chunk to bounded checkpoint storage."""
+        if not self.checkpoint_dir:
+            return
+        sdir = self.checkpoint_dir / f"session_{session_id}"
+        sdir.mkdir(parents=True, exist_ok=True)
+        c_hash = hashlib.sha3_256(chunk_data).hexdigest()
+        cfile = sdir / f"chunk_{chunk_idx}_{c_hash}.dat"
+        tmp_file = sdir / f".tmp_{chunk_idx}_{uuid.uuid4().hex[:6]}.dat"
+        try:
+            tmp_file.write_bytes(chunk_data)
+            os.replace(tmp_file, cfile)
+        except Exception as exc:
+            log.warning(f"Failed to write chunk checkpoint: {exc}")
+            if tmp_file.exists():
+                tmp_file.unlink(missing_ok=True)
+
+    def _save_manifest_checkpoint(self, session_id: int, manifest: MediaManifest) -> None:
+        """Persist authentic session manifest to bounded checkpoint storage."""
+        if not self.checkpoint_dir:
+            return
+        sdir = self.checkpoint_dir / f"session_{session_id}"
+        sdir.mkdir(parents=True, exist_ok=True)
+        mfile = sdir / "manifest.json"
+        tmp_file = sdir / f".tmp_m_{uuid.uuid4().hex[:6]}.json"
+        try:
+            tmp_file.write_text(json.dumps(manifest.to_dict(), indent=2), encoding="utf-8")
+            os.replace(tmp_file, mfile)
+        except Exception as exc:
+            log.warning(f"Failed to write manifest checkpoint: {exc}")
+            if tmp_file.exists():
+                tmp_file.unlink(missing_ok=True)
+
+    def _load_checkpoints(self) -> None:
+        """Restore verified chunks and manifests from disk checkpoints across process restarts."""
+        if not self.checkpoint_dir or not self.checkpoint_dir.exists():
+            return
+
+        session_dirs = [
+            d for d in self.checkpoint_dir.iterdir()
+            if d.is_dir() and d.name.startswith("session_")
+        ]
+        if len(session_dirs) > self.max_sessions:
+            session_dirs.sort(key=lambda d: d.stat().st_mtime, reverse=True)
+            for d in session_dirs[self.max_sessions:]:
+                shutil.rmtree(d, ignore_errors=True)
+            session_dirs = session_dirs[:self.max_sessions]
+
+        for sdir in session_dirs:
+            try:
+                session_id = int(sdir.name.split("_", 1)[1])
+            except Exception:
+                continue
+
+            if (time.time() - sdir.stat().st_mtime) > self.session_ttl_seconds:
+                shutil.rmtree(sdir, ignore_errors=True)
+                continue
+
+            m_file = sdir / "manifest.json"
+            manifest = None
+            if m_file.exists():
+                try:
+                    m_dict = json.loads(m_file.read_text(encoding="utf-8"))
+                    manifest = MediaManifest.from_dict(m_dict)
+                    if manifest.chunk_count <= self.max_chunks_per_session and not any(
+                        size > self.max_droplets_per_chunk * self.symbol_size for size in manifest.chunk_sizes
+                    ):
+                        self.received_manifests[session_id] = manifest
+                        self.latest_manifest = manifest
+                        self._session_timestamps[session_id] = sdir.stat().st_mtime
+                        self._last_active_session = session_id
+                    else:
+                        log.warning(f"Checkpoint manifest for session {session_id} exceeds limits")
+                        manifest = None
+                except Exception as exc:
+                    log.warning(f"Corrupted manifest checkpoint in {sdir}: {exc}. Discarding.")
+                    m_file.unlink(missing_ok=True)
+                    manifest = None
+
+            session_chunks = self.reconstructed_chunks_by_session.setdefault(session_id, {})
+            for cfile in sdir.glob("chunk_*_*.dat"):
+                try:
+                    parts = cfile.stem.split("_")
+                    if len(parts) < 3:
+                        continue
+                    c_idx = int(parts[1])
+                    expected_c_hash = parts[2]
+                    cdata = cfile.read_bytes()
+                    computed_hash = hashlib.sha3_256(cdata).hexdigest()
+
+                    if not hmac.compare_digest(computed_hash, expected_c_hash):
+                        log.warning(f"Corrupted checkpoint chunk file discarded: {cfile.name}")
+                        cfile.unlink(missing_ok=True)
+                        continue
+
+                    if manifest and c_idx < len(manifest.chunk_hashes) and not hmac.compare_digest(
+                        computed_hash, manifest.chunk_hashes[c_idx]
+                    ):
+                        log.warning(f"Checkpoint chunk does not match manifest: {cfile.name}")
+                        cfile.unlink(missing_ok=True)
+                        continue
+
+                    session_chunks[c_idx] = cdata
+                    self._session_timestamps[session_id] = sdir.stat().st_mtime
+                    self.stats.chunks_reconstructed = len(session_chunks)
+                except Exception as exc:
+                    log.warning(f"Error loading checkpoint {cfile}: {exc}")
+                    cfile.unlink(missing_ok=True)
 
     @property
     def reconstructed_chunks(self) -> Dict[int, bytes]:
@@ -180,6 +299,15 @@ class FountainStreamReceiver:
                 self.latest_manifest = next(iter(self.received_manifests.values()), None)
             if self._last_active_session == session_id:
                 self._last_active_session = next(iter(self._session_timestamps), None)
+
+        if self.checkpoint_dir and self.checkpoint_dir.exists():
+            if session_id is None:
+                for sdir in self.checkpoint_dir.glob("session_*"):
+                    shutil.rmtree(sdir, ignore_errors=True)
+            else:
+                sdir = self.checkpoint_dir / f"session_{session_id}"
+                if sdir.exists():
+                    shutil.rmtree(sdir, ignore_errors=True)
 
     def ingest_packet(self, pkt: MediaDropletPacket) -> Optional[Tuple[int, bytes]]:
         """
@@ -310,6 +438,8 @@ class FountainStreamReceiver:
                 session_chunks[chunk_idx] = reconstructed
                 del self._droplet_buffers[buf_key]
                 self.stats.chunks_reconstructed += 1
+                if self.checkpoint_dir:
+                    self._save_chunk_checkpoint(session_id, chunk_idx, reconstructed)
                 return (chunk_idx, reconstructed)
             except ValueError:
                 # Rank deficient (repair symbols had overlapping linear dependencies)
@@ -336,6 +466,8 @@ class FountainStreamReceiver:
         self.received_manifests[sess_id] = manifest
         self.latest_manifest = manifest
         self._last_active_session = sess_id
+        if self.checkpoint_dir:
+            self._save_manifest_checkpoint(sess_id, manifest)
 
         # Prune metadata as well as buffers: completed speculative chunks
         # no longer have a droplet buffer but still have metadata.

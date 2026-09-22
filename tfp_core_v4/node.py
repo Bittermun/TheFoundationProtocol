@@ -109,6 +109,24 @@ class TFPNode:
                 )
                 """
             )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS bulletins (
+                    bulletin_id TEXT,
+                    revision INTEGER,
+                    content_hash TEXT,
+                    root_hash TEXT,
+                    publisher_id TEXT,
+                    signature_hex TEXT,
+                    title TEXT,
+                    received_at REAL,
+                    verified_status TEXT,
+                    data_size INTEGER,
+                    metadata_json TEXT,
+                    PRIMARY KEY (bulletin_id, revision)
+                )
+                """
+            )
             conn.commit()
         finally:
             conn.close()
@@ -424,3 +442,176 @@ class TFPNode:
     def get_telemetry(self) -> dict[str, Any]:
         """Return real deduplication and throughput metrics."""
         return dict(self.telemetry)
+
+    def store_bulletin(
+        self,
+        bulletin_id: str,
+        revision: int,
+        data: bytes,
+        title: str = "",
+        publisher_id: str = "unsigned",
+        signature_hex: str | None = None,
+        verified_status: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> ChunkRecipe:
+        """
+        Store a verified broadcast bulletin into the authoritative node store.
+        Distinguishes content hash, bulletin ID, revision, publisher identity,
+        receipt time, and verification results.
+        """
+        if not data:
+            raise ValueError("Bulletin payload data cannot be empty")
+
+        content_hash = hashlib.sha3_256(data).hexdigest()
+        status = verified_status
+
+        # Perform Ed25519 signature verification if publisher and signature are provided
+        if status is None:
+            if publisher_id and publisher_id != "unsigned" and signature_hex:
+                try:
+                    from cryptography.hazmat.primitives.asymmetric import ed25519
+
+                    pub_bytes = bytes.fromhex(publisher_id)
+                    sig_bytes = bytes.fromhex(signature_hex)
+                    pub_key = ed25519.Ed25519PublicKey.from_public_bytes(pub_bytes)
+                    canonical_msg = f"TFP_BULLETIN:{bulletin_id}:{revision}:{content_hash}".encode("utf-8")
+                    pub_key.verify(sig_bytes, canonical_msg)
+                    status = "verified_ed25519"
+                except Exception as exc:
+                    log.warning(f"Bulletin Ed25519 signature verification failed: {exc}")
+                    status = "signature_mismatch"
+            else:
+                status = "unsigned"
+
+        combined_meta = dict(metadata or {})
+        combined_meta.update({
+            "bulletin_id": bulletin_id,
+            "revision": revision,
+            "title": title or bulletin_id,
+            "publisher_id": publisher_id,
+            "signature_hex": signature_hex,
+            "verified_status": status,
+            "content_hash": content_hash,
+            "received_at": time.time(),
+        })
+
+        recipe = self.publish(data, metadata=combined_meta)
+        combined_meta["root_hash"] = recipe.root_hash
+
+        if self.db_path:
+            conn = sqlite3.connect(str(self.db_path))
+            try:
+                conn.execute(
+                    """
+                    INSERT OR REPLACE INTO bulletins
+                    (bulletin_id, revision, content_hash, root_hash, publisher_id, signature_hex, title, received_at, verified_status, data_size, metadata_json)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        bulletin_id,
+                        revision,
+                        content_hash,
+                        recipe.root_hash,
+                        publisher_id,
+                        signature_hex,
+                        title or bulletin_id,
+                        combined_meta["received_at"],
+                        status,
+                        len(data),
+                        json.dumps(combined_meta),
+                    ),
+                )
+                conn.commit()
+            finally:
+                conn.close()
+
+        return recipe
+
+    def get_bulletin(
+        self, bulletin_id: str, revision: int | None = None
+    ) -> tuple[dict[str, Any], bytes] | None:
+        """
+        Retrieve a bulletin's record and exact content bytes from authoritative storage.
+        """
+        if not self.db_path or not self.db_path.exists():
+            return None
+
+        conn = sqlite3.connect(str(self.db_path))
+        try:
+            cur = conn.cursor()
+            if revision is not None:
+                cur.execute(
+                    """
+                    SELECT bulletin_id, revision, content_hash, root_hash, publisher_id, signature_hex, title, received_at, verified_status, data_size, metadata_json
+                    FROM bulletins WHERE bulletin_id = ? AND revision = ?
+                    """,
+                    (bulletin_id, revision),
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT bulletin_id, revision, content_hash, root_hash, publisher_id, signature_hex, title, received_at, verified_status, data_size, metadata_json
+                    FROM bulletins WHERE bulletin_id = ? ORDER BY revision DESC LIMIT 1
+                    """,
+                    (bulletin_id,),
+                )
+            row = cur.fetchone()
+            if not row:
+                return None
+
+            b_id, rev, c_hash, r_hash, pub_id, sig, title, recv_at, status, d_size, meta_json = row
+            meta = json.loads(meta_json) if meta_json else {}
+            meta.update({
+                "bulletin_id": b_id,
+                "revision": rev,
+                "content_hash": c_hash,
+                "root_hash": r_hash,
+                "publisher_id": pub_id,
+                "signature_hex": sig,
+                "title": title,
+                "received_at": recv_at,
+                "verified_status": status,
+                "data_size": d_size,
+            })
+            content_bytes = self.fetch(r_hash or c_hash)
+            return meta, content_bytes
+        finally:
+            conn.close()
+
+    def list_bulletins(self) -> list[dict[str, Any]]:
+        """
+        List all bulletins stored in authoritative storage.
+        """
+        if not self.db_path or not self.db_path.exists():
+            return []
+
+        conn = sqlite3.connect(str(self.db_path))
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                """
+                SELECT bulletin_id, revision, content_hash, root_hash, publisher_id, signature_hex, title, received_at, verified_status, data_size, metadata_json
+                FROM bulletins ORDER BY received_at DESC, bulletin_id ASC, revision DESC
+                """
+            )
+            results = []
+            for row in cur.fetchall():
+                b_id, rev, c_hash, r_hash, pub_id, sig, title, recv_at, status, d_size, meta_json = row
+                meta = json.loads(meta_json) if meta_json else {}
+                meta.update({
+                    "bulletin_id": b_id,
+                    "revision": rev,
+                    "content_hash": c_hash,
+                    "root_hash": r_hash,
+                    "publisher_id": pub_id,
+                    "signature_hex": sig,
+                    "title": title,
+                    "received_at": recv_at,
+                    "verified_status": status,
+                    "data_size": d_size,
+                })
+                results.append(meta)
+            return results
+        finally:
+            conn.close()
+
