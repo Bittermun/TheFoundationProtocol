@@ -82,8 +82,10 @@ jobs:
           python -m venv "$RUNNER_TEMP/tfp-runtime"
           "$RUNNER_TEMP/tfp-runtime/bin/python" -m pip install dist/*.whl
           cp scripts/check_installed_visualizer.py "$RUNNER_TEMP/check_installed_visualizer.py"
+          cp scripts/check_installed_bulletin.py "$RUNNER_TEMP/check_installed_bulletin.py"
           cd "$RUNNER_TEMP"
           "$RUNNER_TEMP/tfp-runtime/bin/python" -I -B check_installed_visualizer.py
+          "$RUNNER_TEMP/tfp-runtime/bin/python" -I -B check_installed_bulletin.py
           env -u PYTHONPATH "$RUNNER_TEMP/tfp-runtime/bin/python" -m tfp_cli.smoke --json
           env -u PYTHONPATH "$RUNNER_TEMP/tfp-runtime/bin/python" -m tfp_cli.operational_smoke
       - uses: actions/upload-artifact@v4
@@ -103,6 +105,18 @@ jobs:
       - run: python -m pip install ".[browser]"
       - run: python -m playwright install --with-deps chromium
       - run: python scripts/check_demo_browser.py
+      - name: Test bulletin reception from an installed wheel outside the checkout
+        shell: bash
+        run: |
+          python -m pip install build
+          python -m build
+          python -m venv "$RUNNER_TEMP/tfp-browser"
+          "$RUNNER_TEMP/tfp-browser/bin/python" -m pip install dist/*.whl pytest playwright
+          mkdir "$RUNNER_TEMP/bulletin-tests"
+          cp tests/test_browser_acoustic_acceptance.py tests/test_bulletin_admission_recovery.py tests/test_checkpoint_admission.py "$RUNNER_TEMP/bulletin-tests/"
+          printf '[pytest]\n' > "$RUNNER_TEMP/bulletin-tests/pytest.ini"
+          cd "$RUNNER_TEMP/bulletin-tests"
+          "$RUNNER_TEMP/tfp-browser/bin/python" -I -B -m pytest -c pytest.ini -q
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -10,11 +10,14 @@ Foundation Protocol packets from analog radio recordings or microphone audio.
 """
 
 import io
+import logging
 import math
 import struct
 import wave
 
 from .afsk_modulator import MAX_AFSK_PAYLOAD_SIZE, crc16_ccitt
+
+log = logging.getLogger(__name__)
 
 
 class GoertzelDetector:
@@ -76,12 +79,16 @@ class AFSKDemodulator:
     def decode_wav(self, wav_bytes: bytes, fallback_300: bool = False) -> list[bytes]:
         """Reads a WAV file buffer and extracts all valid packets, optionally falling back to 300 baud."""
         buf = io.BytesIO(wav_bytes)
-        with wave.open(buf, "rb") as w:
-            sr = w.getframerate()
-            n_channels = w.getnchannels()
-            _samp_width = w.getsampwidth()
-            n_frames = w.getnframes()
-            raw_frames = w.readframes(n_frames)
+        try:
+            with wave.open(buf, "rb") as w:
+                sr = w.getframerate()
+                n_channels = w.getnchannels()
+                _samp_width = w.getsampwidth()
+                n_frames = w.getnframes()
+                raw_frames = w.readframes(n_frames)
+        except Exception as exc:
+            log.warning(f"Failed to read WAV audio header/stream: {exc}")
+            return []
 
         if sr != self.sample_rate:
             # Adjust sample rate configuration
@@ -90,8 +97,14 @@ class AFSKDemodulator:
             self.block_size = round(self.samples_per_bit)
 
         # Unpack 16-bit mono or stereo samples (taking left channel if stereo)
+        bytes_per_frame = 2 * n_channels
+        actual_frames = len(raw_frames) // bytes_per_frame
+        if actual_frames <= 0:
+            return []
+        raw_frames = raw_frames[: actual_frames * bytes_per_frame]
+
         samples = []
-        fmt = "<" + ("h" * (n_frames * n_channels))
+        fmt = "<" + ("h" * (actual_frames * n_channels))
         all_samples = struct.unpack(fmt, raw_frames)
         for i in range(0, len(all_samples), n_channels):
             samples.append(float(all_samples[i]))

@@ -12,15 +12,21 @@ continuous media streams without requiring an uplink ACK/NACK channel.
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass, field
 import hashlib
+import heapq
 import hmac
+import json
 import logging
-from pathlib import Path
+import os
+import shutil
 import socket
+import stat
 import struct
 import sys
 import time
+import uuid
+from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Callable, Dict, List, Optional, Set, Tuple
 
 # Ensure tfp_core_v4 is importable
@@ -29,13 +35,14 @@ if str(_repo_root) not in sys.path:
     sys.path.insert(0, str(_repo_root))
 
 from tfp_core_v4.fountain import FountainCodec, FountainDroplet
+
 from .fountain_streamer import (
-    AntiPollutionError,
-    MediaDropletPacket,
-    MediaStreamError,
     MANIFEST_MAGIC,
     PACKET_MAGIC,
     PACKET_VERSION,
+    AntiPollutionError,
+    MediaDropletPacket,
+    MediaStreamError,
     deserialize_manifest_packet,
 )
 from .stream_packager import MediaManifest
@@ -69,6 +76,7 @@ class FountainStreamReceiver:
         max_droplets_per_chunk: int = 512,
         max_chunks_per_session: int = 128,
         session_ttl_seconds: float = 600.0,
+        checkpoint_dir: Path | str | None = None,
     ):
         for name, limit in (
             ("max_sessions", max_sessions),
@@ -85,6 +93,7 @@ class FountainStreamReceiver:
         self.max_chunks_per_session = max_chunks_per_session
         self.session_ttl_seconds = session_ttl_seconds
         self.codec = FountainCodec(symbol_size=symbol_size)
+        self.checkpoint_dir = Path(checkpoint_dir).resolve() if checkpoint_dir else None
 
         # Droplet buffers: (session_id, chunk_index) -> {seed: FountainDroplet}
         self._droplet_buffers: Dict[Tuple[int, int], Dict[int, FountainDroplet]] = {}
@@ -98,6 +107,162 @@ class FountainStreamReceiver:
         self._session_timestamps: Dict[int, float] = {}
         # Reception statistics
         self.stats = ReceiverStats()
+
+        if self.checkpoint_dir:
+            self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
+            self._load_checkpoints()
+
+    def _save_chunk_checkpoint(self, session_id: int, chunk_idx: int, chunk_data: bytes) -> None:
+        """Persist a verified completed chunk to bounded checkpoint storage."""
+        if not self.checkpoint_dir:
+            return
+        sdir = self.checkpoint_dir / f"session_{session_id}"
+        sdir.mkdir(parents=True, exist_ok=True)
+        c_hash = hashlib.sha3_256(chunk_data).hexdigest()
+        cfile = sdir / f"chunk_{chunk_idx}_{c_hash}.dat"
+        tmp_file = sdir / f".tmp_{chunk_idx}_{uuid.uuid4().hex[:6]}.dat"
+        try:
+            tmp_file.write_bytes(chunk_data)
+            os.replace(tmp_file, cfile)
+        except Exception as exc:
+            log.warning(f"Failed to write chunk checkpoint: {exc}")
+            if tmp_file.exists():
+                tmp_file.unlink(missing_ok=True)
+
+    def _save_manifest_checkpoint(self, session_id: int, manifest: MediaManifest) -> None:
+        """Persist authentic session manifest to bounded checkpoint storage."""
+        if not self.checkpoint_dir:
+            return
+        sdir = self.checkpoint_dir / f"session_{session_id}"
+        sdir.mkdir(parents=True, exist_ok=True)
+        mfile = sdir / "manifest.json"
+        tmp_file = sdir / f".tmp_m_{uuid.uuid4().hex[:6]}.json"
+        try:
+            record = {"version": 1, "symbol_size": self.symbol_size, "verify_tag": self.verify_tag,
+                      "session_id": session_id, "manifest": manifest.to_dict()}
+            record["auth_tag"] = hmac.new(self.secret_key, self._checkpoint_bytes(record), hashlib.sha3_256).hexdigest()
+            tmp_file.write_bytes(self._checkpoint_bytes(record))
+            os.replace(tmp_file, mfile)
+        except Exception as exc:
+            log.warning(f"Failed to write manifest checkpoint: {exc}")
+            if tmp_file.exists():
+                tmp_file.unlink(missing_ok=True)
+
+    @staticmethod
+    def _checkpoint_bytes(record) -> bytes:
+        return json.dumps(record, sort_keys=True, separators=(",", ":")).encode("utf-8")
+
+    @staticmethod
+    def _plain_checkpoint_path(path: Path) -> bool:
+        info = path.lstat()
+        return not (stat.S_ISLNK(info.st_mode) or getattr(info, "st_file_attributes", 0) & 0x400)
+
+    def _remove_checkpoint_session(self, path: Path) -> None:
+        """Remove only a plain session directory directly inside checkpoint storage."""
+        try:
+            if (path.parent == self.checkpoint_dir and path.name.startswith("session_")
+                    and self._plain_checkpoint_path(path) and path.is_dir()):
+                shutil.rmtree(path)
+        except OSError as exc:
+            log.warning("Could not remove checkpoint %s: %s", path, exc)
+
+    def _load_checkpoints(self) -> None:
+        """Restore only bounded, context-bound sessions. Unknown formats are ignored.
+
+        A missing/corrupt/legacy manifest is not permission to restore speculative
+        files. Bounds and file lengths are checked before chunk bytes are read.
+        """
+        if not self.checkpoint_dir:
+            return
+        now = time.time()
+        retained = []
+        for sdir in self.checkpoint_dir.iterdir():
+            try:
+                if (not sdir.name.startswith("session_") or not self._plain_checkpoint_path(sdir)
+                        or not sdir.is_dir()):
+                    continue
+                session_id = int(sdir.name.removeprefix("session_"))
+                timestamp = sdir.stat().st_mtime
+                if not 0 <= session_id <= 0xFFFFFFFF or sdir.name != f"session_{session_id}":
+                    continue
+                m_file = sdir / "manifest.json"
+                if not self._plain_checkpoint_path(m_file) or m_file.stat().st_size > 1_048_576:
+                    continue
+                with m_file.open("rb") as source:
+                    raw = source.read(1_048_577)
+                if len(raw) > 1_048_576:
+                    continue
+                record = json.loads(raw)
+                tag = record.pop("auth_tag")
+                expected_tag = hmac.new(self.secret_key, self._checkpoint_bytes(record), hashlib.sha3_256).hexdigest()
+                if not hmac.compare_digest(tag, expected_tag):
+                    continue
+                if (record["version"] != 1 or record["symbol_size"] != self.symbol_size
+                        or record["verify_tag"] != self.verify_tag):
+                    continue
+                manifest = MediaManifest.from_dict(record["manifest"])
+                # Older context-bound records implicitly used the derived ID.
+                saved_session = record.get("session_id", self.derive_session_id(manifest))
+                if type(saved_session) is not int or saved_session != session_id:
+                    continue
+            except (OSError, ValueError, KeyError, TypeError, AttributeError) as exc:
+                log.warning("Ignoring checkpoint without valid context in %s: %s", sdir, exc)
+                continue
+
+            # Validate ownership before deleting anything. Unknown, legacy and
+            # differently authenticated checkpoints are deliberately preserved.
+            if now - timestamp > self.session_ttl_seconds:
+                self._remove_checkpoint_session(sdir)
+                continue
+            if not self._manifest_fits(manifest):
+                continue
+            candidate = (timestamp, session_id, sdir, manifest)
+            if len(retained) < self.max_sessions:
+                heapq.heappush(retained, candidate)
+            else:
+                discarded = heapq.heappushpop(retained, candidate)
+                self._remove_checkpoint_session(discarded[2])
+
+        # Restore oldest first so the default view ends on the newest session.
+        for timestamp, session_id, sdir, manifest in sorted(retained):
+            session_chunks: dict[int, bytes] = {}
+            for cfile in sdir.glob("chunk_*_*.dat"):
+                if len(session_chunks) >= self.max_chunks_per_session:
+                    break
+                try:
+                    parts = cfile.stem.split("_")
+                    if len(parts) != 3 or not self._plain_checkpoint_path(cfile):
+                        continue
+                    c_idx = int(parts[1])
+                    if not 0 <= c_idx < manifest.chunk_count or c_idx in session_chunks:
+                        continue
+                    expected_hash = manifest.chunk_hashes[c_idx]
+                    expected_size = manifest.chunk_sizes[c_idx]
+                    if parts[2] != expected_hash or cfile.stat().st_size != expected_size:
+                        continue
+                    with cfile.open("rb") as source:
+                        cdata = source.read(expected_size + 1)
+                    if len(cdata) != expected_size or not hmac.compare_digest(hashlib.sha3_256(cdata).hexdigest(), expected_hash):
+                        cfile.unlink(missing_ok=True)
+                        continue
+                    session_chunks[c_idx] = cdata
+                except (OSError, ValueError, TypeError):
+                    continue
+            self.received_manifests[session_id] = manifest
+            self.reconstructed_chunks_by_session[session_id] = session_chunks
+            self._session_timestamps[session_id] = timestamp
+            self._last_active_session = session_id
+            self.latest_manifest = manifest
+            self.stats.chunks_reconstructed += len(session_chunks)
+
+    def _manifest_fits(self, manifest: MediaManifest) -> bool:
+        try:
+            MediaManifest.from_dict(manifest.to_dict())
+            return (manifest.chunk_count <= self.max_chunks_per_session and all(
+                size <= self.max_droplets_per_chunk * self.symbol_size for size in manifest.chunk_sizes
+            ))
+        except (ValueError, TypeError, KeyError):
+            return False
 
     @property
     def reconstructed_chunks(self) -> Dict[int, bytes]:
@@ -114,10 +279,25 @@ class FountainStreamReceiver:
     @staticmethod
     def derive_session_id(manifest: MediaManifest) -> int:
         """Derive 32-bit uint32 session identifier deterministically from manifest."""
+        # Existing in-process stream callers also supply an explicit uint32 ID.
+        if type(manifest.manifest_id) is int and 0 <= manifest.manifest_id <= 0xFFFFFFFF:
+            return manifest.manifest_id
+        if not isinstance(manifest.manifest_id, str):
+            raise TypeError("Manifest ID must be a string or uint32 session ID")
         try:
             return int.from_bytes(bytes.fromhex(manifest.manifest_id)[:4], "big")
         except Exception:
             return int.from_bytes(hashlib.sha256(manifest.manifest_id.encode()).digest()[:4], "big")
+
+    def _session_for_manifest(self, manifest: MediaManifest, session_id: Optional[int]) -> int:
+        if session_id is not None:
+            return session_id
+        if self._last_active_session is not None and self.received_manifests.get(self._last_active_session) is manifest:
+            return self._last_active_session
+        for registered_id, registered_manifest in self.received_manifests.items():
+            if registered_manifest is manifest:
+                return registered_id
+        return self.derive_session_id(manifest)
 
     def _evict_stale_or_excess_sessions(self, incoming_session: int) -> None:
         """Evicts sessions exceeding max_sessions (LRU) or older than session_ttl_seconds."""
@@ -174,12 +354,21 @@ class FountainStreamReceiver:
             for k in to_delete_meta:
                 self._chunk_meta.pop(k, None)
             self.reconstructed_chunks_by_session.pop(session_id, None)
-            self.received_manifests.pop(session_id, None)
+            removed_manifest = self.received_manifests.pop(session_id, None)
             self._session_timestamps.pop(session_id, None)
-            if self.latest_manifest and self.derive_session_id(self.latest_manifest) == session_id:
+            if removed_manifest is not None and self.latest_manifest is removed_manifest:
                 self.latest_manifest = next(iter(self.received_manifests.values()), None)
             if self._last_active_session == session_id:
                 self._last_active_session = next(iter(self._session_timestamps), None)
+
+        if self.checkpoint_dir and self.checkpoint_dir.exists():
+            if session_id is None:
+                for sdir in self.checkpoint_dir.glob("session_*"):
+                    self._remove_checkpoint_session(sdir)
+            else:
+                sdir = self.checkpoint_dir / f"session_{session_id}"
+                if sdir.exists():
+                    self._remove_checkpoint_session(sdir)
 
     def ingest_packet(self, pkt: MediaDropletPacket) -> Optional[Tuple[int, bytes]]:
         """
@@ -310,6 +499,8 @@ class FountainStreamReceiver:
                 session_chunks[chunk_idx] = reconstructed
                 del self._droplet_buffers[buf_key]
                 self.stats.chunks_reconstructed += 1
+                if self.checkpoint_dir:
+                    self._save_chunk_checkpoint(session_id, chunk_idx, reconstructed)
                 return (chunk_idx, reconstructed)
             except ValueError:
                 # Rank deficient (repair symbols had overlapping linear dependencies)
@@ -318,24 +509,25 @@ class FountainStreamReceiver:
 
         return None
 
-    def ingest_manifest(self, manifest: MediaManifest) -> Optional[int]:
+    def ingest_manifest(self, manifest: MediaManifest, session_id: Optional[int] = None) -> Optional[int]:
         """
         Directly register an authentic MediaManifest for a session.
         Prunes any out-of-bounds or corrupted speculative chunks and buffers.
-        Returns the derived session_id, or None if the manifest exceeds receiver resource limits.
+        Returns the explicit or derived session_id, or None for invalid IDs or oversized manifests.
         """
-        if manifest.chunk_count > self.max_chunks_per_session or any(
-            size > self.max_droplets_per_chunk * self.symbol_size
-            for size in manifest.chunk_sizes
-        ):
+        if not self._manifest_fits(manifest):
             return None
 
-        sess_id = self.derive_session_id(manifest)
+        sess_id = self.derive_session_id(manifest) if session_id is None else session_id
+        if type(sess_id) is not int or not 0 <= sess_id <= 0xFFFFFFFF:
+            return None
         self._evict_stale_or_excess_sessions(sess_id)
         self._session_timestamps[sess_id] = time.time()
         self.received_manifests[sess_id] = manifest
         self.latest_manifest = manifest
         self._last_active_session = sess_id
+        if self.checkpoint_dir:
+            self._save_manifest_checkpoint(sess_id, manifest)
 
         # Prune metadata as well as buffers: completed speculative chunks
         # no longer have a droplet buffer but still have metadata.
@@ -410,9 +602,12 @@ class FountainStreamReceiver:
         if target_manifest is None:
             return False
 
-        target_session = session_id if session_id is not None else self.derive_session_id(target_manifest)
-        if target_manifest and target_session not in self.received_manifests:
-            self.received_manifests[target_session] = target_manifest
+        target_session = self._session_for_manifest(target_manifest, session_id)
+        if not self._manifest_fits(target_manifest):
+            return False
+        if target_session not in self.received_manifests:
+            if self.ingest_manifest(target_manifest, session_id=target_session) is None:
+                return False
 
         chunks = self.reconstructed_chunks_by_session.get(target_session, {})
         if len(chunks) < target_manifest.chunk_count:
@@ -437,7 +632,7 @@ class FountainStreamReceiver:
         if target_manifest is None:
             raise ValueError("Cannot assemble media: no manifest provided and none received over wire")
 
-        target_session = session_id if session_id is not None else self.derive_session_id(target_manifest)
+        target_session = self._session_for_manifest(target_manifest, session_id)
 
         if not self.is_complete(target_manifest, session_id=target_session):
             chunks = self.reconstructed_chunks_by_session.get(target_session, {})

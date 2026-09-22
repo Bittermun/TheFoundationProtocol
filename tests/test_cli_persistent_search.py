@@ -11,8 +11,8 @@ import sys
 from pathlib import Path
 
 
-def test_cli_search_empty_db_fallback(tmp_path: Path):
-    """Verify that search falls back to demo corpus if database is empty."""
+def test_cli_search_empty_db_honest_report(tmp_path: Path):
+    """Verify that search honestly reports 0 published articles and marks demonstration corpus."""
     empty_db = tmp_path / "empty_node.db"
 
     res = subprocess.run(
@@ -26,9 +26,80 @@ def test_cli_search_empty_db_fallback(tmp_path: Path):
         check=True,
         timeout=15,
     )
-    assert "[TFP SEARCH] Found" in res.stdout
-    assert "doc1" in res.stdout
-    assert "water purification and sanitation" in res.stdout
+    assert "0 published articles found" in res.stdout
+    assert "Searching built-in emergency demonstration corpus:" in res.stdout
+    assert "[DEMO] doc1:" in res.stdout
+
+
+def test_cli_search_empty_db_unmatched_query(tmp_path: Path):
+    """Verify that unmatched queries on empty db report no matching content."""
+    empty_db = tmp_path / "empty_node.db"
+
+    res = subprocess.run(
+        [
+            sys.executable, "-m", "tfp_core_v4.cli",
+            "--db", str(empty_db),
+            "search", "unmatched_quantum_telemetry",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=15,
+    )
+    assert "0 published articles found" in res.stdout
+    assert "Searching built-in emergency demonstration corpus:" in res.stdout
+    assert "No matching content found for 'unmatched_quantum_telemetry'" in res.stdout
+
+
+def test_cli_search_degraded_document_explicit_warning(tmp_path: Path):
+    """Verify that documents whose body cannot be retrieved are visibly tagged as degraded."""
+    import sqlite3
+    from tfp_core_v4.node import TFPNode
+
+    db_file = tmp_path / "degraded_node.db"
+    node = TFPNode(db_path=db_file)
+    recipe = node.publish(
+        b"Sensitive emergency triage instructions for radiation burns.",
+        metadata={"title": "Radiation Triage Field Guide"},
+    )
+
+    # Corrupt/delete chunk data to force retrieval failure
+    conn = sqlite3.connect(str(db_file))
+    conn.execute("DELETE FROM chunks")
+    conn.execute("DELETE FROM droplets")
+    conn.commit()
+    conn.close()
+
+    # Search by body term that cannot be searched
+    body_res = subprocess.run(
+        [
+            sys.executable, "-m", "tfp_core_v4.cli",
+            "--db", str(db_file),
+            "search", "burns",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=15,
+    )
+    assert "Warning: 1 document(s) could not be fully searched" in body_res.stdout
+    assert "could not be searched because content body was unavailable" in body_res.stdout
+
+    # Search by title term: result should be returned with [DEGRADED: BODY UNAVAILABLE] tag
+    title_res = subprocess.run(
+        [
+            sys.executable, "-m", "tfp_core_v4.cli",
+            "--db", str(db_file),
+            "search", "Radiation",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=15,
+    )
+    assert "[DEGRADED: BODY UNAVAILABLE]" in title_res.stdout
+    assert "Radiation Triage Field Guide" in title_res.stdout
+    assert recipe.root_hash in title_res.stdout
 
 
 def test_cli_publish_then_persistent_body_search(tmp_path: Path):

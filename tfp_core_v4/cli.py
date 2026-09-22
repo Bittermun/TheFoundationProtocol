@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import errno
 import hashlib
 import json
 import logging
@@ -48,6 +49,7 @@ from tfp_client.lib.media.template_engine import TemplateParser
 from tfp_client.lib.radio.framing import RadioFramePacker, RadioFrameReassembler
 from tfp_client.lib.search.hybrid_search import HybridSearchEngine
 
+from tfp_core_v4.bulletin import import_bulletin_package, prepare_bulletin_package
 from tfp_core_v4.node import TFPNode
 from tfp_core_v4.visualizer_server import (
     create_visualizer_server,
@@ -82,6 +84,32 @@ def main(argv: list[str] | None = None):
     search_p.add_argument("query", help="Text search query")
     search_p.add_argument("--top-k", type=int, default=5, help="Maximum number of results to return (default: 5)")
     search_p.add_argument("--db", dest="search_db", default=None, help="Path to persistent SQLite node storage")
+    search_p.add_argument("--demo", action="store_true", help="Search built-in emergency demonstration corpus if database is empty")
+
+    # Bulletin Prepare
+    bprep_p = subparsers.add_parser("bulletin-prepare", help="Prepare an atomic broadcast bulletin package with audio WAV")
+    bprep_p.add_argument("content", help="Bulletin text or path to text file to broadcast")
+    bprep_p.add_argument("--id", required=True, help="Unique bulletin ID")
+    bprep_p.add_argument("--revision", type=int, default=1, help="Bulletin revision (default: 1)")
+    bprep_p.add_argument("--title", default=None, help="Bulletin title")
+    bprep_p.add_argument("--out-dir", default="bulletin_package", help="Target output directory (default: bulletin_package)")
+    bprep_p.add_argument("--replace", action="store_true", help="Replace an existing bulletin package, retaining a recoverable backup")
+    bprep_p.add_argument("--airtime-limit", type=float, default=None, help="Maximum allowed transmission airtime in seconds")
+    bprep_p.add_argument("--baud", type=int, default=1200, help="Baud rate (default: 1200, or 300 for long-range)")
+    bprep_p.add_argument("--key", default=None, help="Optional hex private key for Ed25519 signing")
+
+    # Bulletin Import
+    bimp_p = subparsers.add_parser("bulletin-import", help="Demodulate and verify broadcast audio package into authoritative storage")
+    bimp_p.add_argument("source", help="Path to broadcast package directory or broadcast WAV file")
+    bimp_p.add_argument("--baud", type=int, default=1200, help="Baud rate (default: 1200)")
+
+    # Bulletin List
+    subparsers.add_parser("bulletin-list", help="List verified bulletins in authoritative storage")
+
+    # Bulletin Read
+    bread_p = subparsers.add_parser("bulletin-read", help="Read verified bulletin body from authoritative storage")
+    bread_p.add_argument("bulletin_id", help="Bulletin ID to read")
+    bread_p.add_argument("--revision", type=int, default=None, help="Specific revision to read (default: latest)")
 
     # Fetch
     fetch_p = subparsers.add_parser("fetch", help="Fetch content by root hash")
@@ -217,15 +245,21 @@ def main(argv: list[str] | None = None):
 
         engine = HybridSearchEngine()
         indexed_count = 0
+        degraded_docs: list[tuple[str, str, str]] = []
 
         for r in recipes:
             title = r.metadata.get("title", r.metadata.get("filename", r.root_hash[:16]))
+            body_retrieved = True
+            err_msg = ""
             try:
                 content_bytes = node.fetch(r.root_hash)
                 text_content = content_bytes.decode("utf-8", errors="replace")
                 doc_text = f"{title}\n\n{text_content}"
-            except Exception:
+            except Exception as exc:
+                body_retrieved = False
+                err_msg = str(exc)
                 doc_text = title
+                degraded_docs.append((r.root_hash, title, err_msg))
 
             engine.add_document(
                 doc_id=r.root_hash,
@@ -235,6 +269,8 @@ def main(argv: list[str] | None = None):
                     "filename": r.metadata.get("filename", ""),
                     "root_hash": r.root_hash,
                     "total_size": r.total_size,
+                    "degraded": not body_retrieved,
+                    "degraded_reason": err_msg,
                 },
             )
             indexed_count += 1
@@ -246,16 +282,126 @@ def main(argv: list[str] | None = None):
             engine.add_document("[DEMO] doc2", "Triage protocols for trauma and hypothermia resuscitation.")
             engine.add_document("[DEMO] doc3", "LoRa physical layer modulation and packet radio framing.")
         else:
-            print(f"[TFP SEARCH] Indexed {indexed_count} persisted document(s) from '{db_target}'.")
+            if degraded_docs:
+                print(f"[TFP SEARCH] Indexed {indexed_count} document(s) ({len(degraded_docs)} degraded/body unavailable) from '{db_target}'.")
+                print(f"[TFP SEARCH] Warning: {len(degraded_docs)} document(s) could not be fully searched because content body was unretrievable.")
+            else:
+                print(f"[TFP SEARCH] Indexed {indexed_count} persisted document(s) from '{db_target}'.")
 
         top_k = getattr(args, "top_k", 5)
         results = engine.search(args.query, top_k=top_k)
-        print(f"[TFP SEARCH] Found {len(results)} match(es) for '{args.query}':")
-        for r in results:
-            snippet = r.content.strip().replace("\n", " ")
-            if len(snippet) > 120:
-                snippet = snippet[:117] + "..."
-            print(f"  [{r.score:.3f}] {r.chunk_id}: {snippet}")
+        if not results:
+            if degraded_docs:
+                print(f"[TFP SEARCH] No matching content found for '{args.query}', but {len(degraded_docs)} document(s) could not be searched because content body was unavailable.")
+            else:
+                print(f"[TFP SEARCH] No matching content found for '{args.query}'.")
+        else:
+            print(f"[TFP SEARCH] Found {len(results)} match(es) for '{args.query}':")
+            for r in results:
+                is_degraded = r.metadata.get("degraded", False)
+                degraded_tag = " [DEGRADED: BODY UNAVAILABLE]" if is_degraded else ""
+                snippet = r.content.strip().replace("\n", " ")
+                if len(snippet) > 120:
+                    snippet = snippet[:117] + "..."
+                print(f"  [{r.score:.3f}] {r.chunk_id}{degraded_tag}: {snippet}")
+            if degraded_docs:
+                print(f"[TFP SEARCH] Note: {len(degraded_docs)} document(s) could not be fully searched because their content body was unavailable.")
+
+    elif args.command == "bulletin-prepare":
+        content_arg = args.content
+        p = Path(content_arg)
+        try:
+            is_content_file = p.exists() and p.is_file()
+        except OSError as exc:
+            if exc.errno != errno.ENAMETOOLONG:
+                raise
+            is_content_file = False
+        if is_content_file:
+            content_text = p.read_text(encoding="utf-8")
+        else:
+            content_text = content_arg
+
+        priv_key = None
+        if args.key:
+            from cryptography.hazmat.primitives.asymmetric import ed25519
+            priv_key = ed25519.Ed25519PrivateKey.from_private_bytes(bytes.fromhex(args.key)[:32])
+
+        meta = prepare_bulletin_package(
+            bulletin_id=args.id,
+            revision=args.revision,
+            title=args.title or args.id,
+            content_text=content_text,
+            output_dir=args.out_dir,
+            private_key=priv_key,
+            airtime_limit_seconds=args.airtime_limit,
+            baud_rate=args.baud,
+            overwrite=args.replace,
+        )
+
+        print("=" * 65)
+        print("  THE FOUNDATION PROTOCOL: BROADCAST BULLETIN PACKAGE")
+        print("=" * 65)
+        print(f"  Bulletin ID    : {meta['bulletin_id']} (Rev {meta['revision']})")
+        print(f"  Title          : {meta['title']}")
+        print(f"  Content Hash   : {meta['content_hash']}")
+        print(f"  Publisher ID   : {meta['publisher_id']}")
+        print(f"  Verification   : {meta['verification_status']}")
+        print(f"  Audio Duration : {meta['audio_duration_seconds']:.2f}s (@ {meta['baud_rate']} Baud)")
+        print(f"  Payload Size   : {meta['payload_bytes']} bytes")
+        print(f"  Package Output : {Path(args.out_dir).resolve()}")
+        if "previous_package_path" in meta:
+            print(f"  Previous Copy  : {meta['previous_package_path']}")
+        print("=" * 65)
+
+    elif args.command == "bulletin-import":
+        node = TFPNode(db_path=args.db)
+        imported = import_bulletin_package(args.source, node=node, baud_rate=args.baud)
+        print("=" * 65)
+        print("  THE FOUNDATION PROTOCOL: BULLETIN IMPORT & VERIFICATION")
+        print("=" * 65)
+        print(f"  Bulletin ID    : {imported['bulletin_id']} (Rev {imported['revision']})")
+        print(f"  Title          : {imported['title']}")
+        print(f"  Content Hash   : {imported['content_hash']}")
+        print(f"  Root Hash      : {imported['root_hash']}")
+        print(f"  Publisher ID   : {imported['publisher_id']}")
+        print(f"  Verification   : {imported['verified_status']}")
+        print("  Publisher Trust: Not established (signature validity is separate)")
+        print(f"  Payload Size   : {imported['data_size']} bytes")
+        print("  Status         : Durably stored in authoritative node store")
+        print("=" * 65)
+
+    elif args.command == "bulletin-list":
+        node = TFPNode(db_path=args.db)
+        bulletins = node.list_bulletins()
+        print("=" * 65)
+        print("  THE FOUNDATION PROTOCOL: AUTHORITATIVE BULLETIN STORE")
+        print("=" * 65)
+        if not bulletins:
+            print("  0 bulletins found in store.")
+        else:
+            print(f"  Found {len(bulletins)} stored bulletin(s):")
+            for b in bulletins:
+                print(f"  [{b['bulletin_id']} v{b['revision']}] {b['title']}")
+                print(f"    Hash      : {b['content_hash']}")
+                print(f"    Publisher : {b['publisher_id']}")
+                print(f"    Status    : {b['verified_status']} | Size: {b['data_size']}B")
+                print("    Publisher trust: Not established")
+        print("=" * 65)
+
+    elif args.command == "bulletin-read":
+        node = TFPNode(db_path=args.db)
+        res = node.get_bulletin(args.bulletin_id, revision=args.revision)
+        if not res:
+            print(f"Error: Bulletin '{args.bulletin_id}' not found in store.", file=sys.stderr)
+            sys.exit(1)
+        meta, content = res
+        print("=" * 65)
+        print(f"  BULLETIN: {meta['title']} (ID: {meta['bulletin_id']}, Rev: {meta['revision']})")
+        print(f"  Publisher: {meta['publisher_id']} | Status: {meta['verified_status']}")
+        print("  Publisher trust: Not established")
+        print("=" * 65)
+        print(content.decode("utf-8", errors="replace"))
+        print("=" * 65)
 
     elif args.command == "mesh-sim":
         from scripts.run_mesh_simulation import run_simulation

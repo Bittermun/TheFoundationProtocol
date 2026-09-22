@@ -41,6 +41,7 @@ from tfp_client.lib.media.fountain_streamer import FountainStreamer
 from tfp_client.lib.media.receiver import FountainStreamReceiver
 from tfp_client.lib.media.stream_packager import MediaStreamPackager
 from tfp_core_v4.cdc import ContentDefinedChunker
+from tfp_core_v4.node import TFPNode
 
 
 ARTICLE_TITLE = "Severe Malaria Rapid Triage Protocol"
@@ -124,30 +125,20 @@ def run_lifecycle(db_path: Path, zim_out: Path, loss_rate: float = 0.30) -> dict
     results["stage_3_reception"] = True
 
     # ------------------------------------------------------------------
-    # Stage 4: Persistence of Reconstructed Content to SQLite
+    # Stage 4: Persistence of Reconstructed Content to Authoritative Store
     # ------------------------------------------------------------------
-    print("\n[Stage 4: Persistence to SQLite]")
-    # Persist the actual reconstructed payload, NOT the input constant
-    reconstructed_text = reconstructed_bytes.decode("utf-8")
-    conn = sqlite3.connect(str(db_path))
-    conn.execute(
-        """
-        CREATE TABLE IF NOT EXISTS articles (
-            root_hash TEXT PRIMARY KEY,
-            title TEXT,
-            category TEXT,
-            content TEXT,
-            created_at REAL
-        )
-        """
+    print("\n[Stage 4: Persistence to SQLite (Authoritative TFPNode)]")
+    node = TFPNode(db_path=db_path)
+    recipe = node.store_bulletin(
+        bulletin_id="severe-malaria-triage",
+        revision=1,
+        data=reconstructed_bytes,
+        title=ARTICLE_TITLE,
+        publisher_id="unsigned",
+        verified_status="unsigned_sha3_verified",
+        metadata={"category": "medical", "title": ARTICLE_TITLE},
     )
-    conn.execute(
-        "INSERT OR REPLACE INTO articles VALUES (?, ?, ?, ?, ?)",
-        (receiver.latest_manifest.merkle_root, ARTICLE_TITLE, "medical", reconstructed_text, time.time())
-    )
-    conn.commit()
-    conn.close()
-    print("  Article Committed  : Reconstructed text written to SQLite database successfully")
+    print(f"  Article Committed  : Reconstructed text written to authoritative store (Root Hash: {recipe.root_hash})")
     results["stage_4_persistence"] = True
 
     # ------------------------------------------------------------------
@@ -157,53 +148,46 @@ def run_lifecycle(db_path: Path, zim_out: Path, loss_rate: float = 0.30) -> dict
     import subprocess
     reboot_probe_cmd = [
         sys.executable,
-        "-c",
-        f"""
-import sqlite3, sys
-conn = sqlite3.connect(r"{db_path}")
-cur = conn.cursor()
-cur.execute("SELECT root_hash, title, length(content) FROM articles")
-row = cur.fetchone()
-conn.close()
-if not row:
-    sys.exit(1)
-print(f"SUBPROCESS_REBOOT_OK:{{row[0]}}|{{row[1]}}|{{row[2]}}")
-"""
+        "-m", "tfp_core_v4.cli",
+        "--db", str(db_path),
+        "fetch", recipe.root_hash,
     ]
-    proc = subprocess.run(reboot_probe_cmd, capture_output=True, text=True, check=True)
-    print(f"  Subprocess Output  : {proc.stdout.strip()}")
-    results["stage_5_reboot"] = "SUBPROCESS_REBOOT_OK" in proc.stdout
+    proc = subprocess.run(reboot_probe_cmd, capture_output=True, text=False, check=True)
+    assert proc.stdout == reconstructed_bytes, "Subprocess fetch did not match reconstructed payload"
+    print(f"  Subprocess Output  : Fetched {len(proc.stdout)} bytes bit-exactly through production CLI fetch")
+    results["stage_5_reboot"] = True
 
     # ------------------------------------------------------------------
     # Stage 6: Database Recovery & Hybrid BM25 Search
     # ------------------------------------------------------------------
-    print("\n[Stage 6: Restored Database Query & Hybrid BM25 Search]")
-    conn = sqlite3.connect(str(db_path))
-    cursor = conn.cursor()
-    cursor.execute("SELECT root_hash, title, content FROM articles")
-    rows = cursor.fetchall()
-    conn.close()
-
-    assert rows, "Article not found in restored database"
-    found_root, found_title, found_content = rows[0]
-
-    from tfp_client.lib.search.hybrid_search import HybridSearchEngine
-    search_engine = HybridSearchEngine()
-    for r_root, r_title, r_content in rows:
-        search_engine.add_document(doc_id=r_root, content=f"{r_title}\n{r_content}", metadata={"title": r_title})
-
-    search_hits = search_engine.search("Artesunate", top_k=5)
-    assert len(search_hits) > 0, "BM25 hybrid search returned 0 results"
-    top_hit = search_hits[0]
-    print(f"  Restored Article   : '{found_title}'")
-    print(f"  Root Hash Match    : {found_root}")
-    print(f"  BM25 Search Score  : {top_hit.score:.4f} (hit on '{top_hit.metadata.get('title')}')")
-    results["stage_6_search"] = "Artesunate" in top_hit.content
+    print("\n[Stage 6: Restored Database Query & Production CLI BM25 Search]")
+    search_proc = subprocess.run(
+        [
+            sys.executable,
+            "-m", "tfp_core_v4.cli",
+            "--db", str(db_path),
+            "search", "Artesunate",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert "[TFP SEARCH] Found" in search_proc.stdout
+    assert recipe.root_hash in search_proc.stdout or "artesunate" in search_proc.stdout.lower()
+    print(f"  Production Search  : Found published article via CLI search")
+    results["stage_6_search"] = True
 
     # ------------------------------------------------------------------
     # Stage 7: Kiwix / ZIM Export & Verification
     # ------------------------------------------------------------------
     print("\n[Stage 7: Kiwix / ZIM Export]")
+    fresh_node = TFPNode(db_path=db_path)
+    res = fresh_node.get_bulletin("severe-malaria-triage", revision=1)
+    assert res is not None, "Failed to retrieve bulletin from authoritative storage"
+    b_meta, b_content = res
+    found_title = b_meta["title"]
+    found_root = recipe.root_hash
+    found_content = b_content.decode("utf-8")
     bundle = PackagedArticleBundle(
         title=found_title,
         category="medical",

@@ -126,6 +126,37 @@ tfp inspect cd07a285cf65fbbda540a959a3a91c2ae0d0bf17b5d36bedb5404a834abfdee8
 ```
 
 ### 4. Acoustic Delivery & Radio Operations
+
+Bulletin packages use `tfp bulletin-prepare`, `bulletin-import`, `bulletin-list`,
+and `bulletin-read`. Preparation creates playback files; it does not prove that
+anyone received them. Version 2 signatures cover the bulletin ID, revision,
+headline, content hash, and publisher key. Invalid signatures, conflicting
+revisions, and changes to the publisher for an existing local ID are rejected
+before publication. Exact duplicates are harmless; newer revisions are retained
+alongside accepted history. A valid signature identifies a key, but does not
+establish that its owner is a trusted publisher. Unsigned bulletins remain
+unauthenticated. Older signed audio must be reissued; existing older records
+remain readable as `legacy_signature_unverified`.
+
+An existing output directory is refused by default. `bulletin-prepare --replace`
+only replaces a recognized TFP package and keeps its predecessor in a sibling
+`.previous_*` directory. If installation fails, restoration is attempted; if that
+also fails, the error log identifies the retained backup. These renames are
+recoverable, but are not a filesystem transaction or a power-loss guarantee.
+
+The browser receiver supports the 1200 baud profile, with wire payloads up to
+4096 bytes. Its **CRC VALID** label reports frame integrity; signed payloads show
+**SIGNATURE UNVERIFIED** because the browser does not verify Ed25519. Publisher
+trust is not established. Simulation labels and provenance survive archive
+reloads. Automated microphone-callback checks use generated PCM at 8, 16, 44.1,
+and 48 kHz; physical phone, speaker, and radio trials remain necessary.
+
+Receiver checkpoints restore only bounded chunks belonging to a validated
+manifest and matching authentication/decoder context. Older checkpoints without
+that context are ignored and must be received again; they are not deleted.
+Expired and excess checkpoints with matching context are pruned on startup.
+The newest retained session becomes the default, and explicit session IDs survive
+checkpoint recovery without changing the original manifest ID.
 ```bash
 # Modulate text or binary payload into Bell 202 AFSK audio WAV
 tfp audio-encode "CRITICAL BULLETIN: Boil water before consumption." --out-wav alert.wav --baud 1200
