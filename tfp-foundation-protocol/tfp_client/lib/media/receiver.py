@@ -27,7 +27,7 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Set, Tuple
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 # Ensure tfp_core_v4 is importable
 _repo_root = Path(__file__).resolve().parent.parent.parent.parent.parent
@@ -35,6 +35,10 @@ if str(_repo_root) not in sys.path:
     sys.path.insert(0, str(_repo_root))
 
 from tfp_core_v4.fountain import FountainCodec, FountainDroplet
+try:
+    from tfp_core_v4.wirehair_bridge import AcceleratedFountainCodec
+except ImportError:
+    AcceleratedFountainCodec = None
 
 from .fountain_streamer import (
     MANIFEST_MAGIC,
@@ -77,6 +81,7 @@ class FountainStreamReceiver:
         max_chunks_per_session: int = 128,
         session_ttl_seconds: float = 600.0,
         checkpoint_dir: Path | str | None = None,
+        codec: Any | None = None,
     ):
         for name, limit in (
             ("max_sessions", max_sessions),
@@ -92,7 +97,12 @@ class FountainStreamReceiver:
         self.max_droplets_per_chunk = max_droplets_per_chunk
         self.max_chunks_per_session = max_chunks_per_session
         self.session_ttl_seconds = session_ttl_seconds
-        self.codec = FountainCodec(symbol_size=symbol_size)
+        if codec is not None:
+            self.codec = codec
+        elif AcceleratedFountainCodec is not None:
+            self.codec = AcceleratedFountainCodec(symbol_size=symbol_size)
+        else:
+            self.codec = FountainCodec(symbol_size=symbol_size)
         self.checkpoint_dir = Path(checkpoint_dir).resolve() if checkpoint_dir else None
 
         # Droplet buffers: (session_id, chunk_index) -> {seed: FountainDroplet}
@@ -238,7 +248,7 @@ class FountainStreamReceiver:
                         continue
                     expected_hash = manifest.chunk_hashes[c_idx]
                     expected_size = manifest.chunk_sizes[c_idx]
-                    if parts[2] != expected_hash or cfile.stat().st_size != expected_size:
+                    if not hmac.compare_digest(parts[2], expected_hash) or cfile.stat().st_size != expected_size:
                         continue
                     with cfile.open("rb") as source:
                         cdata = source.read(expected_size + 1)

@@ -47,8 +47,9 @@ services:
 
   tfp-node-1:
     build:
-      context: ./tfp-foundation-protocol
-      dockerfile: Dockerfile.demo
+      context: .
+      dockerfile: Dockerfile
+      target: production
     container_name: tfp-node-1
     ports:
       - "9001:8000"
@@ -73,8 +74,9 @@ services:
       - tfp-network
   tfp-node-2:
     build:
-      context: ./tfp-foundation-protocol
-      dockerfile: Dockerfile.demo
+      context: .
+      dockerfile: Dockerfile
+      target: production
     container_name: tfp-node-2
     ports:
       - "9002:8000"
@@ -99,8 +101,9 @@ services:
       - tfp-network
   tfp-node-3:
     build:
-      context: ./tfp-foundation-protocol
-      dockerfile: Dockerfile.demo
+      context: .
+      dockerfile: Dockerfile
+      target: production
     container_name: tfp-node-3
     ports:
       - "9003:8000"
@@ -125,8 +128,9 @@ services:
       - tfp-network
   tfp-node-4:
     build:
-      context: ./tfp-foundation-protocol
-      dockerfile: Dockerfile.demo
+      context: .
+      dockerfile: Dockerfile
+      target: production
     container_name: tfp-node-4
     ports:
       - "9004:8000"
@@ -151,8 +155,9 @@ services:
       - tfp-network
   tfp-node-5:
     build:
-      context: ./tfp-foundation-protocol
-      dockerfile: Dockerfile.demo
+      context: .
+      dockerfile: Dockerfile
+      target: production
     container_name: tfp-node-5
     ports:
       - "9005:8000"
@@ -177,8 +182,9 @@ services:
       - tfp-network
   tfp-node-6:
     build:
-      context: ./tfp-foundation-protocol
-      dockerfile: Dockerfile.demo
+      context: .
+      dockerfile: Dockerfile
+      target: production
     container_name: tfp-node-6
     ports:
       - "9006:8000"
@@ -203,8 +209,9 @@ services:
       - tfp-network
   tfp-node-7:
     build:
-      context: ./tfp-foundation-protocol
-      dockerfile: Dockerfile.demo
+      context: .
+      dockerfile: Dockerfile
+      target: production
     container_name: tfp-node-7
     ports:
       - "9007:8000"
@@ -229,8 +236,9 @@ services:
       - tfp-network
   tfp-node-8:
     build:
-      context: ./tfp-foundation-protocol
-      dockerfile: Dockerfile.demo
+      context: .
+      dockerfile: Dockerfile
+      target: production
     container_name: tfp-node-8
     ports:
       - "9008:8000"
@@ -255,8 +263,9 @@ services:
       - tfp-network
   tfp-node-9:
     build:
-      context: ./tfp-foundation-protocol
-      dockerfile: Dockerfile.demo
+      context: .
+      dockerfile: Dockerfile
+      target: production
     container_name: tfp-node-9
     ports:
       - "9009:8000"
@@ -281,8 +290,9 @@ services:
       - tfp-network
   tfp-node-10:
     build:
-      context: ./tfp-foundation-protocol
-      dockerfile: Dockerfile.demo
+      context: .
+      dockerfile: Dockerfile
+      target: production
     container_name: tfp-node-10
     ports:
       - "9010:8000"

@@ -9,6 +9,7 @@ Addresses: "Metrics for the testbed" - provides empirical proof over simulations
 
 import hashlib
 import json
+import os
 import time
 from dataclasses import asdict, dataclass
 from datetime import datetime
@@ -50,8 +51,9 @@ class MetricsCollector:
 
     def __init__(self, testbed_id: str = "testbed_001"):
         self.testbed_id = testbed_id
-        self.metrics_file = Path(f"/workspace/tfp_testbed/{testbed_id}_metrics.jsonl")
-        self.config_file = Path(f"/workspace/tfp_testbed/{testbed_id}_config.json")
+        base_dir = Path(os.getenv("TFP_METRICS_DIR", Path(__file__).resolve().parent))
+        self.metrics_file = base_dir / f"{testbed_id}_metrics.jsonl"
+        self.config_file = base_dir / f"{testbed_id}_config.json"
         self.metrics: List[PerformanceMetric] = []
 
     def initialize_testbed(self, config: TestbedConfig) -> None:

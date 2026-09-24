@@ -58,6 +58,10 @@ COPY tfp_security/ /app/tfp_security/
 COPY tfp_plugins/ /app/tfp_plugins/
 COPY tfp_plugin_sdk/ /app/tfp_plugin_sdk/
 COPY tfp_ui/ /app/tfp_ui/
+COPY tfp_core_v4/ /app/tfp_core_v4/
+COPY lexicons/ /app/lexicons/
+COPY tfp_pilots/ /app/tfp_pilots/
+COPY bip39_words.txt /app/bip39_words.txt
 
 # Set up data directory and permissions
 RUN mkdir -p /data && chown -R tfp:tfp /data /app
@@ -91,4 +95,4 @@ ENV PYTHONPATH=/workspace:/workspace/tfp-foundation-protocol
 ENV TFP_DB_PATH=/workspace/pib.db
 
 # Keep container alive for interactive development and automated testing
-CMD ["sleep", "infinity"]
+CMD ["sh", "-c", "trap 'exit 0' TERM INT; sleep infinity & wait $!"]

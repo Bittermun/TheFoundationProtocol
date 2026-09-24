@@ -8,6 +8,7 @@ Addresses: "The real fix is finding one community that already has internal dist
 """
 
 import json
+import os
 import secrets
 import time
 from datetime import datetime
@@ -52,7 +53,8 @@ class CommunityBootstrap:
     def __init__(self, community_id: str):
         self.community_id = community_id
         self.ghost_nodes: List[GhostNode] = []
-        self.config_file = Path(f"/workspace/tfp_pilots/{community_id}_config.json")
+        base_dir = Path(os.getenv("TFP_PILOTS_DIR", Path(__file__).resolve().parent))
+        self.config_file = base_dir / f"{community_id}_config.json"
 
     def create_ghost_network(
         self, region: str, content_library: List[Dict], node_count: int = 10
@@ -255,8 +257,9 @@ def main():
     bootstrap = CommunityBootstrap(community_id="nairobi_schools_pilot")
 
     # Load or create content library
+    pilots_dir = Path(os.getenv("TFP_PILOTS_DIR", Path(__file__).resolve().parent))
     content_library = bootstrap.load_community_content(
-        "/workspace/tfp_pilots/nairobi_content.json"
+        str(pilots_dir / "nairobi_content.json")
     )
 
     # Create ghost network

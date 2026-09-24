@@ -113,11 +113,11 @@ def run_smoke() -> dict:
         title = "Foundation round-trip check"
         published = call("POST", "/api/publish", {"device_id": device_id, "title": title, "text": original, "tags": ["smoke"]}, f"{device_id}:{title}")
         root = published["root_hash"]
-        _check(root == hashlib.sha3_256(original.encode()).hexdigest(), "Published fingerprint does not match original bytes")
+        _check(hmac.compare_digest(root, hashlib.sha3_256(original.encode()).hexdigest()), "Published fingerprint does not match original bytes")
         listed = call("GET", "/api/content?tag=smoke")
         _check(root in [item["root_hash"] for item in listed["items"]], "Published note is absent from tag search")
         retrieved = call("GET", f"/api/get/{root}?device_id={device_id}", message=f"{device_id}:{root}")
-        _check(retrieved["text"] == original and retrieved["sha3"] == root, "Retrieved bytes differ from the published note")
+        _check(retrieved["text"] == original and hmac.compare_digest(retrieved["sha3"], root), "Retrieved bytes differ from the published note")
         balance = call("GET", f"/api/device/{device_id}")["credits_balance"]
         _check(balance == 9, f"Expected 9 credits after one read, got {balance}")
         call("POST", "/api/enroll", enrollment)

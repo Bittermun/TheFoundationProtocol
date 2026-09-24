@@ -26,7 +26,16 @@ from typing import List, Set
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-DEFAULT_TARGETS = ["tfp_core_v4", "tfp_core", "tfp_transport"]
+DEFAULT_TARGETS = [
+    "tfp_core_v4",
+    "tfp_core",
+    "tfp_transport",
+    "tfp-foundation-protocol/tfp_client",
+    "tfp_security",
+    "tfp_plugins",
+    "tfp_plugin_sdk",
+    "tfp_cli",
+]
 
 BANNED_RANDOM_FUNCS = {
     "random",

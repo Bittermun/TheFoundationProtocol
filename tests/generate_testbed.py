@@ -3,6 +3,7 @@
 # Copyright (c) 2026 The Foundation Protocol Contributors
 
 import os
+from pathlib import Path
 
 TEMPLATE = """version: '3.8'
 
@@ -65,8 +66,9 @@ networks:
 
 NODE_TEMPLATE = """  tfp-node-{i}:
     build:
-      context: ./tfp-foundation-protocol
-      dockerfile: Dockerfile.demo
+      context: .
+      dockerfile: Dockerfile
+      target: production
     container_name: tfp-node-{i}
     ports:
       - "{port}:8000"
@@ -104,7 +106,8 @@ def generate_compose(num_nodes=10):
 
     output = TEMPLATE.format(nodes=nodes_str, node_volumes=volumes_str)
 
-    output_path = "docker-compose.testbed.yml"
+    repo_root = Path(__file__).resolve().parent.parent
+    output_path = repo_root / "docker-compose.testbed.yml"
     with open(output_path, "w") as f:
         f.write(output)
     print(f"Generated {output_path} successfully with {num_nodes} nodes.")

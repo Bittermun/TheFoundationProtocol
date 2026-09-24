@@ -20,10 +20,18 @@ services:
     working_dir: /workspace
     networks:
       - tfp-network
+    # Dependencies are defined in docker-compose.testbed.yml.
+    # Kept as external links or managed via scripts/workshop.py multi-file flag.
     depends_on:
-      - tfp-ipfs
-      - redis
-      - tfp-relay
+      tfp-ipfs:
+        condition: service_started
+        required: false
+      redis:
+        condition: service_started
+        required: false
+      tfp-relay:
+        condition: service_started
+        required: false
     stdin_open: true
     tty: true
 

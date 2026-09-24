@@ -21,7 +21,7 @@ import random
 import socket
 import struct
 import sys
-from typing import AsyncGenerator, Dict, Generator, Iterable, List, Optional, Tuple, Union
+from typing import Any, AsyncGenerator, Dict, Generator, Iterable, List, Optional, Tuple, Union
 
 # Ensure tfp_core_v4 is importable
 _repo_root = Path(__file__).resolve().parent.parent.parent.parent.parent
@@ -35,6 +35,10 @@ from tfp_core_v4.fountain import (
     derive_repair_seed_schedule,
     verify_droplet_seed_authenticity,
 )
+try:
+    from tfp_core_v4.wirehair_bridge import AcceleratedFountainCodec
+except ImportError:
+    AcceleratedFountainCodec = None
 from .stream_packager import MediaManifest
 
 
@@ -246,10 +250,16 @@ class FountainStreamer:
         self,
         symbol_size: int = 512,
         secret_key: bytes = b"tfp-default-streaming-salt",
+        codec: Any | None = None,
     ):
         self.symbol_size = symbol_size
         self.secret_key = secret_key
-        self.codec = FountainCodec(symbol_size=symbol_size)
+        if codec is not None:
+            self.codec = codec
+        elif AcceleratedFountainCodec is not None:
+            self.codec = AcceleratedFountainCodec(symbol_size=symbol_size)
+        else:
+            self.codec = FountainCodec(symbol_size=symbol_size)
 
     def generate_packet(
         self,

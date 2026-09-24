@@ -390,7 +390,7 @@ class TFPNode:
             chunk_slice = reconstructed[offset : offset + csize]
             offset += csize
             slice_hash = hashlib.sha3_256(chunk_slice).hexdigest()
-            if slice_hash != expected_hash:
+            if not hmac.compare_digest(slice_hash, expected_hash):
                 raise ValueError(f"Chunk hash mismatch during verification: {slice_hash} != {expected_hash}")
             hasher.update(slice_hash.encode("utf-8"))
         recovered_root = hasher.hexdigest()
