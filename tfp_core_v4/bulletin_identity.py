@@ -86,9 +86,13 @@ def check_revision(existing, incoming):
         if previous["publisher_id"] != incoming["publisher_id"]:
             raise PublisherIdentityConflictError("Bulletin publisher identity conflict")
         if previous["revision"] == incoming["revision"]:
-            if all(previous[key] == incoming[key] for key in ("content_hash", "title", "publisher_id")):
+            if all(previous.get(key) == incoming.get(key) for key in ("content_hash", "title", "publisher_id")):
                 return previous
-            raise RevisionConflictError("Bulletin revision conflict")
+            bid = incoming.get("bulletin_id") or previous.get("bulletin_id", "")
+            rev = incoming.get("revision", previous.get("revision", ""))
+            raise RevisionConflictError(
+                f"Bulletin revision conflict: Bulletin {bid} rev {rev} conflict: differing title or content"
+            )
     if existing and incoming["revision"] < max(item["revision"] for item in existing):
         raise StaleRevisionError("Stale bulletin revision was not accepted")
     return None

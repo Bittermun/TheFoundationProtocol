@@ -12,6 +12,7 @@ Usage:
   python -m tfp_core_v4.cli mesh-sim
   python -m tfp_core_v4.cli verify
 """
+# ruff: noqa: E402
 
 from __future__ import annotations
 
@@ -22,11 +23,9 @@ import hashlib
 import json
 import logging
 import os
-import re
+import sqlite3
 import sys
-import urllib.parse
 from pathlib import Path
-from typing import Any
 
 log = logging.getLogger("tfp.cli")
 
@@ -41,15 +40,19 @@ if str(_tfp_root) not in sys.path:
 from tfp_client.lib.audio.afsk_demodulator import AFSKDemodulator
 from tfp_client.lib.audio.afsk_modulator import AFSKModulator
 from tfp_client.lib.ingest.article_ingester import ArticleIngester
-from tfp_client.lib.ingest.article_packager import ArticlePackager, PackagedArticleBundle
+from tfp_client.lib.ingest.article_packager import ArticlePackager
 from tfp_client.lib.media.fountain_streamer import FountainStreamer
 from tfp_client.lib.media.receiver import FountainStreamReceiver
 from tfp_client.lib.media.stream_packager import MediaStreamPackager
-from tfp_client.lib.media.template_engine import TemplateParser
 from tfp_client.lib.radio.framing import RadioFramePacker, RadioFrameReassembler
 from tfp_client.lib.search.hybrid_search import HybridSearchEngine
 
 from tfp_core_v4.bulletin import import_bulletin_package, prepare_bulletin_package
+from tfp_core_v4.bulletin_identity import (
+    PublisherIdentityConflictError,
+    RevisionConflictError,
+    StaleRevisionError,
+)
 from tfp_core_v4.node import TFPNode
 from tfp_core_v4.visualizer_server import (
     create_visualizer_server,
@@ -261,6 +264,39 @@ def main(argv: list[str] | None = None):
                 doc_text = title
                 degraded_docs.append((r.root_hash, title, err_msg))
 
+            bulletin_id = r.metadata.get("bulletin_id")
+            revision = r.metadata.get("revision")
+            publisher_id = r.metadata.get("publisher_id")
+
+            superseded_tag = ""
+            if bulletin_id is not None:
+                max_rev = None
+                if publisher_id:
+                    wm = node.get_bulletin_watermark(publisher_id, bulletin_id)
+                    if wm:
+                        max_rev = wm.get("max_revision")
+                if max_rev is None and hasattr(node, "_bulletin_watermarks"):
+                    for (pub, bid), w in node._bulletin_watermarks.items():
+                        if bid == bulletin_id:
+                            w_rev = w.get("max_revision")
+                            if w_rev is not None and (max_rev is None or w_rev > max_rev):
+                                max_rev = w_rev
+                if max_rev is None and node.db_path and Path(node.db_path).exists():
+                    try:
+                        conn = sqlite3.connect(str(node.db_path))
+                        row = conn.execute(
+                            "SELECT MAX(max_revision) FROM bulletin_watermarks WHERE bulletin_id = ?",
+                            (bulletin_id,),
+                        ).fetchone()
+                        if row and row[0] is not None:
+                            max_rev = row[0]
+                        conn.close()
+                    except Exception:
+                        pass
+
+                if revision is not None and max_rev is not None and revision < max_rev:
+                    superseded_tag = f" [SUPERSEDED (Rev {revision} < Latest Rev {max_rev})]"
+
             engine.add_document(
                 doc_id=r.root_hash,
                 content=doc_text,
@@ -271,6 +307,9 @@ def main(argv: list[str] | None = None):
                     "total_size": r.total_size,
                     "degraded": not body_retrieved,
                     "degraded_reason": err_msg,
+                    "bulletin_id": bulletin_id,
+                    "revision": revision,
+                    "superseded_tag": superseded_tag,
                 },
             )
             indexed_count += 1
@@ -300,10 +339,11 @@ def main(argv: list[str] | None = None):
             for r in results:
                 is_degraded = r.metadata.get("degraded", False)
                 degraded_tag = " [DEGRADED: BODY UNAVAILABLE]" if is_degraded else ""
+                superseded_tag = r.metadata.get("superseded_tag", "")
                 snippet = r.content.strip().replace("\n", " ")
                 if len(snippet) > 120:
                     snippet = snippet[:117] + "..."
-                print(f"  [{r.score:.3f}] {r.chunk_id}{degraded_tag}: {snippet}")
+                print(f"  [{r.score:.3f}] {r.chunk_id}{degraded_tag}{superseded_tag}: {snippet}")
             if degraded_docs:
                 print(f"[TFP SEARCH] Note: {len(degraded_docs)} document(s) could not be fully searched because their content body was unavailable.")
 
@@ -320,6 +360,7 @@ def main(argv: list[str] | None = None):
             content_text = p.read_text(encoding="utf-8")
         else:
             content_text = content_arg
+        content_text = content_text.replace("\r\n", "\n").replace("\r", "\n")
 
         priv_key = None
         if args.key:
@@ -355,7 +396,47 @@ def main(argv: list[str] | None = None):
 
     elif args.command == "bulletin-import":
         node = TFPNode(db_path=args.db)
-        imported = import_bulletin_package(args.source, node=node, baud_rate=args.baud)
+        try:
+            imported = import_bulletin_package(args.source, node=node, baud_rate=args.baud)
+        except (StaleRevisionError, RevisionConflictError, PublisherIdentityConflictError, ValueError) as exc:
+            err_type = type(exc).__name__
+            print("=" * 65, file=sys.stderr)
+            print("  [ERROR: BULLETIN ADMISSION REJECTED]", file=sys.stderr)
+            print("=" * 65, file=sys.stderr)
+            print(f"  Error Type : {err_type}", file=sys.stderr)
+            print(f"  Details    : {exc}", file=sys.stderr)
+            if isinstance(exc, StaleRevisionError):
+                print("  Reason     : Incoming bulletin revision is lower than accepted watermark.", file=sys.stderr)
+                print("  Action     : Ensure broadcasts distribute current or subsequent revisions.", file=sys.stderr)
+            elif isinstance(exc, RevisionConflictError):
+                print("  Reason     : Incoming bulletin reuses an existing revision with conflicting content or title.", file=sys.stderr)
+                print("  Action     : Revision numbers are immutable; author a higher revision number.", file=sys.stderr)
+            elif isinstance(exc, PublisherIdentityConflictError):
+                print("  Reason     : Bulletin ID is already associated with a different publisher key.", file=sys.stderr)
+                print("  Action     : Verify publisher signing key or assign a distinct bulletin ID.", file=sys.stderr)
+            else:
+                print("  Reason     : Package validation, demodulation, or signature verification failed.", file=sys.stderr)
+                print("  Action     : Verify audio source quality, package integrity, and cryptographic signatures.", file=sys.stderr)
+            print("=" * 65, file=sys.stderr)
+            sys.exit(1)
+
+        if imported.get("duplicate") or imported.get("status") == "duplicate":
+            print("=" * 65)
+            print("  THE FOUNDATION PROTOCOL: BULLETIN IMPORT & VERIFICATION")
+            print("=" * 65)
+            print("  [NOTICE: DUPLICATE BULLETIN REPLAY]")
+            print(f"  Bulletin ID    : {imported['bulletin_id']} (Rev {imported['revision']})")
+            print(f"  Title          : {imported['title']}")
+            print(f"  Content Hash   : {imported['content_hash']}")
+            print(f"  Root Hash      : {imported['root_hash']}")
+            print(f"  Publisher ID   : {imported['publisher_id']}")
+            print(f"  Verification   : {imported['verified_status']}")
+            print("  Publisher Trust: Not established (signature validity is separate)")
+            print(f"  Payload Size   : {imported['data_size']} bytes")
+            print("  Status: Verified authentic duplicate; existing record retained.")
+            print("=" * 65)
+            sys.exit(0)
+
         print("=" * 65)
         print("  THE FOUNDATION PROTOCOL: BULLETIN IMPORT & VERIFICATION")
         print("=" * 65)

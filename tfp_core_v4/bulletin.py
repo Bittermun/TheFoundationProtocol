@@ -91,6 +91,7 @@ def prepare_bulletin_package(
     validate_identity(bulletin_id, revision, title)
     if not content_text:
         raise ValueError("content_text cannot be empty")
+    content_text = content_text.replace("\r\n", "\n").replace("\r", "\n")
 
     requested_path = Path(output_dir).absolute()
     if requested_path.is_symlink():
@@ -215,7 +216,7 @@ def prepare_bulletin_package(
 
     try:
         (temp_dir / "broadcast.wav").write_bytes(wav_bytes)
-        (temp_dir / "bulletin.txt").write_text(content_text, encoding="utf-8")
+        (temp_dir / "bulletin.txt").write_bytes(content_text.encode("utf-8"))
         (temp_dir / "metadata.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
         (temp_dir / "instructions.txt").write_text(instructions, encoding="utf-8")
         (temp_dir / "preparation_record.json").write_text(json.dumps(prep_record, indent=2), encoding="utf-8")
@@ -294,10 +295,23 @@ def import_bulletin_package(
 
         if not isinstance(body, str) or not body:
             raise ValueError("Bulletin body must be a nonempty string")
+        content_text = body.replace("\r\n", "\n").replace("\r", "\n")
         validate_identity(b_id, rev, title)
 
-        body_bytes = body.encode("utf-8")
+        body_bytes = content_text.encode("utf-8")
         c_hash = hashlib.sha3_256(body_bytes).hexdigest()
+
+        # Check if authentic duplicate replay
+        is_duplicate = False
+        existing = node.get_bulletin(b_id, rev)
+        if existing is not None:
+            ex_meta, _ = existing
+            if ex_meta.get("content_hash") == c_hash:
+                is_duplicate = True
+        else:
+            wm = node.get_bulletin_watermark(pub_id, b_id)
+            if wm and wm.get("max_revision") == rev and wm.get("latest_content_hash") == c_hash:
+                is_duplicate = True
 
         # Durably persist into authoritative node storage
         recipe = node.store_bulletin(
@@ -322,6 +336,8 @@ def import_bulletin_package(
             "verified_status": recipe.metadata["verified_status"],
             "publisher_trust": "not_established",
             "data_size": len(body_bytes),
+            "duplicate": is_duplicate,
+            "status": "duplicate" if is_duplicate else "stored",
         })
 
     if not imported_bulletins:

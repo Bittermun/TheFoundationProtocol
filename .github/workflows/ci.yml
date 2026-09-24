@@ -113,7 +113,7 @@ jobs:
           python -m venv "$RUNNER_TEMP/tfp-browser"
           "$RUNNER_TEMP/tfp-browser/bin/python" -m pip install dist/*.whl pytest playwright
           mkdir "$RUNNER_TEMP/bulletin-tests"
-          cp tests/test_browser_acoustic_acceptance.py tests/test_bulletin_admission_recovery.py tests/test_checkpoint_admission.py "$RUNNER_TEMP/bulletin-tests/"
+          cp tests/test_browser_acoustic_acceptance.py tests/test_browser_acoustic_receiver.py tests/test_bulletin_admission_recovery.py tests/test_checkpoint_admission.py "$RUNNER_TEMP/bulletin-tests/"
           printf '[pytest]\n' > "$RUNNER_TEMP/bulletin-tests/pytest.ini"
           cd "$RUNNER_TEMP/bulletin-tests"
           "$RUNNER_TEMP/tfp-browser/bin/python" -I -B -m pytest -c pytest.ini -q

@@ -219,7 +219,6 @@ def test_afsk_packet_size_symmetric_limit():
     assert len(framed_ok) > 4096
 
     # 4097 bytes: must be rejected with ValueError
-    import pytest
     with pytest.raises(ValueError, match="exceeds maximum allowed 4096 bytes"):
         mod.frame_packet(b"X" * 4097)
 

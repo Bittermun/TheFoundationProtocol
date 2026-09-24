@@ -142,8 +142,10 @@ class TFPNode:
                     max_revision INTEGER NOT NULL,
                     latest_content_hash TEXT NOT NULL,
                     latest_root_hash TEXT NOT NULL,
-                    first_seen_at REAL NOT NULL,
-                    last_seen_at REAL NOT NULL,
+                    latest_title TEXT,
+                    first_seen_at REAL DEFAULT 0.0,
+                    last_seen_at REAL DEFAULT 0.0,
+                    updated_at REAL DEFAULT 0.0,
                     PRIMARY KEY (publisher_id, bulletin_id)
                 )
                 """
@@ -153,6 +155,112 @@ class TFPNode:
                 CREATE INDEX IF NOT EXISTS idx_bulletin_watermarks_bid ON bulletin_watermarks(bulletin_id)
                 """
             )
+            cur = conn.cursor()
+            cur.execute("PRAGMA table_info(bulletin_watermarks)")
+            cols = {row[1] for row in cur.fetchall()}
+            if "latest_title" not in cols:
+                conn.execute("ALTER TABLE bulletin_watermarks ADD COLUMN latest_title TEXT")
+                cols.add("latest_title")
+            if "updated_at" not in cols:
+                conn.execute("ALTER TABLE bulletin_watermarks ADD COLUMN updated_at REAL DEFAULT 0.0")
+                cols.add("updated_at")
+            if "first_seen_at" not in cols:
+                conn.execute("ALTER TABLE bulletin_watermarks ADD COLUMN first_seen_at REAL DEFAULT 0.0")
+                cols.add("first_seen_at")
+            if "last_seen_at" not in cols:
+                conn.execute("ALTER TABLE bulletin_watermarks ADD COLUMN last_seen_at REAL DEFAULT 0.0")
+                cols.add("last_seen_at")
+
+            # Check if bulletins table exists before backfill
+            cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='bulletins'")
+            if cur.fetchone():
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO bulletin_watermarks (
+                        publisher_id, bulletin_id, max_revision, latest_content_hash, latest_root_hash, latest_title, first_seen_at, last_seen_at, updated_at
+                    )
+                    SELECT b.publisher_id, b.bulletin_id, b.revision, b.content_hash, b.root_hash, b.title, b.received_at, b.received_at, b.received_at
+                    FROM bulletins b
+                    INNER JOIN (
+                        SELECT publisher_id, bulletin_id, MAX(revision) AS max_rev
+                        FROM bulletins
+                        GROUP BY publisher_id, bulletin_id
+                    ) m ON b.publisher_id = m.publisher_id AND b.bulletin_id = m.bulletin_id AND b.revision = m.max_rev;
+                    """
+                )
+                conn.execute(
+                    """
+                    UPDATE bulletin_watermarks
+                    SET latest_content_hash = (
+                        SELECT b.content_hash FROM bulletins b
+                        WHERE b.publisher_id = bulletin_watermarks.publisher_id
+                          AND b.bulletin_id = bulletin_watermarks.bulletin_id
+                        ORDER BY b.revision DESC LIMIT 1
+                    ),
+                    latest_root_hash = (
+                        SELECT b.root_hash FROM bulletins b
+                        WHERE b.publisher_id = bulletin_watermarks.publisher_id
+                          AND b.bulletin_id = bulletin_watermarks.bulletin_id
+                        ORDER BY b.revision DESC LIMIT 1
+                    ),
+                    latest_title = (
+                        SELECT b.title FROM bulletins b
+                        WHERE b.publisher_id = bulletin_watermarks.publisher_id
+                          AND b.bulletin_id = bulletin_watermarks.bulletin_id
+                        ORDER BY b.revision DESC LIMIT 1
+                    )
+                    WHERE EXISTS (
+                        SELECT 1 FROM bulletins b
+                        WHERE b.publisher_id = bulletin_watermarks.publisher_id
+                          AND b.bulletin_id = bulletin_watermarks.bulletin_id
+                    );
+                    """
+                )
+                conn.execute(
+                    """
+                    UPDATE bulletin_watermarks
+                    SET first_seen_at = (
+                        SELECT MIN(b.received_at) FROM bulletins b
+                        WHERE b.publisher_id = bulletin_watermarks.publisher_id
+                          AND b.bulletin_id = bulletin_watermarks.bulletin_id
+                    ),
+                    last_seen_at = (
+                        SELECT MAX(b.received_at) FROM bulletins b
+                        WHERE b.publisher_id = bulletin_watermarks.publisher_id
+                          AND b.bulletin_id = bulletin_watermarks.bulletin_id
+                    )
+                    WHERE EXISTS (
+                        SELECT 1 FROM bulletins b
+                        WHERE b.publisher_id = bulletin_watermarks.publisher_id
+                          AND b.bulletin_id = bulletin_watermarks.bulletin_id
+                    );
+                    """
+                )
+                conn.execute(
+                    """
+                    UPDATE bulletin_watermarks
+                    SET first_seen_at = CASE WHEN first_seen_at IS NULL OR first_seen_at = 0.0 THEN updated_at ELSE first_seen_at END,
+                        last_seen_at = CASE WHEN last_seen_at IS NULL OR last_seen_at = 0.0 THEN updated_at ELSE last_seen_at END,
+                        updated_at = CASE WHEN updated_at IS NULL OR updated_at = 0.0 THEN last_seen_at ELSE updated_at END
+                    """
+                )
+
+            # Synchronize in-memory cache with durable database watermarks
+            cur.execute(
+                "SELECT publisher_id, bulletin_id, max_revision, latest_content_hash, latest_root_hash, latest_title, first_seen_at, last_seen_at, updated_at FROM bulletin_watermarks"
+            )
+            for pub, bid, max_rev, c_hash, r_hash, l_title, first_at, last_at, up_at in cur.fetchall():
+                self._bulletin_watermarks[(pub, bid)] = {
+                    "publisher_id": pub,
+                    "bulletin_id": bid,
+                    "max_revision": max_rev,
+                    "latest_content_hash": c_hash,
+                    "latest_root_hash": r_hash,
+                    "latest_title": l_title,
+                    "first_seen_at": first_at,
+                    "last_seen_at": last_at,
+                    "updated_at": up_at,
+                }
             conn.commit()
         finally:
             conn.close()
@@ -492,12 +600,12 @@ class TFPNode:
 
         if conn is not None:
             wm_rows = conn.execute(
-                "SELECT max_revision, latest_content_hash, latest_root_hash, publisher_id FROM bulletin_watermarks WHERE bulletin_id=?",
+                "SELECT max_revision, latest_content_hash, latest_root_hash, publisher_id, latest_title FROM bulletin_watermarks WHERE bulletin_id=?",
                 (bulletin_id,),
             ).fetchall()
         else:
             wm_rows = [
-                (wm["max_revision"], wm["latest_content_hash"], wm["latest_root_hash"], wm["publisher_id"])
+                (wm["max_revision"], wm["latest_content_hash"], wm["latest_root_hash"], wm["publisher_id"], wm.get("latest_title"))
                 for (pub, bid), wm in self._bulletin_watermarks.items()
                 if bid == bulletin_id
             ]
@@ -505,7 +613,7 @@ class TFPNode:
         if not wm_rows:
             return None
 
-        for wm_rev, wm_c_hash, wm_r_hash, wm_pub in wm_rows:
+        for wm_rev, wm_c_hash, wm_r_hash, wm_pub, wm_title in wm_rows:
             if wm_pub != publisher_id:
                 raise PublisherIdentityConflictError("Bulletin publisher identity conflict")
             if revision < wm_rev:
@@ -513,50 +621,83 @@ class TFPNode:
                     f"Stale bulletin revision was not accepted: revision {revision} is superseded by known watermark {wm_rev}"
                 )
             if revision == wm_rev:
-                if hmac.compare_digest(content_hash, wm_c_hash):
-                    stored = self.get_bulletin(bulletin_id, revision, connection=conn)
-                    if stored is not None:
-                        accepted = stored[0]
-                    else:
-                        # Reconstruct metadata or re-admit display record for pruned authentic bulletin
-                        accepted = dict(record)
-                        accepted["root_hash"] = wm_r_hash
-                        if conn is not None:
-                            conn.execute(
-                                """INSERT OR IGNORE INTO bulletins
-                                (bulletin_id, revision, content_hash, root_hash, publisher_id, signature_hex,
-                                 title, received_at, verified_status, data_size, metadata_json)
-                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                                (
-                                    bulletin_id,
-                                    revision,
-                                    content_hash,
-                                    wm_r_hash,
-                                    publisher_id,
-                                    record.get("signature_hex"),
-                                    record.get("title", bulletin_id),
-                                    record["received_at"],
-                                    status,
-                                    len(data),
-                                    json.dumps(accepted),
-                                ),
-                            )
-                            conn.commit()
-                        self._bulletins[(bulletin_id, revision)] = accepted
-                    if wm_r_hash not in self.recipes:
-                        if conn is not None:
-                            self._load_recipe_from_db(wm_r_hash)
-                    if wm_r_hash in self.recipes:
-                        return replace(self.recipes[wm_r_hash], metadata=accepted)
+                stored = self.get_bulletin(bulletin_id, revision, connection=conn)
+                expected_title = stored[0]["title"] if stored is not None else wm_title
+                incoming_title = record.get("title", bulletin_id)
+
+                matches_content = hmac.compare_digest(content_hash, wm_c_hash)
+                canonical_expected_title = expected_title if (expected_title is not None and expected_title != "") else bulletin_id
+                matches_title = (incoming_title == canonical_expected_title)
+
+                if not matches_content or not matches_title:
+                    raise RevisionConflictError(
+                        f"Bulletin revision conflict: Bulletin {bulletin_id} rev {revision} conflict: differing title or content"
+                    )
+
+                if wm_r_hash not in self.recipes:
+                    if conn is not None:
+                        self._load_recipe_from_db(wm_r_hash)
+
+                if wm_r_hash in self.recipes:
+                    root_hash_to_use = wm_r_hash
+                    recipe = self.recipes[wm_r_hash]
+                else:
                     staged = TFPNode(db_path="", chunker=self.chunker, codec=self.codec)
-                    recipe = staged.publish(data, metadata=accepted)
+                    recipe = staged.publish(data, metadata=record)
+                    root_hash_to_use = recipe.root_hash
                     self.chunk_store.update(staged.chunk_store)
                     self.recipes.update(staged.recipes)
                     self.droplet_store.update(staged.droplet_store)
                     self.merkle_trees.update(staged.merkle_trees)
-                    return recipe
+                    if conn is not None:
+                        self._persist_content(
+                            recipe,
+                            [staged.chunk_store[h] for h in recipe.chunk_hashes],
+                            staged.droplet_store[root_hash_to_use],
+                            connection=conn,
+                        )
+
+                if stored is not None:
+                    accepted = stored[0]
                 else:
-                    raise RevisionConflictError("Bulletin revision conflict")
+                    # Reconstruct metadata or re-admit display record for pruned authentic bulletin
+                    accepted = dict(record)
+                    accepted["root_hash"] = root_hash_to_use
+                    accepted["title"] = incoming_title
+                    if conn is not None:
+                        conn.execute(
+                            """INSERT OR REPLACE INTO bulletins
+                            (bulletin_id, revision, content_hash, root_hash, publisher_id, signature_hex,
+                             title, received_at, verified_status, data_size, metadata_json)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                            (
+                                bulletin_id,
+                                revision,
+                                content_hash,
+                                root_hash_to_use,
+                                publisher_id,
+                                record.get("signature_hex"),
+                                incoming_title,
+                                record["received_at"],
+                                status,
+                                len(data),
+                                json.dumps(accepted),
+                            ),
+                        )
+                        conn.execute(
+                            """UPDATE bulletin_watermarks
+                            SET latest_title = ?, latest_root_hash = ?
+                            WHERE publisher_id = ? AND bulletin_id = ?""",
+                            (incoming_title, root_hash_to_use, publisher_id, bulletin_id),
+                        )
+                        conn.commit()
+                    self._bulletins[(bulletin_id, revision)] = accepted
+                    if (publisher_id, bulletin_id) in self._bulletin_watermarks:
+                        self._bulletin_watermarks[(publisher_id, bulletin_id)]["latest_root_hash"] = root_hash_to_use
+                        if not self._bulletin_watermarks[(publisher_id, bulletin_id)].get("latest_title"):
+                            self._bulletin_watermarks[(publisher_id, bulletin_id)]["latest_title"] = incoming_title
+
+                return replace(recipe, metadata=accepted)
 
         return None
 
@@ -654,24 +795,30 @@ class TFPNode:
                     )
                     conn.execute(
                         """INSERT INTO bulletin_watermarks
-                        (publisher_id, bulletin_id, max_revision, latest_content_hash, latest_root_hash, first_seen_at, last_seen_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        (publisher_id, bulletin_id, max_revision, latest_content_hash, latest_root_hash, first_seen_at, last_seen_at, latest_title, updated_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                         ON CONFLICT(publisher_id, bulletin_id) DO UPDATE SET
                             max_revision = CASE WHEN excluded.max_revision > bulletin_watermarks.max_revision THEN excluded.max_revision ELSE bulletin_watermarks.max_revision END,
                             latest_content_hash = CASE WHEN excluded.max_revision >= bulletin_watermarks.max_revision THEN excluded.latest_content_hash ELSE bulletin_watermarks.latest_content_hash END,
                             latest_root_hash = CASE WHEN excluded.max_revision >= bulletin_watermarks.max_revision THEN excluded.latest_root_hash ELSE bulletin_watermarks.latest_root_hash END,
-                            last_seen_at = excluded.last_seen_at""",
-                        (publisher_id, bulletin_id, revision, content_hash, root, record["received_at"], record["received_at"]),
+                            latest_title = CASE WHEN excluded.max_revision >= bulletin_watermarks.max_revision THEN excluded.latest_title ELSE bulletin_watermarks.latest_title END,
+                            last_seen_at = excluded.last_seen_at,
+                            updated_at = excluded.updated_at""",
+                        (publisher_id, bulletin_id, revision, content_hash, root, record["received_at"], record["received_at"], title, record["received_at"]),
                     )
                     conn.commit()
+                prev_wm = self._bulletin_watermarks.get((publisher_id, bulletin_id))
+                first_seen = prev_wm.get("first_seen_at", record["received_at"]) if prev_wm else record["received_at"]
                 self._bulletin_watermarks[(publisher_id, bulletin_id)] = {
                     "publisher_id": publisher_id,
                     "bulletin_id": bulletin_id,
-                    "max_revision": revision,
-                    "latest_content_hash": content_hash,
-                    "latest_root_hash": root,
-                    "first_seen_at": record["received_at"],
+                    "max_revision": max(revision, prev_wm.get("max_revision", 0) if prev_wm else 0),
+                    "latest_content_hash": content_hash if (prev_wm is None or revision >= prev_wm.get("max_revision", 0)) else prev_wm.get("latest_content_hash"),
+                    "latest_root_hash": root if (prev_wm is None or revision >= prev_wm.get("max_revision", 0)) else prev_wm.get("latest_root_hash"),
+                    "latest_title": title if (prev_wm is None or revision >= prev_wm.get("max_revision", 0)) else prev_wm.get("latest_title"),
+                    "first_seen_at": first_seen,
                     "last_seen_at": record["received_at"],
+                    "updated_at": record["received_at"],
                 }
                 self.chunk_store.update(staged.chunk_store)
                 self.recipes.update(staged.recipes)
@@ -847,7 +994,7 @@ class TFPNode:
                 cur = conn.cursor()
                 cur.execute(
                     """
-                    SELECT publisher_id, bulletin_id, max_revision, latest_content_hash, latest_root_hash, first_seen_at, last_seen_at
+                    SELECT publisher_id, bulletin_id, max_revision, latest_content_hash, latest_root_hash, first_seen_at, last_seen_at, latest_title, updated_at
                     FROM bulletin_watermarks WHERE publisher_id = ? AND bulletin_id = ?
                     """,
                     (publisher_id, bulletin_id),
@@ -855,7 +1002,7 @@ class TFPNode:
                 row = cur.fetchone()
                 if not row:
                     return None
-                pub, bid, max_rev, c_hash, r_hash, first_at, last_at = row
+                pub, bid, max_rev, c_hash, r_hash, first_at, last_at, l_title, up_at = row
                 return {
                     "publisher_id": pub,
                     "bulletin_id": bid,
@@ -864,6 +1011,8 @@ class TFPNode:
                     "latest_root_hash": r_hash,
                     "first_seen_at": first_at,
                     "last_seen_at": last_at,
+                    "latest_title": l_title,
+                    "updated_at": up_at,
                 }
             finally:
                 conn.close()

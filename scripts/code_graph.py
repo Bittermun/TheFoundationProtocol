@@ -35,6 +35,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 EXCLUDED_DIRS = {
     ".git",
+    ".agents",
     "__pycache__",
     ".dist_verify",
     ".pytest_cache",

@@ -136,6 +136,21 @@
     color: #38bdf8;
   }
   .packet-line { margin-bottom: 4px; border-bottom: 1px solid #111a2e; padding-bottom: 2px; }
+  .packet-line.superseded {
+    opacity: 0.75;
+    border-left: 3px solid var(--danger);
+    padding-left: 6px;
+  }
+  .superseded-badge {
+    background: rgba(239, 68, 68, 0.25);
+    color: #ef4444;
+    border: 1px solid #ef4444;
+  }
+  .gap-warning-banner {
+    background: rgba(239, 68, 68, 0.2);
+    border: 1px solid var(--danger);
+    color: #fca5a5;
+  }
 </style>
 </head>
 <body>
@@ -355,14 +370,14 @@ function readWatermarks() {
   } catch (_) { return {}; }
 }
 
-function saveWatermark(publisher, bulletinId, revision, contentHash) {
+function saveWatermark(publisher, bulletinId, revision, contentHash, title) {
   if (!bulletinId) return;
   try {
     const wm = readWatermarks();
     const key = `${publisher || 'unsigned'}:${bulletinId}`;
     const prev = wm[key];
     if (!prev || revision >= prev.revision) {
-      wm[key] = { revision, contentHash, updated_at: new Date().toISOString() };
+      wm[key] = { revision, contentHash, title, updated_at: new Date().toISOString() };
       localStorage.setItem('tfp_bulletin_watermarks', JSON.stringify(wm));
     }
   } catch (_) {
@@ -393,13 +408,15 @@ function handleDecodedPacket(payloadBytes, origin = "Acoustic Audio") {
   }
   const title = structured ? (data.title || data.id) : 'Received Radio Bulletin';
   const body = structured ? data.body : text;
+  const isVerifiedEd25519 = structured && (data.verified_status === 'verified_ed25519' || data.verified === true);
   const record = {
     bulletinId: structured ? data.id : null, revision: structured ? data.rev : null,
     publisher: structured ? (data.pub || 'unsigned') : 'unsigned',
     signature: structured ? (data.sig || null) : null,
     wireVersion: structured ? (data.v || 1) : null, payloadKey,
+    time: new Date().toISOString(),
     provenance: {simulation: false, origin, crcValid: true,
-      verification: structured && (data.pub || data.sig) ? 'signature_unverified' : 'unsigned',
+      verification: isVerifiedEd25519 ? 'verified_ed25519' : (structured && (data.pub || data.sig) ? 'signature_unverified' : 'unsigned'),
       publisherTrust: 'not_established'},
   };
   // 1. Check permanent watermark storage (persists even if visual archive is cleared or pruned)
@@ -421,14 +438,28 @@ function handleDecodedPacket(payloadBytes, origin = "Acoustic Audio") {
 
     if (watermark) {
       if (record.revision < watermark.revision) {
-        logPacket(`[REJECTED STALE] Bulletin ${record.bulletinId} rev ${record.revision} superseded by local watermark ${watermark.revision}.`);
+        logPacket(`Downgrade rejected: [REJECTED STALE] Bulletin ${record.bulletinId} rev ${record.revision} superseded by local watermark ${watermark.revision}.`);
         return;
       }
       if (record.revision === watermark.revision) {
-        if (watermark.contentHash !== payloadKey) {
+        if (watermark.contentHash !== payloadKey || (watermark.title && watermark.title !== title)) {
           logPacket('Revision conflict; previous content retained.');
+          return;
+        }
+        const inArchive = archive.some(item => !item.provenance?.simulation && item.bulletinId === record.bulletinId && item.revision === record.revision);
+        if (!inArchive) {
+          displayReceivedArticle(title, body, false, record);
+          triggerHaptic('complete');
+          saveToOfflineArchive('text', title, body, record);
+          logPacket('Authentic repeat restored to display archive.');
         }
         return;
+      }
+      // Check revision gap: record.revision > watermark.revision + 1
+      if (record.revision > watermark.revision + 1) {
+        const gapMsg = `[MISSED BROADCAST WARNING: Revision gap detected (jumped from Rev ${watermark.revision} to Rev ${record.revision})]`;
+        record.gapWarning = gapMsg;
+        logPacket(gapMsg);
       }
     }
   }
@@ -445,6 +476,12 @@ function handleDecodedPacket(payloadBytes, origin = "Acoustic Audio") {
       return;
     }
   }
+  const maxPrevRev = previous.reduce((m, item) => Math.max(m, item.revision || 0), 0);
+  if (!record.gapWarning && maxPrevRev > 0 && record.revision > maxPrevRev + 1) {
+    const gapMsg = `[MISSED BROADCAST WARNING: Revision gap detected (jumped from Rev ${maxPrevRev} to Rev ${record.revision})]`;
+    record.gapWarning = gapMsg;
+    logPacket(gapMsg);
+  }
   if (previous.some(item => item.revision > record.revision)) {
     logPacket('Older revision ignored; latest content retained.'); return;
   }
@@ -452,7 +489,7 @@ function handleDecodedPacket(payloadBytes, origin = "Acoustic Audio") {
   triggerHaptic('complete');
   saveToOfflineArchive('text', title, body, record);
   if (record.bulletinId) {
-    saveWatermark(record.publisher, record.bulletinId, record.revision, payloadKey);
+    saveWatermark(record.publisher, record.bulletinId, record.revision, payloadKey, title);
   }
   logPacket(`[CRC VALID] Transport error check passed from ${origin}: ${title}. Publisher trust not established.`);
 }
@@ -714,15 +751,21 @@ function escapeHtml(str) {
 function displayReceivedArticle(title, body, isSimulation = false, record = {}) {
   currentArticleText = `${title}. ${body}`;
   const area = document.getElementById('contentArea');
+  const gapBannerHtml = record.gapWarning ? `
+    <div class="gap-warning-banner" style="background: rgba(239, 68, 68, 0.2); border: 1px solid var(--danger); color: #fca5a5; padding: 8px 12px; border-radius: 6px; font-weight: bold; margin-bottom: 8px; font-size: 11px;">
+      ⚠️ ${escapeHtml(record.gapWarning)}
+    </div>` : '';
   const bannerHtml = isSimulation ? `
     <div class="simulation-banner" style="background: rgba(245, 158, 11, 0.15); border: 1px solid #f59e0b; color: #fbbf24; padding: 6px 10px; border-radius: 6px; font-weight: bold; margin-bottom: 8px; font-size: 11px;">
       ⚠️ [SIMULATION DEMO] Displaying pre-recorded demo payload for layout preview. Real CRC/packet counters are not incremented.
     </div>` : `
-    <div style="margin-bottom: 8px;">
+    <div style="margin-bottom: 8px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center;">
       <span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid #10b981;">${provenanceLabel(record)}</span>
+      ${record.isSuperseded ? '<span class="badge superseded-badge" style="background: rgba(239, 68, 68, 0.25); color: #ef4444; border: 1px solid #ef4444;">[SUPERSEDED]</span>' : ''}
     </div>`;
 
   area.innerHTML = `
+    ${gapBannerHtml}
     ${bannerHtml}
     ${provenanceDetails(record)}
     <h2 class="content-title">${escapeHtml(title)}</h2>
@@ -734,15 +777,21 @@ function displayReceivedArticle(title, body, isSimulation = false, record = {}) 
 function displayReceivedVoiceMemo(callsign, durationMs, transcript, isSimulation = false, record = {}) {
   currentArticleText = `Voice note from ${callsign}. ${transcript}`;
   const area = document.getElementById('contentArea');
+  const gapBannerHtml = record.gapWarning ? `
+    <div class="gap-warning-banner" style="background: rgba(239, 68, 68, 0.2); border: 1px solid var(--danger); color: #fca5a5; padding: 8px 12px; border-radius: 6px; font-weight: bold; margin-bottom: 8px; font-size: 11px;">
+      ⚠️ ${escapeHtml(record.gapWarning)}
+    </div>` : '';
   const bannerHtml = isSimulation ? `
     <div class="simulation-banner" style="background: rgba(245, 158, 11, 0.15); border: 1px solid #f59e0b; color: #fbbf24; padding: 6px 10px; border-radius: 6px; font-weight: bold; margin-bottom: 8px; font-size: 11px;">
       ⚠️ [SIMULATION DEMO] Displaying pre-recorded voice note for layout preview. Real CRC/packet counters are not incremented.
     </div>` : `
-    <div style="margin-bottom: 8px;">
+    <div style="margin-bottom: 8px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center;">
       <span class="badge" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid #10b981;">${provenanceLabel(record)}</span>
+      ${record.isSuperseded ? '<span class="badge superseded-badge" style="background: rgba(239, 68, 68, 0.25); color: #ef4444; border: 1px solid #ef4444;">[SUPERSEDED]</span>' : ''}
     </div>`;
 
   area.innerHTML = `
+    ${gapBannerHtml}
     ${bannerHtml}
     ${provenanceDetails(record)}
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
@@ -791,17 +840,23 @@ function speakCurrentContent() {
 function provenanceLabel(record) {
   if (record.provenance?.simulation) return '[SIMULATION DEMO]';
   if (!record.provenance?.crcValid) return '[ARCHIVED · PROVENANCE UNKNOWN]';
-  return record.provenance.verification === 'signature_unverified'
+  if (record.provenance?.verification === 'verified_ed25519') return '[VERIFIED ED25519]';
+  return record.provenance?.verification === 'signature_unverified'
     ? '[CRC VALID · SIGNATURE UNVERIFIED]' : '[CRC VALID · UNSIGNED]';
 }
 
 function provenanceDetails(record) {
   if (!record.bulletinId) return '';
+  const timeStr = record.time ? new Date(record.time).toLocaleString() : (record.receivedAt || new Date().toLocaleString());
+  const isVerifiedEd25519 = record.provenance?.verification === 'verified_ed25519';
+  const hasPublisher = record.publisher && record.publisher !== 'unsigned';
   return `<div class="provenance" style="font-size:12px; overflow-wrap:anywhere; margin-bottom:10px;">
-    Bulletin: ${escapeHtml(record.bulletinId)} · Revision: ${escapeHtml(String(record.revision))}<br>
-    Publisher: ${escapeHtml(record.publisher)}<br>
-    Source: ${escapeHtml(record.provenance?.origin || 'Unknown')}<br>
-    Publisher trust not established. CRC checks transmission errors, not authorship.</div>`;
+    <b>Bulletin:</b> ${escapeHtml(record.bulletinId)} · <b>Revision:</b> ${escapeHtml(String(record.revision))}<br>
+    <b>Received:</b> <span class="rx-timestamp">${escapeHtml(timeStr)}</span><br>
+    ${hasPublisher ? `<b>Authenticated Ed25519 Signer Identity:</b> <code class="key-fingerprint" style="color:var(--accent); font-family:monospace; font-size:11px;">${escapeHtml(record.publisher)}</code>
+    <span class="badge verified-ed25519-badge" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid #10b981; font-size: 10px; margin-left: 6px;">[VERIFIED ED25519]</span><br>` : `<b>Publisher:</b> ${escapeHtml(record.publisher)}<br>`}
+    <b>Source:</b> ${escapeHtml(record.provenance?.origin || 'Unknown')}<br>
+    ${isVerifiedEd25519 ? 'Ed25519 signature mathematically verified.' : 'Publisher trust not established. CRC checks transmission errors, not authorship.'}</div>`;
 }
 
 function saveToOfflineArchive(type, title, snippet, record = {}) {
@@ -818,6 +873,7 @@ function loadOfflineArchive() {
   const countSpan = document.getElementById('archiveCount');
   try {
     const list = readArchive();
+    const wm = readWatermarks();
     countSpan.innerText = list.length;
     if (list.length === 0) {
       feed.innerHTML = '<div class="packet-line" style="color:var(--muted)">No transmissions stored yet.</div>';
@@ -825,16 +881,36 @@ function loadOfflineArchive() {
     }
     feed.innerHTML = '';
     list.forEach(item => {
+      let isSuperseded = false;
+      if (item.bulletinId && item.revision != null) {
+        for (const [wmKey, wmEntry] of Object.entries(wm)) {
+          const delimIdx = wmKey.indexOf(':');
+          const wId = delimIdx !== -1 ? wmKey.slice(delimIdx + 1) : wmKey;
+          if (wId === item.bulletinId && wmEntry.revision > item.revision) {
+            isSuperseded = true;
+            break;
+          }
+        }
+        if (!isSuperseded && list.some(other => other.bulletinId === item.bulletinId && other.revision > item.revision)) {
+          isSuperseded = true;
+        }
+      }
+
       const line = document.createElement('div');
-      line.className = 'packet-line';
+      line.className = 'packet-line' + (isSuperseded ? ' superseded' : '');
       line.style.cursor = 'pointer';
-      line.innerHTML = `<span style="color:#00e5ff;">[${escapeHtml(item.time)}]</span> <b>${escapeHtml(item.title)}</b>: ${escapeHtml((item.snippet || '').slice(0, 50))}...`;
+
+      const supersededBadge = isSuperseded ? '<span class="badge superseded-badge" style="background: rgba(239, 68, 68, 0.25); color: #ef4444; border: 1px solid #ef4444; font-size: 10px; padding: 1px 5px; border-radius: 4px; margin-left: 4px;">[SUPERSEDED]</span>' : '';
+      const gapBadge = item.gapWarning ? '<span class="badge gap-warning-badge" style="background: rgba(245, 158, 11, 0.25); color: #f59e0b; border: 1px solid #f59e0b; font-size: 10px; padding: 1px 5px; border-radius: 4px; margin-left: 4px;">[MISSED BROADCAST WARNING]</span>' : '';
+
+      line.innerHTML = `<span style="color:#00e5ff;">[${escapeHtml(item.time || '')}]</span> <b>${escapeHtml(item.title)}</b>: ${escapeHtml((item.snippet || '').slice(0, 50))}...${supersededBadge}${gapBadge}`;
       line.onclick = () => {
         const simulated = item.provenance?.simulation === true || /\[SIMULATED\]/i.test(item.title || '');
+        const recordToDisplay = {...item, isSuperseded};
         if (item.type === 'voice') {
-          displayReceivedVoiceMemo(item.title, 1850, item.snippet, simulated, item);
+          displayReceivedVoiceMemo(item.title, 1850, item.snippet, simulated, recordToDisplay);
         } else {
-          displayReceivedArticle(item.title, item.snippet, simulated, item);
+          displayReceivedArticle(item.title, item.snippet, simulated, recordToDisplay);
         }
       };
       feed.appendChild(line);
@@ -844,6 +920,14 @@ function loadOfflineArchive() {
 
 function clearArchive() {
   localStorage.removeItem('tfp_transmissions');
+  seenPacketHashes.clear();
+  const area = document.getElementById('contentArea');
+  if (area) {
+    area.innerHTML = '<div class="empty-state">Start listening near a speaker playing a TFP 1200 baud text bulletin, or open its WAV file. Reception depends on your audio equipment and environment.</div>';
+  }
+  const speakBtn = document.getElementById('speakBtn');
+  if (speakBtn) speakBtn.disabled = true;
+  currentArticleText = '';
   loadOfflineArchive();
 }
 

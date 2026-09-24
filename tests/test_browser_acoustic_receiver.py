@@ -25,11 +25,22 @@ from tfp_client.lib.audio.afsk_modulator import AFSKModulator
 sync_playwright = pytest.importorskip("playwright.sync_api").sync_playwright
 
 
+def get_receiver_html_path() -> Path:
+    try:
+        from tfp_core_v4.visualizer_server import get_static_assets_dir
+        html_path = get_static_assets_dir() / "acoustic_receiver.html"
+    except Exception:
+        html_path = None
+    if not html_path or not html_path.exists():
+        html_path = Path(__file__).resolve().parent.parent / "tfp-foundation-protocol" / "tfp_demo" / "static" / "acoustic_receiver.html"
+    return html_path
+
+
 def test_browser_acoustic_receiver_end_to_end(tmp_path: Path):
     """
     Test real in-browser demodulation and simulation telemetry decoupling in Chromium.
     """
-    html_path = Path(__file__).resolve().parent.parent / "tfp-foundation-protocol" / "tfp_demo" / "static" / "acoustic_receiver.html"
+    html_path = get_receiver_html_path()
     assert html_path.exists(), f"Receiver HTML not found at {html_path}"
 
     with sync_playwright() as p:
@@ -112,7 +123,7 @@ def test_browser_watermark_preservation_after_archive_cleared():
     Clearing the visual offline transmission archive does NOT wipe bulletin watermarks,
     preventing malicious or accidental stale revision replays.
     """
-    html_path = Path(__file__).resolve().parent.parent / "tfp-foundation-protocol" / "tfp_demo" / "static" / "acoustic_receiver.html"
+    html_path = get_receiver_html_path()
     assert html_path.exists(), f"Receiver HTML not found at {html_path}"
 
     with sync_playwright() as p:
@@ -210,7 +221,8 @@ def test_browser_acoustic_receiver_structured_id_publisher_pinning(tmp_path: Pat
     Even after the visual archive is cleared, a different publisher transmitting the same
     structured bulletin ID must be rejected with 'Publisher identity conflict'.
     """
-    html_path = Path(__file__).resolve().parent.parent / "tfp-foundation-protocol" / "tfp_demo" / "static" / "acoustic_receiver.html"
+    html_path = get_receiver_html_path()
+    assert html_path.exists(), f"Receiver HTML not found at {html_path}"
     modulator = AFSKModulator(sample_rate=16000, baud_rate=1200, preamble_flags=16)
 
     with sync_playwright() as p:
@@ -264,5 +276,124 @@ def test_browser_acoustic_receiver_structured_id_publisher_pinning(tmp_path: Pat
         assert len(archive) == 0
 
         browser.close()
+
+
+def test_browser_acoustic_receiver_repeat_restoration(tmp_path: Path):
+    """
+    Verify Browser Repeat Restoration:
+    When an exact repeat of a known bulletin arrives after the display/archive
+    has been cleared, it is restored to the content area and offline archive
+    while preserving watermark downgrade protections.
+    """
+    html_path = get_receiver_html_path()
+    assert html_path.exists(), f"Receiver HTML not found at {html_path}"
+    modulator = AFSKModulator(sample_rate=16000, baud_rate=1200, preamble_flags=16)
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context()
+        page = context.new_page()
+
+        page.goto(f"file:///{html_path.resolve().as_posix()}")
+        page.wait_for_selector("#packetCount")
+
+        # 1. Ingest initial revision 1 of bulletin RESTORE-01
+        b1 = {
+            "id": "RESTORE-01",
+            "rev": 1,
+            "pub": "station-bravo",
+            "title": "Community Water Update (Rev 1)",
+            "body": "Water distribution at Central Park starting 10:00 AM.",
+        }
+        wav1 = modulator.synthesize_wav(json.dumps(b1).encode("utf-8"))
+        res1 = page.evaluate("b64 => window.decodeAcousticWav(b64)", base64.b64encode(wav1).decode("ascii"))
+        assert res1["count"] == 1
+
+        # Verify displayed and archived
+        assert "Community Water Update (Rev 1)" in page.locator("#contentArea").inner_text()
+        assert "Water distribution at Central Park starting 10:00 AM." in page.locator("#contentArea").inner_text()
+        archive1 = page.evaluate("() => JSON.parse(localStorage.getItem('tfp_transmissions') || '[]')")
+        assert len(archive1) == 1
+        assert archive1[0]["bulletinId"] == "RESTORE-01"
+
+        # Watermark recorded
+        wm1 = page.evaluate("() => JSON.parse(localStorage.getItem('tfp_bulletin_watermarks') || '{}')")
+        assert "station-bravo:RESTORE-01" in wm1
+        assert wm1["station-bravo:RESTORE-01"]["revision"] == 1
+
+        # 2. Clear visual archive using the UI "Clear" button
+        clear_btn = page.locator("button:has-text('Clear')")
+        clear_btn.click()
+
+        # Visual display wiped, archive empty, watermark retained
+        assert page.locator("#archiveCount").inner_text() == "0"
+        archive_cleared = page.evaluate("() => JSON.parse(localStorage.getItem('tfp_transmissions') || '[]')")
+        assert len(archive_cleared) == 0
+        assert "Start listening near a speaker" in page.locator("#contentArea").inner_text()
+
+        wm_retained = page.evaluate("() => JSON.parse(localStorage.getItem('tfp_bulletin_watermarks') || '{}')")
+        assert wm_retained["station-bravo:RESTORE-01"]["revision"] == 1
+
+        # 3. Transmit identical authentic repeat of Revision 1
+        res1_repeat = page.evaluate("b64 => window.decodeAcousticWav(b64)", base64.b64encode(wav1).decode("ascii"))
+        assert res1_repeat["count"] == 1
+
+        # Must log restoration
+        feed_text = page.locator("#packetFeed").inner_text()
+        assert "Authentic repeat restored to display archive." in feed_text
+
+        # Content area must be restored
+        assert "Community Water Update (Rev 1)" in page.locator("#contentArea").inner_text()
+        assert "Water distribution at Central Park starting 10:00 AM." in page.locator("#contentArea").inner_text()
+
+        # Archive must have the restored item
+        restored_archive = page.evaluate("() => JSON.parse(localStorage.getItem('tfp_transmissions') || '[]')")
+        assert len(restored_archive) == 1
+        assert restored_archive[0]["bulletinId"] == "RESTORE-01"
+
+        # Watermark still at 1
+        wm_after_restore = page.evaluate("() => JSON.parse(localStorage.getItem('tfp_bulletin_watermarks') || '{}')")
+        assert wm_after_restore["station-bravo:RESTORE-01"]["revision"] == 1
+
+        # 4. Advance to Revision 2
+        b2 = {
+            "id": "RESTORE-01",
+            "rev": 2,
+            "pub": "station-bravo",
+            "title": "Community Water Update (Rev 2)",
+            "body": "Water distribution expanded to South Park.",
+        }
+        wav2 = modulator.synthesize_wav(json.dumps(b2).encode("utf-8"))
+        res2 = page.evaluate("b64 => window.decodeAcousticWav(b64)", base64.b64encode(wav2).decode("ascii"))
+        assert res2["count"] == 1
+
+        wm2 = page.evaluate("() => JSON.parse(localStorage.getItem('tfp_bulletin_watermarks') || '{}')")
+        assert wm2["station-bravo:RESTORE-01"]["revision"] == 2
+
+        # Clear archive again
+        clear_btn.click()
+        assert page.locator("#archiveCount").inner_text() == "0"
+
+        # 5. Stale Revision 1 replay must be rejected
+        res1_stale = page.evaluate("b64 => window.decodeAcousticWav(b64)", base64.b64encode(wav1).decode("ascii"))
+        assert res1_stale["count"] == 1
+
+        feed_after_stale = page.locator("#packetFeed").inner_text()
+        assert "Downgrade rejected" in feed_after_stale
+        assert "[REJECTED STALE]" in feed_after_stale
+
+        # Display remains cleared
+        archive_still_empty = page.evaluate("() => JSON.parse(localStorage.getItem('tfp_transmissions') || '[]')")
+        assert len(archive_still_empty) == 0
+
+        # 6. Authentic repeat of Revision 2 restores display
+        res2_repeat = page.evaluate("b64 => window.decodeAcousticWav(b64)", base64.b64encode(wav2).decode("ascii"))
+        assert res2_repeat["count"] == 1
+
+        assert "Community Water Update (Rev 2)" in page.locator("#contentArea").inner_text()
+        assert "Water distribution expanded to South Park." in page.locator("#contentArea").inner_text()
+
+        browser.close()
+
 
 
