@@ -148,6 +148,11 @@ class TFPNode:
                 )
                 """
             )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_bulletin_watermarks_bid ON bulletin_watermarks(bulletin_id)
+                """
+            )
             conn.commit()
         finally:
             conn.close()
@@ -467,6 +472,94 @@ class TFPNode:
         """Return real deduplication and throughput metrics."""
         return dict(self.telemetry)
 
+    def _check_watermark(
+        self,
+        bulletin_id: str,
+        revision: int,
+        content_hash: str,
+        publisher_id: str,
+        record: dict[str, Any],
+        data: bytes,
+        status: str,
+        conn: sqlite3.Connection | None = None,
+    ) -> ChunkRecipe | None:
+        """Verify watermark constraints and return existing recipe on authentic duplicate replay."""
+        from .bulletin_identity import (
+            PublisherIdentityConflictError,
+            RevisionConflictError,
+            StaleRevisionError,
+        )
+
+        if conn is not None:
+            wm_rows = conn.execute(
+                "SELECT max_revision, latest_content_hash, latest_root_hash, publisher_id FROM bulletin_watermarks WHERE bulletin_id=?",
+                (bulletin_id,),
+            ).fetchall()
+        else:
+            wm_rows = [
+                (wm["max_revision"], wm["latest_content_hash"], wm["latest_root_hash"], wm["publisher_id"])
+                for (pub, bid), wm in self._bulletin_watermarks.items()
+                if bid == bulletin_id
+            ]
+
+        if not wm_rows:
+            return None
+
+        for wm_rev, wm_c_hash, wm_r_hash, wm_pub in wm_rows:
+            if wm_pub != publisher_id:
+                raise PublisherIdentityConflictError("Bulletin publisher identity conflict")
+            if revision < wm_rev:
+                raise StaleRevisionError(
+                    f"Stale bulletin revision was not accepted: revision {revision} is superseded by known watermark {wm_rev}"
+                )
+            if revision == wm_rev:
+                if hmac.compare_digest(content_hash, wm_c_hash):
+                    stored = self.get_bulletin(bulletin_id, revision, connection=conn)
+                    if stored is not None:
+                        accepted = stored[0]
+                    else:
+                        # Reconstruct metadata or re-admit display record for pruned authentic bulletin
+                        accepted = dict(record)
+                        accepted["root_hash"] = wm_r_hash
+                        if conn is not None:
+                            conn.execute(
+                                """INSERT OR IGNORE INTO bulletins
+                                (bulletin_id, revision, content_hash, root_hash, publisher_id, signature_hex,
+                                 title, received_at, verified_status, data_size, metadata_json)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                                (
+                                    bulletin_id,
+                                    revision,
+                                    content_hash,
+                                    wm_r_hash,
+                                    publisher_id,
+                                    record.get("signature_hex"),
+                                    record.get("title", bulletin_id),
+                                    record["received_at"],
+                                    status,
+                                    len(data),
+                                    json.dumps(accepted),
+                                ),
+                            )
+                            conn.commit()
+                        self._bulletins[(bulletin_id, revision)] = accepted
+                    if wm_r_hash not in self.recipes:
+                        if conn is not None:
+                            self._load_recipe_from_db(wm_r_hash)
+                    if wm_r_hash in self.recipes:
+                        return replace(self.recipes[wm_r_hash], metadata=accepted)
+                    staged = TFPNode(db_path="", chunker=self.chunker, codec=self.codec)
+                    recipe = staged.publish(data, metadata=accepted)
+                    self.chunk_store.update(staged.chunk_store)
+                    self.recipes.update(staged.recipes)
+                    self.droplet_store.update(staged.droplet_store)
+                    self.merkle_trees.update(staged.merkle_trees)
+                    return recipe
+                else:
+                    raise RevisionConflictError("Bulletin revision conflict")
+
+        return None
+
     def store_bulletin(
         self, bulletin_id: str, revision: int, data: bytes, title: str = "",
         publisher_id: str = "unsigned", signature_hex: str | None = None,
@@ -499,59 +592,49 @@ class TFPNode:
             try:
                 if conn is not None:
                     conn.execute("BEGIN IMMEDIATE")
-                    # 1. Permanent watermark verification (defends against stale replays even after archive pruning)
-                    wm_rows = conn.execute(
-                        "SELECT max_revision, latest_content_hash, latest_root_hash, publisher_id FROM bulletin_watermarks WHERE bulletin_id=?",
-                        (bulletin_id,),
-                    ).fetchall()
-                    if wm_rows:
-                        for wm_rev, wm_c_hash, wm_r_hash, wm_pub in wm_rows:
-                            if wm_pub != publisher_id:
-                                from .bulletin_identity import PublisherIdentityConflictError
-                                raise PublisherIdentityConflictError("Bulletin publisher identity conflict")
-                            if revision < wm_rev:
-                                from .bulletin_identity import StaleRevisionError
-                                raise StaleRevisionError(f"Stale bulletin revision was not accepted: revision {revision} is superseded by known watermark {wm_rev}")
-                            if revision == wm_rev:
-                                if hmac.compare_digest(content_hash, wm_c_hash):
-                                    accepted, _ = self.get_bulletin(bulletin_id, revision)
-                                    if accepted is not None:
-                                        if wm_r_hash not in self.recipes:
-                                            self._load_recipe_from_db(wm_r_hash)
-                                        return replace(self.recipes[wm_r_hash], metadata=accepted)
-                                from .bulletin_identity import RevisionConflictError
-                                raise RevisionConflictError("Bulletin revision conflict")
 
+                duplicate_recipe = self._check_watermark(
+                    bulletin_id=bulletin_id,
+                    revision=revision,
+                    content_hash=content_hash,
+                    publisher_id=publisher_id,
+                    record=record,
+                    data=data,
+                    status=status,
+                    conn=conn,
+                )
+                if duplicate_recipe is not None:
+                    return duplicate_recipe
+
+                if conn is not None:
                     rows = conn.execute(
                         "SELECT revision, publisher_id, content_hash, title, root_hash FROM bulletins WHERE bulletin_id=?",
                         (bulletin_id,),
                     ).fetchall()
                     existing = [dict(zip(("revision", "publisher_id", "content_hash", "title", "root_hash"), row)) for row in rows]
                 else:
-                    # In-memory watermark verification
-                    wm = self._bulletin_watermarks.get((publisher_id, bulletin_id))
-                    if wm is not None:
-                        if revision < wm["max_revision"]:
-                            from .bulletin_identity import StaleRevisionError
-                            raise StaleRevisionError(f"Stale bulletin revision was not accepted: revision {revision} is superseded by known watermark {wm['max_revision']}")
-                        if revision == wm["max_revision"]:
-                            if hmac.compare_digest(content_hash, wm["latest_content_hash"]):
-                                accepted, _ = self.get_bulletin(bulletin_id, revision)
-                                if accepted is not None:
-                                    return replace(self.recipes[wm["latest_root_hash"]], metadata=accepted)
-                            from .bulletin_identity import RevisionConflictError
-                            raise RevisionConflictError("Bulletin revision conflict")
                     existing = [r for (bid, _), r in self._bulletins.items() if bid == bulletin_id]
+
                 duplicate = check_revision(existing, record)
                 if duplicate is not None:
                     root = duplicate["root_hash"]
                     if root not in self.recipes:
-                        self._load_recipe_from_db(root)
+                        if conn is not None:
+                            self._load_recipe_from_db(root)
                     # Content-addressed recipes can be shared by distinct
                     # bulletins. Return this bulletin's provenance, not whichever
                     # metadata last happened to be stored for those same bytes.
-                    accepted, _ = self.get_bulletin(bulletin_id, revision)
-                    return replace(self.recipes[root], metadata=accepted)
+                    stored = self.get_bulletin(bulletin_id, revision, connection=conn)
+                    accepted = stored[0] if stored is not None else duplicate
+                    if root in self.recipes:
+                        return replace(self.recipes[root], metadata=accepted)
+                    staged = TFPNode(db_path="", chunker=self.chunker, codec=self.codec)
+                    recipe = staged.publish(data, metadata=accepted)
+                    self.chunk_store.update(staged.chunk_store)
+                    self.recipes.update(staged.recipes)
+                    self.droplet_store.update(staged.droplet_store)
+                    self.merkle_trees.update(staged.merkle_trees)
+                    return recipe
 
                 # Prepare without exposing rejected/uncommitted content in this node.
                 staged = TFPNode(db_path="", chunker=self.chunker, codec=self.codec)
@@ -606,22 +689,26 @@ class TFPNode:
                     conn.close()
 
     def get_bulletin(
-        self, bulletin_id: str, revision: int | None = None
+        self,
+        bulletin_id: str,
+        revision: int | None = None,
+        connection: sqlite3.Connection | None = None,
     ) -> tuple[dict[str, Any], bytes] | None:
         """
         Retrieve a bulletin's record and exact content bytes from authoritative storage.
         """
-        if not self.db_path:
+        if not self.db_path and connection is None:
             records = [r for (bid, rev), r in self._bulletins.items()
                        if bid == bulletin_id and (revision is None or revision == rev)]
             if not records:
                 return None
             record = max(records, key=lambda r: r["revision"])
             return dict(record), self.fetch(record["root_hash"])
-        if not self.db_path.exists():
+        if connection is None and (not self.db_path or not self.db_path.exists()):
             return None
 
-        conn = sqlite3.connect(str(self.db_path))
+        conn = connection or sqlite3.connect(str(self.db_path))
+        close_conn = connection is None
         try:
             cur = conn.cursor()
             if revision is not None:
@@ -664,7 +751,8 @@ class TFPNode:
             content_bytes = self.fetch(r_hash or c_hash)
             return meta, content_bytes
         finally:
-            conn.close()
+            if close_conn:
+                conn.close()
 
     def list_bulletins(self) -> list[dict[str, Any]]:
         """

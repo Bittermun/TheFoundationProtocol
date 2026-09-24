@@ -410,7 +410,9 @@ function handleDecodedPacket(payloadBytes, origin = "Acoustic Audio") {
 
     // Enforce publisher pinning on this bulletin ID
     for (const [wmKey, wmEntry] of Object.entries(wm)) {
-      const [wPub, wId] = wmKey.split(':');
+      const delimIdx = wmKey.indexOf(':');
+      const wPub = delimIdx !== -1 ? wmKey.slice(0, delimIdx) : wmKey;
+      const wId = delimIdx !== -1 ? wmKey.slice(delimIdx + 1) : '';
       if (wId === record.bulletinId && wPub !== record.publisher) {
         logPacket('Publisher identity conflict; previous content retained.');
         return;

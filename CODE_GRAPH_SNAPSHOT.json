@@ -3,29 +3,29 @@
     "protocol": "The Foundation Protocol (TFP)",
     "protocol_version": "v4.0.0",
     "schema_version": "2.0.0",
-    "generated_at": "2026-09-24T04:25:31.963970+00:00",
-    "git_commit": "0bd8fd3a501c5ac81c02de640df4ca328f3d6c92",
+    "generated_at": "2026-09-24T05:38:07.598722+00:00",
+    "git_commit": "b0fe70920db5c05a05b5824a1e20c6713d278ae4",
     "git_branch": "main",
     "repository": "https://github.com/Bittermun/TheFoundationProtocol",
     "ast_engine": "Python standard library ast (deterministic zero-dependency)"
   },
   "stats": {
     "production_files": 313,
-    "production_loc": 53747,
+    "production_loc": 53829,
     "production_classes": 474,
-    "production_functions": 2619,
+    "production_functions": 2620,
     "test_files": 101,
-    "test_functions": 768,
-    "total_symbols": 4128
+    "test_functions": 773,
+    "total_symbols": 4134
   },
   "package_breakdown": [
     {
       "package": "tests",
       "role": "Comprehensive test battery spanning unit, hypothesis fuzzing, acceptance, and security verification",
       "files": 162,
-      "loc": 27434,
+      "loc": 27564,
       "classes": 215,
-      "functions": 1882
+      "functions": 1887
     },
     {
       "package": "tfp_client",
@@ -55,9 +55,9 @@
       "package": "tfp_core_v4",
       "role": "Core protocol engine: TFPNode storage engine, ContentDefinedChunker, SQLite recipe store, and visualizer server",
       "files": 12,
-      "loc": 3604,
+      "loc": 3686,
       "classes": 21,
-      "functions": 102
+      "functions": 103
     },
     {
       "package": "scripts",
@@ -192,7 +192,7 @@
     "adversarial_certification": "Autonomous adversarial fault injection runner (scripts/run_adversarial_audit.py) verifying invariants across mutants M1-M5 with certified negative proof."
   },
   "test_coverage_index": {
-    "tested_symbol_count": 1077,
+    "tested_symbol_count": 1078,
     "coverage_map": {
       "AFSKDemodulator": [
         "tests/test_afsk_audio_bridge.py::test_afsk_attenuated_signal_with_agc",
@@ -226,6 +226,7 @@
         "tests/test_browser_acoustic_acceptance.py::test_live_callback_accepts_correction_without_restarting_capture",
         "tests/test_browser_acoustic_acceptance.py::test_live_callback_decodes_long_message_with_leading_silence",
         "tests/test_browser_acoustic_receiver.py::test_browser_acoustic_receiver_end_to_end",
+        "tests/test_browser_acoustic_receiver.py::test_browser_acoustic_receiver_structured_id_publisher_pinning",
         "tests/test_browser_acoustic_receiver.py::test_browser_watermark_preservation_after_archive_cleared",
         "tests/test_bulletin_admission_recovery.py::altered_audio",
         "tests/test_cli_subcommands.py::test_afsk_packet_size_symmetric_limit",
@@ -1417,6 +1418,7 @@
         "tests/test_ast_guardrails.py::_lint_snippet",
         "tests/test_audit_hardening.py::TestSecurityHardening.test_cli_has_zero_naked_asserts_in_production",
         "tests/test_browser_acoustic_receiver.py::test_browser_acoustic_receiver_end_to_end",
+        "tests/test_browser_acoustic_receiver.py::test_browser_acoustic_receiver_structured_id_publisher_pinning",
         "tests/test_browser_acoustic_receiver.py::test_browser_watermark_preservation_after_archive_cleared",
         "tests/test_bulletin_admission_recovery.py::fail_install",
         "tests/test_bulletin_admission_recovery.py::fail_install_and_rollback",
@@ -1882,8 +1884,12 @@
         "tests/test_bulletin_admission_recovery.py::test_legitimate_correction_and_stale_revision",
         "tests/test_bulletin_admission_recovery.py::test_memory_database_mode_is_usable_and_isolated",
         "tests/test_bulletin_admission_recovery.py::test_publisher_change_cannot_take_over_existing_identity",
+        "tests/test_bulletin_watermarks.py::test_bulletin_watermarks_secondary_index",
         "tests/test_bulletin_watermarks.py::test_conflicting_content_on_same_revision_rejected",
         "tests/test_bulletin_watermarks.py::test_idempotent_duplicate_of_latest_watermark",
+        "tests/test_bulletin_watermarks.py::test_in_memory_publisher_identity_conflict_after_pruning",
+        "tests/test_bulletin_watermarks.py::test_pruned_authentic_duplicate_replay_succeeds_in_memory",
+        "tests/test_bulletin_watermarks.py::test_pruned_authentic_duplicate_replay_succeeds_sqlite",
         "tests/test_bulletin_watermarks.py::test_pruning_display_bulletins_does_not_permit_stale_replay",
         "tests/test_bulletin_watermarks.py::test_publisher_identity_conflict_rejected_by_watermark",
         "tests/test_bulletin_watermarks.py::test_watermark_advancement_and_stale_rejection",
@@ -2350,6 +2356,7 @@
         "tests/test_freivalds_asymmetric_work.py::TestFreivaldsAsymmetricWork.test_byzantine_single_element_tampering_rejected"
       ],
       "__import__": [
+        "tests/test_bulletin_watermarks.py::test_in_memory_publisher_identity_conflict_after_pruning",
         "tests/test_bulletin_watermarks.py::test_pruning_display_bulletins_does_not_permit_stale_replay",
         "tests/test_bulletin_watermarks.py::test_publisher_identity_conflict_rejected_by_watermark",
         "tests/test_bulletin_watermarks.py::test_watermark_advancement_and_stale_rejection",
@@ -3287,6 +3294,7 @@
       ],
       "as_posix": [
         "tests/test_browser_acoustic_receiver.py::test_browser_acoustic_receiver_end_to_end",
+        "tests/test_browser_acoustic_receiver.py::test_browser_acoustic_receiver_structured_id_publisher_pinning",
         "tests/test_browser_acoustic_receiver.py::test_browser_watermark_preservation_after_archive_cleared",
         "tests/test_receiver_discrepancy_matrix.py::MatrixEnvironment.__init__"
       ],
@@ -3697,6 +3705,7 @@
         "tests/test_browser_acoustic_acceptance.py::decode",
         "tests/test_browser_acoustic_acceptance.py::feed_live_audio",
         "tests/test_browser_acoustic_receiver.py::test_browser_acoustic_receiver_end_to_end",
+        "tests/test_browser_acoustic_receiver.py::test_browser_acoustic_receiver_structured_id_publisher_pinning",
         "tests/test_browser_acoustic_receiver.py::test_browser_watermark_preservation_after_archive_cleared",
         "tests/test_receiver_discrepancy_matrix.py::MatrixEnvironment.run_vector"
       ],
@@ -4121,7 +4130,9 @@
         "tests/test_browser_acoustic_acceptance.py::browser_server",
         "tests/test_browser_acoustic_acceptance.py::page",
         "tests/test_browser_acoustic_receiver.py::test_browser_acoustic_receiver_end_to_end",
+        "tests/test_browser_acoustic_receiver.py::test_browser_acoustic_receiver_structured_id_publisher_pinning",
         "tests/test_browser_acoustic_receiver.py::test_browser_watermark_preservation_after_archive_cleared",
+        "tests/test_bulletin_watermarks.py::test_bulletin_watermarks_secondary_index",
         "tests/test_cli_persistent_search.py::test_cli_search_degraded_document_explicit_warning",
         "tests/test_demo_reliability.py::test_legacy_credit_schema_and_receipts_migrate_without_erasing_balance",
         "tests/test_interruption_harness.py::ConnectionWrapper.close",
@@ -4233,6 +4244,7 @@
         "tests/simulation/test_offline_mesh_simulation.py::test_peer_sync_minimal_wire_reconciliation",
         "tests/test_bulletin_admission_recovery.py::test_database_failure_rolls_back_both_publication_and_bulletin",
         "tests/test_bulletin_admission_recovery.py::test_legacy_signature_is_rejected_and_legacy_record_is_not_claimed_verified",
+        "tests/test_bulletin_watermarks.py::test_bulletin_watermarks_secondary_index",
         "tests/test_cli_persistent_search.py::test_cli_search_degraded_document_explicit_warning",
         "tests/test_demo_reliability.py::test_legacy_credit_schema_and_receipts_migrate_without_erasing_balance",
         "tests/test_interruption_harness.py::test_node_crash_during_chunk_persistence_preserves_database_integrity",
@@ -4451,6 +4463,7 @@
         "tests/test_visualizer_storage.py::test_visualizer_does_not_write_to_installation"
       ],
       "cursor": [
+        "tests/test_bulletin_watermarks.py::test_bulletin_watermarks_secondary_index",
         "tests/test_interruption_harness.py::ConnectionWrapper.cursor",
         "tests/test_interruption_harness.py::test_node_crash_during_chunk_persistence_preserves_database_integrity",
         "tests/test_interruption_harness.py::test_node_store_bulletin_crash_before_commit_rolls_back_cleanly",
@@ -4504,6 +4517,7 @@
         "tests/test_browser_acoustic_acceptance.py::test_revision_update_survives_shared_prefix_and_duplicate_replay",
         "tests/test_browser_acoustic_acceptance.py::test_signed_packet_is_explicitly_unverified_in_browser_and_archive",
         "tests/test_browser_acoustic_receiver.py::test_browser_acoustic_receiver_end_to_end",
+        "tests/test_browser_acoustic_receiver.py::test_browser_acoustic_receiver_structured_id_publisher_pinning",
         "tests/test_browser_acoustic_receiver.py::test_browser_watermark_preservation_after_archive_cleared",
         "tests/test_bulletin_workflow.py::test_bulletin_prepare_and_import_bit_exact",
         "tests/test_bulletin_workflow.py::test_bulletin_unicode_and_special_characters_survival",
@@ -4825,6 +4839,7 @@
         "tests/test_browser_acoustic_acceptance.py::test_live_callback_accepts_correction_without_restarting_capture",
         "tests/test_browser_acoustic_acceptance.py::test_live_callback_decodes_long_message_with_leading_silence",
         "tests/test_browser_acoustic_receiver.py::test_browser_acoustic_receiver_end_to_end",
+        "tests/test_browser_acoustic_receiver.py::test_browser_acoustic_receiver_structured_id_publisher_pinning",
         "tests/test_browser_acoustic_receiver.py::test_browser_watermark_preservation_after_archive_cleared",
         "tests/test_bulletin_admission_recovery.py::altered_audio",
         "tests/test_checkpoint_admission.py::test_checkpoint_session_override_is_authenticated",
@@ -4932,6 +4947,7 @@
         "tests/test_browser_acoustic_acceptance.py::test_live_callback_accepts_correction_without_restarting_capture",
         "tests/test_browser_acoustic_acceptance.py::test_live_callback_decodes_long_message_with_leading_silence",
         "tests/test_browser_acoustic_receiver.py::test_browser_acoustic_receiver_end_to_end",
+        "tests/test_browser_acoustic_receiver.py::test_browser_acoustic_receiver_structured_id_publisher_pinning",
         "tests/test_browser_acoustic_receiver.py::test_browser_watermark_preservation_after_archive_cleared",
         "tests/test_bulletin_admission_recovery.py::altered_audio",
         "tests/test_bulletin_admission_recovery.py::receive",
@@ -5141,6 +5157,7 @@
         "tests/test_browser_acoustic_acceptance.py::test_live_callback_decodes_long_message_with_leading_silence",
         "tests/test_browser_acoustic_acceptance.py::test_revision_update_survives_shared_prefix_and_duplicate_replay",
         "tests/test_browser_acoustic_receiver.py::test_browser_acoustic_receiver_end_to_end",
+        "tests/test_browser_acoustic_receiver.py::test_browser_acoustic_receiver_structured_id_publisher_pinning",
         "tests/test_browser_acoustic_receiver.py::test_browser_watermark_preservation_after_archive_cleared",
         "tests/test_playwright_visualization.py::test_legacy_visualizer_live_protocol_and_interaction",
         "tests/test_receiver_discrepancy_matrix.py::MatrixEnvironment.run_vector",
@@ -5152,6 +5169,7 @@
       "execute": [
         "tests/test_bulletin_admission_recovery.py::test_database_failure_rolls_back_both_publication_and_bulletin",
         "tests/test_bulletin_admission_recovery.py::test_legacy_signature_is_rejected_and_legacy_record_is_not_claimed_verified",
+        "tests/test_bulletin_watermarks.py::test_bulletin_watermarks_secondary_index",
         "tests/test_cli_persistent_search.py::test_cli_search_degraded_document_explicit_warning",
         "tests/test_credit_settlement_recovery.py::test_insufficient_supply_keeps_all_rewards_pending",
         "tests/test_demo_reliability.py::test_legacy_credit_schema_and_receipts_migrate_without_erasing_balance",
@@ -5347,6 +5365,9 @@
         "tests/test_tfp_core_v4.py::TestTFPCoreV4.test_invariant_1_lossless_roundtrip",
         "tests/test_tfp_core_v4.py::TestTFPCoreV4.test_invariant_3_fountain_loss_resilience"
       ],
+      "fetchall": [
+        "tests/test_bulletin_watermarks.py::test_bulletin_watermarks_secondary_index"
+      ],
       "fetchone": [
         "tests/test_credit_settlement_recovery.py::test_insufficient_supply_keeps_all_rewards_pending",
         "tests/test_interruption_harness.py::test_node_crash_during_chunk_persistence_preserves_database_integrity",
@@ -5487,6 +5508,7 @@
         "tests/fuzz/test_adversarial_stress_empirical.py::TestMutualisticDefenseAdversarialStress.test_heuristic_pack_ed25519_genuine_and_bit_flipped",
         "tests/test_bulletin_admission_recovery.py::signed_package",
         "tests/test_bulletin_admission_recovery.py::test_legitimate_correction_and_stale_revision",
+        "tests/test_bulletin_watermarks.py::test_in_memory_publisher_identity_conflict_after_pruning",
         "tests/test_bulletin_watermarks.py::test_pruning_display_bulletins_does_not_permit_stale_replay",
         "tests/test_bulletin_watermarks.py::test_publisher_identity_conflict_rejected_by_watermark",
         "tests/test_bulletin_watermarks.py::test_watermark_advancement_and_stale_rejection",
@@ -5908,6 +5930,8 @@
         "tests/test_bulletin_admission_recovery.py::test_legitimate_correction_and_stale_revision",
         "tests/test_bulletin_admission_recovery.py::test_memory_database_mode_is_usable_and_isolated",
         "tests/test_bulletin_admission_recovery.py::test_publisher_change_cannot_take_over_existing_identity",
+        "tests/test_bulletin_watermarks.py::test_pruned_authentic_duplicate_replay_succeeds_in_memory",
+        "tests/test_bulletin_watermarks.py::test_pruned_authentic_duplicate_replay_succeeds_sqlite",
         "tests/test_bulletin_watermarks.py::test_pruning_display_bulletins_does_not_permit_stale_replay",
         "tests/test_bulletin_workflow.py::test_bulletin_prepare_and_import_bit_exact",
         "tests/test_bulletin_workflow.py::test_cli_long_inline_bulletin_handles_filename_limit",
@@ -6380,6 +6404,7 @@
       "goto": [
         "tests/test_browser_acoustic_acceptance.py::page",
         "tests/test_browser_acoustic_receiver.py::test_browser_acoustic_receiver_end_to_end",
+        "tests/test_browser_acoustic_receiver.py::test_browser_acoustic_receiver_structured_id_publisher_pinning",
         "tests/test_browser_acoustic_receiver.py::test_browser_watermark_preservation_after_archive_cleared",
         "tests/test_playwright_visualization.py::test_acoustic_receiver_page",
         "tests/test_playwright_visualization.py::test_clean_slate_visualizer",
@@ -6440,6 +6465,7 @@
         "tests/operate_testbed.py::TFPTester.delegate_proof",
         "tests/test_bip39_root_of_trust.py::TestBIP39Tier1Features.test_device_identity_lifecycle_and_recovery",
         "tests/test_bip39_root_of_trust.py::TestBIP39Tier1Features.test_pbkdf2_seed_derivation_bip39_vectors",
+        "tests/test_bulletin_watermarks.py::test_in_memory_publisher_identity_conflict_after_pruning",
         "tests/test_bulletin_watermarks.py::test_pruning_display_bulletins_does_not_permit_stale_replay",
         "tests/test_bulletin_watermarks.py::test_publisher_identity_conflict_rejected_by_watermark",
         "tests/test_bulletin_watermarks.py::test_watermark_advancement_and_stale_rejection",
@@ -6523,6 +6549,7 @@
         "tests/simulation/test_network_simulation.py::TestMeshTopologyAndRouting.test_ring_topology_redundant_routing",
         "tests/simulation/test_offline_mesh_simulation.py::test_offline_swarm_recovery_under_broadcast_cutoff",
         "tests/test_audit_hardening.py::TestSecurityHardening.test_constant_time_crypto_compare_behavior",
+        "tests/test_bulletin_watermarks.py::test_in_memory_publisher_identity_conflict_after_pruning",
         "tests/test_bulletin_watermarks.py::test_pruning_display_bulletins_does_not_permit_stale_replay",
         "tests/test_bulletin_watermarks.py::test_publisher_identity_conflict_rejected_by_watermark",
         "tests/test_bulletin_watermarks.py::test_watermark_advancement_and_stale_rejection",
@@ -6779,6 +6806,7 @@
         "tests/test_browser_acoustic_acceptance.py::test_signed_packet_is_explicitly_unverified_in_browser_and_archive",
         "tests/test_browser_acoustic_acceptance.py::test_simulation_provenance_survives_reload",
         "tests/test_browser_acoustic_receiver.py::test_browser_acoustic_receiver_end_to_end",
+        "tests/test_browser_acoustic_receiver.py::test_browser_acoustic_receiver_structured_id_publisher_pinning",
         "tests/test_browser_acoustic_receiver.py::test_browser_watermark_preservation_after_archive_cleared",
         "tests/test_playwright_visualization.py::test_acoustic_receiver_page",
         "tests/test_playwright_visualization.py::test_clean_slate_visualizer",
@@ -7220,6 +7248,7 @@
         "tfp-foundation-protocol/tests/test_startup_contract.py::test_health_returns_startup_stage_ready"
       ],
       "keys": [
+        "tests/test_bulletin_watermarks.py::test_bulletin_watermarks_secondary_index",
         "tests/test_challenger2_bip39_pqc_adversarial.py::TestBIP39SLIP0010MultiDepthHDDerivations.test_subsystem_keys_entropy_and_isolation",
         "tests/test_stream_lifecycle.py::test_receiver_lru_session_eviction_bounded_memory",
         "tfp-foundation-protocol/tests/test_grand_completion.py::TestGrandPooledComputeScenario.test_five_devices_pool_compute_and_earn",
@@ -7228,6 +7257,7 @@
       "launch": [
         "tests/test_browser_acoustic_acceptance.py::browser_server",
         "tests/test_browser_acoustic_receiver.py::test_browser_acoustic_receiver_end_to_end",
+        "tests/test_browser_acoustic_receiver.py::test_browser_acoustic_receiver_structured_id_publisher_pinning",
         "tests/test_browser_acoustic_receiver.py::test_browser_watermark_preservation_after_archive_cleared",
         "tests/test_playwright_visualization.py::test_acoustic_receiver_page",
         "tests/test_playwright_visualization.py::test_clean_slate_visualizer",
@@ -7340,12 +7370,16 @@
         "tests/test_browser_acoustic_acceptance.py::test_file_upload_accepts_padded_riff_chunks",
         "tests/test_browser_acoustic_acceptance.py::test_live_callback_decodes_long_message_with_leading_silence",
         "tests/test_browser_acoustic_acceptance.py::test_revision_update_survives_shared_prefix_and_duplicate_replay",
+        "tests/test_browser_acoustic_receiver.py::test_browser_acoustic_receiver_structured_id_publisher_pinning",
         "tests/test_browser_acoustic_receiver.py::test_browser_watermark_preservation_after_archive_cleared",
         "tests/test_bulletin_admission_recovery.py::test_competing_nodes_cannot_overwrite_the_same_revision",
         "tests/test_bulletin_admission_recovery.py::test_database_failure_rolls_back_both_publication_and_bulletin",
         "tests/test_bulletin_admission_recovery.py::test_failed_rollback_retains_recoverable_backup",
         "tests/test_bulletin_admission_recovery.py::test_failed_verification_cannot_replace_accepted_bulletin",
         "tests/test_bulletin_watermarks.py::test_idempotent_duplicate_of_latest_watermark",
+        "tests/test_bulletin_watermarks.py::test_in_memory_publisher_identity_conflict_after_pruning",
+        "tests/test_bulletin_watermarks.py::test_pruned_authentic_duplicate_replay_succeeds_in_memory",
+        "tests/test_bulletin_watermarks.py::test_pruned_authentic_duplicate_replay_succeeds_sqlite",
         "tests/test_bulletin_watermarks.py::test_pruning_display_bulletins_does_not_permit_stale_replay",
         "tests/test_bulletin_workflow.py::test_bulletin_damaged_audio_frame_rejection",
         "tests/test_challenger2_bip39_pqc_adversarial.py::TestBIP39MutatedChecksumStress.test_exhaustive_12_word_checksum_mutations",
@@ -7677,6 +7711,7 @@
         "tests/test_acoustic_bulletin_verification.py::TestAcousticPhysicalChannelVerification.test_corrupted_transmission_rejected_by_crc",
         "tests/test_audio_compatibility_matrix.py::test_audio_matrix_preamble_fade_in_and_dropout",
         "tests/test_bulletin_admission_recovery.py::test_failed_rollback_retains_recoverable_backup",
+        "tests/test_bulletin_watermarks.py::test_bulletin_watermarks_secondary_index",
         "tests/test_challenger2_bip39_pqc_adversarial.py::TestBIP39MutatedChecksumStress.test_exhaustive_12_word_checksum_mutations",
         "tests/test_challenger2_bip39_pqc_adversarial.py::TestBIP39MutatedChecksumStress.test_exhaustive_24_word_checksum_mutations",
         "tests/test_challenger2_bip39_pqc_adversarial.py::TestBIP39SLIP0010MultiDepthHDDerivations.test_subsystem_keys_entropy_and_isolation",
@@ -7726,6 +7761,9 @@
         "tests/test_bulletin_admission_recovery.py::test_damaged_audio_does_not_publish_or_crash_error_handler",
         "tests/test_bulletin_admission_recovery.py::test_legacy_signature_is_rejected_and_legacy_record_is_not_claimed_verified",
         "tests/test_bulletin_watermarks.py::test_idempotent_duplicate_of_latest_watermark",
+        "tests/test_bulletin_watermarks.py::test_in_memory_publisher_identity_conflict_after_pruning",
+        "tests/test_bulletin_watermarks.py::test_pruned_authentic_duplicate_replay_succeeds_in_memory",
+        "tests/test_bulletin_watermarks.py::test_pruned_authentic_duplicate_replay_succeeds_sqlite",
         "tests/test_bulletin_watermarks.py::test_pruning_display_bulletins_does_not_permit_stale_replay",
         "tests/test_bulletin_workflow.py::test_bulletin_damaged_audio_frame_rejection"
       ],
@@ -7816,6 +7854,7 @@
         "tests/test_browser_acoustic_acceptance.py::test_signed_packet_is_explicitly_unverified_in_browser_and_archive",
         "tests/test_browser_acoustic_acceptance.py::test_simulation_provenance_survives_reload",
         "tests/test_browser_acoustic_receiver.py::test_browser_acoustic_receiver_end_to_end",
+        "tests/test_browser_acoustic_receiver.py::test_browser_acoustic_receiver_structured_id_publisher_pinning",
         "tests/test_browser_acoustic_receiver.py::test_browser_watermark_preservation_after_archive_cleared",
         "tests/test_playwright_visualization.py::test_acoustic_receiver_page",
         "tests/test_playwright_visualization.py::test_legacy_visualizer_live_protocol_and_interaction",
@@ -8099,12 +8138,14 @@
       "new_context": [
         "tests/test_browser_acoustic_acceptance.py::page",
         "tests/test_browser_acoustic_receiver.py::test_browser_acoustic_receiver_end_to_end",
+        "tests/test_browser_acoustic_receiver.py::test_browser_acoustic_receiver_structured_id_publisher_pinning",
         "tests/test_browser_acoustic_receiver.py::test_browser_watermark_preservation_after_archive_cleared",
         "tests/test_receiver_discrepancy_matrix.py::matrix_env"
       ],
       "new_page": [
         "tests/test_browser_acoustic_acceptance.py::page",
         "tests/test_browser_acoustic_receiver.py::test_browser_acoustic_receiver_end_to_end",
+        "tests/test_browser_acoustic_receiver.py::test_browser_acoustic_receiver_structured_id_publisher_pinning",
         "tests/test_browser_acoustic_receiver.py::test_browser_watermark_preservation_after_archive_cleared",
         "tests/test_playwright_visualization.py::test_acoustic_receiver_page",
         "tests/test_playwright_visualization.py::test_clean_slate_visualizer",
@@ -8670,10 +8711,14 @@
         "tfp-foundation-protocol/tests/test_tfp_engine.py::test_prove_access_returns_proof"
       ],
       "prune_display_bulletins": [
+        "tests/test_bulletin_watermarks.py::test_in_memory_publisher_identity_conflict_after_pruning",
+        "tests/test_bulletin_watermarks.py::test_pruned_authentic_duplicate_replay_succeeds_in_memory",
+        "tests/test_bulletin_watermarks.py::test_pruned_authentic_duplicate_replay_succeeds_sqlite",
         "tests/test_bulletin_watermarks.py::test_pruning_display_bulletins_does_not_permit_stale_replay"
       ],
       "public_bytes_raw": [
         "tests/fuzz/test_adversarial_stress_empirical.py::TestMutualisticDefenseAdversarialStress.test_heuristic_pack_ed25519_genuine_and_bit_flipped",
+        "tests/test_bulletin_watermarks.py::test_in_memory_publisher_identity_conflict_after_pruning",
         "tests/test_bulletin_watermarks.py::test_pruning_display_bulletins_does_not_permit_stale_replay",
         "tests/test_bulletin_watermarks.py::test_publisher_identity_conflict_rejected_by_watermark",
         "tests/test_bulletin_watermarks.py::test_watermark_advancement_and_stale_rejection",
@@ -8686,6 +8731,7 @@
       ],
       "public_key": [
         "tests/fuzz/test_adversarial_stress_empirical.py::TestMutualisticDefenseAdversarialStress.test_heuristic_pack_ed25519_genuine_and_bit_flipped",
+        "tests/test_bulletin_watermarks.py::test_in_memory_publisher_identity_conflict_after_pruning",
         "tests/test_bulletin_watermarks.py::test_pruning_display_bulletins_does_not_permit_stale_replay",
         "tests/test_bulletin_watermarks.py::test_publisher_identity_conflict_rejected_by_watermark",
         "tests/test_bulletin_watermarks.py::test_watermark_advancement_and_stale_rejection",
@@ -8895,6 +8941,7 @@
         "tests/test_bulletin_admission_recovery.py::test_legitimate_correction_and_stale_revision",
         "tests/test_bulletin_admission_recovery.py::test_publisher_change_cannot_take_over_existing_identity",
         "tests/test_bulletin_watermarks.py::test_conflicting_content_on_same_revision_rejected",
+        "tests/test_bulletin_watermarks.py::test_in_memory_publisher_identity_conflict_after_pruning",
         "tests/test_bulletin_watermarks.py::test_pruning_display_bulletins_does_not_permit_stale_replay",
         "tests/test_bulletin_watermarks.py::test_publisher_identity_conflict_rejected_by_watermark",
         "tests/test_bulletin_watermarks.py::test_watermark_advancement_and_stale_rejection",
@@ -9616,6 +9663,7 @@
         "tests/generate_testbed.py::generate_compose",
         "tests/test_audit_hardening.py::TestSecurityHardening.test_cli_has_zero_naked_asserts_in_production",
         "tests/test_browser_acoustic_receiver.py::test_browser_acoustic_receiver_end_to_end",
+        "tests/test_browser_acoustic_receiver.py::test_browser_acoustic_receiver_structured_id_publisher_pinning",
         "tests/test_browser_acoustic_receiver.py::test_browser_watermark_preservation_after_archive_cleared",
         "tests/test_credit_settlement_recovery.py::test_actual_process_exit_recovers_every_task_reward",
         "tests/test_receiver_checkpoints.py::test_receiver_checkpoint_complementary_transfer_across_processes",
@@ -10140,6 +10188,7 @@
         "tests/simulation/test_network_simulation.py::TestMeshTopologyAndRouting.test_ring_topology_redundant_routing",
         "tests/simulation/test_offline_mesh_simulation.py::test_offline_swarm_recovery_under_broadcast_cutoff",
         "tests/test_audit_hardening.py::TestSecurityHardening.test_constant_time_crypto_compare_behavior",
+        "tests/test_bulletin_watermarks.py::test_in_memory_publisher_identity_conflict_after_pruning",
         "tests/test_bulletin_watermarks.py::test_pruning_display_bulletins_does_not_permit_stale_replay",
         "tests/test_bulletin_watermarks.py::test_publisher_identity_conflict_rejected_by_watermark",
         "tests/test_bulletin_watermarks.py::test_watermark_advancement_and_stale_rejection",
@@ -10318,6 +10367,7 @@
         "tests/test_real_world_validation.py::TestArtifactSigner.test_sign_failure_handling"
       ],
       "sign_bulletin_content": [
+        "tests/test_bulletin_watermarks.py::test_in_memory_publisher_identity_conflict_after_pruning",
         "tests/test_bulletin_watermarks.py::test_pruning_display_bulletins_does_not_permit_stale_replay",
         "tests/test_bulletin_watermarks.py::test_publisher_identity_conflict_rejected_by_watermark",
         "tests/test_bulletin_watermarks.py::test_watermark_advancement_and_stale_rejection",
@@ -10655,6 +10705,9 @@
         "tests/test_bulletin_admission_recovery.py::test_memory_database_mode_is_usable_and_isolated",
         "tests/test_bulletin_watermarks.py::test_conflicting_content_on_same_revision_rejected",
         "tests/test_bulletin_watermarks.py::test_idempotent_duplicate_of_latest_watermark",
+        "tests/test_bulletin_watermarks.py::test_in_memory_publisher_identity_conflict_after_pruning",
+        "tests/test_bulletin_watermarks.py::test_pruned_authentic_duplicate_replay_succeeds_in_memory",
+        "tests/test_bulletin_watermarks.py::test_pruned_authentic_duplicate_replay_succeeds_sqlite",
         "tests/test_bulletin_watermarks.py::test_pruning_display_bulletins_does_not_permit_stale_replay",
         "tests/test_bulletin_watermarks.py::test_publisher_identity_conflict_rejected_by_watermark",
         "tests/test_bulletin_watermarks.py::test_watermark_advancement_and_stale_rejection",
@@ -10709,6 +10762,7 @@
         "tests/test_browser_acoustic_acceptance.py::test_file_upload_and_offline_archive_reopen",
         "tests/test_bulletin_admission_recovery.py::test_failed_rollback_retains_recoverable_backup",
         "tests/test_bulletin_admission_recovery.py::test_legitimate_correction_and_stale_revision",
+        "tests/test_bulletin_watermarks.py::test_bulletin_watermarks_secondary_index",
         "tests/test_bulletin_workflow.py::exists",
         "tests/test_bulletin_workflow.py::test_bulletin_airtime_limit_rejection",
         "tests/test_bulletin_workflow.py::test_bulletin_damaged_audio_frame_rejection",
@@ -10918,6 +10972,7 @@
       "sync_playwright": [
         "tests/test_browser_acoustic_acceptance.py::browser_server",
         "tests/test_browser_acoustic_receiver.py::test_browser_acoustic_receiver_end_to_end",
+        "tests/test_browser_acoustic_receiver.py::test_browser_acoustic_receiver_structured_id_publisher_pinning",
         "tests/test_browser_acoustic_receiver.py::test_browser_watermark_preservation_after_archive_cleared",
         "tests/test_playwright_visualization.py::test_acoustic_receiver_page",
         "tests/test_playwright_visualization.py::test_clean_slate_visualizer",
@@ -10946,6 +11001,7 @@
         "tests/test_browser_acoustic_acceptance.py::test_live_callback_accepts_correction_without_restarting_capture",
         "tests/test_browser_acoustic_acceptance.py::test_live_callback_decodes_long_message_with_leading_silence",
         "tests/test_browser_acoustic_receiver.py::test_browser_acoustic_receiver_end_to_end",
+        "tests/test_browser_acoustic_receiver.py::test_browser_acoustic_receiver_structured_id_publisher_pinning",
         "tests/test_browser_acoustic_receiver.py::test_browser_watermark_preservation_after_archive_cleared",
         "tests/test_bulletin_admission_recovery.py::altered_audio",
         "tests/test_receiver_discrepancy_matrix.py::MatrixEnvironment.run_vector",
@@ -11729,6 +11785,7 @@
         "tests/test_browser_acoustic_acceptance.py::test_file_upload_and_offline_archive_reopen",
         "tests/test_browser_acoustic_acceptance.py::test_simulation_provenance_survives_reload",
         "tests/test_browser_acoustic_receiver.py::test_browser_acoustic_receiver_end_to_end",
+        "tests/test_browser_acoustic_receiver.py::test_browser_acoustic_receiver_structured_id_publisher_pinning",
         "tests/test_browser_acoustic_receiver.py::test_browser_watermark_preservation_after_archive_cleared",
         "tests/test_playwright_visualization.py::test_acoustic_receiver_page",
         "tests/test_playwright_visualization.py::test_clean_slate_visualizer",
@@ -39406,7 +39463,7 @@
       ]
     },
     "tests/test_browser_acoustic_receiver.py": {
-      "loc": 139,
+      "loc": 184,
       "symbols": [
         {
           "name": "test_browser_acoustic_receiver_end_to_end",
@@ -39430,6 +39487,19 @@
           "args": [],
           "return_type": null,
           "docstring": "Verifies Task A: Decoupled watermark dual-store in browser receiver.",
+          "bases": []
+        },
+        {
+          "name": "test_browser_acoustic_receiver_structured_id_publisher_pinning",
+          "qualified_name": "test_browser_acoustic_receiver_structured_id_publisher_pinning",
+          "kind": "function",
+          "file_path": "tests/test_browser_acoustic_receiver.py",
+          "lineno": 207,
+          "args": [
+            "tmp_path"
+          ],
+          "return_type": null,
+          "docstring": "Verify publisher pinning on structured bulletin IDs containing colons (e.g. URNs).",
           "bases": []
         }
       ],
@@ -39998,6 +40068,186 @@
           "caller": "test_browser_watermark_preservation_after_archive_cleared",
           "callee": "close",
           "lineno": 204,
+          "file_path": "tests/test_browser_acoustic_receiver.py"
+        },
+        {
+          "caller": "test_browser_acoustic_receiver_structured_id_publisher_pinning",
+          "callee": "resolve",
+          "lineno": 213,
+          "file_path": "tests/test_browser_acoustic_receiver.py"
+        },
+        {
+          "caller": "test_browser_acoustic_receiver_structured_id_publisher_pinning",
+          "callee": "Path",
+          "lineno": 213,
+          "file_path": "tests/test_browser_acoustic_receiver.py"
+        },
+        {
+          "caller": "test_browser_acoustic_receiver_structured_id_publisher_pinning",
+          "callee": "AFSKModulator",
+          "lineno": 214,
+          "file_path": "tests/test_browser_acoustic_receiver.py"
+        },
+        {
+          "caller": "test_browser_acoustic_receiver_structured_id_publisher_pinning",
+          "callee": "sync_playwright",
+          "lineno": 216,
+          "file_path": "tests/test_browser_acoustic_receiver.py"
+        },
+        {
+          "caller": "test_browser_acoustic_receiver_structured_id_publisher_pinning",
+          "callee": "launch",
+          "lineno": 217,
+          "file_path": "tests/test_browser_acoustic_receiver.py"
+        },
+        {
+          "caller": "test_browser_acoustic_receiver_structured_id_publisher_pinning",
+          "callee": "new_context",
+          "lineno": 218,
+          "file_path": "tests/test_browser_acoustic_receiver.py"
+        },
+        {
+          "caller": "test_browser_acoustic_receiver_structured_id_publisher_pinning",
+          "callee": "new_page",
+          "lineno": 219,
+          "file_path": "tests/test_browser_acoustic_receiver.py"
+        },
+        {
+          "caller": "test_browser_acoustic_receiver_structured_id_publisher_pinning",
+          "callee": "goto",
+          "lineno": 221,
+          "file_path": "tests/test_browser_acoustic_receiver.py"
+        },
+        {
+          "caller": "test_browser_acoustic_receiver_structured_id_publisher_pinning",
+          "callee": "as_posix",
+          "lineno": 221,
+          "file_path": "tests/test_browser_acoustic_receiver.py"
+        },
+        {
+          "caller": "test_browser_acoustic_receiver_structured_id_publisher_pinning",
+          "callee": "resolve",
+          "lineno": 221,
+          "file_path": "tests/test_browser_acoustic_receiver.py"
+        },
+        {
+          "caller": "test_browser_acoustic_receiver_structured_id_publisher_pinning",
+          "callee": "wait_for_selector",
+          "lineno": 222,
+          "file_path": "tests/test_browser_acoustic_receiver.py"
+        },
+        {
+          "caller": "test_browser_acoustic_receiver_structured_id_publisher_pinning",
+          "callee": "synthesize_wav",
+          "lineno": 233,
+          "file_path": "tests/test_browser_acoustic_receiver.py"
+        },
+        {
+          "caller": "test_browser_acoustic_receiver_structured_id_publisher_pinning",
+          "callee": "encode",
+          "lineno": 233,
+          "file_path": "tests/test_browser_acoustic_receiver.py"
+        },
+        {
+          "caller": "test_browser_acoustic_receiver_structured_id_publisher_pinning",
+          "callee": "dumps",
+          "lineno": 233,
+          "file_path": "tests/test_browser_acoustic_receiver.py"
+        },
+        {
+          "caller": "test_browser_acoustic_receiver_structured_id_publisher_pinning",
+          "callee": "evaluate",
+          "lineno": 234,
+          "file_path": "tests/test_browser_acoustic_receiver.py"
+        },
+        {
+          "caller": "test_browser_acoustic_receiver_structured_id_publisher_pinning",
+          "callee": "decode",
+          "lineno": 234,
+          "file_path": "tests/test_browser_acoustic_receiver.py"
+        },
+        {
+          "caller": "test_browser_acoustic_receiver_structured_id_publisher_pinning",
+          "callee": "b64encode",
+          "lineno": 234,
+          "file_path": "tests/test_browser_acoustic_receiver.py"
+        },
+        {
+          "caller": "test_browser_acoustic_receiver_structured_id_publisher_pinning",
+          "callee": "evaluate",
+          "lineno": 238,
+          "file_path": "tests/test_browser_acoustic_receiver.py"
+        },
+        {
+          "caller": "test_browser_acoustic_receiver_structured_id_publisher_pinning",
+          "callee": "evaluate",
+          "lineno": 244,
+          "file_path": "tests/test_browser_acoustic_receiver.py"
+        },
+        {
+          "caller": "test_browser_acoustic_receiver_structured_id_publisher_pinning",
+          "callee": "synthesize_wav",
+          "lineno": 254,
+          "file_path": "tests/test_browser_acoustic_receiver.py"
+        },
+        {
+          "caller": "test_browser_acoustic_receiver_structured_id_publisher_pinning",
+          "callee": "encode",
+          "lineno": 254,
+          "file_path": "tests/test_browser_acoustic_receiver.py"
+        },
+        {
+          "caller": "test_browser_acoustic_receiver_structured_id_publisher_pinning",
+          "callee": "dumps",
+          "lineno": 254,
+          "file_path": "tests/test_browser_acoustic_receiver.py"
+        },
+        {
+          "caller": "test_browser_acoustic_receiver_structured_id_publisher_pinning",
+          "callee": "evaluate",
+          "lineno": 255,
+          "file_path": "tests/test_browser_acoustic_receiver.py"
+        },
+        {
+          "caller": "test_browser_acoustic_receiver_structured_id_publisher_pinning",
+          "callee": "decode",
+          "lineno": 255,
+          "file_path": "tests/test_browser_acoustic_receiver.py"
+        },
+        {
+          "caller": "test_browser_acoustic_receiver_structured_id_publisher_pinning",
+          "callee": "b64encode",
+          "lineno": 255,
+          "file_path": "tests/test_browser_acoustic_receiver.py"
+        },
+        {
+          "caller": "test_browser_acoustic_receiver_structured_id_publisher_pinning",
+          "callee": "inner_text",
+          "lineno": 259,
+          "file_path": "tests/test_browser_acoustic_receiver.py"
+        },
+        {
+          "caller": "test_browser_acoustic_receiver_structured_id_publisher_pinning",
+          "callee": "locator",
+          "lineno": 259,
+          "file_path": "tests/test_browser_acoustic_receiver.py"
+        },
+        {
+          "caller": "test_browser_acoustic_receiver_structured_id_publisher_pinning",
+          "callee": "evaluate",
+          "lineno": 263,
+          "file_path": "tests/test_browser_acoustic_receiver.py"
+        },
+        {
+          "caller": "test_browser_acoustic_receiver_structured_id_publisher_pinning",
+          "callee": "len",
+          "lineno": 264,
+          "file_path": "tests/test_browser_acoustic_receiver.py"
+        },
+        {
+          "caller": "test_browser_acoustic_receiver_structured_id_publisher_pinning",
+          "callee": "close",
+          "lineno": 266,
           "file_path": "tests/test_browser_acoustic_receiver.py"
         }
       ]
@@ -41379,14 +41629,14 @@
       ]
     },
     "tests/test_bulletin_watermarks.py": {
-      "loc": 107,
+      "loc": 192,
       "symbols": [
         {
           "name": "test_watermark_advancement_and_stale_rejection",
           "qualified_name": "test_watermark_advancement_and_stale_rejection",
           "kind": "function",
           "file_path": "tests/test_bulletin_watermarks.py",
-          "lineno": 31,
+          "lineno": 32,
           "args": [
             "tmp_path"
           ],
@@ -41399,7 +41649,7 @@
           "qualified_name": "test_pruning_display_bulletins_does_not_permit_stale_replay",
           "kind": "function",
           "file_path": "tests/test_bulletin_watermarks.py",
-          "lineno": 63,
+          "lineno": 64,
           "args": [
             "tmp_path"
           ],
@@ -41412,7 +41662,7 @@
           "qualified_name": "test_idempotent_duplicate_of_latest_watermark",
           "kind": "function",
           "file_path": "tests/test_bulletin_watermarks.py",
-          "lineno": 112,
+          "lineno": 113,
           "args": [
             "tmp_path"
           ],
@@ -41425,7 +41675,7 @@
           "qualified_name": "test_conflicting_content_on_same_revision_rejected",
           "kind": "function",
           "file_path": "tests/test_bulletin_watermarks.py",
-          "lineno": 128,
+          "lineno": 129,
           "args": [
             "tmp_path"
           ],
@@ -41438,12 +41688,60 @@
           "qualified_name": "test_publisher_identity_conflict_rejected_by_watermark",
           "kind": "function",
           "file_path": "tests/test_bulletin_watermarks.py",
-          "lineno": 141,
+          "lineno": 142,
           "args": [
             "tmp_path"
           ],
           "return_type": null,
           "docstring": null,
+          "bases": []
+        },
+        {
+          "name": "test_pruned_authentic_duplicate_replay_succeeds_sqlite",
+          "qualified_name": "test_pruned_authentic_duplicate_replay_succeeds_sqlite",
+          "kind": "function",
+          "file_path": "tests/test_bulletin_watermarks.py",
+          "lineno": 164,
+          "args": [
+            "tmp_path"
+          ],
+          "return_type": null,
+          "docstring": "If display bulletins are pruned to bound storage size, receiving an authentic",
+          "bases": []
+        },
+        {
+          "name": "test_pruned_authentic_duplicate_replay_succeeds_in_memory",
+          "qualified_name": "test_pruned_authentic_duplicate_replay_succeeds_in_memory",
+          "kind": "function",
+          "file_path": "tests/test_bulletin_watermarks.py",
+          "lineno": 198,
+          "args": [],
+          "return_type": null,
+          "docstring": "In-memory nodes must also re-admit display records upon receiving an authentic",
+          "bases": []
+        },
+        {
+          "name": "test_in_memory_publisher_identity_conflict_after_pruning",
+          "qualified_name": "test_in_memory_publisher_identity_conflict_after_pruning",
+          "kind": "function",
+          "file_path": "tests/test_bulletin_watermarks.py",
+          "lineno": 228,
+          "args": [],
+          "return_type": null,
+          "docstring": "In-memory mode must check publisher pinning against permanent watermarks",
+          "bases": []
+        },
+        {
+          "name": "test_bulletin_watermarks_secondary_index",
+          "qualified_name": "test_bulletin_watermarks_secondary_index",
+          "kind": "function",
+          "file_path": "tests/test_bulletin_watermarks.py",
+          "lineno": 257,
+          "args": [
+            "tmp_path"
+          ],
+          "return_type": null,
+          "docstring": "Verify that idx_bulletin_watermarks_bid exists on bulletin_watermarks(bulletin_id).",
           "bases": []
         }
       ],
@@ -41455,521 +41753,851 @@
           "lineno": 18
         },
         {
+          "module": "sqlite3",
+          "name": "sqlite3",
+          "alias": "sqlite3",
+          "lineno": 19
+        },
+        {
           "module": "pytest",
           "name": "pytest",
           "alias": "pytest",
-          "lineno": 19
+          "lineno": 20
         },
         {
           "module": "cryptography.hazmat.primitives.asymmetric",
           "name": "ed25519",
           "alias": "ed25519",
-          "lineno": 20
+          "lineno": 21
         },
         {
           "module": "tfp_core_v4.bulletin_identity",
           "name": "PublisherIdentityConflictError",
           "alias": "PublisherIdentityConflictError",
-          "lineno": 22
+          "lineno": 23
         },
         {
           "module": "tfp_core_v4.bulletin_identity",
           "name": "RevisionConflictError",
           "alias": "RevisionConflictError",
-          "lineno": 22
+          "lineno": 23
         },
         {
           "module": "tfp_core_v4.bulletin_identity",
           "name": "StaleRevisionError",
           "alias": "StaleRevisionError",
-          "lineno": 22
+          "lineno": 23
         },
         {
           "module": "tfp_core_v4.bulletin_identity",
           "name": "sign_bulletin_content",
           "alias": "sign_bulletin_content",
-          "lineno": 22
+          "lineno": 23
         },
         {
           "module": "tfp_core_v4.node",
           "name": "TFPNode",
           "alias": "TFPNode",
-          "lineno": 28
+          "lineno": 29
         }
       ],
       "calls": [
         {
           "caller": "test_watermark_advancement_and_stale_rejection",
           "callee": "TFPNode",
-          "lineno": 33,
+          "lineno": 34,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_watermark_advancement_and_stale_rejection",
           "callee": "generate",
-          "lineno": 35,
+          "lineno": 36,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_watermark_advancement_and_stale_rejection",
           "callee": "hex",
-          "lineno": 36,
+          "lineno": 37,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_watermark_advancement_and_stale_rejection",
           "callee": "public_bytes_raw",
-          "lineno": 36,
+          "lineno": 37,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_watermark_advancement_and_stale_rejection",
           "callee": "public_key",
-          "lineno": 36,
+          "lineno": 37,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_watermark_advancement_and_stale_rejection",
           "callee": "sign_bulletin_content",
-          "lineno": 41,
-          "file_path": "tests/test_bulletin_watermarks.py"
-        },
-        {
-          "caller": "test_watermark_advancement_and_stale_rejection",
-          "callee": "hasattr",
-          "lineno": 41,
-          "file_path": "tests/test_bulletin_watermarks.py"
-        },
-        {
-          "caller": "test_watermark_advancement_and_stale_rejection",
-          "callee": "sha3_hex",
-          "lineno": 41,
-          "file_path": "tests/test_bulletin_watermarks.py"
-        },
-        {
-          "caller": "test_watermark_advancement_and_stale_rejection",
-          "callee": "hexdigest",
-          "lineno": 41,
-          "file_path": "tests/test_bulletin_watermarks.py"
-        },
-        {
-          "caller": "test_watermark_advancement_and_stale_rejection",
-          "callee": "sha3_256",
-          "lineno": 41,
-          "file_path": "tests/test_bulletin_watermarks.py"
-        },
-        {
-          "caller": "test_watermark_advancement_and_stale_rejection",
-          "callee": "__import__",
-          "lineno": 41,
-          "file_path": "tests/test_bulletin_watermarks.py"
-        },
-        {
-          "caller": "test_watermark_advancement_and_stale_rejection",
-          "callee": "store_bulletin",
           "lineno": 42,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_watermark_advancement_and_stale_rejection",
-          "callee": "get_bulletin_watermark",
-          "lineno": 44,
+          "callee": "hasattr",
+          "lineno": 42,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_watermark_advancement_and_stale_rejection",
+          "callee": "sha3_hex",
+          "lineno": 42,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_watermark_advancement_and_stale_rejection",
           "callee": "hexdigest",
-          "lineno": 50,
+          "lineno": 42,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_watermark_advancement_and_stale_rejection",
           "callee": "sha3_256",
-          "lineno": 50,
+          "lineno": 42,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_watermark_advancement_and_stale_rejection",
           "callee": "__import__",
-          "lineno": 50,
+          "lineno": 42,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_watermark_advancement_and_stale_rejection",
-          "callee": "sign_bulletin_content",
+          "callee": "store_bulletin",
+          "lineno": 43,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_watermark_advancement_and_stale_rejection",
+          "callee": "get_bulletin_watermark",
+          "lineno": 45,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_watermark_advancement_and_stale_rejection",
+          "callee": "hexdigest",
           "lineno": 51,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_watermark_advancement_and_stale_rejection",
-          "callee": "store_bulletin",
+          "callee": "sha3_256",
+          "lineno": 51,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_watermark_advancement_and_stale_rejection",
+          "callee": "__import__",
+          "lineno": 51,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_watermark_advancement_and_stale_rejection",
+          "callee": "sign_bulletin_content",
           "lineno": 52,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_watermark_advancement_and_stale_rejection",
+          "callee": "store_bulletin",
+          "lineno": 53,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_watermark_advancement_and_stale_rejection",
           "callee": "get_bulletin_watermark",
-          "lineno": 54,
+          "lineno": 55,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_watermark_advancement_and_stale_rejection",
           "callee": "raises",
-          "lineno": 59,
+          "lineno": 60,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_watermark_advancement_and_stale_rejection",
           "callee": "store_bulletin",
-          "lineno": 60,
+          "lineno": 61,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_pruning_display_bulletins_does_not_permit_stale_replay",
           "callee": "TFPNode",
-          "lineno": 70,
+          "lineno": 71,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_pruning_display_bulletins_does_not_permit_stale_replay",
           "callee": "generate",
-          "lineno": 72,
+          "lineno": 73,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_pruning_display_bulletins_does_not_permit_stale_replay",
           "callee": "hex",
-          "lineno": 73,
+          "lineno": 74,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_pruning_display_bulletins_does_not_permit_stale_replay",
           "callee": "public_bytes_raw",
-          "lineno": 73,
+          "lineno": 74,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_pruning_display_bulletins_does_not_permit_stale_replay",
           "callee": "public_key",
-          "lineno": 73,
+          "lineno": 74,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_pruning_display_bulletins_does_not_permit_stale_replay",
           "callee": "sign_bulletin_content",
-          "lineno": 78,
-          "file_path": "tests/test_bulletin_watermarks.py"
-        },
-        {
-          "caller": "test_pruning_display_bulletins_does_not_permit_stale_replay",
-          "callee": "hexdigest",
-          "lineno": 78,
-          "file_path": "tests/test_bulletin_watermarks.py"
-        },
-        {
-          "caller": "test_pruning_display_bulletins_does_not_permit_stale_replay",
-          "callee": "sha3_256",
-          "lineno": 78,
-          "file_path": "tests/test_bulletin_watermarks.py"
-        },
-        {
-          "caller": "test_pruning_display_bulletins_does_not_permit_stale_replay",
-          "callee": "__import__",
-          "lineno": 78,
-          "file_path": "tests/test_bulletin_watermarks.py"
-        },
-        {
-          "caller": "test_pruning_display_bulletins_does_not_permit_stale_replay",
-          "callee": "store_bulletin",
           "lineno": 79,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_pruning_display_bulletins_does_not_permit_stale_replay",
-          "callee": "sign_bulletin_content",
-          "lineno": 82,
-          "file_path": "tests/test_bulletin_watermarks.py"
-        },
-        {
-          "caller": "test_pruning_display_bulletins_does_not_permit_stale_replay",
           "callee": "hexdigest",
-          "lineno": 82,
+          "lineno": 79,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_pruning_display_bulletins_does_not_permit_stale_replay",
           "callee": "sha3_256",
-          "lineno": 82,
+          "lineno": 79,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_pruning_display_bulletins_does_not_permit_stale_replay",
           "callee": "__import__",
-          "lineno": 82,
+          "lineno": 79,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_pruning_display_bulletins_does_not_permit_stale_replay",
           "callee": "store_bulletin",
+          "lineno": 80,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_pruning_display_bulletins_does_not_permit_stale_replay",
+          "callee": "sign_bulletin_content",
           "lineno": 83,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_pruning_display_bulletins_does_not_permit_stale_replay",
-          "callee": "list_bulletins",
-          "lineno": 86,
+          "callee": "hexdigest",
+          "lineno": 83,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_pruning_display_bulletins_does_not_permit_stale_replay",
-          "callee": "len",
+          "callee": "sha3_256",
+          "lineno": 83,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_pruning_display_bulletins_does_not_permit_stale_replay",
+          "callee": "__import__",
+          "lineno": 83,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_pruning_display_bulletins_does_not_permit_stale_replay",
+          "callee": "store_bulletin",
+          "lineno": 84,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_pruning_display_bulletins_does_not_permit_stale_replay",
+          "callee": "list_bulletins",
           "lineno": 87,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_pruning_display_bulletins_does_not_permit_stale_replay",
+          "callee": "len",
+          "lineno": 88,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_pruning_display_bulletins_does_not_permit_stale_replay",
           "callee": "prune_display_bulletins",
-          "lineno": 90,
+          "lineno": 91,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_pruning_display_bulletins_does_not_permit_stale_replay",
           "callee": "len",
-          "lineno": 92,
+          "lineno": 93,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_pruning_display_bulletins_does_not_permit_stale_replay",
           "callee": "list_bulletins",
-          "lineno": 92,
+          "lineno": 93,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_pruning_display_bulletins_does_not_permit_stale_replay",
           "callee": "get_bulletin",
-          "lineno": 95,
+          "lineno": 96,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_pruning_display_bulletins_does_not_permit_stale_replay",
           "callee": "raises",
-          "lineno": 100,
-          "file_path": "tests/test_bulletin_watermarks.py"
-        },
-        {
-          "caller": "test_pruning_display_bulletins_does_not_permit_stale_replay",
-          "callee": "store_bulletin",
           "lineno": 101,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_pruning_display_bulletins_does_not_permit_stale_replay",
-          "callee": "sign_bulletin_content",
-          "lineno": 105,
-          "file_path": "tests/test_bulletin_watermarks.py"
-        },
-        {
-          "caller": "test_pruning_display_bulletins_does_not_permit_stale_replay",
-          "callee": "hexdigest",
-          "lineno": 105,
-          "file_path": "tests/test_bulletin_watermarks.py"
-        },
-        {
-          "caller": "test_pruning_display_bulletins_does_not_permit_stale_replay",
-          "callee": "sha3_256",
-          "lineno": 105,
-          "file_path": "tests/test_bulletin_watermarks.py"
-        },
-        {
-          "caller": "test_pruning_display_bulletins_does_not_permit_stale_replay",
-          "callee": "__import__",
-          "lineno": 105,
-          "file_path": "tests/test_bulletin_watermarks.py"
-        },
-        {
-          "caller": "test_pruning_display_bulletins_does_not_permit_stale_replay",
           "callee": "store_bulletin",
+          "lineno": 102,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_pruning_display_bulletins_does_not_permit_stale_replay",
+          "callee": "sign_bulletin_content",
           "lineno": 106,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_pruning_display_bulletins_does_not_permit_stale_replay",
+          "callee": "hexdigest",
+          "lineno": 106,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_pruning_display_bulletins_does_not_permit_stale_replay",
+          "callee": "sha3_256",
+          "lineno": 106,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_pruning_display_bulletins_does_not_permit_stale_replay",
+          "callee": "__import__",
+          "lineno": 106,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_pruning_display_bulletins_does_not_permit_stale_replay",
+          "callee": "store_bulletin",
+          "lineno": 107,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_pruning_display_bulletins_does_not_permit_stale_replay",
           "callee": "get_bulletin_watermark",
-          "lineno": 108,
+          "lineno": 109,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_idempotent_duplicate_of_latest_watermark",
           "callee": "TFPNode",
-          "lineno": 114,
+          "lineno": 115,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_idempotent_duplicate_of_latest_watermark",
           "callee": "store_bulletin",
-          "lineno": 118,
+          "lineno": 119,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_idempotent_duplicate_of_latest_watermark",
           "callee": "store_bulletin",
-          "lineno": 121,
+          "lineno": 122,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_idempotent_duplicate_of_latest_watermark",
           "callee": "list_bulletins",
-          "lineno": 124,
+          "lineno": 125,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_idempotent_duplicate_of_latest_watermark",
           "callee": "len",
-          "lineno": 125,
+          "lineno": 126,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_conflicting_content_on_same_revision_rejected",
           "callee": "TFPNode",
-          "lineno": 130,
+          "lineno": 131,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_conflicting_content_on_same_revision_rejected",
           "callee": "store_bulletin",
-          "lineno": 134,
+          "lineno": 135,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_conflicting_content_on_same_revision_rejected",
           "callee": "raises",
-          "lineno": 137,
+          "lineno": 138,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_conflicting_content_on_same_revision_rejected",
           "callee": "store_bulletin",
-          "lineno": 138,
+          "lineno": 139,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_publisher_identity_conflict_rejected_by_watermark",
           "callee": "TFPNode",
-          "lineno": 143,
+          "lineno": 144,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_publisher_identity_conflict_rejected_by_watermark",
           "callee": "generate",
-          "lineno": 145,
+          "lineno": 146,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_publisher_identity_conflict_rejected_by_watermark",
           "callee": "hex",
-          "lineno": 146,
+          "lineno": 147,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_publisher_identity_conflict_rejected_by_watermark",
           "callee": "public_bytes_raw",
-          "lineno": 146,
+          "lineno": 147,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_publisher_identity_conflict_rejected_by_watermark",
           "callee": "public_key",
-          "lineno": 146,
+          "lineno": 147,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_publisher_identity_conflict_rejected_by_watermark",
           "callee": "generate",
-          "lineno": 148,
+          "lineno": 149,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_publisher_identity_conflict_rejected_by_watermark",
           "callee": "hex",
-          "lineno": 149,
+          "lineno": 150,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_publisher_identity_conflict_rejected_by_watermark",
           "callee": "public_bytes_raw",
-          "lineno": 149,
+          "lineno": 150,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_publisher_identity_conflict_rejected_by_watermark",
           "callee": "public_key",
-          "lineno": 149,
+          "lineno": 150,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_publisher_identity_conflict_rejected_by_watermark",
           "callee": "sign_bulletin_content",
-          "lineno": 153,
-          "file_path": "tests/test_bulletin_watermarks.py"
-        },
-        {
-          "caller": "test_publisher_identity_conflict_rejected_by_watermark",
-          "callee": "hexdigest",
-          "lineno": 153,
-          "file_path": "tests/test_bulletin_watermarks.py"
-        },
-        {
-          "caller": "test_publisher_identity_conflict_rejected_by_watermark",
-          "callee": "sha3_256",
-          "lineno": 153,
-          "file_path": "tests/test_bulletin_watermarks.py"
-        },
-        {
-          "caller": "test_publisher_identity_conflict_rejected_by_watermark",
-          "callee": "__import__",
-          "lineno": 153,
-          "file_path": "tests/test_bulletin_watermarks.py"
-        },
-        {
-          "caller": "test_publisher_identity_conflict_rejected_by_watermark",
-          "callee": "store_bulletin",
           "lineno": 154,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_publisher_identity_conflict_rejected_by_watermark",
-          "callee": "sign_bulletin_content",
-          "lineno": 158,
-          "file_path": "tests/test_bulletin_watermarks.py"
-        },
-        {
-          "caller": "test_publisher_identity_conflict_rejected_by_watermark",
           "callee": "hexdigest",
-          "lineno": 158,
+          "lineno": 154,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_publisher_identity_conflict_rejected_by_watermark",
           "callee": "sha3_256",
-          "lineno": 158,
+          "lineno": 154,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_publisher_identity_conflict_rejected_by_watermark",
           "callee": "__import__",
-          "lineno": 158,
-          "file_path": "tests/test_bulletin_watermarks.py"
-        },
-        {
-          "caller": "test_publisher_identity_conflict_rejected_by_watermark",
-          "callee": "raises",
-          "lineno": 159,
+          "lineno": 154,
           "file_path": "tests/test_bulletin_watermarks.py"
         },
         {
           "caller": "test_publisher_identity_conflict_rejected_by_watermark",
           "callee": "store_bulletin",
+          "lineno": 155,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_publisher_identity_conflict_rejected_by_watermark",
+          "callee": "sign_bulletin_content",
+          "lineno": 159,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_publisher_identity_conflict_rejected_by_watermark",
+          "callee": "hexdigest",
+          "lineno": 159,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_publisher_identity_conflict_rejected_by_watermark",
+          "callee": "sha3_256",
+          "lineno": 159,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_publisher_identity_conflict_rejected_by_watermark",
+          "callee": "__import__",
+          "lineno": 159,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_publisher_identity_conflict_rejected_by_watermark",
+          "callee": "raises",
           "lineno": 160,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_publisher_identity_conflict_rejected_by_watermark",
+          "callee": "store_bulletin",
+          "lineno": 161,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_pruned_authentic_duplicate_replay_succeeds_sqlite",
+          "callee": "TFPNode",
+          "lineno": 171,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_pruned_authentic_duplicate_replay_succeeds_sqlite",
+          "callee": "store_bulletin",
+          "lineno": 175,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_pruned_authentic_duplicate_replay_succeeds_sqlite",
+          "callee": "prune_display_bulletins",
+          "lineno": 179,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_pruned_authentic_duplicate_replay_succeeds_sqlite",
+          "callee": "get_bulletin",
+          "lineno": 180,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_pruned_authentic_duplicate_replay_succeeds_sqlite",
+          "callee": "len",
+          "lineno": 181,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_pruned_authentic_duplicate_replay_succeeds_sqlite",
+          "callee": "list_bulletins",
+          "lineno": 181,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_pruned_authentic_duplicate_replay_succeeds_sqlite",
+          "callee": "store_bulletin",
+          "lineno": 184,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_pruned_authentic_duplicate_replay_succeeds_sqlite",
+          "callee": "get_bulletin",
+          "lineno": 189,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_pruned_authentic_duplicate_replay_succeeds_sqlite",
+          "callee": "len",
+          "lineno": 195,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_pruned_authentic_duplicate_replay_succeeds_sqlite",
+          "callee": "list_bulletins",
+          "lineno": 195,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_pruned_authentic_duplicate_replay_succeeds_in_memory",
+          "callee": "TFPNode",
+          "lineno": 203,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_pruned_authentic_duplicate_replay_succeeds_in_memory",
+          "callee": "store_bulletin",
+          "lineno": 207,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_pruned_authentic_duplicate_replay_succeeds_in_memory",
+          "callee": "prune_display_bulletins",
+          "lineno": 211,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_pruned_authentic_duplicate_replay_succeeds_in_memory",
+          "callee": "get_bulletin",
+          "lineno": 212,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_pruned_authentic_duplicate_replay_succeeds_in_memory",
+          "callee": "len",
+          "lineno": 213,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_pruned_authentic_duplicate_replay_succeeds_in_memory",
+          "callee": "list_bulletins",
+          "lineno": 213,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_pruned_authentic_duplicate_replay_succeeds_in_memory",
+          "callee": "store_bulletin",
+          "lineno": 216,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_pruned_authentic_duplicate_replay_succeeds_in_memory",
+          "callee": "get_bulletin",
+          "lineno": 220,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_pruned_authentic_duplicate_replay_succeeds_in_memory",
+          "callee": "len",
+          "lineno": 225,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_pruned_authentic_duplicate_replay_succeeds_in_memory",
+          "callee": "list_bulletins",
+          "lineno": 225,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_in_memory_publisher_identity_conflict_after_pruning",
+          "callee": "TFPNode",
+          "lineno": 233,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_in_memory_publisher_identity_conflict_after_pruning",
+          "callee": "generate",
+          "lineno": 235,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_in_memory_publisher_identity_conflict_after_pruning",
+          "callee": "hex",
+          "lineno": 236,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_in_memory_publisher_identity_conflict_after_pruning",
+          "callee": "public_bytes_raw",
+          "lineno": 236,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_in_memory_publisher_identity_conflict_after_pruning",
+          "callee": "public_key",
+          "lineno": 236,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_in_memory_publisher_identity_conflict_after_pruning",
+          "callee": "generate",
+          "lineno": 238,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_in_memory_publisher_identity_conflict_after_pruning",
+          "callee": "hex",
+          "lineno": 239,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_in_memory_publisher_identity_conflict_after_pruning",
+          "callee": "public_bytes_raw",
+          "lineno": 239,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_in_memory_publisher_identity_conflict_after_pruning",
+          "callee": "public_key",
+          "lineno": 239,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_in_memory_publisher_identity_conflict_after_pruning",
+          "callee": "sign_bulletin_content",
+          "lineno": 243,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_in_memory_publisher_identity_conflict_after_pruning",
+          "callee": "hexdigest",
+          "lineno": 243,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_in_memory_publisher_identity_conflict_after_pruning",
+          "callee": "sha3_256",
+          "lineno": 243,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_in_memory_publisher_identity_conflict_after_pruning",
+          "callee": "__import__",
+          "lineno": 243,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_in_memory_publisher_identity_conflict_after_pruning",
+          "callee": "store_bulletin",
+          "lineno": 244,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_in_memory_publisher_identity_conflict_after_pruning",
+          "callee": "prune_display_bulletins",
+          "lineno": 247,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_in_memory_publisher_identity_conflict_after_pruning",
+          "callee": "len",
+          "lineno": 248,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_in_memory_publisher_identity_conflict_after_pruning",
+          "callee": "list_bulletins",
+          "lineno": 248,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_in_memory_publisher_identity_conflict_after_pruning",
+          "callee": "sign_bulletin_content",
+          "lineno": 252,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_in_memory_publisher_identity_conflict_after_pruning",
+          "callee": "hexdigest",
+          "lineno": 252,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_in_memory_publisher_identity_conflict_after_pruning",
+          "callee": "sha3_256",
+          "lineno": 252,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_in_memory_publisher_identity_conflict_after_pruning",
+          "callee": "__import__",
+          "lineno": 252,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_in_memory_publisher_identity_conflict_after_pruning",
+          "callee": "raises",
+          "lineno": 253,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_in_memory_publisher_identity_conflict_after_pruning",
+          "callee": "store_bulletin",
+          "lineno": 254,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_bulletin_watermarks_secondary_index",
+          "callee": "TFPNode",
+          "lineno": 262,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_bulletin_watermarks_secondary_index",
+          "callee": "connect",
+          "lineno": 264,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_bulletin_watermarks_secondary_index",
+          "callee": "str",
+          "lineno": 264,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_bulletin_watermarks_secondary_index",
+          "callee": "cursor",
+          "lineno": 266,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_bulletin_watermarks_secondary_index",
+          "callee": "execute",
+          "lineno": 267,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_bulletin_watermarks_secondary_index",
+          "callee": "fetchall",
+          "lineno": 268,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_bulletin_watermarks_secondary_index",
+          "callee": "list",
+          "lineno": 269,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_bulletin_watermarks_secondary_index",
+          "callee": "keys",
+          "lineno": 269,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_bulletin_watermarks_secondary_index",
+          "callee": "execute",
+          "lineno": 271,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_bulletin_watermarks_secondary_index",
+          "callee": "fetchall",
+          "lineno": 272,
+          "file_path": "tests/test_bulletin_watermarks.py"
+        },
+        {
+          "caller": "test_bulletin_watermarks_secondary_index",
+          "callee": "close",
+          "lineno": 275,
           "file_path": "tests/test_bulletin_watermarks.py"
         }
       ]
@@ -90373,7 +91001,7 @@
       ]
     },
     "tfp_core_v4/node.py": {
-      "loc": 698,
+      "loc": 780,
       "symbols": [
         {
           "name": "TFPNode",
@@ -90420,7 +91048,7 @@
           "qualified_name": "TFPNode._persist_content",
           "kind": "function",
           "file_path": "tfp_core_v4/node.py",
-          "lineno": 155,
+          "lineno": 160,
           "args": [
             "recipe",
             "chunks",
@@ -90436,7 +91064,7 @@
           "qualified_name": "TFPNode._load_recipe_from_db",
           "kind": "function",
           "file_path": "tfp_core_v4/node.py",
-          "lineno": 201,
+          "lineno": 206,
           "args": [
             "root_hash"
           ],
@@ -90449,7 +91077,7 @@
           "qualified_name": "TFPNode.publish",
           "kind": "function",
           "file_path": "tfp_core_v4/node.py",
-          "lineno": 267,
+          "lineno": 272,
           "args": [
             "data",
             "metadata",
@@ -90464,7 +91092,7 @@
           "qualified_name": "TFPNode.fetch",
           "kind": "function",
           "file_path": "tfp_core_v4/node.py",
-          "lineno": 333,
+          "lineno": 338,
           "args": [
             "root_hash",
             "simulated_loss",
@@ -90479,7 +91107,7 @@
           "qualified_name": "TFPNode.inspect_recipe",
           "kind": "function",
           "file_path": "tfp_core_v4/node.py",
-          "lineno": 419,
+          "lineno": 424,
           "args": [
             "root_hash"
           ],
@@ -90492,7 +91120,7 @@
           "qualified_name": "TFPNode.list_recipes",
           "kind": "function",
           "file_path": "tfp_core_v4/node.py",
-          "lineno": 436,
+          "lineno": 441,
           "args": [],
           "return_type": "list[ChunkRecipe]",
           "docstring": "Return all recipes stored in memory and in the persistent SQLite database.",
@@ -90503,10 +91131,30 @@
           "qualified_name": "TFPNode.get_telemetry",
           "kind": "function",
           "file_path": "tfp_core_v4/node.py",
-          "lineno": 466,
+          "lineno": 471,
           "args": [],
           "return_type": "dict[str, Any]",
           "docstring": "Return real deduplication and throughput metrics.",
+          "bases": []
+        },
+        {
+          "name": "_check_watermark",
+          "qualified_name": "TFPNode._check_watermark",
+          "kind": "function",
+          "file_path": "tfp_core_v4/node.py",
+          "lineno": 475,
+          "args": [
+            "bulletin_id",
+            "revision",
+            "content_hash",
+            "publisher_id",
+            "record",
+            "data",
+            "status",
+            "conn"
+          ],
+          "return_type": "ChunkRecipe | None",
+          "docstring": "Verify watermark constraints and return existing recipe on authentic duplicate replay.",
           "bases": []
         },
         {
@@ -90514,7 +91162,7 @@
           "qualified_name": "TFPNode.store_bulletin",
           "kind": "function",
           "file_path": "tfp_core_v4/node.py",
-          "lineno": 470,
+          "lineno": 563,
           "args": [
             "bulletin_id",
             "revision",
@@ -90535,10 +91183,11 @@
           "qualified_name": "TFPNode.get_bulletin",
           "kind": "function",
           "file_path": "tfp_core_v4/node.py",
-          "lineno": 608,
+          "lineno": 691,
           "args": [
             "bulletin_id",
-            "revision"
+            "revision",
+            "connection"
           ],
           "return_type": "tuple[dict[str, Any], bytes] | None",
           "docstring": "Retrieve a bulletin's record and exact content bytes from authoritative storage.",
@@ -90549,7 +91198,7 @@
           "qualified_name": "TFPNode.list_bulletins",
           "kind": "function",
           "file_path": "tfp_core_v4/node.py",
-          "lineno": 669,
+          "lineno": 757,
           "args": [],
           "return_type": "list[dict[str, Any]]",
           "docstring": "List all bulletins stored in authoritative storage.",
@@ -90560,7 +91209,7 @@
           "qualified_name": "TFPNode.prune_display_bulletins",
           "kind": "function",
           "file_path": "tfp_core_v4/node.py",
-          "lineno": 711,
+          "lineno": 799,
           "args": [
             "keep_last_n"
           ],
@@ -90573,7 +91222,7 @@
           "qualified_name": "TFPNode.get_bulletin_watermark",
           "kind": "function",
           "file_path": "tfp_core_v4/node.py",
-          "lineno": 748,
+          "lineno": 836,
           "args": [
             "publisher_id",
             "bulletin_id"
@@ -90688,45 +91337,33 @@
         },
         {
           "module": "bulletin_identity",
+          "name": "PublisherIdentityConflictError",
+          "alias": "PublisherIdentityConflictError",
+          "lineno": 487
+        },
+        {
+          "module": "bulletin_identity",
+          "name": "RevisionConflictError",
+          "alias": "RevisionConflictError",
+          "lineno": 487
+        },
+        {
+          "module": "bulletin_identity",
+          "name": "StaleRevisionError",
+          "alias": "StaleRevisionError",
+          "lineno": 487
+        },
+        {
+          "module": "bulletin_identity",
           "name": "check_revision",
           "alias": "check_revision",
-          "lineno": 481
+          "lineno": 574
         },
         {
           "module": "bulletin_identity",
           "name": "verification_status",
           "alias": "verification_status",
-          "lineno": 481
-        },
-        {
-          "module": "bulletin_identity",
-          "name": "PublisherIdentityConflictError",
-          "alias": "PublisherIdentityConflictError",
-          "lineno": 510
-        },
-        {
-          "module": "bulletin_identity",
-          "name": "StaleRevisionError",
-          "alias": "StaleRevisionError",
-          "lineno": 513
-        },
-        {
-          "module": "bulletin_identity",
-          "name": "RevisionConflictError",
-          "alias": "RevisionConflictError",
-          "lineno": 522
-        },
-        {
-          "module": "bulletin_identity",
-          "name": "StaleRevisionError",
-          "alias": "StaleRevisionError",
-          "lineno": 535
-        },
-        {
-          "module": "bulletin_identity",
-          "name": "RevisionConflictError",
-          "alias": "RevisionConflictError",
-          "lineno": 542
+          "lineno": 574
         }
       ],
       "calls": [
@@ -90828,421 +91465,397 @@
         },
         {
           "caller": "TFPNode._init_db",
-          "callee": "commit",
+          "callee": "execute",
           "lineno": 151,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode._init_db",
+          "callee": "commit",
+          "lineno": 156,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode._init_db",
           "callee": "close",
-          "lineno": 153,
+          "lineno": 158,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode._persist_content",
           "callee": "connect",
-          "lineno": 165,
+          "lineno": 170,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode._persist_content",
           "callee": "str",
-          "lineno": 165,
+          "lineno": 170,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode._persist_content",
           "callee": "execute",
-          "lineno": 167,
+          "lineno": 172,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode._persist_content",
           "callee": "dumps",
-          "lineno": 176,
+          "lineno": 181,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode._persist_content",
           "callee": "dumps",
-          "lineno": 177,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode._persist_content",
-          "callee": "dumps",
-          "lineno": 178,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode._persist_content",
-          "callee": "time",
-          "lineno": 179,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode._persist_content",
-          "callee": "zip",
           "lineno": 182,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode._persist_content",
-          "callee": "executemany",
+          "callee": "dumps",
           "lineno": 183,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode._persist_content",
-          "callee": "serialize",
-          "lineno": 188,
+          "callee": "time",
+          "lineno": 184,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode._persist_content",
+          "callee": "zip",
+          "lineno": 187,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode._persist_content",
           "callee": "executemany",
-          "lineno": 191,
+          "lineno": 188,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode._persist_content",
-          "callee": "commit",
+          "callee": "serialize",
+          "lineno": 193,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode._persist_content",
+          "callee": "executemany",
           "lineno": 196,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode._persist_content",
+          "callee": "commit",
+          "lineno": 201,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode._persist_content",
           "callee": "close",
-          "lineno": 199,
+          "lineno": 204,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode._load_recipe_from_db",
           "callee": "exists",
-          "lineno": 203,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode._load_recipe_from_db",
-          "callee": "connect",
-          "lineno": 205,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode._load_recipe_from_db",
-          "callee": "str",
-          "lineno": 205,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode._load_recipe_from_db",
-          "callee": "cursor",
-          "lineno": 207,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode._load_recipe_from_db",
-          "callee": "execute",
           "lineno": 208,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode._load_recipe_from_db",
-          "callee": "fetchone",
+          "callee": "connect",
+          "lineno": 210,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode._load_recipe_from_db",
+          "callee": "str",
+          "lineno": 210,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode._load_recipe_from_db",
+          "callee": "cursor",
           "lineno": 212,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode._load_recipe_from_db",
+          "callee": "execute",
+          "lineno": 213,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode._load_recipe_from_db",
+          "callee": "fetchone",
+          "lineno": 217,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode._load_recipe_from_db",
           "callee": "ChunkRecipe",
-          "lineno": 218,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode._load_recipe_from_db",
-          "callee": "loads",
-          "lineno": 221,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode._load_recipe_from_db",
-          "callee": "loads",
-          "lineno": 222,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode._load_recipe_from_db",
-          "callee": "loads",
           "lineno": 223,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode._load_recipe_from_db",
-          "callee": "warning",
+          "callee": "loads",
           "lineno": 226,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode._load_recipe_from_db",
-          "callee": "validate",
-          "lineno": 229,
+          "callee": "loads",
+          "lineno": 227,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode._load_recipe_from_db",
+          "callee": "loads",
+          "lineno": 228,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode._load_recipe_from_db",
           "callee": "warning",
-          "lineno": 230,
+          "lineno": 231,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode._load_recipe_from_db",
+          "callee": "validate",
+          "lineno": 234,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode._load_recipe_from_db",
+          "callee": "warning",
+          "lineno": 235,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode._load_recipe_from_db",
           "callee": "execute",
-          "lineno": 236,
+          "lineno": 241,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode._load_recipe_from_db",
           "callee": "join",
-          "lineno": 237,
+          "lineno": 242,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode._load_recipe_from_db",
           "callee": "len",
-          "lineno": 237,
+          "lineno": 242,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode._load_recipe_from_db",
           "callee": "fetchall",
-          "lineno": 240,
+          "lineno": 245,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode._load_recipe_from_db",
           "callee": "execute",
-          "lineno": 244,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode._load_recipe_from_db",
-          "callee": "get",
           "lineno": 249,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode._load_recipe_from_db",
+          "callee": "get",
+          "lineno": 254,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode._load_recipe_from_db",
           "callee": "fetchall",
-          "lineno": 250,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode._load_recipe_from_db",
-          "callee": "deserialize",
-          "lineno": 252,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode._load_recipe_from_db",
-          "callee": "append",
-          "lineno": 253,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode._load_recipe_from_db",
-          "callee": "warning",
           "lineno": 255,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode._load_recipe_from_db",
-          "callee": "serialize",
+          "callee": "deserialize",
+          "lineno": 257,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode._load_recipe_from_db",
+          "callee": "append",
+          "lineno": 258,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode._load_recipe_from_db",
+          "callee": "warning",
           "lineno": 260,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode._load_recipe_from_db",
+          "callee": "serialize",
+          "lineno": 265,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode._load_recipe_from_db",
           "callee": "MerkleTree",
-          "lineno": 261,
+          "lineno": 266,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode._load_recipe_from_db",
           "callee": "close",
-          "lineno": 265,
+          "lineno": 270,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.publish",
           "callee": "ValueError",
-          "lineno": 280,
+          "lineno": 285,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.publish",
           "callee": "dict",
-          "lineno": 282,
+          "lineno": 287,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.publish",
           "callee": "create_recipe",
-          "lineno": 284,
+          "lineno": 289,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.publish",
           "callee": "zip",
-          "lineno": 288,
+          "lineno": 293,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.publish",
           "callee": "len",
-          "lineno": 294,
+          "lineno": 299,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.publish",
           "callee": "max",
-          "lineno": 296,
+          "lineno": 301,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.publish",
           "callee": "float",
-          "lineno": 296,
+          "lineno": 301,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.publish",
           "callee": "encode",
-          "lineno": 311,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.publish",
-          "callee": "serialize",
-          "lineno": 315,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.publish",
-          "callee": "MerkleTree",
           "lineno": 316,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.publish",
-          "callee": "len",
+          "callee": "serialize",
           "lineno": 320,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.publish",
+          "callee": "MerkleTree",
+          "lineno": 321,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.publish",
+          "callee": "len",
+          "lineno": 325,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.publish",
           "callee": "sum",
-          "lineno": 321,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.publish",
-          "callee": "len",
-          "lineno": 321,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.publish",
-          "callee": "len",
-          "lineno": 322,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.publish",
-          "callee": "len",
-          "lineno": 323,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.publish",
-          "callee": "round",
           "lineno": 326,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.publish",
+          "callee": "len",
+          "lineno": 326,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.publish",
+          "callee": "len",
+          "lineno": 327,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.publish",
+          "callee": "len",
+          "lineno": 328,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.publish",
+          "callee": "round",
+          "lineno": 331,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.publish",
           "callee": "_persist_content",
-          "lineno": 330,
+          "lineno": 335,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.fetch",
           "callee": "_load_recipe_from_db",
-          "lineno": 344,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.fetch",
-          "callee": "KeyError",
-          "lineno": 345,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.fetch",
-          "callee": "validate",
-          "lineno": 348,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.fetch",
-          "callee": "ValueError",
           "lineno": 349,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.fetch",
-          "callee": "all",
-          "lineno": 352,
+          "callee": "KeyError",
+          "lineno": 350,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.fetch",
-          "callee": "bytearray",
+          "callee": "validate",
+          "lineno": 353,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.fetch",
+          "callee": "ValueError",
           "lineno": 354,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.fetch",
+          "callee": "all",
+          "lineno": 357,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.fetch",
+          "callee": "bytearray",
+          "lineno": 359,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.fetch",
           "callee": "zip",
-          "lineno": 356,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.fetch",
-          "callee": "len",
-          "lineno": 358,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.fetch",
-          "callee": "compare_digest",
-          "lineno": 358,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.fetch",
-          "callee": "hexdigest",
-          "lineno": 358,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.fetch",
-          "callee": "sha3_256",
-          "lineno": 358,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.fetch",
-          "callee": "extend",
           "lineno": 361,
           "file_path": "tfp_core_v4/node.py"
         },
@@ -91254,164 +91867,164 @@
         },
         {
           "caller": "TFPNode.fetch",
-          "callee": "sha3_256",
-          "lineno": 364,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.fetch",
-          "callee": "update",
-          "lineno": 366,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.fetch",
-          "callee": "encode",
-          "lineno": 366,
+          "callee": "compare_digest",
+          "lineno": 363,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.fetch",
           "callee": "hexdigest",
-          "lineno": 367,
+          "lineno": 363,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.fetch",
-          "callee": "compare_digest",
+          "callee": "sha3_256",
+          "lineno": 363,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.fetch",
+          "callee": "extend",
+          "lineno": 366,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.fetch",
+          "callee": "len",
           "lineno": 368,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.fetch",
-          "callee": "ValueError",
+          "callee": "sha3_256",
           "lineno": 369,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.fetch",
-          "callee": "bytes",
-          "lineno": 372,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.fetch",
-          "callee": "get",
-          "lineno": 375,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.fetch",
-          "callee": "get",
-          "lineno": 376,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.fetch",
-          "callee": "FountainCodec",
-          "lineno": 378,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.fetch",
-          "callee": "list",
-          "lineno": 381,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.fetch",
-          "callee": "RuntimeError",
-          "lineno": 384,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.fetch",
-          "callee": "randbelow",
-          "lineno": 385,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.fetch",
-          "callee": "RuntimeError",
-          "lineno": 388,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.fetch",
-          "callee": "decode",
-          "lineno": 391,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.fetch",
-          "callee": "RuntimeError",
-          "lineno": 397,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.fetch",
-          "callee": "len",
-          "lineno": 398,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.fetch",
-          "callee": "len",
-          "lineno": 398,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.fetch",
-          "callee": "sha3_256",
-          "lineno": 403,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.fetch",
-          "callee": "zip",
-          "lineno": 404,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.fetch",
-          "callee": "hexdigest",
-          "lineno": 407,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.fetch",
-          "callee": "sha3_256",
-          "lineno": 407,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.fetch",
-          "callee": "compare_digest",
-          "lineno": 408,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.fetch",
-          "callee": "ValueError",
-          "lineno": 409,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.fetch",
           "callee": "update",
-          "lineno": 410,
+          "lineno": 371,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.fetch",
           "callee": "encode",
-          "lineno": 410,
+          "lineno": 371,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.fetch",
           "callee": "hexdigest",
-          "lineno": 411,
+          "lineno": 372,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.fetch",
+          "callee": "compare_digest",
+          "lineno": 373,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.fetch",
+          "callee": "ValueError",
+          "lineno": 374,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.fetch",
+          "callee": "bytes",
+          "lineno": 377,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.fetch",
+          "callee": "get",
+          "lineno": 380,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.fetch",
+          "callee": "get",
+          "lineno": 381,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.fetch",
+          "callee": "FountainCodec",
+          "lineno": 383,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.fetch",
+          "callee": "list",
+          "lineno": 386,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.fetch",
+          "callee": "RuntimeError",
+          "lineno": 389,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.fetch",
+          "callee": "randbelow",
+          "lineno": 390,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.fetch",
+          "callee": "RuntimeError",
+          "lineno": 393,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.fetch",
+          "callee": "decode",
+          "lineno": 396,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.fetch",
+          "callee": "RuntimeError",
+          "lineno": 402,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.fetch",
+          "callee": "len",
+          "lineno": 403,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.fetch",
+          "callee": "len",
+          "lineno": 403,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.fetch",
+          "callee": "sha3_256",
+          "lineno": 408,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.fetch",
+          "callee": "zip",
+          "lineno": 409,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.fetch",
+          "callee": "hexdigest",
+          "lineno": 412,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.fetch",
+          "callee": "sha3_256",
+          "lineno": 412,
           "file_path": "tfp_core_v4/node.py"
         },
         {
@@ -91427,741 +92040,861 @@
           "file_path": "tfp_core_v4/node.py"
         },
         {
+          "caller": "TFPNode.fetch",
+          "callee": "update",
+          "lineno": 415,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.fetch",
+          "callee": "encode",
+          "lineno": 415,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.fetch",
+          "callee": "hexdigest",
+          "lineno": 416,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.fetch",
+          "callee": "compare_digest",
+          "lineno": 418,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.fetch",
+          "callee": "ValueError",
+          "lineno": 419,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
           "caller": "TFPNode.inspect_recipe",
           "callee": "_load_recipe_from_db",
-          "lineno": 422,
+          "lineno": 427,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.inspect_recipe",
           "callee": "KeyError",
-          "lineno": 423,
+          "lineno": 428,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.inspect_recipe",
           "callee": "get",
-          "lineno": 425,
+          "lineno": 430,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.inspect_recipe",
           "callee": "len",
-          "lineno": 429,
+          "lineno": 434,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.list_recipes",
           "callee": "dict",
-          "lineno": 438,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.list_recipes",
-          "callee": "exists",
-          "lineno": 439,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.list_recipes",
-          "callee": "connect",
-          "lineno": 440,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.list_recipes",
-          "callee": "str",
-          "lineno": 440,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.list_recipes",
-          "callee": "cursor",
-          "lineno": 442,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.list_recipes",
-          "callee": "execute",
           "lineno": 443,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.list_recipes",
+          "callee": "exists",
+          "lineno": 444,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.list_recipes",
+          "callee": "connect",
+          "lineno": 445,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.list_recipes",
+          "callee": "str",
+          "lineno": 445,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.list_recipes",
+          "callee": "cursor",
+          "lineno": 447,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.list_recipes",
+          "callee": "execute",
+          "lineno": 448,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.list_recipes",
           "callee": "fetchall",
-          "lineno": 446,
+          "lineno": 451,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.list_recipes",
           "callee": "ChunkRecipe",
-          "lineno": 449,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.list_recipes",
-          "callee": "loads",
-          "lineno": 452,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.list_recipes",
-          "callee": "loads",
-          "lineno": 453,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.list_recipes",
-          "callee": "loads",
           "lineno": 454,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.list_recipes",
-          "callee": "validate",
-          "lineno": 456,
+          "callee": "loads",
+          "lineno": 457,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.list_recipes",
-          "callee": "warning",
+          "callee": "loads",
+          "lineno": 458,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.list_recipes",
+          "callee": "loads",
           "lineno": 459,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.list_recipes",
-          "callee": "warning",
+          "callee": "validate",
           "lineno": 461,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.list_recipes",
+          "callee": "warning",
+          "lineno": 464,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.list_recipes",
+          "callee": "warning",
+          "lineno": 466,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.list_recipes",
           "callee": "close",
-          "lineno": 463,
+          "lineno": 468,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.list_recipes",
           "callee": "list",
-          "lineno": 464,
+          "lineno": 469,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.list_recipes",
           "callee": "values",
-          "lineno": 464,
+          "lineno": 469,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.get_telemetry",
           "callee": "dict",
-          "lineno": 468,
+          "lineno": 473,
           "file_path": "tfp_core_v4/node.py"
         },
         {
-          "caller": "TFPNode.store_bulletin",
-          "callee": "ValueError",
-          "lineno": 484,
+          "caller": "TFPNode._check_watermark",
+          "callee": "fetchall",
+          "lineno": 494,
           "file_path": "tfp_core_v4/node.py"
         },
         {
-          "caller": "TFPNode.store_bulletin",
-          "callee": "hexdigest",
-          "lineno": 486,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.store_bulletin",
-          "callee": "sha3_256",
-          "lineno": 486,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.store_bulletin",
-          "callee": "verification_status",
-          "lineno": 487,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.store_bulletin",
-          "callee": "dict",
-          "lineno": 489,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.store_bulletin",
-          "callee": "update",
-          "lineno": 490,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.store_bulletin",
-          "callee": "time",
-          "lineno": 495,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.store_bulletin",
-          "callee": "len",
-          "lineno": 495,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.store_bulletin",
-          "callee": "connect",
-          "lineno": 498,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.store_bulletin",
-          "callee": "str",
-          "lineno": 498,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.store_bulletin",
+          "caller": "TFPNode._check_watermark",
           "callee": "execute",
+          "lineno": 494,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode._check_watermark",
+          "callee": "items",
           "lineno": 501,
           "file_path": "tfp_core_v4/node.py"
         },
         {
-          "caller": "TFPNode.store_bulletin",
-          "callee": "fetchall",
-          "lineno": 503,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.store_bulletin",
-          "callee": "execute",
-          "lineno": 503,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.store_bulletin",
+          "caller": "TFPNode._check_watermark",
           "callee": "PublisherIdentityConflictError",
-          "lineno": 511,
+          "lineno": 510,
           "file_path": "tfp_core_v4/node.py"
         },
         {
-          "caller": "TFPNode.store_bulletin",
+          "caller": "TFPNode._check_watermark",
           "callee": "StaleRevisionError",
-          "lineno": 514,
+          "lineno": 512,
           "file_path": "tfp_core_v4/node.py"
         },
         {
-          "caller": "TFPNode.store_bulletin",
+          "caller": "TFPNode._check_watermark",
           "callee": "compare_digest",
           "lineno": 516,
           "file_path": "tfp_core_v4/node.py"
         },
         {
-          "caller": "TFPNode.store_bulletin",
+          "caller": "TFPNode._check_watermark",
           "callee": "get_bulletin",
           "lineno": 517,
           "file_path": "tfp_core_v4/node.py"
         },
         {
-          "caller": "TFPNode.store_bulletin",
-          "callee": "_load_recipe_from_db",
-          "lineno": 520,
+          "caller": "TFPNode._check_watermark",
+          "callee": "dict",
+          "lineno": 522,
           "file_path": "tfp_core_v4/node.py"
         },
         {
-          "caller": "TFPNode.store_bulletin",
-          "callee": "replace",
-          "lineno": 521,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.store_bulletin",
-          "callee": "RevisionConflictError",
-          "lineno": 523,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.store_bulletin",
-          "callee": "fetchall",
-          "lineno": 525,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.store_bulletin",
+          "caller": "TFPNode._check_watermark",
           "callee": "execute",
           "lineno": 525,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode._check_watermark",
+          "callee": "get",
+          "lineno": 536,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode._check_watermark",
+          "callee": "get",
+          "lineno": 537,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode._check_watermark",
+          "callee": "len",
+          "lineno": 540,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode._check_watermark",
+          "callee": "dumps",
+          "lineno": 541,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode._check_watermark",
+          "callee": "commit",
+          "lineno": 544,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode._check_watermark",
+          "callee": "_load_recipe_from_db",
+          "lineno": 548,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode._check_watermark",
+          "callee": "replace",
+          "lineno": 550,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode._check_watermark",
+          "callee": "TFPNode",
+          "lineno": 551,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode._check_watermark",
+          "callee": "publish",
+          "lineno": 552,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode._check_watermark",
+          "callee": "update",
+          "lineno": 553,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode._check_watermark",
+          "callee": "update",
+          "lineno": 554,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode._check_watermark",
+          "callee": "update",
+          "lineno": 555,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode._check_watermark",
+          "callee": "update",
+          "lineno": 556,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode._check_watermark",
+          "callee": "RevisionConflictError",
+          "lineno": 559,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.store_bulletin",
+          "callee": "ValueError",
+          "lineno": 577,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.store_bulletin",
+          "callee": "hexdigest",
+          "lineno": 579,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.store_bulletin",
+          "callee": "sha3_256",
+          "lineno": 579,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.store_bulletin",
+          "callee": "verification_status",
+          "lineno": 580,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.store_bulletin",
           "callee": "dict",
-          "lineno": 529,
+          "lineno": 582,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.store_bulletin",
-          "callee": "zip",
-          "lineno": 529,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.store_bulletin",
-          "callee": "get",
-          "lineno": 532,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.store_bulletin",
-          "callee": "StaleRevisionError",
-          "lineno": 536,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.store_bulletin",
-          "callee": "compare_digest",
-          "lineno": 538,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.store_bulletin",
-          "callee": "get_bulletin",
-          "lineno": 539,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.store_bulletin",
-          "callee": "replace",
-          "lineno": 541,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.store_bulletin",
-          "callee": "RevisionConflictError",
-          "lineno": 543,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.store_bulletin",
-          "callee": "items",
-          "lineno": 544,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.store_bulletin",
-          "callee": "check_revision",
-          "lineno": 545,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.store_bulletin",
-          "callee": "_load_recipe_from_db",
-          "lineno": 549,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.store_bulletin",
-          "callee": "get_bulletin",
-          "lineno": 553,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.store_bulletin",
-          "callee": "replace",
-          "lineno": 554,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.store_bulletin",
-          "callee": "TFPNode",
-          "lineno": 557,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.store_bulletin",
-          "callee": "publish",
-          "lineno": 558,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.store_bulletin",
-          "callee": "_persist_content",
-          "lineno": 562,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.store_bulletin",
-          "callee": "execute",
-          "lineno": 564,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.store_bulletin",
-          "callee": "len",
-          "lineno": 570,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.store_bulletin",
-          "callee": "dumps",
-          "lineno": 570,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.store_bulletin",
-          "callee": "execute",
-          "lineno": 572,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.store_bulletin",
-          "callee": "commit",
+          "callee": "update",
           "lineno": 583,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.store_bulletin",
-          "callee": "update",
-          "lineno": 593,
+          "callee": "time",
+          "lineno": 588,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.store_bulletin",
-          "callee": "update",
+          "callee": "len",
+          "lineno": 588,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.store_bulletin",
+          "callee": "connect",
+          "lineno": 591,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.store_bulletin",
+          "callee": "str",
+          "lineno": 591,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.store_bulletin",
+          "callee": "execute",
           "lineno": 594,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.store_bulletin",
-          "callee": "update",
-          "lineno": 595,
-          "file_path": "tfp_core_v4/node.py"
-        },
-        {
-          "caller": "TFPNode.store_bulletin",
-          "callee": "update",
+          "callee": "_check_watermark",
           "lineno": 596,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.store_bulletin",
+          "callee": "fetchall",
+          "lineno": 610,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.store_bulletin",
+          "callee": "execute",
+          "lineno": 610,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.store_bulletin",
+          "callee": "dict",
+          "lineno": 614,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.store_bulletin",
+          "callee": "zip",
+          "lineno": 614,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.store_bulletin",
+          "callee": "items",
+          "lineno": 616,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.store_bulletin",
+          "callee": "check_revision",
+          "lineno": 618,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.store_bulletin",
+          "callee": "_load_recipe_from_db",
+          "lineno": 623,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.store_bulletin",
+          "callee": "get_bulletin",
+          "lineno": 627,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.store_bulletin",
+          "callee": "replace",
+          "lineno": 630,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.store_bulletin",
+          "callee": "TFPNode",
+          "lineno": 631,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.store_bulletin",
+          "callee": "publish",
+          "lineno": 632,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.store_bulletin",
+          "callee": "update",
+          "lineno": 633,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.store_bulletin",
+          "callee": "update",
+          "lineno": 634,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.store_bulletin",
+          "callee": "update",
+          "lineno": 635,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.store_bulletin",
+          "callee": "update",
+          "lineno": 636,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.store_bulletin",
+          "callee": "TFPNode",
+          "lineno": 640,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.store_bulletin",
+          "callee": "publish",
+          "lineno": 641,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.store_bulletin",
+          "callee": "_persist_content",
+          "lineno": 645,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.store_bulletin",
+          "callee": "execute",
+          "lineno": 647,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.store_bulletin",
           "callee": "len",
-          "lineno": 599,
+          "lineno": 653,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.store_bulletin",
+          "callee": "dumps",
+          "lineno": 653,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.store_bulletin",
+          "callee": "execute",
+          "lineno": 655,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.store_bulletin",
+          "callee": "commit",
+          "lineno": 666,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.store_bulletin",
+          "callee": "update",
+          "lineno": 676,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.store_bulletin",
+          "callee": "update",
+          "lineno": 677,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.store_bulletin",
+          "callee": "update",
+          "lineno": 678,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.store_bulletin",
+          "callee": "update",
+          "lineno": 679,
+          "file_path": "tfp_core_v4/node.py"
+        },
+        {
+          "caller": "TFPNode.store_bulletin",
+          "callee": "len",
+          "lineno": 682,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.store_bulletin",
           "callee": "round",
-          "lineno": 601,
+          "lineno": 684,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.store_bulletin",
           "callee": "len",
-          "lineno": 601,
+          "lineno": 684,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.store_bulletin",
           "callee": "close",
-          "lineno": 606,
+          "lineno": 689,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.get_bulletin",
           "callee": "items",
-          "lineno": 615,
+          "lineno": 701,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.get_bulletin",
           "callee": "max",
-          "lineno": 619,
+          "lineno": 705,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.get_bulletin",
           "callee": "dict",
-          "lineno": 620,
+          "lineno": 706,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.get_bulletin",
           "callee": "fetch",
-          "lineno": 620,
+          "lineno": 706,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.get_bulletin",
           "callee": "exists",
-          "lineno": 621,
+          "lineno": 707,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.get_bulletin",
           "callee": "connect",
-          "lineno": 624,
+          "lineno": 710,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.get_bulletin",
           "callee": "str",
-          "lineno": 624,
+          "lineno": 710,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.get_bulletin",
           "callee": "cursor",
-          "lineno": 626,
+          "lineno": 713,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.get_bulletin",
           "callee": "execute",
-          "lineno": 628,
+          "lineno": 715,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.get_bulletin",
           "callee": "execute",
-          "lineno": 636,
+          "lineno": 723,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.get_bulletin",
           "callee": "fetchone",
-          "lineno": 643,
+          "lineno": 730,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.get_bulletin",
           "callee": "loads",
-          "lineno": 648,
+          "lineno": 735,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.get_bulletin",
           "callee": "update",
-          "lineno": 649,
+          "lineno": 736,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.get_bulletin",
           "callee": "get",
-          "lineno": 661,
+          "lineno": 748,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.get_bulletin",
           "callee": "fetch",
-          "lineno": 664,
+          "lineno": 751,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.get_bulletin",
           "callee": "close",
-          "lineno": 667,
+          "lineno": 755,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.list_bulletins",
           "callee": "dict",
-          "lineno": 674,
+          "lineno": 762,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.list_bulletins",
           "callee": "values",
-          "lineno": 674,
+          "lineno": 762,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.list_bulletins",
           "callee": "exists",
-          "lineno": 675,
+          "lineno": 763,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.list_bulletins",
           "callee": "connect",
-          "lineno": 678,
+          "lineno": 766,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.list_bulletins",
           "callee": "str",
-          "lineno": 678,
+          "lineno": 766,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.list_bulletins",
           "callee": "cursor",
-          "lineno": 680,
+          "lineno": 768,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.list_bulletins",
           "callee": "execute",
-          "lineno": 681,
+          "lineno": 769,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.list_bulletins",
           "callee": "fetchall",
-          "lineno": 688,
+          "lineno": 776,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.list_bulletins",
           "callee": "loads",
-          "lineno": 690,
+          "lineno": 778,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.list_bulletins",
           "callee": "update",
-          "lineno": 691,
+          "lineno": 779,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.list_bulletins",
           "callee": "get",
-          "lineno": 703,
+          "lineno": 791,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.list_bulletins",
           "callee": "append",
-          "lineno": 706,
+          "lineno": 794,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.list_bulletins",
           "callee": "close",
-          "lineno": 709,
+          "lineno": 797,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.prune_display_bulletins",
           "callee": "exists",
-          "lineno": 717,
+          "lineno": 805,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.prune_display_bulletins",
           "callee": "len",
-          "lineno": 718,
+          "lineno": 806,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.prune_display_bulletins",
           "callee": "sorted",
-          "lineno": 720,
+          "lineno": 808,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.prune_display_bulletins",
           "callee": "keys",
-          "lineno": 721,
+          "lineno": 809,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.prune_display_bulletins",
           "callee": "get",
-          "lineno": 722,
+          "lineno": 810,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.prune_display_bulletins",
           "callee": "connect",
-          "lineno": 729,
+          "lineno": 817,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.prune_display_bulletins",
           "callee": "str",
-          "lineno": 729,
+          "lineno": 817,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.prune_display_bulletins",
           "callee": "execute",
-          "lineno": 731,
+          "lineno": 819,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.prune_display_bulletins",
           "callee": "cursor",
-          "lineno": 732,
+          "lineno": 820,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.prune_display_bulletins",
           "callee": "execute",
-          "lineno": 733,
+          "lineno": 821,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.prune_display_bulletins",
           "callee": "commit",
-          "lineno": 743,
+          "lineno": 831,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.prune_display_bulletins",
           "callee": "close",
-          "lineno": 746,
+          "lineno": 834,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.get_bulletin_watermark",
           "callee": "exists",
-          "lineno": 753,
+          "lineno": 841,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.get_bulletin_watermark",
           "callee": "get",
-          "lineno": 754,
+          "lineno": 842,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.get_bulletin_watermark",
           "callee": "dict",
-          "lineno": 755,
+          "lineno": 843,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.get_bulletin_watermark",
           "callee": "connect",
-          "lineno": 757,
+          "lineno": 845,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.get_bulletin_watermark",
           "callee": "str",
-          "lineno": 757,
+          "lineno": 845,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.get_bulletin_watermark",
           "callee": "cursor",
-          "lineno": 759,
+          "lineno": 847,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.get_bulletin_watermark",
           "callee": "execute",
-          "lineno": 760,
+          "lineno": 848,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.get_bulletin_watermark",
           "callee": "fetchone",
-          "lineno": 767,
+          "lineno": 855,
           "file_path": "tfp_core_v4/node.py"
         },
         {
           "caller": "TFPNode.get_bulletin_watermark",
           "callee": "close",
-          "lineno": 781,
+          "lineno": 869,
           "file_path": "tfp_core_v4/node.py"
         }
       ]

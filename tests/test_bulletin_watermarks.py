@@ -16,6 +16,7 @@ Verifies:
 """
 
 from pathlib import Path
+import sqlite3
 import pytest
 from cryptography.hazmat.primitives.asymmetric import ed25519
 
@@ -158,3 +159,118 @@ def test_publisher_identity_conflict_rejected_by_watermark(tmp_path: Path):
     _, s2 = sign_bulletin_content(bid, 2, __import__("hashlib").sha3_256(c2).hexdigest(), key2)
     with pytest.raises(PublisherIdentityConflictError, match="Bulletin publisher identity conflict"):
         node.store_bulletin(bid, 2, c2, publisher_id=pub2, signature_hex=s2)
+
+
+def test_pruned_authentic_duplicate_replay_succeeds_sqlite(tmp_path: Path):
+    """
+    If display bulletins are pruned to bound storage size, receiving an authentic
+    duplicate of the current watermark revision must NOT raise RevisionConflictError.
+    Instead, it must re-admit the display record and return the recipe.
+    """
+    db_file = tmp_path / "watermark_pruned_dup.db"
+    node = TFPNode(db_path=db_file)
+
+    bid = "FLOOD-WARNING-01"
+    content = b"Flood level rising at Sector 7."
+    recipe1 = node.store_bulletin(bid, 1, content, title="Flood Warning")
+    assert recipe1 is not None
+
+    # Prune display bulletins to 0
+    assert node.prune_display_bulletins(keep_last_n=0) == 1
+    assert node.get_bulletin(bid, 1) is None
+    assert len(node.list_bulletins()) == 0
+
+    # Re-transmit authentic duplicate: must NOT raise RevisionConflictError
+    recipe2 = node.store_bulletin(bid, 1, content, title="Flood Warning")
+    assert recipe2 is not None
+    assert recipe2.root_hash == recipe1.root_hash
+
+    # Display bulletin record must be restored
+    stored = node.get_bulletin(bid, 1)
+    assert stored is not None
+    meta, body = stored
+    assert meta["bulletin_id"] == bid
+    assert meta["revision"] == 1
+    assert body == content
+    assert len(node.list_bulletins()) == 1
+
+
+def test_pruned_authentic_duplicate_replay_succeeds_in_memory():
+    """
+    In-memory nodes must also re-admit display records upon receiving an authentic
+    duplicate replay of a pruned bulletin without raising RevisionConflictError.
+    """
+    node = TFPNode(db_path=None)
+
+    bid = "INMEM-PRUNED-DUP"
+    content = b"In-memory advisory content."
+    recipe1 = node.store_bulletin(bid, 1, content, title="In-Memory Dup")
+    assert recipe1 is not None
+
+    # Prune display bulletins
+    assert node.prune_display_bulletins(keep_last_n=0) == 1
+    assert node.get_bulletin(bid, 1) is None
+    assert len(node.list_bulletins()) == 0
+
+    # Re-admit identical bulletin
+    recipe2 = node.store_bulletin(bid, 1, content, title="In-Memory Dup")
+    assert recipe2 is not None
+    assert recipe2.root_hash == recipe1.root_hash
+
+    stored = node.get_bulletin(bid, 1)
+    assert stored is not None
+    meta, body = stored
+    assert meta["bulletin_id"] == bid
+    assert body == content
+    assert len(node.list_bulletins()) == 1
+
+
+def test_in_memory_publisher_identity_conflict_after_pruning():
+    """
+    In-memory mode must check publisher pinning against permanent watermarks
+    even after all display bulletins have been pruned to 0.
+    """
+    node = TFPNode(db_path=None)
+
+    key1 = ed25519.Ed25519PrivateKey.generate()
+    pub1 = key1.public_key().public_bytes_raw().hex()
+
+    key2 = ed25519.Ed25519PrivateKey.generate()
+    pub2 = key2.public_key().public_bytes_raw().hex()
+
+    bid = "INMEM-PINNED-ID"
+    c1 = b"Original publisher payload."
+    _, s1 = sign_bulletin_content(bid, 1, __import__("hashlib").sha3_256(c1).hexdigest(), key1)
+    node.store_bulletin(bid, 1, c1, publisher_id=pub1, signature_hex=s1)
+
+    # Prune display records to 0
+    assert node.prune_display_bulletins(keep_last_n=0) == 1
+    assert len(node.list_bulletins()) == 0
+
+    # Attacker tries to hijack the bulletin ID with a different key
+    c2 = b"Adversarial hijack payload."
+    _, s2 = sign_bulletin_content(bid, 1, __import__("hashlib").sha3_256(c2).hexdigest(), key2)
+    with pytest.raises(PublisherIdentityConflictError, match="Bulletin publisher identity conflict"):
+        node.store_bulletin(bid, 1, c2, publisher_id=pub2, signature_hex=s2)
+
+
+def test_bulletin_watermarks_secondary_index(tmp_path: Path):
+    """
+    Verify that idx_bulletin_watermarks_bid exists on bulletin_watermarks(bulletin_id).
+    """
+    db_file = tmp_path / "watermark_index_test.db"
+    node = TFPNode(db_path=db_file)
+
+    conn = sqlite3.connect(str(db_file))
+    try:
+        cur = conn.cursor()
+        cur.execute("PRAGMA index_list(bulletin_watermarks)")
+        indexes = {row[1]: row for row in cur.fetchall()}
+        assert "idx_bulletin_watermarks_bid" in indexes, f"Index missing. Found: {list(indexes.keys())}"
+
+        cur.execute("PRAGMA index_info(idx_bulletin_watermarks_bid)")
+        cols = [row[2] for row in cur.fetchall()]
+        assert cols == ["bulletin_id"]
+    finally:
+        conn.close()
+

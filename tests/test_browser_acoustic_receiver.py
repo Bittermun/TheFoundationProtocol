@@ -203,3 +203,66 @@ def test_browser_watermark_preservation_after_archive_cleared():
 
         browser.close()
 
+
+def test_browser_acoustic_receiver_structured_id_publisher_pinning(tmp_path: Path):
+    """
+    Verify publisher pinning on structured bulletin IDs containing colons (e.g. URNs).
+    Even after the visual archive is cleared, a different publisher transmitting the same
+    structured bulletin ID must be rejected with 'Publisher identity conflict'.
+    """
+    html_path = Path(__file__).resolve().parent.parent / "tfp-foundation-protocol" / "tfp_demo" / "static" / "acoustic_receiver.html"
+    modulator = AFSKModulator(sample_rate=16000, baud_rate=1200, preamble_flags=16)
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context()
+        page = context.new_page()
+
+        page.goto(f"file:///{html_path.resolve().as_posix()}")
+        page.wait_for_selector("#packetCount")
+
+        # 1. First authentic publisher emits structured bulletin ID
+        structured_id = "urn:tfp:emergency:01"
+        b1 = {
+            "id": structured_id,
+            "rev": 1,
+            "pub": "station-primary",
+            "title": "Evacuation Order",
+            "body": "Evacuate North Sector.",
+        }
+        wav1 = modulator.synthesize_wav(json.dumps(b1).encode("utf-8"))
+        res1 = page.evaluate("b64 => window.decodeAcousticWav(b64)", base64.b64encode(wav1).decode("ascii"))
+        assert res1["count"] == 1
+
+        # Verify watermark key is recorded
+        watermarks = page.evaluate("() => JSON.parse(localStorage.getItem('tfp_bulletin_watermarks') || '{}')")
+        expected_wm_key = f"station-primary:{structured_id}"
+        assert expected_wm_key in watermarks
+        assert watermarks[expected_wm_key]["revision"] == 1
+
+        # 2. Clear visual archive to test watermark-only pinning
+        page.evaluate("() => { localStorage.removeItem('tfp_transmissions'); }")
+
+        # 3. Rogue/conflicting publisher transmits same structured bulletin ID
+        b2 = {
+            "id": structured_id,
+            "rev": 2,
+            "pub": "rogue-station",
+            "title": "Evacuation Cancelled",
+            "body": "Cancel evacuation. Everything is fine.",
+        }
+        wav2 = modulator.synthesize_wav(json.dumps(b2).encode("utf-8"))
+        res2 = page.evaluate("b64 => window.decodeAcousticWav(b64)", base64.b64encode(wav2).decode("ascii"))
+        assert res2["count"] == 1
+
+        # Must log publisher conflict
+        feed_text = page.locator("#packetFeed").inner_text()
+        assert "Publisher identity conflict; previous content retained." in feed_text
+
+        # Rogue bulletin must NOT be admitted to visual archive
+        archive = page.evaluate("() => JSON.parse(localStorage.getItem('tfp_transmissions') || '[]')")
+        assert len(archive) == 0
+
+        browser.close()
+
+
