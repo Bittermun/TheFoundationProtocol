@@ -348,6 +348,28 @@ function readArchive() {
   } catch (_) { return []; }
 }
 
+function readWatermarks() {
+  try {
+    const value = JSON.parse(localStorage.getItem('tfp_bulletin_watermarks') || '{}');
+    return (value && typeof value === 'object' && !Array.isArray(value)) ? value : {};
+  } catch (_) { return {}; }
+}
+
+function saveWatermark(publisher, bulletinId, revision, contentHash) {
+  if (!bulletinId) return;
+  try {
+    const wm = readWatermarks();
+    const key = `${publisher || 'unsigned'}:${bulletinId}`;
+    const prev = wm[key];
+    if (!prev || revision >= prev.revision) {
+      wm[key] = { revision, contentHash, updated_at: new Date().toISOString() };
+      localStorage.setItem('tfp_bulletin_watermarks', JSON.stringify(wm));
+    }
+  } catch (_) {
+    logPacket('Warning: LocalStorage watermark could not be persisted.');
+  }
+}
+
 function handleDecodedPacket(payloadBytes, origin = "Acoustic Audio") {
   // Full, unambiguous byte identity; bounded to avoid growing with listening time.
   const payloadKey = Array.from(payloadBytes, b => b.toString(16).padStart(2, '0')).join('');
@@ -380,6 +402,35 @@ function handleDecodedPacket(payloadBytes, origin = "Acoustic Audio") {
       verification: structured && (data.pub || data.sig) ? 'signature_unverified' : 'unsigned',
       publisherTrust: 'not_established'},
   };
+  // 1. Check permanent watermark storage (persists even if visual archive is cleared or pruned)
+  if (record.bulletinId) {
+    const wm = readWatermarks();
+    const key = `${record.publisher}:${record.bulletinId}`;
+    const watermark = wm[key];
+
+    // Enforce publisher pinning on this bulletin ID
+    for (const [wmKey, wmEntry] of Object.entries(wm)) {
+      const [wPub, wId] = wmKey.split(':');
+      if (wId === record.bulletinId && wPub !== record.publisher) {
+        logPacket('Publisher identity conflict; previous content retained.');
+        return;
+      }
+    }
+
+    if (watermark) {
+      if (record.revision < watermark.revision) {
+        logPacket(`[REJECTED STALE] Bulletin ${record.bulletinId} rev ${record.revision} superseded by local watermark ${watermark.revision}.`);
+        return;
+      }
+      if (record.revision === watermark.revision) {
+        if (watermark.contentHash !== payloadKey) {
+          logPacket('Revision conflict; previous content retained.');
+        }
+        return;
+      }
+    }
+  }
+
   // Local ID/revision policy mirrors the accepted-store rules. Signatures are
   // explicitly unverified here; this browser does not establish publisher trust.
   const previous = archive.filter(item => !item.provenance?.simulation && record.bulletinId && item.bulletinId === record.bulletinId);
@@ -398,6 +449,9 @@ function handleDecodedPacket(payloadBytes, origin = "Acoustic Audio") {
   displayReceivedArticle(title, body, false, record);
   triggerHaptic('complete');
   saveToOfflineArchive('text', title, body, record);
+  if (record.bulletinId) {
+    saveWatermark(record.publisher, record.bulletinId, record.revision, payloadKey);
+  }
   logPacket(`[CRC VALID] Transport error check passed from ${origin}: ${title}. Publisher trust not established.`);
 }
 

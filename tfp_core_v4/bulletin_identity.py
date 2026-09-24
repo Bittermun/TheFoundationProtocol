@@ -9,6 +9,22 @@ from cryptography.hazmat.primitives.asymmetric import ed25519
 SIGNATURE_VERSION = 2
 
 
+class BulletinAdmissionError(ValueError):
+    """Base exception for bulletin admission failures."""
+
+
+class StaleRevisionError(BulletinAdmissionError):
+    """Raised when an incoming bulletin has a revision lower than the accepted watermark."""
+
+
+class RevisionConflictError(BulletinAdmissionError):
+    """Raised when an incoming bulletin reuses an existing revision with conflicting content."""
+
+
+class PublisherIdentityConflictError(BulletinAdmissionError):
+    """Raised when a bulletin ID is re-issued by an unpinned or conflicting publisher key."""
+
+
 def validate_identity(bulletin_id, revision, title):
     if not isinstance(bulletin_id, str) or not bulletin_id.strip():
         raise ValueError("bulletin_id must be a nonempty string")
@@ -68,11 +84,11 @@ def check_revision(existing, incoming):
     """
     for previous in existing:
         if previous["publisher_id"] != incoming["publisher_id"]:
-            raise ValueError("Bulletin publisher identity conflict")
+            raise PublisherIdentityConflictError("Bulletin publisher identity conflict")
         if previous["revision"] == incoming["revision"]:
             if all(previous[key] == incoming[key] for key in ("content_hash", "title", "publisher_id")):
                 return previous
-            raise ValueError("Bulletin revision conflict")
+            raise RevisionConflictError("Bulletin revision conflict")
     if existing and incoming["revision"] < max(item["revision"] for item in existing):
-        raise ValueError("Stale bulletin revision was not accepted")
+        raise StaleRevisionError("Stale bulletin revision was not accepted")
     return None

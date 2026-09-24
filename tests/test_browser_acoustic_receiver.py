@@ -104,3 +104,102 @@ def test_browser_acoustic_receiver_end_to_end(tmp_path: Path):
         assert "Hospital Diesel Generator Restoration" in titles
 
         browser.close()
+
+
+def test_browser_watermark_preservation_after_archive_cleared():
+    """
+    Verifies Task A: Decoupled watermark dual-store in browser receiver.
+    Clearing the visual offline transmission archive does NOT wipe bulletin watermarks,
+    preventing malicious or accidental stale revision replays.
+    """
+    html_path = Path(__file__).resolve().parent.parent / "tfp-foundation-protocol" / "tfp_demo" / "static" / "acoustic_receiver.html"
+    assert html_path.exists(), f"Receiver HTML not found at {html_path}"
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context()
+        page = context.new_page()
+
+        page.goto(f"file:///{html_path.resolve().as_posix()}")
+        page.wait_for_selector("#packetCount")
+
+        modulator = AFSKModulator(sample_rate=16000, baud_rate=1200, preamble_flags=16)
+
+        # 1. Ingest Revision 2 of bulletin ALERT-99
+        b2 = {
+            "id": "ALERT-99",
+            "rev": 2,
+            "pub": "station-alpha",
+            "title": "Severe Weather Warning (Rev 2)",
+            "body": "Category 3 storm approaching. Evacuate Zone A immediately.",
+        }
+        wav2 = modulator.synthesize_wav(json.dumps(b2).encode("utf-8"))
+        res2 = page.evaluate("b64 => window.decodeAcousticWav(b64)", base64.b64encode(wav2).decode("ascii"))
+        assert res2["count"] == 1
+
+        # Confirm Rev 2 is in visual archive and watermark store
+        archive2 = page.evaluate("() => JSON.parse(localStorage.getItem('tfp_transmissions') || '[]')")
+        assert len(archive2) == 1
+        assert archive2[0]["revision"] == 2
+
+        watermarks = page.evaluate("() => JSON.parse(localStorage.getItem('tfp_bulletin_watermarks') || '{}')")
+        assert "station-alpha:ALERT-99" in watermarks
+        assert watermarks["station-alpha:ALERT-99"]["revision"] == 2
+
+        # 2. User clears the offline storage archive using the UI "Clear" button
+        clear_btn = page.locator("button:has-text('Clear')")
+        assert clear_btn.is_visible()
+        clear_btn.click()
+
+        # Visual archive is empty
+        archive_cleared = page.evaluate("() => JSON.parse(localStorage.getItem('tfp_transmissions') || '[]')")
+        assert len(archive_cleared) == 0
+        assert page.locator("#archiveCount").inner_text() == "0"
+
+        # Watermark store MUST still retain the revision 2 watermark!
+        watermarks_retained = page.evaluate("() => JSON.parse(localStorage.getItem('tfp_bulletin_watermarks') || '{}')")
+        assert "station-alpha:ALERT-99" in watermarks_retained
+        assert watermarks_retained["station-alpha:ALERT-99"]["revision"] == 2
+
+        # 3. Attacker / late broadcaster transmits stale Revision 1 of bulletin ALERT-99
+        b1 = {
+            "id": "ALERT-99",
+            "rev": 1,
+            "pub": "station-alpha",
+            "title": "Mild Weather Advisory (Rev 1)",
+            "body": "Normal showers expected. No evacuation required.",
+        }
+        wav1 = modulator.synthesize_wav(json.dumps(b1).encode("utf-8"))
+        res1 = page.evaluate("b64 => window.decodeAcousticWav(b64)", base64.b64encode(wav1).decode("ascii"))
+        assert res1["count"] == 1
+
+        # CRC checks passed, but bulletin admission MUST reject stale revision
+        feed_text = page.locator("#packetFeed").inner_text()
+        assert "[REJECTED STALE]" in feed_text
+        assert "superseded by local watermark 2" in feed_text
+
+        # Visual archive MUST NOT contain the stale revision 1
+        archive_still_empty = page.evaluate("() => JSON.parse(localStorage.getItem('tfp_transmissions') || '[]')")
+        assert len(archive_still_empty) == 0
+
+        # 4. Ingest Revision 3: Should be accepted and update watermark
+        b3 = {
+            "id": "ALERT-99",
+            "rev": 3,
+            "pub": "station-alpha",
+            "title": "Severe Weather Warning (Rev 3)",
+            "body": "Storm upgraded to Category 4. Evacuate Zone A & B immediately.",
+        }
+        wav3 = modulator.synthesize_wav(json.dumps(b3).encode("utf-8"))
+        res3 = page.evaluate("b64 => window.decodeAcousticWav(b64)", base64.b64encode(wav3).decode("ascii"))
+        assert res3["count"] == 1
+
+        archive3 = page.evaluate("() => JSON.parse(localStorage.getItem('tfp_transmissions') || '[]')")
+        assert len(archive3) == 1
+        assert archive3[0]["revision"] == 3
+
+        watermarks3 = page.evaluate("() => JSON.parse(localStorage.getItem('tfp_bulletin_watermarks') || '{}')")
+        assert watermarks3["station-alpha:ALERT-99"]["revision"] == 3
+
+        browser.close()
+

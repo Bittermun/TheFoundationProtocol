@@ -41,6 +41,7 @@ class TFPNode:
         codec: FountainCodec | None = None,
     ):
         self._bulletins: dict[tuple[str, int], dict[str, Any]] = {}
+        self._bulletin_watermarks: dict[tuple[str, str], dict[str, Any]] = {}
         self._bulletin_lock = threading.RLock()
         self.node_id = node_id
         resolved_db = db_path if db_path is not None else os.environ.get("TFP_DB_PATH")
@@ -130,6 +131,20 @@ class TFPNode:
                     data_size INTEGER,
                     metadata_json TEXT,
                     PRIMARY KEY (bulletin_id, revision)
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS bulletin_watermarks (
+                    publisher_id TEXT NOT NULL,
+                    bulletin_id TEXT NOT NULL,
+                    max_revision INTEGER NOT NULL,
+                    latest_content_hash TEXT NOT NULL,
+                    latest_root_hash TEXT NOT NULL,
+                    first_seen_at REAL NOT NULL,
+                    last_seen_at REAL NOT NULL,
+                    PRIMARY KEY (publisher_id, bulletin_id)
                 )
                 """
             )
@@ -484,12 +499,48 @@ class TFPNode:
             try:
                 if conn is not None:
                     conn.execute("BEGIN IMMEDIATE")
+                    # 1. Permanent watermark verification (defends against stale replays even after archive pruning)
+                    wm_rows = conn.execute(
+                        "SELECT max_revision, latest_content_hash, latest_root_hash, publisher_id FROM bulletin_watermarks WHERE bulletin_id=?",
+                        (bulletin_id,),
+                    ).fetchall()
+                    if wm_rows:
+                        for wm_rev, wm_c_hash, wm_r_hash, wm_pub in wm_rows:
+                            if wm_pub != publisher_id:
+                                from .bulletin_identity import PublisherIdentityConflictError
+                                raise PublisherIdentityConflictError("Bulletin publisher identity conflict")
+                            if revision < wm_rev:
+                                from .bulletin_identity import StaleRevisionError
+                                raise StaleRevisionError(f"Stale bulletin revision was not accepted: revision {revision} is superseded by known watermark {wm_rev}")
+                            if revision == wm_rev:
+                                if hmac.compare_digest(content_hash, wm_c_hash):
+                                    accepted, _ = self.get_bulletin(bulletin_id, revision)
+                                    if accepted is not None:
+                                        if wm_r_hash not in self.recipes:
+                                            self._load_recipe_from_db(wm_r_hash)
+                                        return replace(self.recipes[wm_r_hash], metadata=accepted)
+                                from .bulletin_identity import RevisionConflictError
+                                raise RevisionConflictError("Bulletin revision conflict")
+
                     rows = conn.execute(
                         "SELECT revision, publisher_id, content_hash, title, root_hash FROM bulletins WHERE bulletin_id=?",
                         (bulletin_id,),
                     ).fetchall()
                     existing = [dict(zip(("revision", "publisher_id", "content_hash", "title", "root_hash"), row)) for row in rows]
                 else:
+                    # In-memory watermark verification
+                    wm = self._bulletin_watermarks.get((publisher_id, bulletin_id))
+                    if wm is not None:
+                        if revision < wm["max_revision"]:
+                            from .bulletin_identity import StaleRevisionError
+                            raise StaleRevisionError(f"Stale bulletin revision was not accepted: revision {revision} is superseded by known watermark {wm['max_revision']}")
+                        if revision == wm["max_revision"]:
+                            if hmac.compare_digest(content_hash, wm["latest_content_hash"]):
+                                accepted, _ = self.get_bulletin(bulletin_id, revision)
+                                if accepted is not None:
+                                    return replace(self.recipes[wm["latest_root_hash"]], metadata=accepted)
+                            from .bulletin_identity import RevisionConflictError
+                            raise RevisionConflictError("Bulletin revision conflict")
                     existing = [r for (bid, _), r in self._bulletins.items() if bid == bulletin_id]
                 duplicate = check_revision(existing, record)
                 if duplicate is not None:
@@ -518,7 +569,27 @@ class TFPNode:
                         (bulletin_id, revision, content_hash, root, publisher_id, signature_hex,
                          title, record["received_at"], status, len(data), json.dumps(record)),
                     )
+                    conn.execute(
+                        """INSERT INTO bulletin_watermarks
+                        (publisher_id, bulletin_id, max_revision, latest_content_hash, latest_root_hash, first_seen_at, last_seen_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        ON CONFLICT(publisher_id, bulletin_id) DO UPDATE SET
+                            max_revision = CASE WHEN excluded.max_revision > bulletin_watermarks.max_revision THEN excluded.max_revision ELSE bulletin_watermarks.max_revision END,
+                            latest_content_hash = CASE WHEN excluded.max_revision >= bulletin_watermarks.max_revision THEN excluded.latest_content_hash ELSE bulletin_watermarks.latest_content_hash END,
+                            latest_root_hash = CASE WHEN excluded.max_revision >= bulletin_watermarks.max_revision THEN excluded.latest_root_hash ELSE bulletin_watermarks.latest_root_hash END,
+                            last_seen_at = excluded.last_seen_at""",
+                        (publisher_id, bulletin_id, revision, content_hash, root, record["received_at"], record["received_at"]),
+                    )
                     conn.commit()
+                self._bulletin_watermarks[(publisher_id, bulletin_id)] = {
+                    "publisher_id": publisher_id,
+                    "bulletin_id": bulletin_id,
+                    "max_revision": revision,
+                    "latest_content_hash": content_hash,
+                    "latest_root_hash": root,
+                    "first_seen_at": record["received_at"],
+                    "last_seen_at": record["received_at"],
+                }
                 self.chunk_store.update(staged.chunk_store)
                 self.recipes.update(staged.recipes)
                 self.droplet_store.update(staged.droplet_store)
@@ -636,4 +707,77 @@ class TFPNode:
             return results
         finally:
             conn.close()
+
+    def prune_display_bulletins(self, keep_last_n: int = 50) -> int:
+        """
+        Prune older records from the display bulletins table to bound storage size,
+        while strictly leaving bulletin_watermarks intact to reject stale replays.
+        """
+        with self._bulletin_lock:
+            if not self.db_path or not self.db_path.exists():
+                to_delete = len(self._bulletins) - keep_last_n
+                if to_delete > 0:
+                    sorted_keys = sorted(
+                        self._bulletins.keys(),
+                        key=lambda k: self._bulletins[k].get("received_at", 0)
+                    )
+                    for k in sorted_keys[:to_delete]:
+                        del self._bulletins[k]
+                    return to_delete
+                return 0
+
+            conn = sqlite3.connect(str(self.db_path))
+            try:
+                conn.execute("BEGIN IMMEDIATE")
+                cur = conn.cursor()
+                cur.execute(
+                    """
+                    DELETE FROM bulletins WHERE (bulletin_id, revision) NOT IN (
+                        SELECT bulletin_id, revision FROM bulletins
+                        ORDER BY received_at DESC, revision DESC LIMIT ?
+                    )
+                    """,
+                    (keep_last_n,),
+                )
+                deleted = cur.rowcount
+                conn.commit()
+                return deleted
+            finally:
+                conn.close()
+
+    def get_bulletin_watermark(self, publisher_id: str, bulletin_id: str) -> dict[str, Any] | None:
+        """
+        Retrieve the durable watermark record for a given publisher and bulletin ID.
+        """
+        with self._bulletin_lock:
+            if not self.db_path or not self.db_path.exists():
+                wm = self._bulletin_watermarks.get((publisher_id, bulletin_id))
+                return dict(wm) if wm else None
+
+            conn = sqlite3.connect(str(self.db_path))
+            try:
+                cur = conn.cursor()
+                cur.execute(
+                    """
+                    SELECT publisher_id, bulletin_id, max_revision, latest_content_hash, latest_root_hash, first_seen_at, last_seen_at
+                    FROM bulletin_watermarks WHERE publisher_id = ? AND bulletin_id = ?
+                    """,
+                    (publisher_id, bulletin_id),
+                )
+                row = cur.fetchone()
+                if not row:
+                    return None
+                pub, bid, max_rev, c_hash, r_hash, first_at, last_at = row
+                return {
+                    "publisher_id": pub,
+                    "bulletin_id": bid,
+                    "max_revision": max_rev,
+                    "latest_content_hash": c_hash,
+                    "latest_root_hash": r_hash,
+                    "first_seen_at": first_at,
+                    "last_seen_at": last_at,
+                }
+            finally:
+                conn.close()
+
 
