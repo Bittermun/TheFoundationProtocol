@@ -84,3 +84,22 @@ def test_repo_map_token_density(shared_graph):
     # Ensure it's structured and not empty
     lines = repo_map.splitlines()
     assert len(lines) > 500
+
+
+def test_code_graph_stats_package_consistency_and_audit(shared_graph):
+    stats = shared_graph.stats()
+    breakdown = {p["package"]: p for p in shared_graph.package_breakdown()}
+    assert "tests" in breakdown
+    assert stats["test_files"] == breakdown["tests"]["files"]
+    assert stats["production_files"] == sum(
+        p["files"] for pkg, p in breakdown.items() if pkg != "tests"
+    )
+
+    audit = shared_graph.audit()
+    assert "dual_tree_shadowing" in audit
+    assert "bulletin_workflow_symbol_coverage" in audit
+    assert "top_fan_in_symbols" in audit
+    bw = audit["bulletin_workflow_symbol_coverage"]
+    assert bw["store_bulletin"]["direct_test_callers"] >= 20
+    assert bw["get_max_bulletin_revision"]["total_call_sites"] >= 2
+
