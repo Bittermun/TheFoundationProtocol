@@ -301,19 +301,7 @@ def import_bulletin_package(
         body_bytes = content_text.encode("utf-8")
         c_hash = hashlib.sha3_256(body_bytes).hexdigest()
 
-        # Check if authentic duplicate replay
-        is_duplicate = False
-        existing = node.get_bulletin(b_id, rev)
-        if existing is not None:
-            ex_meta, _ = existing
-            if ex_meta.get("content_hash") == c_hash:
-                is_duplicate = True
-        else:
-            wm = node.get_bulletin_watermark(pub_id, b_id)
-            if wm and wm.get("max_revision") == rev and wm.get("latest_content_hash") == c_hash:
-                is_duplicate = True
-
-        # Durably persist into authoritative node storage
+        # Durably persist into authoritative node storage (atomically detects duplicate replays)
         recipe = node.store_bulletin(
             bulletin_id=b_id,
             revision=rev,
@@ -324,6 +312,7 @@ def import_bulletin_package(
             signature_version=wire_data.get("v", 1),
             metadata={"origin": "broadcast_audio", "source_file": p.name},
         )
+        is_duplicate = bool(recipe.metadata.get("duplicate", False))
 
         imported_bulletins.append({
             "bulletin_id": b_id,

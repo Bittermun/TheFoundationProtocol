@@ -176,64 +176,65 @@ class TFPNode:
             if cur.fetchone():
                 conn.execute(
                     """
-                    INSERT OR IGNORE INTO bulletin_watermarks (
+                    INSERT INTO bulletin_watermarks (
                         publisher_id, bulletin_id, max_revision, latest_content_hash, latest_root_hash, latest_title, first_seen_at, last_seen_at, updated_at
                     )
-                    SELECT b.publisher_id, b.bulletin_id, b.revision, b.content_hash, b.root_hash, b.title, b.received_at, b.received_at, b.received_at
+                    SELECT
+                        b.publisher_id,
+                        b.bulletin_id,
+                        b.revision,
+                        b.content_hash,
+                        b.root_hash,
+                        b.title,
+                        m.min_recv,
+                        m.max_recv,
+                        m.max_recv
                     FROM bulletins b
                     INNER JOIN (
-                        SELECT publisher_id, bulletin_id, MAX(revision) AS max_rev
+                        SELECT
+                            publisher_id,
+                            bulletin_id,
+                            MAX(revision) AS max_rev,
+                            MIN(received_at) AS min_recv,
+                            MAX(received_at) AS max_recv
                         FROM bulletins
                         GROUP BY publisher_id, bulletin_id
-                    ) m ON b.publisher_id = m.publisher_id AND b.bulletin_id = m.bulletin_id AND b.revision = m.max_rev;
-                    """
-                )
-                conn.execute(
-                    """
-                    UPDATE bulletin_watermarks
-                    SET latest_content_hash = (
-                        SELECT b.content_hash FROM bulletins b
-                        WHERE b.publisher_id = bulletin_watermarks.publisher_id
-                          AND b.bulletin_id = bulletin_watermarks.bulletin_id
-                        ORDER BY b.revision DESC LIMIT 1
-                    ),
-                    latest_root_hash = (
-                        SELECT b.root_hash FROM bulletins b
-                        WHERE b.publisher_id = bulletin_watermarks.publisher_id
-                          AND b.bulletin_id = bulletin_watermarks.bulletin_id
-                        ORDER BY b.revision DESC LIMIT 1
-                    ),
-                    latest_title = (
-                        SELECT b.title FROM bulletins b
-                        WHERE b.publisher_id = bulletin_watermarks.publisher_id
-                          AND b.bulletin_id = bulletin_watermarks.bulletin_id
-                        ORDER BY b.revision DESC LIMIT 1
-                    )
-                    WHERE EXISTS (
-                        SELECT 1 FROM bulletins b
-                        WHERE b.publisher_id = bulletin_watermarks.publisher_id
-                          AND b.bulletin_id = bulletin_watermarks.bulletin_id
-                    );
-                    """
-                )
-                conn.execute(
-                    """
-                    UPDATE bulletin_watermarks
-                    SET first_seen_at = (
-                        SELECT MIN(b.received_at) FROM bulletins b
-                        WHERE b.publisher_id = bulletin_watermarks.publisher_id
-                          AND b.bulletin_id = bulletin_watermarks.bulletin_id
-                    ),
-                    last_seen_at = (
-                        SELECT MAX(b.received_at) FROM bulletins b
-                        WHERE b.publisher_id = bulletin_watermarks.publisher_id
-                          AND b.bulletin_id = bulletin_watermarks.bulletin_id
-                    )
-                    WHERE EXISTS (
-                        SELECT 1 FROM bulletins b
-                        WHERE b.publisher_id = bulletin_watermarks.publisher_id
-                          AND b.bulletin_id = bulletin_watermarks.bulletin_id
-                    );
+                    ) m ON b.publisher_id = m.publisher_id AND b.bulletin_id = m.bulletin_id AND b.revision = m.max_rev
+                    ON CONFLICT(publisher_id, bulletin_id) DO UPDATE SET
+                        max_revision = CASE
+                            WHEN excluded.max_revision > bulletin_watermarks.max_revision THEN excluded.max_revision
+                            ELSE bulletin_watermarks.max_revision
+                        END,
+                        latest_content_hash = CASE
+                            WHEN excluded.max_revision > bulletin_watermarks.max_revision THEN excluded.latest_content_hash
+                            WHEN excluded.max_revision = bulletin_watermarks.max_revision AND (bulletin_watermarks.latest_content_hash IS NULL OR bulletin_watermarks.latest_content_hash = '') THEN excluded.latest_content_hash
+                            ELSE bulletin_watermarks.latest_content_hash
+                        END,
+                        latest_root_hash = CASE
+                            WHEN excluded.max_revision > bulletin_watermarks.max_revision THEN excluded.latest_root_hash
+                            WHEN excluded.max_revision = bulletin_watermarks.max_revision AND (bulletin_watermarks.latest_root_hash IS NULL OR bulletin_watermarks.latest_root_hash = '') THEN excluded.latest_root_hash
+                            ELSE bulletin_watermarks.latest_root_hash
+                        END,
+                        latest_title = CASE
+                            WHEN excluded.max_revision > bulletin_watermarks.max_revision THEN excluded.latest_title
+                            WHEN excluded.max_revision = bulletin_watermarks.max_revision AND (bulletin_watermarks.latest_title IS NULL OR bulletin_watermarks.latest_title = '') THEN excluded.latest_title
+                            ELSE bulletin_watermarks.latest_title
+                        END,
+                        first_seen_at = CASE
+                            WHEN bulletin_watermarks.first_seen_at IS NULL OR bulletin_watermarks.first_seen_at = 0.0 THEN excluded.first_seen_at
+                            WHEN excluded.first_seen_at < bulletin_watermarks.first_seen_at THEN excluded.first_seen_at
+                            ELSE bulletin_watermarks.first_seen_at
+                        END,
+                        last_seen_at = CASE
+                            WHEN bulletin_watermarks.last_seen_at IS NULL OR bulletin_watermarks.last_seen_at = 0.0 THEN excluded.last_seen_at
+                            WHEN excluded.last_seen_at > bulletin_watermarks.last_seen_at THEN excluded.last_seen_at
+                            ELSE bulletin_watermarks.last_seen_at
+                        END,
+                        updated_at = CASE
+                            WHEN bulletin_watermarks.updated_at IS NULL OR bulletin_watermarks.updated_at = 0.0 THEN excluded.updated_at
+                            WHEN excluded.updated_at > bulletin_watermarks.updated_at THEN excluded.updated_at
+                            ELSE bulletin_watermarks.updated_at
+                        END;
                     """
                 )
                 conn.execute(
@@ -697,7 +698,9 @@ class TFPNode:
                         if not self._bulletin_watermarks[(publisher_id, bulletin_id)].get("latest_title"):
                             self._bulletin_watermarks[(publisher_id, bulletin_id)]["latest_title"] = incoming_title
 
-                return replace(recipe, metadata=accepted)
+                dup_meta = dict(accepted)
+                dup_meta["duplicate"] = True
+                return replace(recipe, metadata=dup_meta)
 
         return None
 
@@ -766,7 +769,8 @@ class TFPNode:
                     # bulletins. Return this bulletin's provenance, not whichever
                     # metadata last happened to be stored for those same bytes.
                     stored = self.get_bulletin(bulletin_id, revision, connection=conn)
-                    accepted = stored[0] if stored is not None else duplicate
+                    accepted = dict(stored[0] if stored is not None else duplicate)
+                    accepted["duplicate"] = True
                     if root in self.recipes:
                         return replace(self.recipes[root], metadata=accepted)
                     staged = TFPNode(db_path="", chunker=self.chunker, codec=self.codec)
@@ -954,7 +958,7 @@ class TFPNode:
                 if to_delete > 0:
                     sorted_keys = sorted(
                         self._bulletins.keys(),
-                        key=lambda k: self._bulletins[k].get("received_at", 0)
+                        key=lambda k: (self._bulletins[k].get("received_at", 0), self._bulletins[k].get("revision", 0)),
                     )
                     for k in sorted_keys[:to_delete]:
                         del self._bulletins[k]
@@ -975,7 +979,12 @@ class TFPNode:
                     (keep_last_n,),
                 )
                 deleted = cur.rowcount
+                cur.execute("SELECT bulletin_id, revision FROM bulletins")
+                remaining_keys = {(row[0], row[1]) for row in cur.fetchall()}
                 conn.commit()
+                self._bulletins = {
+                    k: v for k, v in self._bulletins.items() if k in remaining_keys
+                }
                 return deleted
             finally:
                 conn.close()
@@ -1016,5 +1025,41 @@ class TFPNode:
                 }
             finally:
                 conn.close()
+
+    def get_max_bulletin_revision(self, bulletin_id: str, publisher_id: str | None = None) -> int | None:
+        """
+        Return the highest known revision for a bulletin ID across watermarks and stored records.
+        """
+        if publisher_id:
+            wm = self.get_bulletin_watermark(publisher_id, bulletin_id)
+            if wm and wm.get("max_revision") is not None:
+                return int(wm["max_revision"])
+
+        with self._bulletin_lock:
+            max_rev: int | None = None
+            for (_pub, bid), wm in self._bulletin_watermarks.items():
+                if bid == bulletin_id:
+                    w_rev = wm.get("max_revision")
+                    if w_rev is not None and (max_rev is None or int(w_rev) > max_rev):
+                        max_rev = int(w_rev)
+            for (bid, rev) in self._bulletins:
+                if bid == bulletin_id and (max_rev is None or int(rev) > max_rev):
+                    max_rev = int(rev)
+
+            if self.db_path and self.db_path.exists():
+                conn = sqlite3.connect(str(self.db_path))
+                try:
+                    row = conn.execute(
+                        "SELECT MAX(max_revision) FROM bulletin_watermarks WHERE bulletin_id = ?",
+                        (bulletin_id,),
+                    ).fetchone()
+                    if row and row[0] is not None:
+                        db_max = int(row[0])
+                        if max_rev is None or db_max > max_rev:
+                            max_rev = db_max
+                finally:
+                    conn.close()
+            return max_rev
+
 
 

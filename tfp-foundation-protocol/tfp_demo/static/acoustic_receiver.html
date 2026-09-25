@@ -374,10 +374,11 @@ function saveWatermark(publisher, bulletinId, revision, contentHash, title) {
   if (!bulletinId) return;
   try {
     const wm = readWatermarks();
-    const key = `${publisher || 'unsigned'}:${bulletinId}`;
+    const pub = publisher || 'unsigned';
+    const key = `${pub}:${bulletinId}`;
     const prev = wm[key];
     if (!prev || revision >= prev.revision) {
-      wm[key] = { revision, contentHash, title, updated_at: new Date().toISOString() };
+      wm[key] = { publisher: pub, bulletinId, revision, contentHash, title, updated_at: new Date().toISOString() };
       localStorage.setItem('tfp_bulletin_watermarks', JSON.stringify(wm));
     }
   } catch (_) {
@@ -408,7 +409,6 @@ function handleDecodedPacket(payloadBytes, origin = "Acoustic Audio") {
   }
   const title = structured ? (data.title || data.id) : 'Received Radio Bulletin';
   const body = structured ? data.body : text;
-  const isVerifiedEd25519 = structured && (data.verified_status === 'verified_ed25519' || data.verified === true);
   const record = {
     bulletinId: structured ? data.id : null, revision: structured ? data.rev : null,
     publisher: structured ? (data.pub || 'unsigned') : 'unsigned',
@@ -416,7 +416,7 @@ function handleDecodedPacket(payloadBytes, origin = "Acoustic Audio") {
     wireVersion: structured ? (data.v || 1) : null, payloadKey,
     time: new Date().toISOString(),
     provenance: {simulation: false, origin, crcValid: true,
-      verification: isVerifiedEd25519 ? 'verified_ed25519' : (structured && (data.pub || data.sig) ? 'signature_unverified' : 'unsigned'),
+      verification: structured && (data.pub || data.sig) ? 'signature_unverified' : 'unsigned',
       publisherTrust: 'not_established'},
   };
   // 1. Check permanent watermark storage (persists even if visual archive is cleared or pruned)
@@ -428,8 +428,8 @@ function handleDecodedPacket(payloadBytes, origin = "Acoustic Audio") {
     // Enforce publisher pinning on this bulletin ID
     for (const [wmKey, wmEntry] of Object.entries(wm)) {
       const delimIdx = wmKey.indexOf(':');
-      const wPub = delimIdx !== -1 ? wmKey.slice(0, delimIdx) : wmKey;
-      const wId = delimIdx !== -1 ? wmKey.slice(delimIdx + 1) : '';
+      const wPub = wmEntry.publisher || (delimIdx !== -1 ? wmKey.slice(0, delimIdx) : wmKey);
+      const wId = wmEntry.bulletinId || (delimIdx !== -1 ? wmKey.slice(delimIdx + 1) : '');
       if (wId === record.bulletinId && wPub !== record.publisher) {
         logPacket('Publisher identity conflict; previous content retained.');
         return;
@@ -840,7 +840,6 @@ function speakCurrentContent() {
 function provenanceLabel(record) {
   if (record.provenance?.simulation) return '[SIMULATION DEMO]';
   if (!record.provenance?.crcValid) return '[ARCHIVED · PROVENANCE UNKNOWN]';
-  if (record.provenance?.verification === 'verified_ed25519') return '[VERIFIED ED25519]';
   return record.provenance?.verification === 'signature_unverified'
     ? '[CRC VALID · SIGNATURE UNVERIFIED]' : '[CRC VALID · UNSIGNED]';
 }
@@ -848,15 +847,14 @@ function provenanceLabel(record) {
 function provenanceDetails(record) {
   if (!record.bulletinId) return '';
   const timeStr = record.time ? new Date(record.time).toLocaleString() : (record.receivedAt || new Date().toLocaleString());
-  const isVerifiedEd25519 = record.provenance?.verification === 'verified_ed25519';
   const hasPublisher = record.publisher && record.publisher !== 'unsigned';
   return `<div class="provenance" style="font-size:12px; overflow-wrap:anywhere; margin-bottom:10px;">
     <b>Bulletin:</b> ${escapeHtml(record.bulletinId)} · <b>Revision:</b> ${escapeHtml(String(record.revision))}<br>
     <b>Received:</b> <span class="rx-timestamp">${escapeHtml(timeStr)}</span><br>
-    ${hasPublisher ? `<b>Authenticated Ed25519 Signer Identity:</b> <code class="key-fingerprint" style="color:var(--accent); font-family:monospace; font-size:11px;">${escapeHtml(record.publisher)}</code>
-    <span class="badge verified-ed25519-badge" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid #10b981; font-size: 10px; margin-left: 6px;">[VERIFIED ED25519]</span><br>` : `<b>Publisher:</b> ${escapeHtml(record.publisher)}<br>`}
+    ${hasPublisher ? `<b>Claimed Publisher Key (Unverified):</b> <code class="key-fingerprint" style="color:var(--accent); font-family:monospace; font-size:11px;">${escapeHtml(record.publisher)}</code>
+    <span class="badge signature-unverified-badge" style="background: rgba(245, 158, 11, 0.2); color: #f59e0b; border: 1px solid #f59e0b; font-size: 10px; margin-left: 6px;">[SIGNATURE UNVERIFIED]</span><br>` : `<b>Publisher:</b> ${escapeHtml(record.publisher)}<br>`}
     <b>Source:</b> ${escapeHtml(record.provenance?.origin || 'Unknown')}<br>
-    ${isVerifiedEd25519 ? 'Ed25519 signature mathematically verified.' : 'Publisher trust not established. CRC checks transmission errors, not authorship.'}</div>`;
+    Publisher trust not established. CRC checks transmission errors, not authorship.</div>`;
 }
 
 function saveToOfflineArchive(type, title, snippet, record = {}) {
@@ -885,7 +883,7 @@ function loadOfflineArchive() {
       if (item.bulletinId && item.revision != null) {
         for (const [wmKey, wmEntry] of Object.entries(wm)) {
           const delimIdx = wmKey.indexOf(':');
-          const wId = delimIdx !== -1 ? wmKey.slice(delimIdx + 1) : wmKey;
+          const wId = wmEntry.bulletinId || (delimIdx !== -1 ? wmKey.slice(delimIdx + 1) : wmKey);
           if (wId === item.bulletinId && wmEntry.revision > item.revision) {
             isSuperseded = true;
             break;

@@ -233,7 +233,7 @@ def test_acoustic_receiver_html_contains_required_ui_flags():
     """
     Verify that acoustic_receiver.html contains required UI flags:
     - [SUPERSEDED] badge and .superseded class styling
-    - [VERIFIED ED25519] badge and authenticated signer display
+    - [SIGNATURE UNVERIFIED] badge and honest Claimed Publisher Key (Unverified) display
     - [MISSED BROADCAST WARNING: Revision gap detected] alert banner
     - Received timestamp display
     """
@@ -247,10 +247,11 @@ def test_acoustic_receiver_html_contains_required_ui_flags():
     assert "superseded" in content
     assert "superseded-badge" in content
 
-    # 2. Authenticated Ed25519 signer identity display
-    assert "[VERIFIED ED25519]" in content
-    assert "Authenticated Ed25519 Signer Identity" in content
+    # 2. Claimed publisher identity & honest signature-unverified display
+    assert "[SIGNATURE UNVERIFIED]" in content
+    assert "Claimed Publisher Key (Unverified):" in content
     assert "key-fingerprint" in content
+    assert "Authenticated Ed25519 Signer Identity" not in content
 
     # 3. Missed broadcast / revision gap warning
     assert "[MISSED BROADCAST WARNING: Revision gap detected" in content

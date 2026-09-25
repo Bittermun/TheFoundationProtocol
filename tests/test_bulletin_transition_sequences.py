@@ -433,3 +433,77 @@ def test_browser_repeat_restoration_lifecycle(tmp_path: Path):
         assert archive_final[0]["revision"] == 2
 
         browser.close()
+
+
+def test_partial_prune_restart_preserves_higher_watermark_metadata(tmp_path: Path):
+    """
+    Regression test for _init_db() watermark consistency and prune cache synchronization:
+    1. Store Revision 1 and Revision 2 in SQLite.
+    2. Verify prune_display_bulletins synchronizes in-memory _bulletins cache.
+    3. Simulate a database state where bulletin_watermarks is at Revision 2, but only
+       Revision 1 remains in the bulletins table (e.g. out-of-order receive timestamps or partial prune).
+    4. Re-open TFPNode(db_path=db_file) -> verify _init_db() does NOT overwrite
+       bulletin_watermarks.latest_content_hash or latest_title with Revision 1's older values.
+    5. Verify replaying authentic Revision 2 succeeds with duplicate=True, while replaying
+       Revision 2 with Revision 1's title/content raises RevisionConflictError.
+    """
+    db_file = tmp_path / "partial_prune_watermark_sync.db"
+    key = ed25519.Ed25519PrivateKey.generate()
+    pub_hex = key.public_key().public_bytes_raw().hex()
+    bid = "PARTIAL-PRUNE-001"
+
+    node = TFPNode(db_path=db_file)
+
+    c1 = b"Initial evacuation boundary: Sector A."
+    h1 = hashlib.sha3_256(c1).hexdigest()
+    t1 = "Evacuation Advisory (Rev 1)"
+    _, sig1 = sign_bulletin_content(bid, 1, h1, key, title=t1)
+    r1 = node.store_bulletin(bid, 1, c1, title=t1, publisher_id=pub_hex, signature_hex=sig1)
+    assert r1.metadata.get("duplicate") is not True
+
+    c2 = b"Updated evacuation boundary: Sectors A and B."
+    h2 = hashlib.sha3_256(c2).hexdigest()
+    t2 = "Evacuation Advisory Expanded (Rev 2)"
+    _, sig2 = sign_bulletin_content(bid, 2, h2, key, title=t2)
+    r2 = node.store_bulletin(bid, 2, c2, title=t2, publisher_id=pub_hex, signature_hex=sig2)
+    assert r2.metadata.get("duplicate") is not True
+
+    # Verify prune_display_bulletins keeps in-memory _bulletins cache synchronized with SQLite
+    assert len(node._bulletins) == 2
+    node.prune_display_bulletins(keep_last_n=1)
+    assert len(node._bulletins) == 1
+    assert (bid, 2) in node._bulletins
+
+    # Simulate partial-prune state where only Revision 1 exists in bulletins table while watermark is at Revision 2
+    conn = sqlite3.connect(str(db_file))
+    try:
+        conn.execute("DELETE FROM bulletins WHERE bulletin_id = ? AND revision = 2", (bid,))
+        conn.execute(
+            """INSERT OR REPLACE INTO bulletins
+            (bulletin_id, revision, content_hash, root_hash, publisher_id, signature_hex,
+             title, received_at, verified_status, data_size, metadata_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (bid, 1, h1, r1.root_hash, pub_hex, sig1, t1, time.time(), "verified_ed25519", len(c1), "{}"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    # Restart node -> _init_db() runs
+    restarted = TFPNode(db_path=db_file)
+    wm = restarted.get_bulletin_watermark(pub_hex, bid)
+    assert wm is not None
+    assert wm["max_revision"] == 2
+    assert wm["latest_content_hash"] == h2, "Watermark content hash must NOT regress to Rev 1"
+    assert wm["latest_title"] == t2, "Watermark title must NOT regress to Rev 1"
+    assert restarted.get_max_bulletin_revision(bid, publisher_id=pub_hex) == 2
+
+    # Authentic Revision 2 replay must be accepted as duplicate=True
+    r2_dup = restarted.store_bulletin(bid, 2, c2, title=t2, publisher_id=pub_hex, signature_hex=sig2)
+    assert r2_dup.metadata.get("duplicate") is True
+
+    # Conflicting Revision 2 with Revision 1's title must be rejected
+    _, sig2_bad_title = sign_bulletin_content(bid, 2, h2, key, title=t1)
+    with pytest.raises(RevisionConflictError):
+        restarted.store_bulletin(bid, 2, c2, title=t1, publisher_id=pub_hex, signature_hex=sig2_bad_title)
+

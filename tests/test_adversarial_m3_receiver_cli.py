@@ -298,9 +298,10 @@ def test_adversarial_browser_repeat_restoration_preserves_watermark():
 def test_adversarial_browser_dom_elements_verification():
     """
     Adversarial Challenge 3:
-    Verify presence, CSS classes, and visibility of DOM elements:
+    Verify presence, CSS classes, visibility, and trust boundary of DOM elements:
     - Publisher key fingerprint: `code.key-fingerprint`
-    - Cryptographic verification badge: `[VERIFIED ED25519]` and `.verified-ed25519-badge`
+    - Honest unverified signature badge: `[SIGNATURE UNVERIFIED]` and `.signature-unverified-badge`
+      even when wire JSON maliciously injects `verified_status: "verified_ed25519"` / `verified: True`
     - Received timestamp: `span.rx-timestamp`
     - Superseded line: `.packet-line.superseded` with danger red indicator
     """
@@ -340,11 +341,15 @@ def test_adversarial_browser_dom_elements_verification():
         assert fp_elem.is_visible()
         assert fp_elem.inner_text() == pub_hex
 
-        # 2. Verify [VERIFIED ED25519] badge DOM element
-        v_badge = page.locator("#contentArea .verified-ed25519-badge")
-        assert v_badge.is_visible()
-        assert "[VERIFIED ED25519]" in v_badge.inner_text()
-        assert "Ed25519 signature mathematically verified." in page.locator("#contentArea").inner_text()
+        # 2. Verify honest [SIGNATURE UNVERIFIED] badge & rejection of spoofed verified_status
+        u_badge = page.locator("#contentArea .signature-unverified-badge")
+        assert u_badge.is_visible()
+        assert "[SIGNATURE UNVERIFIED]" in u_badge.inner_text()
+        content_text = page.locator("#contentArea").inner_text()
+        assert "Claimed Publisher Key (Unverified):" in content_text
+        assert "Publisher trust not established. CRC checks transmission errors, not authorship." in content_text
+        assert "[VERIFIED ED25519]" not in content_text
+        assert "Ed25519 signature mathematically verified" not in content_text
 
         # 3. Verify Received Timestamp DOM element
         ts_elem = page.locator("#contentArea span.rx-timestamp")

@@ -23,7 +23,6 @@ import hashlib
 import json
 import logging
 import os
-import sqlite3
 import sys
 from pathlib import Path
 
@@ -270,30 +269,7 @@ def main(argv: list[str] | None = None):
 
             superseded_tag = ""
             if bulletin_id is not None:
-                max_rev = None
-                if publisher_id:
-                    wm = node.get_bulletin_watermark(publisher_id, bulletin_id)
-                    if wm:
-                        max_rev = wm.get("max_revision")
-                if max_rev is None and hasattr(node, "_bulletin_watermarks"):
-                    for (pub, bid), w in node._bulletin_watermarks.items():
-                        if bid == bulletin_id:
-                            w_rev = w.get("max_revision")
-                            if w_rev is not None and (max_rev is None or w_rev > max_rev):
-                                max_rev = w_rev
-                if max_rev is None and node.db_path and Path(node.db_path).exists():
-                    try:
-                        conn = sqlite3.connect(str(node.db_path))
-                        row = conn.execute(
-                            "SELECT MAX(max_revision) FROM bulletin_watermarks WHERE bulletin_id = ?",
-                            (bulletin_id,),
-                        ).fetchone()
-                        if row and row[0] is not None:
-                            max_rev = row[0]
-                        conn.close()
-                    except Exception:
-                        pass
-
+                max_rev = node.get_max_bulletin_revision(bulletin_id, publisher_id=publisher_id)
                 if revision is not None and max_rev is not None and revision < max_rev:
                     superseded_tag = f" [SUPERSEDED (Rev {revision} < Latest Rev {max_rev})]"
 
@@ -365,7 +341,18 @@ def main(argv: list[str] | None = None):
         priv_key = None
         if args.key:
             from cryptography.hazmat.primitives.asymmetric import ed25519
-            priv_key = ed25519.Ed25519PrivateKey.from_private_bytes(bytes.fromhex(args.key)[:32])
+            try:
+                key_bytes = bytes.fromhex(args.key.strip())
+            except ValueError as exc:
+                print(f"Error: Invalid hex string for --key: {exc}", file=sys.stderr)
+                sys.exit(1)
+            if len(key_bytes) not in (32, 64):
+                print(
+                    f"Error: Ed25519 private key must be 32 bytes (64 hex chars) or 64 bytes (128 hex chars), got {len(key_bytes)} bytes.",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+            priv_key = ed25519.Ed25519PrivateKey.from_private_bytes(key_bytes[:32])
 
         meta = prepare_bulletin_package(
             bulletin_id=args.id,
@@ -420,26 +407,12 @@ def main(argv: list[str] | None = None):
             print("=" * 65, file=sys.stderr)
             sys.exit(1)
 
-        if imported.get("duplicate") or imported.get("status") == "duplicate":
-            print("=" * 65)
-            print("  THE FOUNDATION PROTOCOL: BULLETIN IMPORT & VERIFICATION")
-            print("=" * 65)
-            print("  [NOTICE: DUPLICATE BULLETIN REPLAY]")
-            print(f"  Bulletin ID    : {imported['bulletin_id']} (Rev {imported['revision']})")
-            print(f"  Title          : {imported['title']}")
-            print(f"  Content Hash   : {imported['content_hash']}")
-            print(f"  Root Hash      : {imported['root_hash']}")
-            print(f"  Publisher ID   : {imported['publisher_id']}")
-            print(f"  Verification   : {imported['verified_status']}")
-            print("  Publisher Trust: Not established (signature validity is separate)")
-            print(f"  Payload Size   : {imported['data_size']} bytes")
-            print("  Status: Verified authentic duplicate; existing record retained.")
-            print("=" * 65)
-            sys.exit(0)
-
+        is_dup = bool(imported.get("duplicate") or imported.get("status") == "duplicate")
         print("=" * 65)
         print("  THE FOUNDATION PROTOCOL: BULLETIN IMPORT & VERIFICATION")
         print("=" * 65)
+        if is_dup:
+            print("  [NOTICE: DUPLICATE BULLETIN REPLAY]")
         print(f"  Bulletin ID    : {imported['bulletin_id']} (Rev {imported['revision']})")
         print(f"  Title          : {imported['title']}")
         print(f"  Content Hash   : {imported['content_hash']}")
@@ -448,8 +421,13 @@ def main(argv: list[str] | None = None):
         print(f"  Verification   : {imported['verified_status']}")
         print("  Publisher Trust: Not established (signature validity is separate)")
         print(f"  Payload Size   : {imported['data_size']} bytes")
-        print("  Status         : Durably stored in authoritative node store")
+        if is_dup:
+            print("  Status: Verified authentic duplicate; existing record retained.")
+        else:
+            print("  Status         : Durably stored in authoritative node store")
         print("=" * 65)
+        if is_dup:
+            sys.exit(0)
 
     elif args.command == "bulletin-list":
         node = TFPNode(db_path=args.db)
@@ -462,7 +440,13 @@ def main(argv: list[str] | None = None):
         else:
             print(f"  Found {len(bulletins)} stored bulletin(s):")
             for b in bulletins:
-                print(f"  [{b['bulletin_id']} v{b['revision']}] {b['title']}")
+                max_rev = node.get_max_bulletin_revision(b["bulletin_id"], publisher_id=b.get("publisher_id"))
+                superseded = (
+                    f" [SUPERSEDED (Rev {b['revision']} < Latest Rev {max_rev})]"
+                    if (max_rev is not None and b["revision"] < max_rev)
+                    else ""
+                )
+                print(f"  [{b['bulletin_id']} v{b['revision']}] {b['title']}{superseded}")
                 print(f"    Hash      : {b['content_hash']}")
                 print(f"    Publisher : {b['publisher_id']}")
                 print(f"    Status    : {b['verified_status']} | Size: {b['data_size']}B")
@@ -476,8 +460,14 @@ def main(argv: list[str] | None = None):
             print(f"Error: Bulletin '{args.bulletin_id}' not found in store.", file=sys.stderr)
             sys.exit(1)
         meta, content = res
+        max_rev = node.get_max_bulletin_revision(meta["bulletin_id"], publisher_id=meta.get("publisher_id"))
+        superseded = (
+            f" [SUPERSEDED (Rev {meta['revision']} < Latest Rev {max_rev})]"
+            if (max_rev is not None and meta["revision"] < max_rev)
+            else ""
+        )
         print("=" * 65)
-        print(f"  BULLETIN: {meta['title']} (ID: {meta['bulletin_id']}, Rev: {meta['revision']})")
+        print(f"  BULLETIN: {meta['title']} (ID: {meta['bulletin_id']}, Rev: {meta['revision']}){superseded}")
         print(f"  Publisher: {meta['publisher_id']} | Status: {meta['verified_status']}")
         print("  Publisher trust: Not established")
         print("=" * 65)
