@@ -164,6 +164,28 @@
     </div>
   </div>
 
+  <div class="scope-card" id="readinessCard">
+    <div class="scope-header">
+      <span>RECEIVER READINESS &amp; TRUST STATUS</span>
+      <span id="readinessStateBadge" class="badge" style="margin-bottom:0;">CHECKING...</span>
+    </div>
+    <div id="readinessGrid" style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; font-size:11px; background:#0b1220; padding:10px; border-radius:8px; border:1px solid var(--border);">
+      <div><b>Origin Security:</b> <span id="readinessOrigin">--</span></div>
+      <div><b>Microphone API:</b> <span id="readinessMicApi">--</span></div>
+      <div><b>Mic Permission:</b> <span id="readinessPermission">--</span></div>
+      <div><b>Audio Input:</b> <span id="readinessAudioInput">--</span></div>
+      <div><b>Capture State:</b> <span id="readinessCaptureState">--</span></div>
+      <div><b>Offline Reopen Cache:</b> <span id="readinessOfflineAssets">--</span></div>
+      <div style="grid-column: 1 / -1;"><b>Capture Settings:</b> <span id="readinessCaptureSettings">Inactive (awaiting capture start)</span></div>
+      <div style="grid-column: 1 / -1;"><b>Trusted Publishers:</b> <span id="readinessTrustedPublishers">--</span></div>
+    </div>
+    <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+      <input type="text" id="trustedKeyInput" placeholder="Provision trusted publisher 64-hex Ed25519 public key..." style="flex:1; min-width:200px; background:#060911; color:var(--text); border:1px solid var(--border); border-radius:6px; padding:6px 8px; font-size:11px; font-family:monospace;">
+      <button class="btn-secondary" id="addTrustedKeyBtn" onclick="handleAddTrustedKeyInput()" style="flex:0 0 auto; padding:6px 10px; font-size:11px;">+ Trust Key</button>
+      <button class="btn-secondary" id="clearTrustedKeysBtn" onclick="clearTrustedPublishers()" style="flex:0 0 auto; padding:6px 10px; font-size:11px;">Reset Keys</button>
+    </div>
+  </div>
+
   <div class="scope-card">
     <div class="scope-header">
       <span>ACOUSTIC SPECTRUM (1200 / 2200 Hz)</span>
@@ -224,10 +246,36 @@
 let audioCtx = null;
 let micStream = null;
 let analyser = null;
+let activeSourceNode = null;
+let activeProcessorNode = null;
 let isListening = false;
+let captureStarting = false;
+let activePipelineCount = 0;
+let tracksReleasedCount = 0;
 let packetCount = 0;
 let validCrcCount = 0;
 let currentArticleText = "";
+
+const OFFLINE_CACHE_VERSION = "tfp-acoustic-receiver-v1";
+const REQUIRED_OFFLINE_ASSETS = [
+  "./acoustic_receiver.html",
+  "./acoustic_stream.js",
+  "./receiver_config.json"
+];
+
+const readinessState = {
+  originState: "secure_context",
+  microphoneApiState: "available",
+  permissionState: "permission_unresolved",
+  audioInputState: "available",
+  captureLifecycleState: "idle",
+  offlineAssetsState: "offline_assets_unavailable",
+  offlineCacheVersion: null,
+  trustedPublisherState: "missing_trusted_publisher",
+  actualSampleRate: null,
+  effectiveCaptureSettings: null,
+  lastError: null
+};
 
 const canvas = document.getElementById('scopeCanvas');
 const ctx = canvas.getContext('2d');
@@ -241,6 +289,262 @@ function logPacket(msg) {
   line.innerText = `[${new Date().toLocaleTimeString()}] ${msg}`;
   feed.appendChild(line);
   feed.scrollTop = feed.scrollHeight;
+}
+
+function getTrustedPublishers() {
+  try {
+    const raw = JSON.parse(localStorage.getItem('tfp_trusted_publishers') || '[]');
+    if (!Array.isArray(raw)) return [];
+    return raw.filter(k => typeof k === 'string' && /^[0-9a-f]{64}$/i.test(k)).map(k => k.toLowerCase());
+  } catch (_) {
+    return [];
+  }
+}
+
+function setTrustedPublishers(keys) {
+  const valid = [];
+  if (Array.isArray(keys)) {
+    for (const k of keys) {
+      if (typeof k === 'string' && /^[0-9a-f]{64}$/i.test(k.trim())) {
+        const norm = k.trim().toLowerCase();
+        if (!valid.includes(norm)) valid.push(norm);
+      }
+    }
+  }
+  try {
+    localStorage.setItem('tfp_trusted_publishers', JSON.stringify(valid));
+  } catch (_) {}
+  updateReadinessView();
+  return valid;
+}
+
+function addTrustedPublisher(hexKey) {
+  if (typeof hexKey !== 'string' || !/^[0-9a-f]{64}$/i.test(hexKey.trim())) {
+    throw new Error('Trusted publisher key must be a 64-character hex Ed25519 public key');
+  }
+  const current = getTrustedPublishers();
+  const norm = hexKey.trim().toLowerCase();
+  if (!current.includes(norm)) current.push(norm);
+  return setTrustedPublishers(current);
+}
+
+function clearTrustedPublishers() {
+  try {
+    localStorage.removeItem('tfp_trusted_publishers');
+  } catch (_) {}
+  updateReadinessView();
+  logPacket('Cleared local trusted publisher keys.');
+}
+
+function handleAddTrustedKeyInput() {
+  const input = document.getElementById('trustedKeyInput');
+  if (!input) return;
+  try {
+    addTrustedPublisher(input.value);
+    logPacket(`Trusted publisher key added: ${input.value.trim().slice(0, 16)}...`);
+    input.value = '';
+  } catch (err) {
+    logPacket(`Invalid trusted publisher key: ${err.message}`);
+  }
+}
+
+window.getTrustedPublishers = getTrustedPublishers;
+window.setTrustedPublishers = setTrustedPublishers;
+window.addTrustedPublisher = addTrustedPublisher;
+window.clearTrustedPublishers = clearTrustedPublishers;
+
+function computePrimaryReadinessState() {
+  if (readinessState.originState === 'insecure_origin') return 'insecure_origin';
+  if (readinessState.microphoneApiState === 'missing_microphone_api') return 'missing_microphone_api';
+  if (readinessState.permissionState === 'permission_denied') return 'permission_denied';
+  if (readinessState.audioInputState === 'missing_audio_input') return 'missing_audio_input';
+  if (readinessState.captureLifecycleState === 'audio_suspended_or_interrupted') return 'audio_suspended_or_interrupted';
+  if (readinessState.captureLifecycleState === 'capture_active') return 'capture_active';
+  if (readinessState.offlineAssetsState === 'offline_assets_unavailable') return 'offline_assets_unavailable';
+  if (readinessState.trustedPublisherState === 'missing_trusted_publisher') return 'missing_trusted_publisher';
+  if (readinessState.permissionState === 'permission_unresolved') return 'permission_unresolved';
+  return 'ready';
+}
+
+function updateReadinessView() {
+  const isSecure = window.__tfpTestForceInsecureOrigin ? false : Boolean(window.isSecureContext);
+  readinessState.originState = isSecure ? 'secure_context' : 'insecure_origin';
+
+  const hasMicApi = Boolean(navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function');
+  readinessState.microphoneApiState = hasMicApi ? 'available' : 'missing_microphone_api';
+
+  const trustedKeys = getTrustedPublishers();
+  readinessState.trustedPublisherState = trustedKeys.length > 0 ? 'trusted_publisher_configured' : 'missing_trusted_publisher';
+
+  const primary = computePrimaryReadinessState();
+
+  const badge = document.getElementById('readinessStateBadge');
+  if (badge) {
+    badge.innerText = primary.toUpperCase();
+    if (primary === 'capture_active' || primary === 'ready') {
+      badge.style.background = 'rgba(16, 185, 129, 0.2)';
+      badge.style.color = '#10b981';
+    } else if (primary === 'insecure_origin' || primary === 'missing_microphone_api' || primary === 'permission_denied' || primary === 'missing_audio_input') {
+      badge.style.background = 'rgba(239, 68, 68, 0.2)';
+      badge.style.color = '#ef4444';
+    } else {
+      badge.style.background = 'rgba(245, 158, 11, 0.2)';
+      badge.style.color = '#f59e0b';
+    }
+  }
+
+  const setEl = (id, text, color) => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.innerText = text;
+      if (color) el.style.color = color;
+    }
+  };
+
+  setEl('readinessOrigin',
+    isSecure ? 'Secure Context (OK)' : 'Insecure Origin (Live Mic Blocked)',
+    isSecure ? '#10b981' : '#ef4444');
+  setEl('readinessMicApi',
+    hasMicApi ? 'getUserMedia Available' : 'Missing Microphone API',
+    hasMicApi ? '#10b981' : '#ef4444');
+
+  const permLabels = {
+    permission_granted: ['Granted', '#10b981'],
+    permission_denied: ['Permission Denied', '#ef4444'],
+    permission_unresolved: ['Unresolved (Prompt on Start)', '#f59e0b']
+  };
+  const [pText, pColor] = permLabels[readinessState.permissionState] || ['Unresolved', '#f59e0b'];
+  setEl('readinessPermission', pText, pColor);
+
+  const inputLabels = {
+    capture_active: ['Input Active', '#10b981'],
+    available: ['Available / Idle', '#94a3b8'],
+    missing_audio_input: ['Missing or Unavailable Input', '#ef4444']
+  };
+  const [iText, iColor] = inputLabels[readinessState.audioInputState] || ['Available / Idle', '#94a3b8'];
+  setEl('readinessAudioInput', iText, iColor);
+
+  const capLabels = {
+    idle: ['Idle', '#94a3b8'],
+    starting: ['Starting...', '#38bdf8'],
+    capture_active: ['Capture Active', '#10b981'],
+    audio_suspended_or_interrupted: ['Audio Suspended / Interrupted', '#ef4444'],
+    stopped: ['Stopped (Tracks Released)', '#94a3b8']
+  };
+  const [cText, cColor] = capLabels[readinessState.captureLifecycleState] || ['Idle', '#94a3b8'];
+  setEl('readinessCaptureState', cText, cColor);
+
+  const offlineReady = readinessState.offlineAssetsState === 'offline_assets_ready';
+  setEl('readinessOfflineAssets',
+    offlineReady ? `Ready (${readinessState.offlineCacheVersion})` : 'Unavailable for Offline Reopen',
+    offlineReady ? '#10b981' : '#f59e0b');
+
+  setEl('readinessTrustedPublishers',
+    trustedKeys.length > 0 ? `Configured (${trustedKeys.length} key(s))` : 'Missing Trusted Publisher Configuration',
+    trustedKeys.length > 0 ? '#10b981' : '#f59e0b');
+
+  if (readinessState.effectiveCaptureSettings && readinessState.actualSampleRate) {
+    const s = readinessState.effectiveCaptureSettings;
+    setEl('readinessCaptureSettings',
+      `${readinessState.actualSampleRate} Hz | ch=${s.channelCount} | AEC=${s.echoCancellation} | NS=${s.noiseSuppression} | AGC=${s.autoGainControl}`,
+      '#38bdf8');
+  } else {
+    setEl('readinessCaptureSettings', 'Inactive (awaiting capture start)', '#94a3b8');
+  }
+}
+
+window.getReceiverReadiness = function() {
+  updateReadinessView();
+  const trustedPublishers = getTrustedPublishers();
+  return {
+    primaryState: computePrimaryReadinessState(),
+    originState: readinessState.originState,
+    microphoneApiState: readinessState.microphoneApiState,
+    permissionState: readinessState.permissionState,
+    audioInputState: readinessState.audioInputState,
+    captureLifecycleState: readinessState.captureLifecycleState,
+    offlineAssetsState: readinessState.offlineAssetsState,
+    offlineCacheVersion: readinessState.offlineCacheVersion,
+    trustedPublisherState: readinessState.trustedPublisherState,
+    trustedPublishers,
+    actualSampleRate: readinessState.actualSampleRate,
+    effectiveCaptureSettings: readinessState.effectiveCaptureSettings ? {...readinessState.effectiveCaptureSettings} : null,
+    activePipelineCount,
+    tracksReleasedCount,
+    lastError: readinessState.lastError
+  };
+};
+
+async function verifyOfflineAssetsCache() {
+  if (!('caches' in window) || !('serviceWorker' in navigator) || (location.protocol !== 'http:' && location.protocol !== 'https:')) {
+    readinessState.offlineAssetsState = 'offline_assets_unavailable';
+    readinessState.offlineCacheVersion = null;
+    updateReadinessView();
+    return false;
+  }
+  try {
+    const cache = await caches.open(OFFLINE_CACHE_VERSION);
+    const checks = await Promise.all(
+      REQUIRED_OFFLINE_ASSETS.map(async (asset) => {
+        const match = await cache.match(asset);
+        return Boolean(match && match.ok);
+      })
+    );
+    const allPresent = checks.every(Boolean);
+    readinessState.offlineAssetsState = allPresent ? 'offline_assets_ready' : 'offline_assets_unavailable';
+    readinessState.offlineCacheVersion = allPresent ? OFFLINE_CACHE_VERSION : null;
+    updateReadinessView();
+    return allPresent;
+  } catch (_) {
+    readinessState.offlineAssetsState = 'offline_assets_unavailable';
+    readinessState.offlineCacheVersion = null;
+    updateReadinessView();
+    return false;
+  }
+}
+window.verifyOfflineAssetsCache = verifyOfflineAssetsCache;
+
+async function initServiceWorkerAndProvisionConfig() {
+  if (location.protocol !== 'http:' && location.protocol !== 'https:') {
+    updateReadinessView();
+    return;
+  }
+  try {
+    const resp = await fetch('./receiver_config.json', { cache: 'no-cache' });
+    if (resp && resp.ok) {
+      const cfg = await resp.json();
+      if (cfg && Array.isArray(cfg.trusted_publishers) && cfg.trusted_publishers.length > 0) {
+        const merged = new Set([...getTrustedPublishers(), ...cfg.trusted_publishers]);
+        setTrustedPublishers(Array.from(merged));
+      }
+    }
+  } catch (_) {}
+
+  if ('serviceWorker' in navigator) {
+    try {
+      const reg = await navigator.serviceWorker.register('./acoustic_sw.js');
+      const sw = reg.installing || reg.waiting || reg.active;
+      if (sw && sw.state !== 'activated') {
+        await new Promise((resolve) => {
+          const onState = () => {
+            if (sw.state === 'activated' || sw.state === 'redundant') {
+              sw.removeEventListener('statechange', onState);
+              resolve();
+            }
+          };
+          sw.addEventListener('statechange', onState);
+          setTimeout(resolve, 3000);
+        });
+      }
+      await verifyOfflineAssetsCache();
+    } catch (err) {
+      readinessState.offlineAssetsState = 'offline_assets_unavailable';
+      readinessState.lastError = err.message || String(err);
+      updateReadinessView();
+    }
+  } else {
+    updateReadinessView();
+  }
 }
 
 // Draw Audio Waveform
@@ -280,55 +584,272 @@ function drawScope() {
 }
 drawScope();
 
-async function toggleMicrophone() {
+function releaseCurrentPipeline() {
+  if (activeProcessorNode) {
+    try { activeProcessorNode.onaudioprocess = null; } catch (_) {}
+    try { if (typeof activeProcessorNode.disconnect === 'function') activeProcessorNode.disconnect(); } catch (_) {}
+    activeProcessorNode = null;
+  }
+  if (activeSourceNode) {
+    try { if (typeof activeSourceNode.disconnect === 'function') activeSourceNode.disconnect(); } catch (_) {}
+    activeSourceNode = null;
+  }
+  if (analyser) {
+    try { if (typeof analyser.disconnect === 'function') analyser.disconnect(); } catch (_) {}
+    analyser = null;
+  }
+  if (micStream) {
+    const tracks = (typeof micStream.getTracks === 'function')
+      ? micStream.getTracks()
+      : (typeof micStream.getAudioTracks === 'function' ? micStream.getAudioTracks() : []);
+    for (const t of tracks) {
+      try {
+        if (typeof t.stop === 'function') {
+          t.stop();
+          tracksReleasedCount++;
+        }
+      } catch (_) {}
+    }
+    micStream = null;
+  }
+  if (audioCtx) {
+    try { audioCtx.onstatechange = null; } catch (_) {}
+    try { if (typeof audioCtx.close === 'function') audioCtx.close(); } catch (_) {}
+    audioCtx = null;
+  }
+  if (activePipelineCount > 0) {
+    activePipelineCount = 0;
+  }
+  isListening = false;
+  readinessState.actualSampleRate = null;
+  readinessState.effectiveCaptureSettings = null;
+}
+
+function stopMicrophoneCapture() {
   const btn = document.getElementById('listenBtn');
   const dot = document.getElementById('micDot');
   const status = document.getElementById('micStatus');
 
-  if (isListening) {
-    if (micStream) micStream.getTracks().forEach(t => t.stop());
-    if (audioCtx) audioCtx.close();
-    isListening = false;
+  releaseCurrentPipeline();
+  readinessState.captureLifecycleState = 'stopped';
+  if (readinessState.audioInputState === 'capture_active') {
+    readinessState.audioInputState = 'available';
+  }
+  if (btn) {
     btn.innerText = '🎙 Start Listening';
     btn.className = 'btn-primary';
-    dot.className = 'dot';
-    status.innerText = 'Microphone Off';
-    return;
+  }
+  if (dot) dot.className = 'dot';
+  if (status) status.innerText = 'Microphone Off';
+  updateReadinessView();
+}
+window.stopMicrophoneCapture = stopMicrophoneCapture;
+
+function handleAudioContextStateChange(stateValue) {
+  const effectiveState = stateValue || (audioCtx && audioCtx.state) || 'running';
+  const dot = document.getElementById('micDot');
+  const status = document.getElementById('micStatus');
+  if (effectiveState === 'suspended' || effectiveState === 'interrupted') {
+    readinessState.captureLifecycleState = 'audio_suspended_or_interrupted';
+    if (dot) dot.className = 'dot';
+    if (status) status.innerText = `Audio ${effectiveState === 'interrupted' ? 'Interrupted' : 'Suspended'}`;
+    logPacket(`[WARNING] Audio processing ${effectiveState}. Resume or restart listening.`);
+  } else if (effectiveState === 'running' && isListening) {
+    readinessState.captureLifecycleState = 'capture_active';
+    readinessState.audioInputState = 'capture_active';
+    if (dot) dot.className = 'dot active';
+    if (status) status.innerText = 'Listening via Microphone';
+  }
+  updateReadinessView();
+}
+
+window.simulateAudioInterruption = function(state = 'suspended') {
+  if (!isListening) return false;
+  handleAudioContextStateChange(state);
+  return true;
+};
+
+window.resumeMicrophoneCapture = async function() {
+  if (!isListening || !audioCtx) return false;
+  if (typeof audioCtx.resume === 'function') {
+    await audioCtx.resume();
+  }
+  handleAudioContextStateChange('running');
+  logPacket('Audio processing resumed.');
+  return true;
+};
+
+async function startMicrophoneCapture() {
+  if (captureStarting) return false;
+  const btn = document.getElementById('listenBtn');
+  const dot = document.getElementById('micDot');
+  const status = document.getElementById('micStatus');
+
+  updateReadinessView();
+  if (readinessState.originState === 'insecure_origin') {
+    readinessState.lastError = 'Insecure origin: live microphone capture requires HTTPS or localhost';
+    if (status) status.innerText = 'Blocked: Insecure Origin';
+    logPacket('[ERROR] Insecure origin: live microphone capture requires HTTPS or localhost.');
+    updateReadinessView();
+    return false;
+  }
+  if (readinessState.microphoneApiState === 'missing_microphone_api') {
+    readinessState.lastError = 'navigator.mediaDevices.getUserMedia is unavailable';
+    if (status) status.innerText = 'Missing Microphone API';
+    logPacket('[ERROR] Microphone API (getUserMedia) is unavailable in this browser context.');
+    updateReadinessView();
+    return false;
+  }
+
+  captureStarting = true;
+  readinessState.captureLifecycleState = 'starting';
+  updateReadinessView();
+
+  // Tear down any lingering pipeline so repeated starts never create duplicates
+  if (isListening || activePipelineCount > 0) {
+    releaseCurrentPipeline();
   }
 
   try {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-    const source = audioCtx.createMediaStreamSource(micStream);
+    const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+    audioCtx = new AudioCtxClass();
+    micStream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: { ideal: false },
+        noiseSuppression: { ideal: false },
+        autoGainControl: { ideal: false },
+        channelCount: { ideal: 1 }
+      },
+      video: false
+    });
+
+    const tracks = (typeof micStream.getAudioTracks === 'function')
+      ? micStream.getAudioTracks()
+      : (typeof micStream.getTracks === 'function' ? micStream.getTracks() : []);
+    if (!tracks || tracks.length === 0) {
+      const noInputErr = new Error('No audio input tracks returned by device');
+      noInputErr.name = 'NotFoundError';
+      throw noInputErr;
+    }
+
+    const primaryTrack = tracks[0];
+    const rawSettings = (primaryTrack && typeof primaryTrack.getSettings === 'function')
+      ? primaryTrack.getSettings()
+      : {};
+    readinessState.permissionState = 'permission_granted';
+    readinessState.audioInputState = 'capture_active';
+    readinessState.actualSampleRate = audioCtx.sampleRate || rawSettings.sampleRate || 16000;
+    readinessState.effectiveCaptureSettings = {
+      sampleRate: readinessState.actualSampleRate,
+      trackSampleRate: rawSettings.sampleRate ?? null,
+      channelCount: rawSettings.channelCount ?? 1,
+      echoCancellation: rawSettings.echoCancellation ?? false,
+      noiseSuppression: rawSettings.noiseSuppression ?? false,
+      autoGainControl: rawSettings.autoGainControl ?? false
+    };
+
+    if (primaryTrack) {
+      primaryTrack.onended = () => {
+        if (isListening) {
+          readinessState.audioInputState = 'missing_audio_input';
+          readinessState.captureLifecycleState = 'audio_suspended_or_interrupted';
+          if (dot) dot.className = 'dot';
+          if (status) status.innerText = 'Audio Input Disconnected';
+          logPacket('[WARNING] Microphone audio track ended unexpectedly.');
+          updateReadinessView();
+        }
+      };
+    }
+
+    audioCtx.onstatechange = () => {
+      if (audioCtx) handleAudioContextStateChange(audioCtx.state);
+    };
+
+    activeSourceNode = audioCtx.createMediaStreamSource(micStream);
     analyser = audioCtx.createAnalyser();
     analyser.fftSize = 512;
-    source.connect(analyser);
+    activeSourceNode.connect(analyser);
 
     // Audio processor for tone discrimination and real demodulation
-    const processor = audioCtx.createScriptProcessor(2048, 1, 1);
-    source.connect(processor);
-    processor.connect(audioCtx.destination);
+    activeProcessorNode = audioCtx.createScriptProcessor(2048, 1, 1);
+    activeSourceNode.connect(activeProcessorNode);
+    activeProcessorNode.connect(audioCtx.destination);
 
     const decoder = new IncrementalAFSKReceiver(audioCtx.sampleRate,
       pkt => handleDecodedPacket(pkt, "Live Microphone"));
-    window.liveAcousticDiagnostics = () => ({bufferedSamples: decoder.buffer.length,
-      maxBufferedSamples: decoder.maxBufferedSamples});
-    processor.onaudioprocess = (e) => {
-      if (!isListening) return;
+    activePipelineCount = 1;
+    window.liveAcousticDiagnostics = () => ({
+      bufferedSamples: decoder.buffer.length,
+      maxBufferedSamples: decoder.maxBufferedSamples,
+      activePipelineCount,
+      tracksReleasedCount,
+      sampleRate: readinessState.actualSampleRate
+    });
+    activeProcessorNode.onaudioprocess = (e) => {
+      if (!isListening || readinessState.captureLifecycleState !== 'capture_active') return;
       const input = e.inputBuffer.getChannelData(0);
       detectAcousticTones(input, audioCtx.sampleRate);
       decoder.push(input);
     };
 
     isListening = true;
-    btn.innerText = '⏹ Stop Listening';
-    btn.className = 'btn-secondary';
-    dot.className = 'dot active';
-    status.innerText = 'Listening via Microphone';
-    logPacket('Microphone capture started. Real quadrature Bell 202 demodulator active...');
+    if (audioCtx.state === 'suspended' || audioCtx.state === 'interrupted') {
+      readinessState.captureLifecycleState = 'audio_suspended_or_interrupted';
+      if (dot) dot.className = 'dot';
+      if (status) status.innerText = `Audio ${audioCtx.state}`;
+    } else {
+      readinessState.captureLifecycleState = 'capture_active';
+      if (dot) dot.className = 'dot active';
+      if (status) status.innerText = 'Listening via Microphone';
+    }
+    if (btn) {
+      btn.innerText = '⏹ Stop Listening';
+      btn.className = 'btn-secondary';
+    }
+    updateReadinessView();
+    logPacket(`Microphone capture started (${readinessState.actualSampleRate} Hz). Real quadrature Bell 202 demodulator active...`);
+    return true;
   } catch (err) {
-    alert('Microphone access required for acoustic reception: ' + err.message);
+    releaseCurrentPipeline();
+    const errName = (err && err.name) ? String(err.name) : '';
+    const errMsg = (err && err.message) ? String(err.message) : String(err);
+    readinessState.lastError = `${errName}: ${errMsg}`;
+
+    if (/NotAllowedError|PermissionDeniedError|SecurityError/i.test(errName) || /denied|permission/i.test(errMsg)) {
+      readinessState.permissionState = 'permission_denied';
+      readinessState.captureLifecycleState = 'idle';
+      if (status) status.innerText = 'Permission Denied';
+      logPacket(`[ERROR] Microphone permission denied: ${errMsg}`);
+    } else if (/NotFoundError|DevicesNotFoundError|NotReadableError|OverconstrainedError/i.test(errName) || /notfound|device|input|unavailable/i.test(errMsg)) {
+      readinessState.audioInputState = 'missing_audio_input';
+      readinessState.captureLifecycleState = 'idle';
+      if (status) status.innerText = 'Audio Input Unavailable';
+      logPacket(`[ERROR] Audio input missing or unavailable: ${errMsg}`);
+    } else {
+      readinessState.captureLifecycleState = 'idle';
+      if (status) status.innerText = 'Capture Failed';
+      logPacket(`[ERROR] Microphone capture failed: ${errMsg}`);
+    }
+    updateReadinessView();
+    return false;
+  } finally {
+    captureStarting = false;
   }
+}
+window.startMicrophoneCapture = startMicrophoneCapture;
+
+window.restartMicrophoneCapture = async function() {
+  stopMicrophoneCapture();
+  return await startMicrophoneCapture();
+};
+
+async function toggleMicrophone() {
+  if (captureStarting) return false;
+  if (isListening) {
+    stopMicrophoneCapture();
+    return false;
+  }
+  return await startMicrophoneCapture();
 }
 
 // -------------------------------------------------------------
@@ -931,6 +1452,8 @@ function clearArchive() {
 
 // Initialize on page load
 loadOfflineArchive();
+updateReadinessView();
+initServiceWorkerAndProvisionConfig();
 if ('vibrate' in navigator) {
   document.getElementById('hapticStatus').innerText = '📳 Haptics: Active';
 }
