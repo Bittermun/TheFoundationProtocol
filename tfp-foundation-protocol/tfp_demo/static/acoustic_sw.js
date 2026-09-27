@@ -6,6 +6,7 @@ const CACHE_VERSION = "tfp-acoustic-receiver-v1";
 const REQUIRED_ASSETS = [
   "./acoustic_receiver.html",
   "./acoustic_stream.js",
+  "./acoustic_worklet.js",
   "./receiver_config.json"
 ];
 
@@ -70,6 +71,8 @@ self.addEventListener("fetch", (event) => {
         lookupPath = "./acoustic_receiver.html";
       } else if (url.pathname.endsWith("/acoustic_stream.js")) {
         lookupPath = "./acoustic_stream.js";
+      } else if (url.pathname.endsWith("/acoustic_worklet.js")) {
+        lookupPath = "./acoustic_worklet.js";
       } else if (url.pathname.endsWith("/receiver_config.json")) {
         // Network-first for receiver_config.json when online to pick up key provisioning,
         // with cached fallback when offline.

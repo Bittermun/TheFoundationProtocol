@@ -248,6 +248,8 @@ let micStream = null;
 let analyser = null;
 let activeSourceNode = null;
 let activeProcessorNode = null;
+let activeWorkletNode = null;
+let activePipelineController = null;
 let isListening = false;
 let captureStarting = false;
 let activePipelineCount = 0;
@@ -260,6 +262,7 @@ const OFFLINE_CACHE_VERSION = "tfp-acoustic-receiver-v1";
 const REQUIRED_OFFLINE_ASSETS = [
   "./acoustic_receiver.html",
   "./acoustic_stream.js",
+  "./acoustic_worklet.js",
   "./receiver_config.json"
 ];
 
@@ -586,7 +589,376 @@ function drawScope() {
 }
 drawScope();
 
+class BoundedAudioPipelineController {
+  constructor(sampleRate, decoder, sampleProcessorFn, options = {}) {
+    this.sampleRate = sampleRate || 48000;
+    this.decoder = decoder;
+    this.sampleProcessorFn = sampleProcessorFn;
+    this.blockSize = options.blockSize || 2048;
+    this.maxQueueSize = options.maxQueueSize || 32;
+    this.maxPoolBuffers = options.maxPoolBuffers || 32;
+    this.captureMode = options.captureMode || 'AudioWorklet';
+    this.workletPort = options.workletPort || null;
+    this.overloadPolicy = 'drop_newest';
+    this.expectedCallbackIntervalMs = (this.blockSize / this.sampleRate) * 1000;
+
+    // Buffer ownership & pre-allocated pool reuse
+    this.freePool = [];
+    this.poolAllocatedBuffers = 0;
+    this.bufferReuseCount = 0;
+
+    // Bounded queue & overload counters
+    this.queue = [];
+    this.maxQueueDepth = 0;
+    this.consumerBackpressure = false;
+    this.overloadEvents = 0;
+    this.droppedBlocks = 0;
+    this.droppedSamples = 0;
+    this.workletDroppedBlocks = 0;
+    this.workletDroppedSamples = 0;
+
+    // Sequence & sample discontinuity tracking
+    this.producerSeq = 0;
+    this.producerFrameCursor = 0;
+    this.expectedSeq = 0;
+    this.expectedFrameStart = 0;
+    this.sequenceGapsDetected = 0;
+    this.sampleGapsDetected = 0;
+    this.totalMissedSamples = 0;
+
+    // Timing & stall telemetry
+    this.callbackCount = 0;
+    this.lastCallbackTimestampMs = null;
+    this.lastCallbackIntervalMs = 0;
+    this.maxCallbackIntervalMs = 0;
+    this.lastProcessingTimeMs = 0;
+    this.maxProcessingTimeMs = 0;
+    this.totalProcessingTimeMs = 0;
+    this.uiStallDetected = false;
+    this.uiStallEvents = 0;
+    this.lastUiStallDurationMs = 0;
+    this.workletStalled = false;
+    this.workletStallEvents = 0;
+    this.shuttingDown = false;
+  }
+
+  acquireBuffer(length) {
+    for (let i = this.freePool.length - 1; i >= 0; i--) {
+      if (this.freePool[i].length === length) {
+        const buf = this.freePool.splice(i, 1)[0];
+        this.bufferReuseCount++;
+        return buf;
+      }
+    }
+    if (this.poolAllocatedBuffers < this.maxPoolBuffers) {
+      this.poolAllocatedBuffers++;
+      return new Float32Array(length);
+    }
+    return null;
+  }
+
+  releaseBuffer(buf, isWorkletTransfer = false) {
+    if (!(buf instanceof Float32Array)) return;
+    if (isWorkletTransfer && this.workletPort && !this.shuttingDown) {
+      try {
+        this.workletPort.postMessage({ type: 'return_buffer', buffer: buf.buffer }, [buf.buffer]);
+        this.bufferReuseCount++;
+        return;
+      } catch (_) {}
+    }
+    if (buf.buffer.byteLength > 0 && this.freePool.length < this.maxPoolBuffers) {
+      this.freePool.push(buf);
+    }
+  }
+
+  totalDroppedBlocks() {
+    return this.droppedBlocks + this.workletDroppedBlocks;
+  }
+
+  totalDroppedSamples() {
+    return this.droppedSamples + this.workletDroppedSamples;
+  }
+
+  recordCallbackArrival() {
+    const now = performance.now();
+    if (this.lastCallbackTimestampMs !== null) {
+      const interval = now - this.lastCallbackTimestampMs;
+      this.lastCallbackIntervalMs = interval;
+      if (interval > this.maxCallbackIntervalMs) {
+        this.maxCallbackIntervalMs = interval;
+      }
+      const stallThreshold = Math.max(120, this.expectedCallbackIntervalMs * 2.5);
+      if (interval > stallThreshold) {
+        this.uiStallDetected = true;
+        this.uiStallEvents++;
+        this.lastUiStallDurationMs = interval;
+        logPacket(`[UI STALL DETECTED] Main-thread callback gap ${interval.toFixed(1)} ms exceeded threshold ${stallThreshold.toFixed(1)} ms.`);
+      }
+    }
+    this.lastCallbackTimestampMs = now;
+    this.callbackCount++;
+  }
+
+  ingestWorkletMessage(msg) {
+    if (this.shuttingDown || !msg) return;
+    if (msg.type === 'audio_overload') {
+      const prevDropped = this.workletDroppedBlocks;
+      this.workletDroppedBlocks = Math.max(this.workletDroppedBlocks + 1, msg.droppedBlocks || 0);
+      const deltaBlocks = Math.max(1, this.workletDroppedBlocks - prevDropped);
+      this.workletDroppedSamples = Math.max(
+        this.workletDroppedSamples + deltaBlocks * this.blockSize,
+        msg.droppedSamples || 0
+      );
+      this.overloadEvents++;
+      logPacket(`[AUDIO OVERLOAD] Worklet bounded pool exhausted (droppedBlocks=${this.totalDroppedBlocks()}, maxQueueSize=${this.maxQueueSize}).`);
+      return;
+    }
+    if (msg.type === 'worklet_stall_injected') {
+      this.workletStalled = true;
+      this.workletStallEvents++;
+      logPacket(`[WORKLET STALL] Worklet reported stall (${msg.missedSamples || 0} missed samples).`);
+      return;
+    }
+    if (msg.type === 'audio_block' && msg.samples instanceof Float32Array) {
+      if (typeof msg.droppedBlocks === 'number' && msg.droppedBlocks > this.workletDroppedBlocks) {
+        this.workletDroppedBlocks = msg.droppedBlocks;
+      }
+      if (typeof msg.droppedSamples === 'number' && msg.droppedSamples > this.workletDroppedSamples) {
+        this.workletDroppedSamples = msg.droppedSamples;
+      }
+      this.enqueueBlock({
+        seq: typeof msg.seq === 'number' ? msg.seq : this.producerSeq++,
+        frameStart: typeof msg.frameStart === 'number' ? msg.frameStart : (this.producerFrameCursor += msg.samples.length) - msg.samples.length,
+        frameCount: msg.frameCount || msg.samples.length,
+        samples: msg.samples,
+        isWorkletTransfer: true
+      });
+    }
+  }
+
+  ingestScriptProcessorBlock(inputSamples) {
+    if (this.shuttingDown || !inputSamples) return false;
+    const frameCount = inputSamples.length;
+    const seq = this.producerSeq++;
+    const frameStart = this.producerFrameCursor;
+    this.producerFrameCursor += frameCount;
+
+    this.recordCallbackArrival();
+
+    if (this.queue.length >= this.maxQueueSize) {
+      this.droppedBlocks++;
+      this.droppedSamples += frameCount;
+      this.overloadEvents++;
+      logPacket(`[AUDIO OVERLOAD] Queue full (${this.queue.length}/${this.maxQueueSize}); dropped block seq=${seq} (${frameCount} samples).`);
+      return false;
+    }
+
+    const buf = this.acquireBuffer(frameCount);
+    if (!buf) {
+      this.droppedBlocks++;
+      this.droppedSamples += frameCount;
+      this.overloadEvents++;
+      logPacket(`[AUDIO OVERLOAD] Buffer pool exhausted (${this.maxPoolBuffers} buffers); dropped block seq=${seq}.`);
+      return false;
+    }
+    buf.set(inputSamples);
+    this.queue.push({
+      seq,
+      frameStart,
+      frameCount,
+      samples: buf,
+      isWorkletTransfer: false
+    });
+    if (this.queue.length > this.maxQueueDepth) {
+      this.maxQueueDepth = this.queue.length;
+    }
+    if (!this.consumerBackpressure) {
+      this.drainQueue();
+    }
+    return true;
+  }
+
+  enqueueBlock(item) {
+    if (this.shuttingDown) {
+      this.releaseBuffer(item.samples, item.isWorkletTransfer);
+      return false;
+    }
+    this.recordCallbackArrival();
+    if (this.queue.length >= this.maxQueueSize) {
+      this.droppedBlocks++;
+      this.droppedSamples += item.frameCount;
+      this.overloadEvents++;
+      this.releaseBuffer(item.samples, item.isWorkletTransfer);
+      logPacket(`[AUDIO OVERLOAD] Queue full (${this.queue.length}/${this.maxQueueSize}); dropped block seq=${item.seq} (${item.frameCount} samples).`);
+      return false;
+    }
+    this.queue.push(item);
+    if (this.queue.length > this.maxQueueDepth) {
+      this.maxQueueDepth = this.queue.length;
+    }
+    if (!this.consumerBackpressure) {
+      this.drainQueue();
+    }
+    return true;
+  }
+
+  drainQueue() {
+    while (this.queue.length > 0 && !this.consumerBackpressure && !this.shuttingDown) {
+      const item = this.queue.shift();
+      if (item.seq !== this.expectedSeq) {
+        this.sequenceGapsDetected++;
+        const missedBlocks = Math.max(0, item.seq - this.expectedSeq);
+        logPacket(`[AUDIO GAP] Sequence gap detected: expected seq=${this.expectedSeq}, got seq=${item.seq} (missed ${missedBlocks} block(s)).`);
+      }
+      if (item.frameStart !== this.expectedFrameStart) {
+        this.sampleGapsDetected++;
+        const missedSamples = Math.max(0, item.frameStart - this.expectedFrameStart);
+        this.totalMissedSamples += missedSamples;
+        logPacket(`[AUDIO GAP] Sample discontinuity detected: expected frame=${this.expectedFrameStart}, got frame=${item.frameStart} (missed ${missedSamples} samples).`);
+      }
+      this.expectedSeq = item.seq + 1;
+      this.expectedFrameStart = item.frameStart + item.frameCount;
+
+      const t0 = performance.now();
+      try {
+        this.sampleProcessorFn(item.samples);
+      } finally {
+        const dt = performance.now() - t0;
+        this.lastProcessingTimeMs = dt;
+        this.totalProcessingTimeMs += dt;
+        if (dt > this.maxProcessingTimeMs) {
+          this.maxProcessingTimeMs = dt;
+        }
+        this.releaseBuffer(item.samples, item.isWorkletTransfer);
+      }
+    }
+  }
+
+  setConsumerBackpressure(enabled) {
+    this.consumerBackpressure = Boolean(enabled);
+    if (!this.consumerBackpressure) {
+      this.drainQueue();
+    }
+    return this.consumerBackpressure;
+  }
+
+  injectWorkletStall(missedSamples = 4096) {
+    const samples = Math.max(1, Number(missedSamples) || 4096);
+    if (this.workletPort && !this.shuttingDown) {
+      try {
+        this.workletPort.postMessage({ type: 'simulate_stall', missedSamples: samples });
+      } catch (_) {}
+    }
+    const missedBlocks = Math.max(1, Math.ceil(samples / this.blockSize));
+    this.producerSeq += missedBlocks;
+    this.producerFrameCursor += samples;
+    this.workletStalled = true;
+    this.workletStallEvents++;
+    logPacket(`[WORKLET STALL] Audio producer stalled (${samples} missed samples across ${missedBlocks} block(s)).`);
+    return {
+      workletStalled: this.workletStalled,
+      workletStallEvents: this.workletStallEvents,
+      missedSamples: samples
+    };
+  }
+
+  shutdown() {
+    this.shuttingDown = true;
+    while (this.queue.length > 0) {
+      const item = this.queue.shift();
+      this.releaseBuffer(item.samples, false);
+    }
+    if (this.workletPort) {
+      try { this.workletPort.postMessage({ type: 'shutdown' }); } catch (_) {}
+      try { this.workletPort.onmessage = null; } catch (_) {}
+      try { if (typeof this.workletPort.close === 'function') this.workletPort.close(); } catch (_) {}
+      this.workletPort = null;
+    }
+  }
+
+  snapshot() {
+    return {
+      bufferedSamples: this.decoder ? this.decoder.buffer.length : 0,
+      maxBufferedSamples: this.decoder ? this.decoder.maxBufferedSamples : 0,
+      activePipelineCount,
+      tracksReleasedCount,
+      sampleRate: readinessState.actualSampleRate,
+      captureMode: this.captureMode,
+      overloadPolicy: this.overloadPolicy,
+      maxQueueSize: this.maxQueueSize,
+      queueDepth: this.queue.length,
+      maxQueueDepth: this.maxQueueDepth,
+      callbackCount: this.callbackCount,
+      expectedCallbackIntervalMs: this.expectedCallbackIntervalMs,
+      lastCallbackIntervalMs: this.lastCallbackIntervalMs,
+      maxCallbackIntervalMs: this.maxCallbackIntervalMs,
+      lastProcessingTimeMs: this.lastProcessingTimeMs,
+      maxProcessingTimeMs: this.maxProcessingTimeMs,
+      meanProcessingTimeMs: this.callbackCount > 0 ? (this.totalProcessingTimeMs / this.callbackCount) : 0,
+      overloadEvents: this.overloadEvents,
+      droppedBlocks: this.totalDroppedBlocks(),
+      droppedSamples: this.totalDroppedSamples(),
+      sequenceGapsDetected: this.sequenceGapsDetected,
+      sampleGapsDetected: this.sampleGapsDetected,
+      totalMissedSamples: this.totalMissedSamples,
+      poolAllocatedBuffers: this.poolAllocatedBuffers,
+      poolFreeBuffers: this.freePool.length,
+      maxPoolBuffers: this.maxPoolBuffers,
+      bufferReuseCount: this.bufferReuseCount,
+      uiStallDetected: this.uiStallDetected,
+      uiStallEvents: this.uiStallEvents,
+      lastUiStallDurationMs: this.lastUiStallDurationMs,
+      workletStalled: this.workletStalled,
+      workletStallEvents: this.workletStallEvents,
+      consumerBackpressure: this.consumerBackpressure
+    };
+  }
+}
+
+window.simulateUiStall = function(durationMs = 180) {
+  const waitMs = Math.max(10, Number(durationMs) || 180);
+  const start = performance.now();
+  if (activePipelineController && activePipelineController.lastCallbackTimestampMs === null) {
+    activePipelineController.lastCallbackTimestampMs = start;
+  }
+  while (performance.now() - start < waitMs) {
+    // Deliberate synchronous main-thread stall for contention validation
+  }
+  const elapsed = performance.now() - start;
+  if (activePipelineController) {
+    const threshold = Math.max(120, activePipelineController.expectedCallbackIntervalMs * 2.5);
+    if (elapsed >= threshold) {
+      activePipelineController.uiStallDetected = true;
+      activePipelineController.uiStallEvents++;
+      activePipelineController.lastUiStallDurationMs = elapsed;
+      if (elapsed > activePipelineController.maxCallbackIntervalMs) {
+        activePipelineController.maxCallbackIntervalMs = elapsed;
+      }
+      logPacket(`[UI STALL DETECTED] Main thread stalled synchronously for ${elapsed.toFixed(1)} ms.`);
+    }
+  }
+  return elapsed;
+};
+
+window.simulateWorkletStall = function(missedSamples = 4096) {
+  if (!activePipelineController) return null;
+  return activePipelineController.injectWorkletStall(missedSamples);
+};
+
+window.setDecoderQueueBackpressure = function(enabled) {
+  if (!activePipelineController) return false;
+  return activePipelineController.setConsumerBackpressure(enabled);
+};
+
 function releaseCurrentPipeline() {
+  if (activePipelineController) {
+    try { activePipelineController.shutdown(); } catch (_) {}
+    activePipelineController = null;
+  }
+  if (activeWorkletNode) {
+    try { if (typeof activeWorkletNode.disconnect === 'function') activeWorkletNode.disconnect(); } catch (_) {}
+    activeWorkletNode = null;
+  }
   if (activeProcessorNode) {
     try { activeProcessorNode.onaudioprocess = null; } catch (_) {}
     try { if (typeof activeProcessorNode.disconnect === 'function') activeProcessorNode.disconnect(); } catch (_) {}
@@ -772,27 +1144,81 @@ async function startMicrophoneCapture() {
     analyser.fftSize = 512;
     activeSourceNode.connect(analyser);
 
-    // Audio processor for tone discrimination and real demodulation
-    activeProcessorNode = audioCtx.createScriptProcessor(2048, 1, 1);
-    activeSourceNode.connect(activeProcessorNode);
-    activeProcessorNode.connect(audioCtx.destination);
-
     const decoder = new IncrementalAFSKReceiver(audioCtx.sampleRate,
       pkt => handleDecodedPacket(pkt, "Live Microphone"));
-    activePipelineCount = 1;
-    window.liveAcousticDiagnostics = () => ({
-      bufferedSamples: decoder.buffer.length,
-      maxBufferedSamples: decoder.maxBufferedSamples,
-      activePipelineCount,
-      tracksReleasedCount,
-      sampleRate: readinessState.actualSampleRate
-    });
-    activeProcessorNode.onaudioprocess = (e) => {
-      if (!isListening || readinessState.captureLifecycleState !== 'capture_active') return;
-      const input = e.inputBuffer.getChannelData(0);
-      detectAcousticTones(input, audioCtx.sampleRate);
-      decoder.push(input);
+    const processSamplesFn = (samples) => {
+      if (!audioCtx) return;
+      detectAcousticTones(samples, audioCtx.sampleRate);
+      decoder.push(samples);
     };
+
+    let useWorklet = false;
+    if (
+      !window.__tfpForceScriptProcessor &&
+      audioCtx.audioWorklet &&
+      typeof audioCtx.audioWorklet.addModule === 'function' &&
+      typeof window.AudioWorkletNode === 'function'
+    ) {
+      try {
+        await audioCtx.audioWorklet.addModule('./acoustic_worklet.js');
+        activeWorkletNode = new AudioWorkletNode(audioCtx, 'tfp-afsk-capture-processor', {
+          numberOfInputs: 1,
+          numberOfOutputs: 1,
+          outputChannelCount: [1],
+          processorOptions: { blockSize: 2048, maxQueueSize: 32 }
+        });
+        activePipelineController = new BoundedAudioPipelineController(
+          audioCtx.sampleRate,
+          decoder,
+          processSamplesFn,
+          { blockSize: 2048, maxQueueSize: 32, maxPoolBuffers: 32, captureMode: 'AudioWorklet', workletPort: activeWorkletNode.port }
+        );
+        activeWorkletNode.port.onmessage = (ev) => {
+          if (!isListening || readinessState.captureLifecycleState !== 'capture_active') return;
+          if (activePipelineController) {
+            activePipelineController.ingestWorkletMessage(ev.data);
+          }
+        };
+        activeSourceNode.connect(activeWorkletNode);
+        activeWorkletNode.connect(audioCtx.destination);
+        // Provide testProcessor bridge for deterministic block injection alongside live AudioWorklet
+        window.testProcessor = {
+          onaudioprocess: (e) => {
+            if (!isListening || readinessState.captureLifecycleState !== 'capture_active') return;
+            const input = e.inputBuffer.getChannelData(0);
+            if (activePipelineController) {
+              activePipelineController.ingestScriptProcessorBlock(input);
+            }
+          }
+        };
+        useWorklet = true;
+      } catch (_) {
+        useWorklet = false;
+      }
+    }
+
+    if (!useWorklet) {
+      activeProcessorNode = audioCtx.createScriptProcessor(2048, 1, 1);
+      activeSourceNode.connect(activeProcessorNode);
+      activeProcessorNode.connect(audioCtx.destination);
+      activePipelineController = new BoundedAudioPipelineController(
+        audioCtx.sampleRate,
+        decoder,
+        processSamplesFn,
+        { blockSize: 2048, maxQueueSize: 32, maxPoolBuffers: 32, captureMode: 'ScriptProcessorFallback' }
+      );
+      activeProcessorNode.onaudioprocess = (e) => {
+        if (!isListening || readinessState.captureLifecycleState !== 'capture_active') return;
+        const input = e.inputBuffer.getChannelData(0);
+        if (activePipelineController) {
+          activePipelineController.ingestScriptProcessorBlock(input);
+        }
+      };
+    }
+
+    activePipelineCount = 1;
+    const boundController = activePipelineController;
+    window.liveAcousticDiagnostics = () => boundController.snapshot();
 
     isListening = true;
     if (audioCtx.state === 'suspended' || audioCtx.state === 'interrupted') {
@@ -809,7 +1235,7 @@ async function startMicrophoneCapture() {
       btn.className = 'btn-secondary';
     }
     updateReadinessView();
-    logPacket(`Microphone capture started (${readinessState.actualSampleRate} Hz). Real quadrature Bell 202 demodulator active...`);
+    logPacket(`Microphone capture started (${readinessState.actualSampleRate} Hz, ${boundController.captureMode}). Real quadrature Bell 202 demodulator active...`);
     return true;
   } catch (err) {
     releaseCurrentPipeline();
