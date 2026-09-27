@@ -150,9 +150,13 @@ def main(argv: list[str] | None = None):
     adec_p.add_argument("wav_path", help="Path to input WAV file to demodulate")
     adec_p.add_argument("--baud", type=int, default=1200, help="Baud rate (default: 1200)")
 
-    # Acoustic Receiver (Web receiver for weak phones)
-    ac_p = subparsers.add_parser("acoustic-receiver", help="Serve zero-install acoustic microphone receiver for phones")
+    # Acoustic Receiver (Prepared-phone baseline & local loopback server)
+    ac_p = subparsers.add_parser("acoustic-receiver", help="Serve browser acoustic receiver for prepared phones or local loopback")
+    ac_p.add_argument("--host", default="127.0.0.1", help="Bind address (default: 127.0.0.1; remote phones require HTTPS for live mic)")
     ac_p.add_argument("--port", type=int, default=8080, help="Port to serve acoustic receiver (default: 8080)")
+    ac_p.add_argument("--trusted-pubkey", action="append", default=[], help="Trusted publisher 64-hex Ed25519 public key (repeatable)")
+    ac_p.add_argument("--tls-cert", default=None, help="Optional PEM certificate path for HTTPS secure-context serving")
+    ac_p.add_argument("--tls-key", default=None, help="Optional PEM private key path for HTTPS secure-context serving")
     ac_p.add_argument("--no-browser", action="store_true", help="Do not auto-open browser")
 
     # Audio Scholar (Screenless zero-touch appliance)
@@ -593,39 +597,97 @@ def main(argv: list[str] | None = None):
 
     elif args.command == "acoustic-receiver":
         import http.server
+        import re
         import socketserver
+        import ssl
         import webbrowser
 
         static_dir = get_static_assets_dir()
+        host = getattr(args, "host", "127.0.0.1")
+        port = args.port
+        tls_cert = getattr(args, "tls_cert", None)
+        tls_key = getattr(args, "tls_key", None)
+        raw_keys = getattr(args, "trusted_pubkey", None) or []
+
+        if bool(tls_cert) != bool(tls_key):
+            print("Error: Both --tls-cert and --tls-key must be provided together for HTTPS.", file=sys.stderr)
+            sys.exit(1)
+
+        trusted_publishers: list[str] = []
+        for entry in raw_keys:
+            for candidate in str(entry).split(","):
+                k = candidate.strip().lower()
+                if not k:
+                    continue
+                if not re.fullmatch(r"[0-9a-f]{64}", k):
+                    print(f"Error: Invalid Ed25519 public key hex (expected 64 hex chars): {candidate}", file=sys.stderr)
+                    sys.exit(1)
+                if k not in trusted_publishers:
+                    trusted_publishers.append(k)
+
+        config_payload = json.dumps(
+            {
+                "version": 1,
+                "cache_version": "tfp-acoustic-receiver-v1",
+                "deployment_mode": "prepared_phone_baseline",
+                "supported_targets": [
+                    "Android 11+ (Chrome 113+, Edge 113+, Firefox 115+)",
+                    "iOS / iPadOS 16.4+ (Safari 16.4+)",
+                    "Desktop Chromium / Chrome 113+, Firefox 115+, Safari 16.4+",
+                ],
+                "trusted_publishers": trusted_publishers,
+            },
+            indent=2,
+        ).encode("utf-8")
 
         class AcousticHandler(http.server.SimpleHTTPRequestHandler):
             def __init__(self, *a, **kw):
                 super().__init__(*a, directory=str(static_dir), **kw)
 
             def do_GET(self):
-                if self.path in ("/", "/receiver", "/index.html"):
+                clean_path = self.path.split("?", 1)[0]
+                if clean_path == "/receiver_config.json":
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json; charset=utf-8")
+                    self.send_header("Cache-Control", "no-cache")
+                    self.send_header("Content-Length", str(len(config_payload)))
+                    self.end_headers()
+                    self.wfile.write(config_payload)
+                    return
+                if clean_path in ("/", "/receiver", "/index.html"):
                     self.path = "/acoustic_receiver.html"
                 return super().do_GET()
 
             def log_message(self, format, *args):
                 pass
 
-        port = args.port
+        scheme = "https" if tls_cert else "http"
+        is_loopback = host in ("127.0.0.1", "localhost", "::1")
+        display_host = "localhost" if host == "127.0.0.1" else host
         print("=" * 65)
-        print("  THE FOUNDATION PROTOCOL: ZERO-INSTALL ACOUSTIC RECEIVER")
+        print("  THE FOUNDATION PROTOCOL: ACOUSTIC RECEIVER SERVER")
         print("=" * 65)
-        print(f"  Local Portal   : http://localhost:{port}/acoustic_receiver.html")
-        print("  Client Support : Weak smartphones (Chrome, Safari, Opera Mobile)")
-        print("  Input Method   : Built-in microphone (1200/2200 Hz Bell 202 tones)")
-        print("  Voice Output   : Client-side offline speech synthesis")
+        print(f"  Portal URL     : {scheme}://{display_host}:{port}/acoustic_receiver.html")
+        print("  Baseline Mode  : Prepared-Phone (offline Service Worker cache)")
+        print("  Target Clients : Android 11+ Chrome/Firefox, iOS 16.4+ Safari, Desktop")
+        print(f"  Trusted Keys   : {len(trusted_publishers)} pre-provisioned")
+        if not is_loopback and not tls_cert:
+            print("  [WARNING] Non-loopback plain HTTP bind detected!")
+            print("            Remote phones block live getUserMedia microphone capture")
+            print("            over plain HTTP. Use HTTPS (--tls-cert/--tls-key) with a")
+            print("            trusted certificate, or use WAV file upload on remote HTTP.")
         print("  Press Ctrl+C to terminate.")
         print("=" * 65)
 
         if not args.no_browser:
-            webbrowser.open(f"http://localhost:{port}/acoustic_receiver.html")
+            webbrowser.open(f"{scheme}://{display_host}:{port}/acoustic_receiver.html")
 
         socketserver.TCPServer.allow_reuse_address = True
-        with socketserver.TCPServer(("127.0.0.1", port), AcousticHandler) as httpd:
+        with socketserver.TCPServer((host, port), AcousticHandler) as httpd:
+            if tls_cert and tls_key:
+                ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+                ctx.load_cert_chain(certfile=tls_cert, keyfile=tls_key)
+                httpd.socket = ctx.wrap_socket(httpd.socket, server_side=True)
             try:
                 httpd.serve_forever()
             except KeyboardInterrupt:
