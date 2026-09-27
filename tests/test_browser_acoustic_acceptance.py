@@ -70,7 +70,22 @@ def test_simulation_provenance_survives_reload(page):
 
 
 def test_signed_packet_is_explicitly_unverified_in_browser_and_archive(page):
-    packet = {**wire(), "pub": "a1" * 32, "sig": "b2" * 64, "title": "Modified signed headline"}
+    import hashlib
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    from tfp_core_v4.bulletin_identity import sign_bulletin_content
+
+    # 1. Forged / modified signature is rejected and never enters the archive
+    forged = {**wire(), "pub": "a1" * 32, "sig": "b2" * 64, "title": "Modified signed headline"}
+    decode(page, forged)
+    assert "INVALID SIGNATURE" in page.locator("#packetFeed").inner_text()
+    assert page.evaluate("JSON.parse(localStorage.getItem('tfp_transmissions') || '[]').length") == 0
+
+    # 2. Valid signature from an unknown (untrusted) key is labeled SIGNATURE UNVERIFIED / UNKNOWN KEY
+    sk = Ed25519PrivateKey.generate()
+    base = wire()
+    content_hash = hashlib.sha3_256(base["body"].encode("utf-8")).hexdigest()
+    pub_hex, sig_hex = sign_bulletin_content(base["id"], base["rev"], content_hash, sk, title=base["title"])
+    packet = {**base, "pub": pub_hex, "sig": sig_hex}
     decode(page, packet)
     for reopened in (False, True):
         if reopened:
@@ -78,6 +93,7 @@ def test_signed_packet_is_explicitly_unverified_in_browser_and_archive(page):
             page.locator("#historyFeed .packet-line").first.click()
         text = page.locator("#contentArea").inner_text()
         assert "SIGNATURE UNVERIFIED" in text
+        assert "UNKNOWN KEY" in text
         assert "AUTHENTIC" not in text
         assert packet["pub"] in text
 

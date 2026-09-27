@@ -350,6 +350,7 @@ function handleAddTrustedKeyInput() {
 
 window.getTrustedPublishers = getTrustedPublishers;
 window.setTrustedPublishers = setTrustedPublishers;
+window.configureTrustedPublisherKeys = setTrustedPublishers;
 window.addTrustedPublisher = addTrustedPublisher;
 window.clearTrustedPublishers = clearTrustedPublishers;
 
@@ -466,6 +467,7 @@ window.getReceiverReadiness = function() {
     offlineAssetsState: readinessState.offlineAssetsState,
     offlineCacheVersion: readinessState.offlineCacheVersion,
     trustedPublisherState: readinessState.trustedPublisherState,
+    publisherTrustState: readinessState.trustedPublisherState,
     trustedPublishers,
     actualSampleRate: readinessState.actualSampleRate,
     effectiveCaptureSettings: readinessState.effectiveCaptureSettings ? {...readinessState.effectiveCaptureSettings} : null,
@@ -877,6 +879,9 @@ function demodulateSamples(samples, sampleRate) {
 
 const seenPacketHashes = new Set();
 
+let activeDisplayedRecord = null;
+window.lastBulletinDecision = null;
+
 function readArchive() {
   try {
     const value = JSON.parse(localStorage.getItem('tfp_transmissions') || '[]');
@@ -891,15 +896,70 @@ function readWatermarks() {
   } catch (_) { return {}; }
 }
 
-function saveWatermark(publisher, bulletinId, revision, contentHash, title) {
+function readTrustedWatermarks() {
+  try {
+    const value = JSON.parse(localStorage.getItem('tfp_trusted_bulletin_watermarks') || '{}');
+    return (value && typeof value === 'object' && !Array.isArray(value)) ? value : {};
+  } catch (_) { return {}; }
+}
+
+function parseWatermarkKey(wmKey, wmEntry) {
+  const delimIdx = wmKey.indexOf(':');
+  const wPub = (wmEntry && wmEntry.publisher) || (delimIdx !== -1 ? wmKey.slice(0, delimIdx) : wmKey);
+  const wId = (wmEntry && wmEntry.bulletinId) || (delimIdx !== -1 ? wmKey.slice(delimIdx + 1) : '');
+  return { wPub, wId };
+}
+
+function saveWatermark(publisher, bulletinId, revision, contentHash, title, options = {}) {
   if (!bulletinId) return;
+  const isTrusted = Boolean(options.trusted);
+  const payloadKey = options.payloadKey || contentHash;
+  const verification = options.verification || (isTrusted ? 'trusted_publisher' : 'unsigned');
   try {
     const wm = readWatermarks();
     const pub = publisher || 'unsigned';
     const key = `${pub}:${bulletinId}`;
+
+    if (isTrusted) {
+      // Evict any prior untrusted watermarks for this bulletinId so untrusted content
+      // can never pin a bulletin ID or block a trusted publisher.
+      for (const [wmKey, wmEntry] of Object.entries(wm)) {
+        const { wId } = parseWatermarkKey(wmKey, wmEntry);
+        if (wId === bulletinId && !wmEntry.trusted) {
+          delete wm[wmKey];
+        }
+      }
+      const trustedWm = readTrustedWatermarks();
+      const prevTrusted = trustedWm[key];
+      if (!prevTrusted || revision >= prevTrusted.revision) {
+        trustedWm[key] = {
+          publisher: pub,
+          bulletinId,
+          revision,
+          contentHash,
+          payloadKey,
+          title,
+          trusted: true,
+          verification: 'trusted_publisher',
+          updated_at: new Date().toISOString()
+        };
+        localStorage.setItem('tfp_trusted_bulletin_watermarks', JSON.stringify(trustedWm));
+      }
+    }
+
     const prev = wm[key];
-    if (!prev || revision >= prev.revision) {
-      wm[key] = { publisher: pub, bulletinId, revision, contentHash, title, updated_at: new Date().toISOString() };
+    if (!prev || (prev.trusted && !isTrusted ? false : (!prev.trusted && isTrusted ? true : revision >= prev.revision))) {
+      wm[key] = {
+        publisher: pub,
+        bulletinId,
+        revision,
+        contentHash,
+        payloadKey,
+        title,
+        trusted: isTrusted,
+        verification,
+        updated_at: new Date().toISOString()
+      };
       localStorage.setItem('tfp_bulletin_watermarks', JSON.stringify(wm));
     }
   } catch (_) {
@@ -911,9 +971,7 @@ function handleDecodedPacket(payloadBytes, origin = "Acoustic Audio") {
   // Full, unambiguous byte identity; bounded to avoid growing with listening time.
   const payloadKey = Array.from(payloadBytes, b => b.toString(16).padStart(2, '0')).join('');
   const archive = readArchive();
-  if (seenPacketHashes.has(payloadKey) || archive.some(item => item.payloadKey === payloadKey)) return;
-  seenPacketHashes.add(payloadKey);
-  if (seenPacketHashes.size > 128) seenPacketHashes.delete(seenPacketHashes.values().next().value);
+
   packetCount++;
   validCrcCount++;
   document.getElementById('packetCount').innerText = `Packets: ${packetCount} | CRC Valid: ${validCrcCount}`;
@@ -922,75 +980,292 @@ function handleDecodedPacket(payloadBytes, origin = "Acoustic Audio") {
   let data;
   try { data = JSON.parse(text); } catch (_) { data = null; }
   const structured = data && typeof data === 'object' && !Array.isArray(data);
-  if (structured && (typeof data.id !== 'string' || !data.id.trim() ||
-      !Number.isSafeInteger(data.rev) || data.rev < 1 || typeof data.body !== 'string' ||
-      (data.title !== undefined && typeof data.title !== 'string'))) {
-    logPacket('Rejected malformed bulletin fields; previous content retained.');
-    return;
+  if (structured) {
+    const hasBasicTypes = (
+      typeof data.id === 'string' && data.id.trim().length > 0 && data.id.length <= 128 && !/[\r\n\0]/.test(data.id) &&
+      typeof data.rev === 'number' && typeof data.rev !== 'boolean' && Number.isSafeInteger(data.rev) && data.rev >= 1 && data.rev <= 2147483647 &&
+      typeof data.body === 'string' && data.body.length > 0 &&
+      (data.title === undefined || data.title === null || (typeof data.title === 'string' && data.title.length <= 256 && !/[\r\n\0]/.test(data.title)))
+    );
+    if (!hasBasicTypes) {
+      window.lastBulletinDecision = {
+        admitted: false,
+        status: 'rejected',
+        reason: 'malformed_fields',
+        verification: 'invalid_fields',
+        publisherTrust: 'not_established'
+      };
+      logPacket('Rejected malformed bulletin fields; previous content retained.');
+      return;
+    }
   }
+
+  const trustedKeys = getTrustedPublishers();
+  let envResult = null;
+  if (structured) {
+    // Allow legacy unsigned packets that omit 'sig' and 'v' (e.g. station callsign tests)
+    // unless they claim a configured trusted publisher key or explicitly supply 'sig' / 'v'.
+    const isLegacyCallsignClaim = (
+      data.sig === undefined &&
+      data.v === undefined &&
+      data.pub !== undefined &&
+      data.pub !== null &&
+      !trustedKeys.includes(String(data.pub).trim().toLowerCase())
+    );
+    envResult = window.verifyBulletinEnvelope(data, trustedKeys, {
+      strictSignedClaim: !isLegacyCallsignClaim
+    });
+
+    if (envResult.verification === 'invalid_signature') {
+      window.lastBulletinDecision = {
+        admitted: false,
+        status: 'rejected',
+        reason: 'invalid_signature',
+        verification: 'invalid_signature',
+        publisherTrust: 'invalid_signature',
+        bulletinId: data.id,
+        revision: data.rev,
+        publisher: envResult.publisher
+      };
+      logPacket(`[INVALID SIGNATURE] Rejected bulletin ${data.id} rev ${data.rev}: ${envResult.reason || 'Ed25519 signature verification failed'}; previous content retained.`);
+      return;
+    }
+  }
+
   const title = structured ? (data.title || data.id) : 'Received Radio Bulletin';
   const body = structured ? data.body : text;
-  const record = {
-    bulletinId: structured ? data.id : null, revision: structured ? data.rev : null,
-    publisher: structured ? (data.pub || 'unsigned') : 'unsigned',
-    signature: structured ? (data.sig || null) : null,
-    wireVersion: structured ? (data.v || 1) : null, payloadKey,
-    time: new Date().toISOString(),
-    provenance: {simulation: false, origin, crcValid: true,
-      verification: structured && (data.pub || data.sig) ? 'signature_unverified' : 'unsigned',
-      publisherTrust: 'not_established'},
-  };
-  // 1. Check permanent watermark storage (persists even if visual archive is cleared or pruned)
-  if (record.bulletinId) {
-    const wm = readWatermarks();
-    const key = `${record.publisher}:${record.bulletinId}`;
-    const watermark = wm[key];
+  const contentHash = structured ? envResult.contentHash : window.sha3_256Hex(window.normalizeBulletinBody(body));
+  const verificationState = structured ? envResult.verification : 'unsigned';
+  const publisherTrustState = structured ? envResult.publisherTrust : 'not_established';
+  const claimedPublisherUnverified = Boolean(structured && envResult.claimedPublisherUnverified);
+  const isTrusted = (verificationState === 'trusted_publisher');
 
-    // Enforce publisher pinning on this bulletin ID
-    for (const [wmKey, wmEntry] of Object.entries(wm)) {
-      const delimIdx = wmKey.indexOf(':');
-      const wPub = wmEntry.publisher || (delimIdx !== -1 ? wmKey.slice(0, delimIdx) : wmKey);
-      const wId = wmEntry.bulletinId || (delimIdx !== -1 ? wmKey.slice(delimIdx + 1) : '');
-      if (wId === record.bulletinId && wPub !== record.publisher) {
+  const record = {
+    bulletinId: structured ? data.id : null,
+    revision: structured ? data.rev : null,
+    publisher: structured ? envResult.publisher : 'unsigned',
+    signature: structured ? (data.sig || null) : null,
+    wireVersion: structured ? (data.v || 1) : null,
+    contentHash,
+    payloadKey,
+    time: new Date().toISOString(),
+    provenance: {
+      simulation: false,
+      origin,
+      crcValid: true,
+      verification: verificationState,
+      pythonVerifiedStatus: structured ? envResult.pythonVerifiedStatus : 'unsigned',
+      publisherTrust: publisherTrustState,
+      claimedPublisherUnverified
+    },
+  };
+
+  if (record.bulletinId) {
+    const allWm = readWatermarks();
+    const trustedWm = readTrustedWatermarks();
+
+    // Check if this bulletinId is already governed by a configured trusted publisher
+    let existingTrustedWm = null;
+    for (const [wmKey, wmEntry] of Object.entries(trustedWm)) {
+      const { wPub, wId } = parseWatermarkKey(wmKey, wmEntry);
+      if (wId === record.bulletinId) {
+        existingTrustedWm = { key: wmKey, publisher: wPub, ...wmEntry };
+        break;
+      }
+    }
+    if (!existingTrustedWm) {
+      for (const [wmKey, wmEntry] of Object.entries(allWm)) {
+        const { wPub, wId } = parseWatermarkKey(wmKey, wmEntry);
+        if (wId === record.bulletinId && wmEntry.trusted) {
+          existingTrustedWm = { key: wmKey, publisher: wPub, ...wmEntry };
+          break;
+        }
+      }
+    }
+
+    if (!isTrusted) {
+      // Untrusted (unsigned or valid_signature_unknown_key) can NEVER overwrite or advance a trusted bulletinId
+      if (existingTrustedWm) {
+        window.lastBulletinDecision = {
+          admitted: false,
+          status: 'rejected',
+          reason: 'untrusted_cannot_override_trusted',
+          verification: verificationState,
+          publisherTrust: publisherTrustState,
+          bulletinId: record.bulletinId,
+          revision: record.revision
+        };
+        logPacket(`Untrusted bulletin rejected: cannot replace or advance trusted publisher bulletin ${record.bulletinId}; previous content retained.`);
+        return;
+      }
+
+      // Check untrusted watermarks for this bulletinId
+      for (const [wmKey, wmEntry] of Object.entries(allWm)) {
+        if (wmEntry.trusted) continue;
+        const { wPub, wId } = parseWatermarkKey(wmKey, wmEntry);
+        if (wId === record.bulletinId && wPub !== record.publisher) {
+          window.lastBulletinDecision = {
+            admitted: false,
+            status: 'rejected',
+            reason: 'publisher_conflict',
+            verification: verificationState,
+            publisherTrust: publisherTrustState,
+            bulletinId: record.bulletinId,
+            revision: record.revision
+          };
+          logPacket('Publisher identity conflict; previous content retained.');
+          return;
+        }
+      }
+
+      const key = `${record.publisher}:${record.bulletinId}`;
+      const watermark = allWm[key] && !allWm[key].trusted ? allWm[key] : null;
+      if (watermark) {
+        if (record.revision < watermark.revision) {
+          window.lastBulletinDecision = {
+            admitted: false,
+            status: 'rejected',
+            reason: 'stale_revision',
+            verification: verificationState,
+            publisherTrust: publisherTrustState,
+            bulletinId: record.bulletinId,
+            revision: record.revision
+          };
+          logPacket(`Downgrade rejected: [REJECTED STALE] Bulletin ${record.bulletinId} rev ${record.revision} superseded by local watermark ${watermark.revision}.`);
+          return;
+        }
+        if (record.revision === watermark.revision) {
+          const hashMatches = (watermark.contentHash === contentHash) || (watermark.payloadKey === payloadKey) || (watermark.contentHash === payloadKey);
+          const titleMatches = !watermark.title || watermark.title === title;
+          if (!hashMatches || !titleMatches) {
+            window.lastBulletinDecision = {
+              admitted: false,
+              status: 'rejected',
+              reason: 'revision_conflict',
+              verification: verificationState,
+              publisherTrust: publisherTrustState,
+              bulletinId: record.bulletinId,
+              revision: record.revision
+            };
+            logPacket('Revision conflict; previous content retained.');
+            return;
+          }
+          const inArchive = archive.some(item => !item.provenance?.simulation && item.bulletinId === record.bulletinId && item.revision === record.revision);
+          if (!inArchive) {
+            const hasActiveTrusted = Boolean(activeDisplayedRecord && activeDisplayedRecord.provenance?.verification === 'trusted_publisher');
+            if (!hasActiveTrusted) {
+              displayReceivedArticle(title, body, false, record);
+            }
+            triggerHaptic('complete');
+            saveToOfflineArchive('text', title, body, record);
+            logPacket('Authentic repeat restored to display archive.');
+          }
+          window.lastBulletinDecision = {
+            admitted: false,
+            duplicate: true,
+            status: 'duplicate',
+            verification: verificationState,
+            publisherTrust: publisherTrustState,
+            bulletinId: record.bulletinId,
+            revision: record.revision
+          };
+          return;
+        }
+        if (record.revision > watermark.revision + 1) {
+          const gapMsg = `[MISSED BROADCAST WARNING: Revision gap detected (jumped from Rev ${watermark.revision} to Rev ${record.revision})]`;
+          record.gapWarning = gapMsg;
+          logPacket(gapMsg);
+        }
+      }
+    } else {
+      // Incoming bulletin IS from a configured trusted publisher (isTrusted === true)
+      if (existingTrustedWm && existingTrustedWm.publisher.toLowerCase() !== record.publisher.toLowerCase()) {
+        window.lastBulletinDecision = {
+          admitted: false,
+          status: 'rejected',
+          reason: 'publisher_conflict',
+          verification: verificationState,
+          publisherTrust: publisherTrustState,
+          bulletinId: record.bulletinId,
+          revision: record.revision
+        };
         logPacket('Publisher identity conflict; previous content retained.');
         return;
       }
-    }
 
-    if (watermark) {
-      if (record.revision < watermark.revision) {
-        logPacket(`Downgrade rejected: [REJECTED STALE] Bulletin ${record.bulletinId} rev ${record.revision} superseded by local watermark ${watermark.revision}.`);
-        return;
-      }
-      if (record.revision === watermark.revision) {
-        if (watermark.contentHash !== payloadKey || (watermark.title && watermark.title !== title)) {
-          logPacket('Revision conflict; previous content retained.');
+      if (existingTrustedWm) {
+        if (record.revision < existingTrustedWm.revision) {
+          window.lastBulletinDecision = {
+            admitted: false,
+            status: 'rejected',
+            reason: 'stale_revision',
+            verification: verificationState,
+            publisherTrust: publisherTrustState,
+            bulletinId: record.bulletinId,
+            revision: record.revision
+          };
+          logPacket(`Downgrade rejected: [REJECTED STALE] Bulletin ${record.bulletinId} rev ${record.revision} superseded by local watermark ${existingTrustedWm.revision}.`);
           return;
         }
-        const inArchive = archive.some(item => !item.provenance?.simulation && item.bulletinId === record.bulletinId && item.revision === record.revision);
-        if (!inArchive) {
-          displayReceivedArticle(title, body, false, record);
-          triggerHaptic('complete');
-          saveToOfflineArchive('text', title, body, record);
-          logPacket('Authentic repeat restored to display archive.');
+        if (record.revision === existingTrustedWm.revision) {
+          const hashMatches = (existingTrustedWm.contentHash === contentHash) || (existingTrustedWm.payloadKey === payloadKey);
+          const titleMatches = !existingTrustedWm.title || existingTrustedWm.title === title;
+          if (!hashMatches || !titleMatches) {
+            window.lastBulletinDecision = {
+              admitted: false,
+              status: 'rejected',
+              reason: 'revision_conflict',
+              verification: verificationState,
+              publisherTrust: publisherTrustState,
+              bulletinId: record.bulletinId,
+              revision: record.revision
+            };
+            logPacket('Revision conflict; previous content retained.');
+            return;
+          }
+          const inArchive = archive.some(item => !item.provenance?.simulation && item.bulletinId === record.bulletinId && item.revision === record.revision && item.provenance?.verification === 'trusted_publisher');
+          if (!inArchive) {
+            displayReceivedArticle(title, body, false, record);
+            triggerHaptic('complete');
+            saveToOfflineArchive('text', title, body, record);
+            logPacket('Authentic repeat restored to display archive.');
+          }
+          window.lastBulletinDecision = {
+            admitted: false,
+            duplicate: true,
+            status: 'duplicate',
+            verification: verificationState,
+            publisherTrust: publisherTrustState,
+            bulletinId: record.bulletinId,
+            revision: record.revision
+          };
+          return;
         }
-        return;
-      }
-      // Check revision gap: record.revision > watermark.revision + 1
-      if (record.revision > watermark.revision + 1) {
-        const gapMsg = `[MISSED BROADCAST WARNING: Revision gap detected (jumped from Rev ${watermark.revision} to Rev ${record.revision})]`;
-        record.gapWarning = gapMsg;
-        logPacket(gapMsg);
+        if (record.revision > existingTrustedWm.revision + 1) {
+          const gapMsg = `[MISSED BROADCAST WARNING: Revision gap detected (jumped from Rev ${existingTrustedWm.revision} to Rev ${record.revision})]`;
+          record.gapWarning = gapMsg;
+          logPacket(gapMsg);
+        }
       }
     }
+  } else {
+    // Non-structured raw text packet deduplication
+    if (seenPacketHashes.has(payloadKey) || archive.some(item => item.payloadKey === payloadKey)) return;
   }
 
-  // Local ID/revision policy mirrors the accepted-store rules. Signatures are
-  // explicitly unverified here; this browser does not establish publisher trust.
-  const previous = archive.filter(item => !item.provenance?.simulation && record.bulletinId && item.bulletinId === record.bulletinId);
+  seenPacketHashes.add(payloadKey);
+  if (seenPacketHashes.size > 128) seenPacketHashes.delete(seenPacketHashes.values().next().value);
+
+  // Secondary check against in-archive items of the same trust tier
+  const previous = archive.filter(item => {
+    if (item.provenance?.simulation || !record.bulletinId || item.bulletinId !== record.bulletinId) return false;
+    const itemTrusted = (item.provenance?.verification === 'trusted_publisher');
+    return isTrusted ? itemTrusted : true;
+  });
   for (const item of previous) {
     if (item.publisher !== record.publisher) {
-      logPacket('Publisher identity conflict; previous content retained.'); return;
+      logPacket('Publisher identity conflict; previous content retained.');
+      return;
     }
     if (item.revision === record.revision) {
       if (item.title !== title || item.snippet !== body) logPacket('Revision conflict; previous content retained.');
@@ -1004,15 +1279,47 @@ function handleDecodedPacket(payloadBytes, origin = "Acoustic Audio") {
     logPacket(gapMsg);
   }
   if (previous.some(item => item.revision > record.revision)) {
-    logPacket('Older revision ignored; latest content retained.'); return;
+    logPacket('Older revision ignored; latest content retained.');
+    return;
   }
-  displayReceivedArticle(title, body, false, record);
+
+  // Never allow unverified or unknown-key content to replace verified trusted content in #contentArea
+  const hasActiveTrustedDisplay = Boolean(
+    activeDisplayedRecord && activeDisplayedRecord.provenance?.verification === 'trusted_publisher'
+  ) || archive.some(item => !item.provenance?.simulation && item.provenance?.verification === 'trusted_publisher');
+
+  if (isTrusted || !hasActiveTrustedDisplay) {
+    displayReceivedArticle(title, body, false, record);
+  } else {
+    logPacket(`[UNTRUSTED ARCHIVED ONLY] Preserved active trusted bulletin in display; untrusted bulletin ${record.bulletinId || title} stored in history.`);
+  }
+
   triggerHaptic('complete');
-  saveToOfflineArchive('text', title, body, record);
+  saveToOfflineArchive('text', title, body, record, { evictUntrustedForBulletinId: isTrusted ? record.bulletinId : null });
   if (record.bulletinId) {
-    saveWatermark(record.publisher, record.bulletinId, record.revision, payloadKey, title);
+    saveWatermark(record.publisher, record.bulletinId, record.revision, contentHash, title, {
+      trusted: isTrusted,
+      payloadKey,
+      verification: verificationState
+    });
   }
-  logPacket(`[CRC VALID] Transport error check passed from ${origin}: ${title}. Publisher trust not established.`);
+  window.lastBulletinDecision = {
+    admitted: true,
+    duplicate: false,
+    status: 'stored',
+    verification: verificationState,
+    publisherTrust: publisherTrustState,
+    bulletinId: record.bulletinId,
+    revision: record.revision,
+    contentHash
+  };
+  if (isTrusted) {
+    logPacket(`[VERIFIED ED25519 · TRUSTED PUBLISHER] Authentic bulletin accepted from ${origin}: ${title}.`);
+  } else if (verificationState === 'valid_signature_unknown_key') {
+    logPacket(`[VALID SIGNATURE · UNKNOWN KEY] Transport and Ed25519 signature valid from ${origin}: ${title}. Publisher trust not established.`);
+  } else {
+    logPacket(`[CRC VALID] Transport error check passed from ${origin}: ${title}. Publisher trust not established.`);
+  }
 }
 
 function parseWavSamples(buffer) {
@@ -1271,6 +1578,9 @@ function escapeHtml(str) {
 
 function displayReceivedArticle(title, body, isSimulation = false, record = {}) {
   currentArticleText = `${title}. ${body}`;
+  if (!isSimulation) {
+    activeDisplayedRecord = record;
+  }
   const area = document.getElementById('contentArea');
   const gapBannerHtml = record.gapWarning ? `
     <div class="gap-warning-banner" style="background: rgba(239, 68, 68, 0.2); border: 1px solid var(--danger); color: #fca5a5; padding: 8px 12px; border-radius: 6px; font-weight: bold; margin-bottom: 8px; font-size: 11px;">
@@ -1361,26 +1671,58 @@ function speakCurrentContent() {
 function provenanceLabel(record) {
   if (record.provenance?.simulation) return '[SIMULATION DEMO]';
   if (!record.provenance?.crcValid) return '[ARCHIVED · PROVENANCE UNKNOWN]';
-  return record.provenance?.verification === 'signature_unverified'
-    ? '[CRC VALID · SIGNATURE UNVERIFIED]' : '[CRC VALID · UNSIGNED]';
+  const v = record.provenance?.verification;
+  if (v === 'trusted_publisher') {
+    return '[CRC VALID · VERIFIED ED25519 · TRUSTED PUBLISHER]';
+  }
+  if (v === 'valid_signature_unknown_key') {
+    return '[CRC VALID · VALID SIGNATURE · UNKNOWN KEY · SIGNATURE UNVERIFIED]';
+  }
+  if (v === 'invalid_signature') {
+    return '[CRC VALID · INVALID SIGNATURE]';
+  }
+  if (v === 'signature_unverified' || record.provenance?.claimedPublisherUnverified) {
+    return '[CRC VALID · SIGNATURE UNVERIFIED]';
+  }
+  return '[CRC VALID · UNSIGNED]';
 }
 
 function provenanceDetails(record) {
   if (!record.bulletinId) return '';
   const timeStr = record.time ? new Date(record.time).toLocaleString() : (record.receivedAt || new Date().toLocaleString());
   const hasPublisher = record.publisher && record.publisher !== 'unsigned';
+  const v = record.provenance?.verification;
+
+  let publisherHtml = `<b>Publisher:</b> ${escapeHtml(record.publisher)}<br>`;
+  let trustFooter = 'Publisher trust not established. CRC checks transmission errors, not authorship.';
+
+  if (v === 'trusted_publisher' && hasPublisher) {
+    publisherHtml = `<b>Trusted Publisher Key (Verified Ed25519):</b> <code class="key-fingerprint" style="color:var(--success); font-family:monospace; font-size:11px;">${escapeHtml(record.publisher)}</code>
+    <span class="badge verified-ed25519-badge trusted-publisher-badge" style="background: rgba(16, 185, 129, 0.2); color: #10b981; border: 1px solid #10b981; font-size: 10px; margin-left: 6px;">[VERIFIED ED25519 · TRUSTED PUBLISHER]</span><br>`;
+    trustFooter = 'Ed25519 signature verified against configured trusted publisher key.';
+  } else if (v === 'valid_signature_unknown_key' && hasPublisher) {
+    publisherHtml = `<b>Publisher Key (Valid Signature · Unknown Key):</b> <code class="key-fingerprint" style="color:var(--accent); font-family:monospace; font-size:11px;">${escapeHtml(record.publisher)}</code>
+    <span class="badge unknown-key-badge signature-unverified-badge" style="background: rgba(245, 158, 11, 0.2); color: #f59e0b; border: 1px solid #f59e0b; font-size: 10px; margin-left: 6px;">[VALID SIGNATURE · UNKNOWN KEY · SIGNATURE UNVERIFIED]</span><br>`;
+    trustFooter = 'Ed25519 signature mathematically verified, but Publisher trust not established. Key is not in configured trusted publishers.';
+  } else if (hasPublisher) {
+    publisherHtml = `<b>Claimed Publisher Key (Unverified):</b> <code class="key-fingerprint" style="color:var(--accent); font-family:monospace; font-size:11px;">${escapeHtml(record.publisher)}</code>
+    <span class="badge signature-unverified-badge" style="background: rgba(245, 158, 11, 0.2); color: #f59e0b; border: 1px solid #f59e0b; font-size: 10px; margin-left: 6px;">[SIGNATURE UNVERIFIED]</span><br>`;
+  }
+
   return `<div class="provenance" style="font-size:12px; overflow-wrap:anywhere; margin-bottom:10px;">
     <b>Bulletin:</b> ${escapeHtml(record.bulletinId)} · <b>Revision:</b> ${escapeHtml(String(record.revision))}<br>
     <b>Received:</b> <span class="rx-timestamp">${escapeHtml(timeStr)}</span><br>
-    ${hasPublisher ? `<b>Claimed Publisher Key (Unverified):</b> <code class="key-fingerprint" style="color:var(--accent); font-family:monospace; font-size:11px;">${escapeHtml(record.publisher)}</code>
-    <span class="badge signature-unverified-badge" style="background: rgba(245, 158, 11, 0.2); color: #f59e0b; border: 1px solid #f59e0b; font-size: 10px; margin-left: 6px;">[SIGNATURE UNVERIFIED]</span><br>` : `<b>Publisher:</b> ${escapeHtml(record.publisher)}<br>`}
+    ${publisherHtml}
     <b>Source:</b> ${escapeHtml(record.provenance?.origin || 'Unknown')}<br>
-    Publisher trust not established. CRC checks transmission errors, not authorship.</div>`;
+    ${trustFooter}</div>`;
 }
 
-function saveToOfflineArchive(type, title, snippet, record = {}) {
+function saveToOfflineArchive(type, title, snippet, record = {}, options = {}) {
   try {
-    const list = readArchive();
+    let list = readArchive();
+    if (options.evictUntrustedForBulletinId) {
+      list = list.filter(item => !(item.bulletinId === options.evictUntrustedForBulletinId && item.provenance?.verification !== 'trusted_publisher'));
+    }
     list.unshift({...record, type, title, snippet, time: new Date().toISOString()});
     localStorage.setItem('tfp_transmissions', JSON.stringify(list.slice(0, 20)));
     loadOfflineArchive();
@@ -1393,6 +1735,7 @@ function loadOfflineArchive() {
   try {
     const list = readArchive();
     const wm = readWatermarks();
+    const trustedWm = readTrustedWatermarks();
     countSpan.innerText = list.length;
     if (list.length === 0) {
       feed.innerHTML = '<div class="packet-line" style="color:var(--muted)">No transmissions stored yet.</div>';
@@ -1401,17 +1744,30 @@ function loadOfflineArchive() {
     feed.innerHTML = '';
     list.forEach(item => {
       let isSuperseded = false;
+      const itemTrusted = (item.provenance?.verification === 'trusted_publisher');
       if (item.bulletinId && item.revision != null) {
-        for (const [wmKey, wmEntry] of Object.entries(wm)) {
-          const delimIdx = wmKey.indexOf(':');
-          const wId = wmEntry.bulletinId || (delimIdx !== -1 ? wmKey.slice(delimIdx + 1) : wmKey);
-          if (wId === item.bulletinId && wmEntry.revision > item.revision) {
-            isSuperseded = true;
-            break;
+        if (itemTrusted) {
+          for (const [wmKey, wmEntry] of Object.entries(trustedWm)) {
+            const { wId } = parseWatermarkKey(wmKey, wmEntry);
+            if (wId === item.bulletinId && wmEntry.revision > item.revision) {
+              isSuperseded = true;
+              break;
+            }
           }
-        }
-        if (!isSuperseded && list.some(other => other.bulletinId === item.bulletinId && other.revision > item.revision)) {
-          isSuperseded = true;
+          if (!isSuperseded && list.some(other => other.bulletinId === item.bulletinId && other.provenance?.verification === 'trusted_publisher' && other.revision > item.revision)) {
+            isSuperseded = true;
+          }
+        } else {
+          for (const [wmKey, wmEntry] of Object.entries(wm)) {
+            const { wId } = parseWatermarkKey(wmKey, wmEntry);
+            if (wId === item.bulletinId && (wmEntry.trusted || wmEntry.revision > item.revision)) {
+              isSuperseded = true;
+              break;
+            }
+          }
+          if (!isSuperseded && list.some(other => other.bulletinId === item.bulletinId && (other.provenance?.verification === 'trusted_publisher' || other.revision > item.revision))) {
+            isSuperseded = true;
+          }
         }
       }
 
@@ -1440,6 +1796,7 @@ function loadOfflineArchive() {
 function clearArchive() {
   localStorage.removeItem('tfp_transmissions');
   seenPacketHashes.clear();
+  activeDisplayedRecord = null;
   const area = document.getElementById('contentArea');
   if (area) {
     area.innerHTML = '<div class="empty-state">Start listening near a speaker playing a TFP 1200 baud text bulletin, or open its WAV file. Reception depends on your audio equipment and environment.</div>';
