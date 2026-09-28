@@ -24,11 +24,11 @@ The Foundation Protocol (TFP) strictly separates two operational scenarios for s
 
 Rather than claiming "works on any phone," this baseline targets the following explicit browser and OS combinations:
 
-| Target Class | Operating System | Supported Browser | Required Web APIs | Notes |
+| Target Class | Operating System | Browser to validate | Required Web APIs | Notes |
 |---|---|---|---|---|
-| **Primary Mobile Target A** | Android 11+ | Chrome 113+ / Edge 113+ / Firefox 115+ | `SecureContext`, `ServiceWorker`, `MediaDevices.getUserMedia`, `AudioContext` (`AudioWorklet`), `localStorage`, `SubtleCrypto` | Native `SubtleCrypto` Ed25519 supported in Chrome 113+ / Firefox 129+; deterministic JS Ed25519 + SHA3-256 verifier ensures parity across all listed versions. |
-| **Primary Mobile Target B** | iOS / iPadOS 16.4+ | Safari 16.4+ (WebKit) | `SecureContext`, `ServiceWorker`, `MediaDevices.getUserMedia`, `AudioContext` (`AudioWorklet`), `localStorage`, `SubtleCrypto` | Requires explicit user tap to start/resume `AudioContext` after page load or background interruption; aggressive aggressive ITP storage eviction rules apply if unused $>7$ days unless added to Home Screen (PWA). |
-| **Desktop / Operator Reference** | Windows 10/11, macOS 13+, Linux (Raspberry Pi OS Bookworm) | Chromium / Chrome 113+, Firefox 115+, Safari 16.4+ | Same as above | Used for broadcaster verification, loopback testing, and local `http://127.0.0.1:8080` testing. |
+| **Primary Mobile Target A** | Android 11+ | Chrome 113+ / Edge 113+ / Firefox 115+ | `SecureContext`, `ServiceWorker`, `MediaDevices.getUserMedia`, `AudioContext` (`AudioWorklet`), `localStorage` | Candidate targets; live reception and offline persistence need tests on physical devices. Locally bundled noble cryptography works without native Ed25519 support. |
+| **Primary Mobile Target B** | iOS / iPadOS 16.4+ | Safari 16.4+ (WebKit) | Same as above | Candidate target requiring physical-device validation, including audio interruption and storage persistence. User gesture is required to start/resume audio capture. |
+| **Desktop / Operator Reference** | Windows 10/11, macOS 13+, Linux (Raspberry Pi OS Bookworm) | Chromium / Chrome 113+, Firefox 115+, Safari 16.4+ | Same as above | Automated browser integration currently covers Chromium; the other combinations remain untested. |
 
 ---
 
@@ -38,8 +38,8 @@ Rather than claiming "works on any phone," this baseline targets the following e
 - **While Connectivity Exists (Pre-Outage):**
   1. **Production / Field Preparation:** The user navigates to a HTTPS origin trusted by the phone's OS root store (e.g., `https://broadcast.example.org/acoustic_receiver.html` or an intranet HTTPS endpoint signed by an organization CA already installed in the device trust store).
   2. **Developer / USB-Tethered Preparation:** When preparing a phone directly connected to a workstation via `adb reverse tcp:8080 tcp:8080` (Android), the phone accesses `http://127.0.0.1:8080/acoustic_receiver.html` (which satisfies the phone's own `localhost` secure-context exception).
-- Upon initial load, `acoustic_receiver.html` registers `acoustic_sw.js` (Service Worker), which atomically fetches and caches a versioned manifest of required assets (`acoustic_receiver.html`, `acoustic_stream.js`, `receiver_config.json`).
-- **Readiness Confirmation:** The receiver UI displays `Offline Cache: Ready (v1)` only after the Service Worker reaches the `activated` state and confirms all assets are cached.
+- Upon initial load, `acoustic_receiver.html` registers `acoustic_sw.js` (Service Worker), which stages a complete release-specific cache of the HTML, stream engine, AudioWorklet, local cryptography bundle, and publisher configuration. A failed install removes the incomplete release; an existing tab stays with its active worker until closed.
+- **Readiness Confirmation:** The receiver UI displays the complete release ID after all required assets are cached. A server started with `--trusted-pubkey` derives a distinct release ID from the sorted provisioned key set, so a changed configuration stages a new coherent offline release. Keep the old receiver tabs closed after an online update to let the new Service Worker activate; then confirm the new release ID before disconnecting.
 
 ### 3.2 How Microphone Access Becomes Available
 - Because the application was loaded from a W3C Secure Context (`window.isSecureContext === true`), `navigator.mediaDevices.getUserMedia` is exposed by the browser.
@@ -77,13 +77,14 @@ Rather than claiming "works on any phone," this baseline targets the following e
   - Receiving a public key (`pub`) and signature (`sig`) inside an over-the-air bulletin only allows verifying that *the holder of `pub` signed the message* (`valid_signature_unknown_key`). It **never** establishes that `pub` is an authorized emergency broadcaster.
 - **Supported Provisioning Mechanisms:**
   1. **Origin Config Provisioning (`/receiver_config.json`):** During the pre-outage preparation load from the trusted HTTPS origin, the receiver fetches `/receiver_config.json` containing the broadcaster's 64-character hex Ed25519 public key(s) and persists them in `localStorage['tfp_trusted_publishers']`.
+     Configuration provisioning is additive: changing the server's key list installs the new key but does not revoke an old key already pinned on that phone. Explicitly clear old trusted keys on each phone when revocation is intended, then provision and verify the replacement key while online.
   2. **Out-of-Band Operator Pinning:** The user pastes or scans a verified 64-hex Ed25519 public key into the Receiver's **Trusted Publisher Keys** configuration panel prior to or during the outage.
 - Only bulletins signed by a key present in `tfp_trusted_publishers` achieve the **`trusted_publisher`** state and are permitted to advance authoritative trusted watermarks.
 
 ### 3.5 What Must Remain Available During the Outage
 - **Device Battery & Audio Hardware:** Functioning smartphone speaker/microphone ADC and battery.
 - **Browser Storage & Cache:**
-  - Service Worker Cache Storage (`tfp-acoustic-receiver-v1`) holding `acoustic_receiver.html`, `acoustic_stream.js`, and `receiver_config.json`.
+  - Service Worker Cache Storage (`tfp-acoustic-receiver-v2`) holding `acoustic_receiver.html`, `acoustic_stream.js`, `acoustic_worklet.js`, `vendor/tfp_crypto.js`, and `receiver_config.json`.
   - `localStorage` holding `tfp_trusted_publishers` (trusted Ed25519 public keys), `tfp_bulletin_watermarks` (replay/downgrade watermarks), and `tfp_transmissions` (received bulletin archive).
 - **Foreground Execution:** The browser tab must remain in the foreground while actively listening (mobile OSes suspend background tab microphone capture and `AudioContext` threads when the screen locks or another app takes audio focus).
 
@@ -108,10 +109,31 @@ When an unprepared phone arrives during an outage with zero internet connectivit
    - **Rule:** Do not instruct users to bypass TLS certificate warnings (`NET::ERR_CERT_AUTHORITY_INVALID`) or enable `chrome://flags/#unsafely-treat-insecure-origin-as-secure` as a production deployment procedure (moreover, Service Workers still refuse to register on untrusted self-signed certificates even if a user clicks through a warning).
 
 2. **What *Does* Work on an Unprepared Phone Over Local HTTP (Recorded WAV Import Fallback):**
-   - If a local Wi-Fi AP serves `acoustic_receiver.html` over plain HTTP (or if `acoustic_receiver.html` is shared peer-to-peer as a standalone file), `<input type="file" accept=".wav,audio/wav">` **does not require `getUserMedia` or a Secure Context**.
+   - If a local Wi-Fi AP serves the receiver assets over plain HTTP, `<input type="file" accept=".wav,audio/wav">` **does not require `getUserMedia` or a Secure Context**. Sharing only `acoustic_receiver.html` is insufficient: the browser also needs `acoustic_stream.js` and `vendor/tfp_crypto.js`.
    - A fresh phone user can record the acoustic broadcast using the phone's built-in native **Voice Recorder / Voice Memos** app (when saved as or converted to PCM WAV) and load the file into `acoustic_receiver.html` for local demodulation and signature verification.
 
 3. **Requirements for Full Live-Mic Fresh-Phone Onboarding in Outages (Future Feasibility Task):**
    - Requires either:
      - Pre-installed enterprise/community Root CA on participating devices + local DNS/mDNS resolving to the local HTTPS server, **or**
      - An offline-cached public HTTPS domain (where only DNS/IP routing is local via split-horizon DNS for a publicly valid TLS certificate held by the field appliance).
+
+## 5. Physical-device acceptance procedure (pending)
+
+Automated Chromium tests exercise a real MediaStream → AudioWorklet → decoder
+path with synthetic audio. They do not establish loudspeaker, room, radio, or
+phone-microphone performance. No physical-device result is claimed yet.
+
+For a field trial, prepare at least one Android target and one iOS target from
+the table above on a trusted HTTPS origin. Before disconnecting, pin the
+broadcaster's Ed25519 public key, verify the cache reports Ready for the current release, grant
+microphone permission, and close the browser. Disable networking **before**
+cold reopening. Record the phone model, OS/browser version, actual sample rate,
+DSP settings, cache status, key fingerprint, and whether capture starts.
+
+Broadcast a short signed bulletin from the actual laptop or Raspberry Pi
+through the intended speaker or radio. Keep the transmitted envelope, WAV,
+sound level/distance and timing, and video or logs of the receiver. Check that
+the display marks the bulletin trusted, rejects a tampered or stale replay,
+and reports packet CRC, audio drops, and revision gaps accurately. Repeat after
+a screen lock/interruption and a browser restart. Record success per device and
+distance; do not generalize from a synthetic recording or a single handset.

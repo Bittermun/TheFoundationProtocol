@@ -241,6 +241,7 @@
   </div>
 </div>
 
+<script src="vendor/tfp_crypto.js"></script>
 <script src="acoustic_stream.js"></script>
 <script>
 let audioCtx = null;
@@ -258,11 +259,12 @@ let packetCount = 0;
 let validCrcCount = 0;
 let currentArticleText = "";
 
-const OFFLINE_CACHE_VERSION = "tfp-acoustic-receiver-v1";
+const OFFLINE_CACHE_VERSION = "tfp-acoustic-receiver-v2";
 const REQUIRED_OFFLINE_ASSETS = [
   "./acoustic_receiver.html",
   "./acoustic_stream.js",
   "./acoustic_worklet.js",
+  "./vendor/tfp_crypto.js",
   "./receiver_config.json"
 ];
 
@@ -291,6 +293,7 @@ function logPacket(msg) {
   line.className = 'packet-line';
   line.innerText = `[${new Date().toLocaleTimeString()}] ${msg}`;
   feed.appendChild(line);
+  while (feed.childElementCount > 100) feed.firstElementChild.remove();
   feed.scrollTop = feed.scrollHeight;
 }
 
@@ -528,6 +531,11 @@ async function initServiceWorkerAndProvisionConfig() {
   if ('serviceWorker' in navigator) {
     try {
       const reg = await navigator.serviceWorker.register('./acoustic_sw.js');
+      // A long-lived prepared phone can otherwise keep serving its previous
+      // immutable config even after the broadcaster changes trusted keys.
+      if (navigator.onLine) {
+        try { await reg.update(); } catch (_) { /* Offline cache remains usable. */ }
+      }
       const sw = reg.installing || reg.waiting || reg.active;
       if (sw && sw.state !== 'activated') {
         await new Promise((resolve) => {
@@ -639,6 +647,9 @@ class BoundedAudioPipelineController {
     this.lastUiStallDurationMs = 0;
     this.workletStalled = false;
     this.workletStallEvents = 0;
+    this.lastWorkletDelayMs = 0;
+    this.workletAllocatedBuffers = 0;
+    this.workletInFlightBlocks = 0;
     this.shuttingDown = false;
   }
 
@@ -701,25 +712,37 @@ class BoundedAudioPipelineController {
 
   ingestWorkletMessage(msg) {
     if (this.shuttingDown || !msg) return;
-    if (msg.type === 'audio_overload') {
+    if (msg.type === 'overload_drop') {
       const prevDropped = this.workletDroppedBlocks;
-      this.workletDroppedBlocks = Math.max(this.workletDroppedBlocks + 1, msg.droppedBlocks || 0);
-      const deltaBlocks = Math.max(1, this.workletDroppedBlocks - prevDropped);
-      this.workletDroppedSamples = Math.max(
-        this.workletDroppedSamples + deltaBlocks * this.blockSize,
-        msg.droppedSamples || 0
-      );
-      this.overloadEvents++;
+      this.workletDroppedBlocks = Math.max(this.workletDroppedBlocks, msg.droppedBlocks || 0);
+      const deltaBlocks = this.workletDroppedBlocks - prevDropped;
+      this.workletDroppedSamples = typeof msg.droppedSamples === 'number'
+        ? Math.max(this.workletDroppedSamples, msg.droppedSamples)
+        : this.workletDroppedSamples + deltaBlocks * this.blockSize;
+      this.overloadEvents += deltaBlocks;
       logPacket(`[AUDIO OVERLOAD] Worklet bounded pool exhausted (droppedBlocks=${this.totalDroppedBlocks()}, maxQueueSize=${this.maxQueueSize}).`);
       return;
     }
-    if (msg.type === 'worklet_stall_injected') {
+    if (msg.type === 'worklet_processing_delay') {
       this.workletStalled = true;
       this.workletStallEvents++;
-      logPacket(`[WORKLET STALL] Worklet reported stall (${msg.missedSamples || 0} missed samples).`);
+      this.lastWorkletDelayMs = msg.delayMs;
+      logPacket(`[WORKLET DELAY] Audio processor scheduling gap ${msg.delayMs.toFixed(1)} ms; sample loss is not inferred from elapsed time alone.`);
       return;
     }
+    if (msg.type === 'sample_gap') {
+      // The next accepted audio block carries its true frameStart and resets
+      // the decoder there. A gap message is telemetry, not audio.
+      this.workletStalled = true;
+      this.workletStallEvents++;
+      return;
+    }
+    if (msg.type === 'audio_block' && msg.buffer instanceof ArrayBuffer) {
+      msg.samples = new Float32Array(msg.buffer);
+    }
     if (msg.type === 'audio_block' && msg.samples instanceof Float32Array) {
+      this.workletAllocatedBuffers = Math.max(this.workletAllocatedBuffers, msg.allocatedBuffers || 0);
+      this.workletInFlightBlocks = msg.inFlightBlocks || 0;
       if (typeof msg.droppedBlocks === 'number' && msg.droppedBlocks > this.workletDroppedBlocks) {
         this.workletDroppedBlocks = msg.droppedBlocks;
       }
@@ -729,7 +752,7 @@ class BoundedAudioPipelineController {
       this.enqueueBlock({
         seq: typeof msg.seq === 'number' ? msg.seq : this.producerSeq++,
         frameStart: typeof msg.frameStart === 'number' ? msg.frameStart : (this.producerFrameCursor += msg.samples.length) - msg.samples.length,
-        frameCount: msg.frameCount || msg.samples.length,
+        frameCount: msg.sampleCount || msg.frameCount || msg.samples.length,
         samples: msg.samples,
         isWorkletTransfer: true
       });
@@ -815,6 +838,9 @@ class BoundedAudioPipelineController {
         const missedSamples = Math.max(0, item.frameStart - this.expectedFrameStart);
         this.totalMissedSamples += missedSamples;
         logPacket(`[AUDIO GAP] Sample discontinuity detected: expected frame=${this.expectedFrameStart}, got frame=${item.frameStart} (missed ${missedSamples} samples).`);
+        if (this.decoder && typeof this.decoder.resetAfterGap === 'function') {
+          this.decoder.resetAfterGap();
+        }
       }
       this.expectedSeq = item.seq + 1;
       this.expectedFrameStart = item.frameStart + item.frameCount;
@@ -840,26 +866,6 @@ class BoundedAudioPipelineController {
       this.drainQueue();
     }
     return this.consumerBackpressure;
-  }
-
-  injectWorkletStall(missedSamples = 4096) {
-    const samples = Math.max(1, Number(missedSamples) || 4096);
-    if (this.workletPort && !this.shuttingDown) {
-      try {
-        this.workletPort.postMessage({ type: 'simulate_stall', missedSamples: samples });
-      } catch (_) {}
-    }
-    const missedBlocks = Math.max(1, Math.ceil(samples / this.blockSize));
-    this.producerSeq += missedBlocks;
-    this.producerFrameCursor += samples;
-    this.workletStalled = true;
-    this.workletStallEvents++;
-    logPacket(`[WORKLET STALL] Audio producer stalled (${samples} missed samples across ${missedBlocks} block(s)).`);
-    return {
-      workletStalled: this.workletStalled,
-      workletStallEvents: this.workletStallEvents,
-      missedSamples: samples
-    };
   }
 
   shutdown() {
@@ -910,40 +916,13 @@ class BoundedAudioPipelineController {
       lastUiStallDurationMs: this.lastUiStallDurationMs,
       workletStalled: this.workletStalled,
       workletStallEvents: this.workletStallEvents,
+      lastWorkletDelayMs: this.lastWorkletDelayMs,
+      workletAllocatedBuffers: this.workletAllocatedBuffers,
+      workletInFlightBlocks: this.workletInFlightBlocks,
       consumerBackpressure: this.consumerBackpressure
     };
   }
 }
-
-window.simulateUiStall = function(durationMs = 180) {
-  const waitMs = Math.max(10, Number(durationMs) || 180);
-  const start = performance.now();
-  if (activePipelineController && activePipelineController.lastCallbackTimestampMs === null) {
-    activePipelineController.lastCallbackTimestampMs = start;
-  }
-  while (performance.now() - start < waitMs) {
-    // Deliberate synchronous main-thread stall for contention validation
-  }
-  const elapsed = performance.now() - start;
-  if (activePipelineController) {
-    const threshold = Math.max(120, activePipelineController.expectedCallbackIntervalMs * 2.5);
-    if (elapsed >= threshold) {
-      activePipelineController.uiStallDetected = true;
-      activePipelineController.uiStallEvents++;
-      activePipelineController.lastUiStallDurationMs = elapsed;
-      if (elapsed > activePipelineController.maxCallbackIntervalMs) {
-        activePipelineController.maxCallbackIntervalMs = elapsed;
-      }
-      logPacket(`[UI STALL DETECTED] Main thread stalled synchronously for ${elapsed.toFixed(1)} ms.`);
-    }
-  }
-  return elapsed;
-};
-
-window.simulateWorkletStall = function(missedSamples = 4096) {
-  if (!activePipelineController) return null;
-  return activePipelineController.injectWorkletStall(missedSamples);
-};
 
 window.setDecoderQueueBackpressure = function(enabled) {
   if (!activePipelineController) return false;

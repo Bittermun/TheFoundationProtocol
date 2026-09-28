@@ -46,7 +46,7 @@ def test_readiness_distinguishes_all_required_states(browser_server):
     assert r0["originState"] == "secure_context"
     assert r0["microphoneApiState"] == "available"
     assert r0["offlineAssetsState"] == "offline_assets_ready"
-    assert r0["offlineCacheVersion"] == "tfp-acoustic-receiver-v1"
+    assert r0["offlineCacheVersion"] == "tfp-acoustic-receiver-v2"
     assert r0["trustedPublisherState"] == "missing_trusted_publisher"
     assert r0["permissionState"] == "permission_unresolved"
     assert r0["primaryState"] == "missing_trusted_publisher"
@@ -61,7 +61,7 @@ def test_readiness_distinguishes_all_required_states(browser_server):
 
     # 3. Partial cache corruption -> offline_assets_unavailable
     page.evaluate("""async () => {
-      const c = await caches.open('tfp-acoustic-receiver-v1');
+      const c = await caches.open('tfp-acoustic-receiver-v2');
       await c.delete('./acoustic_stream.js');
       await window.verifyOfflineAssetsCache();
     }""")
@@ -71,7 +71,7 @@ def test_readiness_distinguishes_all_required_states(browser_server):
 
     # Restore coherent cache
     page.evaluate("""async () => {
-      const c = await caches.open('tfp-acoustic-receiver-v1');
+      const c = await caches.open('tfp-acoustic-receiver-v2');
       const resp = await fetch('./acoustic_stream.js', {cache: 'no-cache'});
       await c.put('./acoustic_stream.js', resp);
       await window.verifyOfflineAssetsCache();

@@ -625,10 +625,34 @@ def main(argv: list[str] | None = None):
                 if k not in trusted_publishers:
                     trusted_publishers.append(k)
 
+        cache_version = "tfp-acoustic-receiver-v2"
+        if trusted_publishers:
+            trust_digest = hashlib.sha256(
+                "\n".join(sorted(trusted_publishers)).encode("ascii")
+            ).hexdigest()[:16]
+            cache_version += f"-{trust_digest}"
+
+        def release_asset(name: str, original: str, replacement: str) -> bytes:
+            source = (static_dir / name).read_text(encoding="utf-8")
+            if source.count(original) != 1:
+                raise RuntimeError(f"Expected exactly one release marker in {name}")
+            return source.replace(original, replacement).encode("utf-8")
+
+        worker_payload = release_asset(
+            "acoustic_sw.js",
+            'const CACHE_VERSION = "tfp-acoustic-receiver-v2";',
+            f'const CACHE_VERSION = "{cache_version}";',
+        )
+        receiver_payload = release_asset(
+            "acoustic_receiver.html",
+            'const OFFLINE_CACHE_VERSION = "tfp-acoustic-receiver-v2";',
+            f'const OFFLINE_CACHE_VERSION = "{cache_version}";',
+        )
+
         config_payload = json.dumps(
             {
                 "version": 1,
-                "cache_version": "tfp-acoustic-receiver-v1",
+                "cache_version": cache_version,
                 "deployment_mode": "prepared_phone_baseline",
                 "supported_targets": [
                     "Android 11+ (Chrome 113+, Edge 113+, Firefox 115+)",
@@ -646,16 +670,23 @@ def main(argv: list[str] | None = None):
 
             def do_GET(self):
                 clean_path = self.path.split("?", 1)[0]
-                if clean_path == "/receiver_config.json":
+                special_asset = {
+                    "/receiver_config.json": (config_payload, "application/json; charset=utf-8"),
+                    "/acoustic_sw.js": (worker_payload, "text/javascript; charset=utf-8"),
+                    "/acoustic_receiver.html": (receiver_payload, "text/html; charset=utf-8"),
+                    "/": (receiver_payload, "text/html; charset=utf-8"),
+                    "/receiver": (receiver_payload, "text/html; charset=utf-8"),
+                    "/index.html": (receiver_payload, "text/html; charset=utf-8"),
+                }.get(clean_path)
+                if special_asset is not None:
+                    body, content_type = special_asset
                     self.send_response(200)
-                    self.send_header("Content-Type", "application/json; charset=utf-8")
+                    self.send_header("Content-Type", content_type)
                     self.send_header("Cache-Control", "no-cache")
-                    self.send_header("Content-Length", str(len(config_payload)))
+                    self.send_header("Content-Length", str(len(body)))
                     self.end_headers()
-                    self.wfile.write(config_payload)
+                    self.wfile.write(body)
                     return
-                if clean_path in ("/", "/receiver", "/index.html"):
-                    self.path = "/acoustic_receiver.html"
                 return super().do_GET()
 
             def log_message(self, format, *args):

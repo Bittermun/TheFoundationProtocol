@@ -31,9 +31,10 @@ class TfpAfskCaptureProcessor extends AudioWorkletProcessor {
     this.inFlightBlocks = 0;
     this.maxInFlightBlocks = 0;
     this.processCallCount = 0;
+    this.lastProcessWallTimeMs = null;
+    this.missingInputFrames = 0;
+    this.discardedBeforeMissingInput = 0;
     this.shutdownRequested = false;
-    this.simulatedStallFrames = 0;
-    this.simulatedDropCount = 0;
 
     this.port.onmessage = (event) => {
       const msg = event.data;
@@ -43,20 +44,6 @@ class TfpAfskCaptureProcessor extends AudioWorkletProcessor {
         if (this.freePool.length < this.maxPoolBuffers && msg.buffer.byteLength === this.blockSize * 4) {
           this.freePool.push(new Float32Array(msg.buffer));
         }
-      } else if (msg.type === 'simulate_worklet_stall') {
-        // Deliberately skip/drop a specified number of frames to simulate a worklet stall/overrun
-        const stallSamples = Number(msg.samples) || (this.blockSize * 2);
-        this.simulatedStallFrames += stallSamples;
-        this.sampleGapsDetected++;
-        this.totalMissedSamples += stallSamples;
-        this.port.postMessage({
-          type: 'worklet_stall_event',
-          missedSamples: stallSamples,
-          sampleGapsDetected: this.sampleGapsDetected,
-          totalMissedSamples: this.totalMissedSamples,
-          frame: typeof currentFrame !== 'undefined' ? currentFrame : 0,
-          timeSeconds: typeof currentTime !== 'undefined' ? currentTime : 0
-        });
       } else if (msg.type === 'shutdown') {
         this.shutdownRequested = true;
         this.freePool.length = 0;
@@ -75,18 +62,47 @@ class TfpAfskCaptureProcessor extends AudioWorkletProcessor {
     return null;
   }
 
+  _reportOverload(reason) {
+    // A stalled UI can accumulate an unbounded MessagePort backlog if every
+    // 128-frame quantum emits telemetry. Counts remain cumulative and the next
+    // audio block also carries the latest values.
+    if ((this.droppedBlocks & (this.droppedBlocks - 1)) !== 0) return;
+    this.port.postMessage({
+      type: 'overload_drop', reason,
+      droppedBlocks: this.droppedBlocks,
+      droppedSamples: this.droppedSamples,
+      inFlightBlocks: this.inFlightBlocks,
+      allocatedBuffers: this.allocatedBuffers
+    });
+  }
+
   process(inputs) {
     if (this.shutdownRequested) {
       return false;
     }
     this.processCallCount++;
+    const processWallTimeMs = Date.now();
+    if (this.lastProcessWallTimeMs !== null) {
+      const delayMs = processWallTimeMs - this.lastProcessWallTimeMs;
+      if (delayMs > 120) {
+        this.port.postMessage({ type: 'worklet_processing_delay', delayMs });
+      }
+    }
+    this.lastProcessWallTimeMs = processWallTimeMs;
     const input = inputs && inputs[0] && inputs[0][0];
     const quantumLen = input ? input.length : 128;
-    const hwFrame = (typeof currentFrame !== 'undefined' ? currentFrame : this.processCallCount * quantumLen) + this.simulatedStallFrames;
+    const hwFrame = typeof currentFrame !== 'undefined' ? currentFrame : this.processCallCount * quantumLen;
     const hwTime = typeof currentTime !== 'undefined' ? currentTime : (hwFrame / sampleRate);
 
     if (this.expectedFrame !== null && hwFrame > this.expectedFrame) {
       const missed = hwFrame - this.expectedFrame;
+      const discarded = this.stagingWriteIndex;
+      if (discarded > 0) {
+        this.droppedBlocks++;
+        this.droppedSamples += discarded;
+        this.stagingWriteIndex = 0;
+        this.stagingStartFrame = hwFrame;
+      }
       this.sampleGapsDetected++;
       this.totalMissedSamples += missed;
       this.port.postMessage({
@@ -94,6 +110,7 @@ class TfpAfskCaptureProcessor extends AudioWorkletProcessor {
         expectedFrame: this.expectedFrame,
         actualFrame: hwFrame,
         missedSamples: missed,
+        discardedSamples: discarded,
         sampleGapsDetected: this.sampleGapsDetected,
         totalMissedSamples: this.totalMissedSamples
       });
@@ -101,7 +118,32 @@ class TfpAfskCaptureProcessor extends AudioWorkletProcessor {
     this.expectedFrame = hwFrame + quantumLen;
 
     if (!input || input.length === 0) {
+      if (this.stagingWriteIndex > 0) {
+        this.discardedBeforeMissingInput += this.stagingWriteIndex;
+        this.droppedBlocks++;
+        this.droppedSamples += this.stagingWriteIndex;
+        this.stagingWriteIndex = 0;
+      }
+      this.missingInputFrames += quantumLen;
       return true;
+    }
+
+    if (this.missingInputFrames > 0) {
+      const missed = this.missingInputFrames;
+      this.missingInputFrames = 0;
+      this.sampleGapsDetected++;
+      this.totalMissedSamples += missed;
+      this.stagingStartFrame = hwFrame;
+      this.port.postMessage({
+        type: 'sample_gap',
+        expectedFrame: hwFrame - missed,
+        actualFrame: hwFrame,
+        missedSamples: missed,
+        discardedSamples: this.discardedBeforeMissingInput,
+        sampleGapsDetected: this.sampleGapsDetected,
+        totalMissedSamples: this.totalMissedSamples
+      });
+      this.discardedBeforeMissingInput = 0;
     }
 
     let readOffset = 0;
@@ -117,14 +159,7 @@ class TfpAfskCaptureProcessor extends AudioWorkletProcessor {
           this.droppedSamples += dropped;
           this.sampleGapsDetected++;
           this.totalMissedSamples += dropped;
-          this.port.postMessage({
-            type: 'overload_drop',
-            reason: 'buffer_pool_exhausted',
-            droppedBlocks: this.droppedBlocks,
-            droppedSamples: this.droppedSamples,
-            inFlightBlocks: this.inFlightBlocks,
-            allocatedBuffers: this.allocatedBuffers
-          });
+          this._reportOverload('buffer_pool_exhausted');
           break;
         }
       }
@@ -147,14 +182,7 @@ class TfpAfskCaptureProcessor extends AudioWorkletProcessor {
           this.sampleGapsDetected++;
           this.totalMissedSamples += this.blockSize;
           this.stagingWriteIndex = 0;
-          this.port.postMessage({
-            type: 'overload_drop',
-            reason: 'max_queue_exceeded',
-            droppedBlocks: this.droppedBlocks,
-            droppedSamples: this.droppedSamples,
-            inFlightBlocks: this.inFlightBlocks,
-            allocatedBuffers: this.allocatedBuffers
-          });
+          this._reportOverload('max_queue_exceeded');
         } else {
           const outBuf = this.stagingBuffer;
           const seqNum = this.seq++;
