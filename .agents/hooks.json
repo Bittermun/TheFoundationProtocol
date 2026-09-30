@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .agents/hooks/stop_py_gate.mjs",
+            "timeout": 25
+          }
+        ]
+      }
+    ]
+  }
+}

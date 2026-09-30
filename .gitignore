@@ -23,7 +23,12 @@ ENV/
 .dist_verify/
 .playwright-mcp/
 output/playwright/
-.agents/
+.agents/*
+!.agents/hooks.json
+!.agents/hooks/
+!.agents/hooks/**
+!.agents/skills/
+!.agents/skills/**
 .coverage
 htmlcov/
 *.pytest_results.xml
