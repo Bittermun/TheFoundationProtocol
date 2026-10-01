@@ -196,6 +196,17 @@ def main(argv: list[str] | None = None):
     lora_rx_p.add_argument("--session-id", type=int, default=101, help="Session identifier (default: 101)")
     lora_rx_p.add_argument("--timeout", type=float, default=60.0, help="Timeout in seconds (default: 60.0)")
 
+    # ZIM Delta Sync
+    zim_delta_p = subparsers.add_parser("zim-delta", help="Compute FastCDC differential patch between two ZIM archives")
+    zim_delta_p.add_argument("base_path", help="Path to base ZIM archive")
+    zim_delta_p.add_argument("target_path", help="Path to target (updated) ZIM archive")
+    zim_delta_p.add_argument("--out", default="patch.tfp", help="Output patch file path (default: patch.tfp)")
+
+    zim_apply_p = subparsers.add_parser("zim-apply", help="Apply FastCDC differential patch to base ZIM archive")
+    zim_apply_p.add_argument("base_path", help="Path to base ZIM archive")
+    zim_apply_p.add_argument("patch_path", help="Path to differential patch file")
+    zim_apply_p.add_argument("--out", required=True, help="Output reconstructed ZIM file path")
+
     # Verify
     subparsers.add_parser("verify", help="Run automated self-verification test battery")
 
@@ -957,6 +968,41 @@ def main(argv: list[str] | None = None):
         except Exception as exc:
             print(f"Error listening on Meshtastic port '{args.port}': {exc}", file=sys.stderr)
             sys.exit(1)
+
+    elif args.command == "zim-delta":
+        from tfp_core_v4.zim_sync import ZimDeltaEngine
+
+        engine = ZimDeltaEngine()
+        print(f"[TFP ZIM] Computing FastCDC delta: '{args.base_path}' -> '{args.target_path}'...")
+        manifest = engine.create_patch(
+            base_path=args.base_path,
+            target_path=args.target_path,
+            patch_out=args.out,
+        )
+        patch_size = Path(args.out).stat().st_size
+        savings = (1.0 - (patch_size / max(1, manifest.target_size))) * 100.0
+        print("=" * 60)
+        print("  [TFP] ZIM Differential Patch Created Successfully")
+        print("=" * 60)
+        print(f"  Target File Size  : {manifest.target_size:,} bytes")
+        print(f"  Novel Chunks      : {manifest.novel_chunk_count} chunks")
+        print(f"  Patch File Size   : {patch_size:,} bytes")
+        print(f"  Bandwidth Savings : {savings:.1f}%")
+        print(f"  Saved To          : {args.out}")
+        print("=" * 60)
+
+    elif args.command == "zim-apply":
+        from tfp_core_v4.zim_sync import ZimDeltaEngine
+
+        engine = ZimDeltaEngine()
+        print(f"[TFP ZIM] Applying patch '{args.patch_path}' to '{args.base_path}'...")
+        engine.apply_patch(
+            base_path=args.base_path,
+            patch_path=args.patch_path,
+            out_path=args.out,
+        )
+        out_size = Path(args.out).stat().st_size
+        print(f"[TFP ZIM] Reconstructed bit-exact ZIM archive ({out_size:,} bytes) -> '{args.out}'.")
 
 
 if __name__ == "__main__":
