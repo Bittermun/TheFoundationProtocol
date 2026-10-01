@@ -29,7 +29,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: pip-quick-${{ runner.os }}-3.11-${{ hashFiles('tfp-foundation-protocol/pyproject.toml', 'tfp-foundation-protocol/.pre-commit-config.yaml') }}
+          key: pip-quick-${{ runner.os }}-3.11-${{ hashFiles('pyproject.toml', 'requirements.txt', 'ruff.toml') }}
           restore-keys: |
             pip-quick-${{ runner.os }}-3.11-
             pip-quick-${{ runner.os }}-
@@ -61,7 +61,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: pip-security-${{ runner.os }}-3.11-${{ hashFiles('tfp-foundation-protocol/pyproject.toml', 'tfp-foundation-protocol/.pre-commit-config.yaml') }}
+          key: pip-security-${{ runner.os }}-3.11-${{ hashFiles('pyproject.toml', 'requirements.txt', 'ruff.toml') }}
           restore-keys: |
             pip-security-${{ runner.os }}-3.11-
             pip-security-${{ runner.os }}-

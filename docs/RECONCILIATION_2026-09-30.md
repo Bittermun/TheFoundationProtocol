@@ -12,7 +12,7 @@
 - `fix/test-failures-ci-cleanup` contains two patches already represented in main. Re-merging it would conflict with newer files without adding a justified fix.
 - `postgresdev` changes header extraction and reduces publish text limits. Current handlers already use optional headers with explicit validation/error handling. The old 20,000-character limit would change the current 10 MB contract; that change is not adopted without a present requirement.
 - `reactapp`, `copilot/update-react-app-production`, and `ci-opensource-readiness` are ancestors of main and need no integration.
-- Dependency proposals are separate maintenance work; old dependency branches are not evidence that their versions fit the current package manifests.
+- The eight old dependency proposals target an obsolete nested v3 package. Retire that duplicate `pyproject.toml`, align the standalone-demo runtime list with the root, and move Dependabot/cache keys to the canonical root v4 manifests. Archive the old proposals instead of merging their stale pins. New dependency proposals must be assessed against the root package.
 
 Recoverable original branch refs are retained locally under `refs/codex-backup/2026-09-30/`. Existing clean historical worktrees may be parked on archived branch names after integration. No recordings or datasets are deleted by this reconciliation.
 
