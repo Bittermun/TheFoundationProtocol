@@ -478,7 +478,7 @@ def test_adversarial_cli_rehearsal_corrupted_output_dir_permissions(tmp_path: Pa
     Adversarial Challenge 6:
     Execute rehearsal script when output directory cannot be created or written to.
     Sub-case A: output-dir is an existing regular file.
-    Sub-case B: output-dir is on an invalid / unwritable drive path.
+    Sub-case B: output-dir has a regular file as a parent directory.
     Assert:
     - Exit code is 1 (non-zero failure).
     - Traceback or error details are written to stderr.
@@ -511,16 +511,17 @@ def test_adversarial_cli_rehearsal_corrupted_output_dir_permissions(tmp_path: Pa
     assert "FileExistsError" in proc_file_json.stderr or "Error" in proc_file_json.stderr
     assert proc_file_json.stdout.strip() == ""
 
-    # Sub-case B: output-dir on non-existent / illegal device
-    proc_bad_drive = subprocess.run(
-        [sys.executable, str(script_path), "--output-dir", "Z:\\tfp_bad_drive_test\\out"],
+    # Sub-case B: a regular-file ancestor cannot become a directory on any OS.
+    nested_output = regular_file / "nested" / "out"
+    proc_bad_parent = subprocess.run(
+        [sys.executable, str(script_path), "--output-dir", str(nested_output)],
         capture_output=True,
         text=True,
         check=False,
     )
-    assert proc_bad_drive.returncode == 1
-    assert len(proc_bad_drive.stderr) > 0
-    assert "RESULT: SUCCESS" not in proc_bad_drive.stdout
+    assert proc_bad_parent.returncode == 1
+    assert len(proc_bad_parent.stderr) > 0
+    assert "RESULT: SUCCESS" not in proc_bad_parent.stdout
 
 
 def test_adversarial_cli_core_bulletin_prepare_and_import(tmp_path: Path):

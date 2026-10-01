@@ -44,7 +44,9 @@ jobs:
         env:
           TFP_DB_PATH: ":memory:"
         run: |
-          python -m pytest -q --tb=short --cov=tfp_demo --cov=tfp_client --cov-report=xml
+          python -m pytest -q --tb=short -m "not benchmark" --cov=tfp_demo --cov=tfp_client --cov-report=xml
+          # Measure performance without coverage tracing overhead.
+          python -m pytest -q --tb=short -m benchmark --no-cov
           python demo_30sec.py --json
 
       - name: Build package
