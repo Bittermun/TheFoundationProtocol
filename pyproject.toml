@@ -133,7 +133,7 @@ markers = [
 ]
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 # Generated wheel copies duplicate source modules; never type-check build output.
 exclude = ['(^|[/\\])build[/\\]']
 warn_return_any = false

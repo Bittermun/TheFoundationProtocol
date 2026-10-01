@@ -18,6 +18,8 @@ import time
 import typing
 from dataclasses import dataclass
 
+from tfp_core_v4.fountain import FountainDecoder, FountainDroplet
+
 # SLIP (Serial Line Internet Protocol) Protocol Constants (RFC 1055)
 SLIP_END = 0xC0
 SLIP_ESC = 0xDB

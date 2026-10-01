@@ -5,6 +5,8 @@
 Unit and integration tests for Meshtastic LoRa Bridge and SLIP Framing.
 """
 
+import asyncio
+
 import pytest
 
 from tfp_transport.meshtastic_bridge import (
@@ -95,12 +97,6 @@ def test_airtime_calculation_and_pacing():
 @pytest.mark.asyncio
 async def test_lora_simulated_serial_stream_reconstruction():
     """Verify end-to-end fountain stream broadcast and reconstruction over serial frames."""
-    import asyncio
-    from tfp_transport.meshtastic_bridge import (
-        MeshtasticBroadcaster,
-        MeshtasticListener,
-    )
-
     source_data = b"CIVIL DEFENSE WATER PURIFICATION TRIAGE BULLETIN." * 8  # ~400 bytes
     queue: asyncio.Queue[bytes] = asyncio.Queue()
 
