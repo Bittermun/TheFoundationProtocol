@@ -21,6 +21,7 @@ ENV/
 .pytest_cache/
 .hypothesis/
 .dist_verify/
+.superpowers/
 .playwright-mcp/
 output/playwright/
 .agents/*
