@@ -2,19 +2,32 @@
 // Coherent, atomically versioned offline Service Worker for TFP Acoustic Receiver.
 // Prevents partial updates from mixing incompatible HTML, demodulator JS, and config assets.
 
-const CACHE_VERSION = "tfp-acoustic-receiver-v1";
+// Bump this release id whenever any required asset changes. A published cache
+// is immutable, including configuration and bundled cryptographic code.
+const CACHE_VERSION = "tfp-acoustic-receiver-v2";
 const REQUIRED_ASSETS = [
   "./acoustic_receiver.html",
   "./acoustic_stream.js",
   "./acoustic_worklet.js",
+  "./vendor/tfp_crypto.js",
   "./receiver_config.json"
 ];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
     (async () => {
-      // Fetch all required assets first. If any single asset fails, abort install
-      // so an existing coherent cache is never partially overwritten.
+      // A browser may reinstall a worker without a release change. Never write
+      // into a published cache, even if the server now returns different bytes.
+      if (await caches.has(CACHE_VERSION)) {
+        const existing = await caches.open(CACHE_VERSION);
+        const complete = await Promise.all(REQUIRED_ASSETS.map(async asset => Boolean(await existing.match(asset))));
+        if (complete.every(Boolean)) return;
+        // A previous install can be terminated after Cache.put but before its
+        // catch handler runs. Discard only this incomplete staging release.
+        await caches.delete(CACHE_VERSION);
+      }
+      // Fetch first, then stage in a cache unique to this release. A failed put
+      // (for example quota exhaustion) must remove all partial staging bytes.
       const fetchedEntries = await Promise.all(
         REQUIRED_ASSETS.map(async (assetUrl) => {
           const req = new Request(assetUrl, { cache: "no-cache" });
@@ -26,11 +39,16 @@ self.addEventListener("install", (event) => {
         })
       );
 
-      const cache = await caches.open(CACHE_VERSION);
-      for (const { assetUrl, resp } of fetchedEntries) {
-        await cache.put(assetUrl, resp);
+      try {
+        const cache = await caches.open(CACHE_VERSION);
+        for (const { assetUrl, resp } of fetchedEntries) {
+          await cache.put(assetUrl, resp);
+        }
+      } catch (error) {
+        await caches.delete(CACHE_VERSION);
+        throw error;
       }
-      await self.skipWaiting();
+      // Do not skipWaiting: existing pages may still lazily load their worklet.
     })()
   );
 });
@@ -47,7 +65,8 @@ self.addEventListener("activate", (event) => {
           return Promise.resolve();
         })
       );
-      await self.clients.claim();
+      // Normal activation waits for the previous worker's clients to close.
+      // Do not claim uncontrolled pages that loaded another release online.
     })()
   );
 });
@@ -73,18 +92,9 @@ self.addEventListener("fetch", (event) => {
         lookupPath = "./acoustic_stream.js";
       } else if (url.pathname.endsWith("/acoustic_worklet.js")) {
         lookupPath = "./acoustic_worklet.js";
+      } else if (url.pathname.endsWith("/vendor/tfp_crypto.js")) {
+        lookupPath = "./vendor/tfp_crypto.js";
       } else if (url.pathname.endsWith("/receiver_config.json")) {
-        // Network-first for receiver_config.json when online to pick up key provisioning,
-        // with cached fallback when offline.
-        try {
-          const fresh = await fetch(event.request);
-          if (fresh && fresh.ok) {
-            await cache.put("./receiver_config.json", fresh.clone());
-            return fresh;
-          }
-        } catch (_) {
-          // Offline fallback below
-        }
         lookupPath = "./receiver_config.json";
       }
 

@@ -116,6 +116,60 @@ def decode_in_browser(page, wire_dict: dict[str, Any]) -> dict[str, Any]:
     return {"decode": res, "decision": decision}
 
 
+@pytest.mark.parametrize("sign_bit", [0, 128])
+def test_small_order_public_key_cannot_forge_trusted_bulletin(page, sign_bit):
+    """An identity key and R=identity,S=0 must not authenticate any message.
+
+    The second encoding sets the sign bit for x=0 (noncanonical). The old
+    equation-only verifier accepted the canonical forgery as trusted.
+    """
+    identity = bytes([1] + [0] * 30 + [sign_bit]).hex()
+    page.evaluate("pub => window.configureTrustedPublisherKeys([pub])", identity)
+    wire = {"v": 2, "id": "FORGED-IDENTITY", "rev": 1,
+            "title": "Forged advisory", "body": "No private key signed this.",
+            "pub": identity, "sig": "01" + "00" * 63}
+    result = decode_in_browser(page, wire)
+    assert result["decision"]["admitted"] is False
+    assert result["decision"]["verification"] == "invalid_signature"
+    assert page.evaluate("() => localStorage.getItem('tfp_trusted_bulletin_watermarks')") in (None, "{}")
+
+
+def test_actual_admission_offline_without_native_ed25519(receiver_http_server):
+    """Cold offline reopening must use bundled crypto on the real audio admission path."""
+    browser, url = receiver_http_server
+    context = browser.new_context()
+    try:
+        # Simulate platforms lacking native Ed25519 while preserving the browser's SW.
+        context.add_init_script("""Object.defineProperty(crypto, 'subtle', {
+            value: undefined, configurable: true
+        });""")
+        pg = context.new_page()
+        pg.goto(url)
+        pg.wait_for_function("() => window.getReceiverReadiness?.().offlineAssetsState === 'offline_assets_ready'")
+        sk = Ed25519PrivateKey.generate()
+        pub = sk.public_key().public_bytes_raw().hex()
+        pg.evaluate("pub => window.configureTrustedPublisherKeys([pub])", pub)
+        pg.close()
+        context.set_offline(True)
+        pg = context.new_page()
+        pg.goto(url)
+        pg.wait_for_selector("#packetCount")
+        wire = make_signed_wire(sk, bulletin_id="OFFLINE-MAINTAINED-CRYPTO")
+        result = decode_in_browser(pg, wire)
+        assert result["decision"]["admitted"] is True
+        assert result["decision"]["verification"] == "trusted_publisher"
+        assert "VERIFIED ED25519" in pg.locator("#contentArea").inner_text()
+        forged = {**wire, "rev": 2, "body": "Tampered offline"}
+        rejected = decode_in_browser(pg, forged)
+        assert rejected["decision"]["admitted"] is False
+        pg.reload()
+        pg.wait_for_selector("#packetCount")
+        replay = decode_in_browser(pg, wire)
+        assert replay["decision"]["duplicate"] is True
+    finally:
+        context.close()
+
+
 def test_shared_vectors_valid_signed_content_and_canonical_parity(page):
     """
     Category 1: Valid signed content.

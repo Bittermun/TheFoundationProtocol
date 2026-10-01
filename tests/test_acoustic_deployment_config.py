@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 from pathlib import Path
 import socket
 import subprocess
@@ -51,7 +52,7 @@ def test_static_default_receiver_config_exists_and_is_valid():
     assert cfg_path.is_file()
     cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
     assert cfg["version"] == 1
-    assert cfg["cache_version"] == "tfp-acoustic-receiver-v1"
+    assert cfg["cache_version"] == "tfp-acoustic-receiver-v2"
     assert cfg["deployment_mode"] == "prepared_phone_baseline"
     assert isinstance(cfg["trusted_publishers"], list)
 
@@ -104,6 +105,100 @@ def test_acoustic_receiver_serves_provisioned_trusted_publishers():
         assert payload is not None, "Failed to fetch /receiver_config.json from acoustic-receiver"
         assert payload["trusted_publishers"] == [pub1, pub2]
         assert payload["deployment_mode"] == "prepared_phone_baseline"
+        expected_release = "tfp-acoustic-receiver-v2-" + hashlib.sha256(
+            "\n".join(sorted((pub1, pub2))).encode("ascii")
+        ).hexdigest()[:16]
+        assert payload["cache_version"] == expected_release
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/acoustic_sw.js") as resp:
+            worker = resp.read().decode("utf-8")
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/acoustic_receiver.html") as resp:
+            receiver = resp.read().decode("utf-8")
+        assert f'const CACHE_VERSION = "{expected_release}";' in worker
+        assert f'const OFFLINE_CACHE_VERSION = "{expected_release}";' in receiver
     finally:
         proc.terminate()
         proc.wait(timeout=5)
+
+
+def test_online_key_change_installs_coherent_release_for_offline_reopen():
+    playwright = pytest.importorskip("playwright.sync_api")
+    port = _free_port()
+    url = f"http://127.0.0.1:{port}/acoustic_receiver.html"
+    first_key, second_key = "a1" * 32, "b2" * 32
+
+    def launch(key: str) -> subprocess.Popen:
+        process = subprocess.Popen(
+            [sys.executable, "-m", "tfp_core_v4.cli", "acoustic-receiver",
+             "--host", "127.0.0.1", "--port", str(port), "--no-browser",
+             "--trusted-pubkey", key],
+            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True,
+        )
+        deadline = time.time() + 8
+        while time.time() < deadline:
+            try:
+                with urllib.request.urlopen(url, timeout=0.5):
+                    return process
+            except Exception:
+                time.sleep(0.1)
+        process.terminate()
+        process.wait(timeout=5)
+        raise AssertionError("Acoustic receiver did not start")
+
+    process = launch(first_key)
+    try:
+        with playwright.sync_playwright() as runtime:
+            browser = runtime.chromium.launch(headless=True)
+            context = browser.new_context()
+            first = context.new_page()
+            first.goto(url)
+            first.wait_for_function("key => getTrustedPublishers().includes(key)", arg=first_key)
+            first.wait_for_function("window.getReceiverReadiness && getReceiverReadiness().offlineAssetsState === 'offline_assets_ready'")
+            first.close()
+
+            process.terminate()
+            process.wait(timeout=5)
+            process = launch(second_key)
+            second_release = "tfp-acoustic-receiver-v2-" + hashlib.sha256(
+                second_key.encode("ascii")
+            ).hexdigest()[:16]
+
+            # The old worker may still serve this navigation. Its page must
+            # update the registration, and the new worker activates after it closes.
+            transition = context.new_page()
+            transition.goto(url)
+            transition.wait_for_function(
+                "expected => caches.keys().then(keys => keys.includes(expected))",
+                arg=second_release, timeout=15000,
+            )
+            transition.close()
+
+            # Closing a client allows the waiting worker to activate, but that
+            # transition is asynchronous. Retry a fresh navigation if it still
+            # sees the old immutable release; close it before the next try.
+            for _ in range(20):
+                time.sleep(0.15)
+                online = context.new_page()
+                online.goto(url)
+                online.wait_for_timeout(100)
+                if online.evaluate(
+                    "key => getTrustedPublishers().includes(key) && "
+                    "getReceiverReadiness().offlineAssetsState === 'offline_assets_ready'",
+                    second_key,
+                ):
+                    online.close()
+                    break
+                online.close()
+            else:
+                raise AssertionError("New trusted-key release did not activate")
+
+            context.set_offline(True)
+            offline = context.new_page()
+            offline.goto(url)
+            offline.wait_for_function("key => getTrustedPublishers().includes(key)", arg=second_key)
+            assert offline.evaluate("getReceiverReadiness().offlineAssetsState") == "offline_assets_ready"
+            context.close()
+            browser.close()
+    finally:
+        if process.poll() is None:
+            process.terminate()
+            process.wait(timeout=5)

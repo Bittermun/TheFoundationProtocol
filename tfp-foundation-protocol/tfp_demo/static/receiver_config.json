@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "cache_version": "tfp-acoustic-receiver-v1",
+  "cache_version": "tfp-acoustic-receiver-v2",
   "deployment_mode": "prepared_phone_baseline",
   "supported_targets": [
     "Android 11+ (Chrome 113+, Edge 113+, Firefox 115+)",
