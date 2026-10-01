@@ -348,7 +348,11 @@ class MeshtasticListener:
             _sample_soliton_degree,
         )
 
-        packet = MeshtasticFrameCodec.decode(frame)
+        try:
+            packet = MeshtasticFrameCodec.decode(frame)
+        except (ValueError, struct.error):
+            return False
+
         session_id = packet.session_id
 
         if packet.flags & FLAG_MANIFEST:
@@ -416,14 +420,17 @@ class MeshtasticListener:
         return state.reconstructed
 
 
-async def open_meshtastic_stream(endpoint: str, baud: int = 115200):
+async def open_meshtastic_stream(endpoint: str, baud: int = 115200, timeout: float = 10.0):
     """
     Open asynchronous stream to Meshtastic device over serial (COM3 / /dev/ttyUSB0)
-    or TCP (e.g. 192.168.1.50:4403).
+    or TCP (e.g. 192.168.1.50:4403). Enforces explicit network timeout.
     """
     if ":" in endpoint and not endpoint.upper().startswith("COM"):
         host, port_str = endpoint.split(":", 1)
-        return await asyncio.open_connection(host, int(port_str))
+        return await asyncio.wait_for(
+            asyncio.open_connection(host, int(port_str)),
+            timeout=timeout,
+        )
 
     try:
         import serial_asyncio

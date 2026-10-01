@@ -126,3 +126,28 @@ async def test_lora_simulated_serial_stream_reconstruction():
     assert recovered == source_data
 
 
+def test_listener_drops_corrupt_and_empty_frames_without_raising():
+    """Verify listener discards back-to-back delimiters, truncated, and corrupt frames."""
+    listener = MeshtasticListener()
+
+    # Empty frame (back-to-back SLIP_END)
+    assert listener.ingest_frame(b"\xc0\xc0") is False
+
+    # Short frame (< 10 bytes)
+    assert listener.ingest_frame(b"\xc0\x01\x02\x03\xc0") is False
+
+    # Invalid SLIP escape
+    assert listener.ingest_frame(b"\xc0\xdb\x00\xc0") is False
+
+
+@pytest.mark.asyncio
+async def test_open_meshtastic_stream_enforces_network_timeout():
+    """Verify open_meshtastic_stream raises TimeoutError when TCP host is unreachable."""
+    from tfp_transport.meshtastic_bridge import open_meshtastic_stream
+
+    # Using non-routable IP (RFC 5737 TEST-NET-1: 192.0.2.1) with short timeout
+    with pytest.raises((TimeoutError, OSError)):
+        await open_meshtastic_stream("192.0.2.1:4403", timeout=0.2)
+
+
+
