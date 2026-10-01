@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 import json
 from pathlib import Path
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from .article_packager import PackagedArticleBundle
 

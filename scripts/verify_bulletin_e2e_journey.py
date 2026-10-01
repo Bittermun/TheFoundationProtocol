@@ -109,14 +109,14 @@ def main():
         audio_duration_s = len(raw_wav_bytes) / (16000 * 2)
         payload_bytes = len(bulletin_body.encode("utf-8"))
 
-        print(f"  Artifacts verified: 5 atomic files written.")
+        print("  Artifacts verified: 5 atomic files written.")
         print(f"  Payload text size : {payload_bytes} bytes")
         print(f"  WAV audio size    : {len(raw_wav_bytes):,} bytes")
         print(f"  Audio duration    : {audio_duration_s:.2f} seconds")
         print(f"  Preparation time  : {prep_time_ms:.1f} ms")
 
         # 2. Simulate Acoustic Channel Transmission (Air gap / FM radio multipath)
-        print(f"\n[STAGE 2: TRANSMISSION PROPAGATION] Simulating realistic acoustic channel...")
+        print("\n[STAGE 2: TRANSMISSION PROPAGATION] Simulating realistic acoustic channel...")
         sim = AcousticChannelSimulator(seed=98765)
         propagated_wav_bytes = sim.impair_wav(
             raw_wav_bytes,
@@ -127,11 +127,11 @@ def main():
         )
         received_wav_file = tmp_dir / "received_radio_audio.wav"
         received_wav_file.write_bytes(propagated_wav_bytes)
-        print(f"  Propagated through multipath echo, 30 dB SNR noise, and saturation clipping.")
-        print(f"  (Note: Transmission does NOT imply reception until validated!)")
+        print("  Propagated through multipath echo, 30 dB SNR noise, and saturation clipping.")
+        print("  (Note: Transmission does NOT imply reception until validated!)")
 
         # 3. Receiver: Import and Validate
-        print(f"\n[STAGE 3: RECEPTION & VERIFICATION] Ingesting received audio into node...")
+        print("\n[STAGE 3: RECEPTION & VERIFICATION] Ingesting received audio into node...")
         t0_rx = time.perf_counter()
         import_res = run_cmd(
             [
@@ -148,7 +148,7 @@ def main():
         assert pub_hex in import_res.stdout, "Publisher ID mismatch in imported bulletin"
 
         # 4. Operator Discovery & Reading via Normal CLI
-        print(f"\n[STAGE 4: FIND & READ] Querying stored bulletins via normal CLI...")
+        print("\n[STAGE 4: FIND & READ] Querying stored bulletins via normal CLI...")
 
         # 4A. List Authoritative Bulletins
         list_res = run_cmd(["--db", str(db_path), "bulletin-list"], env=env)
@@ -175,7 +175,7 @@ def main():
         print(f"  Broadcast audio airtime: {audio_duration_s:.2f} s (@ 1200 Baud Bell 202)")
         print(f"  Demodulation & decode : {rx_time_ms:.1f} ms")
         print(f"  Signature status      : verified_ed25519 (publisher: {pub_hex[:16]}...)")
-        print(f"  Search & read status  : 100% BIT-EXACT MATCH in authoritative storage")
+        print("  Search & read status  : 100% BIT-EXACT MATCH in authoritative storage")
         print("=" * 70)
         print("  RESULT: SUCCESS (All 4 stages completed cleanly)")
 

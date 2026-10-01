@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 The Foundation Protocol Contributors
 
-from .adapter_real import Content, RealLexiconAdapter
+from .adapter_real import Content as Content, RealLexiconAdapter
 
 
 class LexiconAdapter(RealLexiconAdapter):

@@ -25,9 +25,9 @@ import struct
 import sys
 import time
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple
 
 # Ensure tfp_core_v4 is importable
 _repo_root = Path(__file__).resolve().parent.parent.parent.parent.parent
@@ -46,7 +46,6 @@ from .fountain_streamer import (
     PACKET_VERSION,
     AntiPollutionError,
     MediaDropletPacket,
-    MediaStreamError,
     deserialize_manifest_packet,
 )
 from .stream_packager import MediaManifest
@@ -185,7 +184,7 @@ class FountainStreamReceiver:
         if not self.checkpoint_dir:
             return
         now = time.time()
-        retained = []
+        retained: list[tuple[float, int, Path, MediaManifest]] = []
         for sdir in self.checkpoint_dir.iterdir():
             try:
                 if (not sdir.name.startswith("session_") or not self._plain_checkpoint_path(sdir)

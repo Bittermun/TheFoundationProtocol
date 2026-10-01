@@ -21,20 +21,14 @@ import random
 import socket
 import struct
 import sys
-from typing import Any, AsyncGenerator, Dict, Generator, Iterable, List, Optional, Tuple, Union
+from typing import Any, AsyncGenerator as AsyncGenerator, Dict as Dict, Generator, Iterable, List, Optional, Tuple as Tuple, Union
 
 # Ensure tfp_core_v4 is importable
 _repo_root = Path(__file__).resolve().parent.parent.parent.parent.parent
 if str(_repo_root) not in sys.path:
     sys.path.insert(0, str(_repo_root))
 
-from tfp_core_v4.fountain import (
-    FountainCodec,
-    FountainDroplet,
-    _sample_soliton_degree,
-    derive_repair_seed_schedule,
-    verify_droplet_seed_authenticity,
-)
+from tfp_core_v4.fountain import FountainCodec, FountainDroplet, _sample_soliton_degree, derive_repair_seed_schedule as derive_repair_seed_schedule, verify_droplet_seed_authenticity as verify_droplet_seed_authenticity
 try:
     from tfp_core_v4.wirehair_bridge import AcceleratedFountainCodec
 except ImportError:

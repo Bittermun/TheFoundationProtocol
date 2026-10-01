@@ -13,7 +13,7 @@ from dataclasses import dataclass
 import io
 import struct
 import time
-from typing import Optional, Tuple
+from typing import Optional
 import wave
 
 from .afsk_modulator import crc16_ccitt

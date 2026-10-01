@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 The Foundation Protocol Contributors
+
 """Tests for real ZKP using SECP256K1 elliptic curves."""
 import hashlib
 import pytest

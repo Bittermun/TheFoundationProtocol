@@ -16,7 +16,7 @@ import json
 from pathlib import Path
 import re
 import sys
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Union
 
 # Ensure tfp roots are available
 _repo_root = Path(__file__).resolve().parent.parent.parent.parent.parent
@@ -27,7 +27,7 @@ _tfp_root = _repo_root / "tfp-foundation-protocol"
 if str(_tfp_root) not in sys.path:
     sys.path.insert(0, str(_tfp_root))
 
-from tfp_client.lib.lexicon.adapter_real import RealLexiconAdapter, Content
+from tfp_client.lib.lexicon.adapter_real import RealLexiconAdapter
 
 
 @dataclass

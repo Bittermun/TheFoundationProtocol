@@ -16,7 +16,7 @@ Write-Host "=== Running Agent Quality & Safety Gate ===" -ForegroundColor Cyan
 
 # 1. Whole-Repo Ruff Check (aligns with repository style rules and excludes unmigrated mockup trees)
 Write-Host "`n[1/4] Running Ruff..." -ForegroundColor Yellow
-& $venvPython -m ruff check --select E4,E7,E9,F --ignore E731 --exclude "build,dist,.dist_verify,tfp_ui,tfp_testbed,tfp_simulator" .
+& $venvPython -m ruff check .
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Ruff check failed."
 }

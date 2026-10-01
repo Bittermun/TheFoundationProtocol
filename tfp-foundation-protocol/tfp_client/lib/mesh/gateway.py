@@ -10,12 +10,10 @@ maintaining an LRU content cache and serving reconstructed chunks to mobile edge
 
 from __future__ import annotations
 
-import asyncio
-import hashlib
 import logging
 from pathlib import Path
 import sys
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional
 
 _repo_root = Path(__file__).resolve().parent.parent.parent.parent.parent
 if str(_repo_root) not in sys.path:
@@ -25,7 +23,6 @@ _tfp_root = _repo_root / "tfp-foundation-protocol"
 if str(_tfp_root) not in sys.path:
     sys.path.insert(0, str(_tfp_root))
 
-from tfp_core_v4.cdc import ChunkRecipe
 from tfp_core_v4.fountain import FountainDroplet
 from tfp_core_v4.mesh import MeshPeer
 from tfp_client.lib.cache.content_cache import ContentCache

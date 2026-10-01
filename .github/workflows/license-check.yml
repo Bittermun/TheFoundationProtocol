@@ -36,7 +36,7 @@ jobs:
               echo "❌ Missing license header: $file"
               MISSING=$((MISSING + 1))
             fi
-          done < <(find . -name "*.py" -type f ! -path "./.git/*" ! -path "./__pycache__/*" ! -path "./.venv/*" -print0)
+          done < <(git ls-files -z -- "*.py")
 
           echo ""
           echo "Checked $CHECKED Python files"

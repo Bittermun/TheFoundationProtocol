@@ -14,11 +14,9 @@ pure-Python vectorized GF(2) engine.
 from __future__ import annotations
 
 import argparse
-import os
 from pathlib import Path
 import platform
 import shutil
-import subprocess
 import sys
 
 _repo_root = Path(__file__).resolve().parent.parent
@@ -41,7 +39,7 @@ def check_compiler() -> tuple[str | None, list[str]]:
 def main():
     parser = argparse.ArgumentParser(description="Build and verify Wirehair native SIMD library")
     parser.add_argument("--check-only", action="store_true", help="Check availability without attempting build")
-    args = parser.parse_args()
+    parser.parse_args()
 
     print("=" * 60)
     print("  TFP Native SIMD Acceleration Diagnostics (Wirehair)")

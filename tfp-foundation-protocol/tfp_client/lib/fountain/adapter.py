@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 The Foundation Protocol Contributors
 
-from typing import List, Optional
+from typing import List as List, Optional as Optional
 from .raptorq_ffi import RealRaptorQAdapter
 
 

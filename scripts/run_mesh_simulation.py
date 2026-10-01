@@ -14,10 +14,8 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
-import os
 from pathlib import Path
 import sys
-import time
 
 _repo_root = Path(__file__).resolve().parent.parent
 if str(_repo_root) not in sys.path:
@@ -29,7 +27,7 @@ if str(_tfp_root) not in sys.path:
 
 from tfp_core_v4.cdc import ContentDefinedChunker
 from tfp_core_v4.fountain import FountainCodec
-from tfp_core_v4.mesh import MeshPeer, SwarmNetwork
+from tfp_core_v4.mesh import SwarmNetwork
 from tfp_client.lib.mesh.gateway import MeshGatewayNode
 from tfp_client.lib.mesh.peer_sync import PeerSyncManager
 

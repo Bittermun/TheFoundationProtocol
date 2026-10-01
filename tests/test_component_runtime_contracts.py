@@ -1,3 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 The Foundation Protocol Contributors
+
 """Regression coverage for runtime defects exposed by source type checking."""
 
 import asyncio

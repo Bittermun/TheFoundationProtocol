@@ -17,6 +17,7 @@ Tests cover:
 
 import time
 import unittest
+from unittest.mock import patch
 
 from tfp_core.security.mutualistic_defense import (
     AuditorProfile,
@@ -272,23 +273,20 @@ class TestMutualisticAuditor(unittest.TestCase):
 
     def test_randomized_sampling_low_volume(self):
         """Low-volume content sampled at 3% rate."""
-        # Run multiple times to check sampling rate
+        # Exhaust the uniform sampler's 100 possible outcomes rather than
+        # requiring a finite random run to land near its expected frequency.
         audited_count = 0
-        total_runs = 1000
-
-        for _ in range(total_runs):
-            result = self.auditor.audit_content(
-                content_hash=f"obscure_{_}",
-                content_data=b"test_data",
-                category="video",
-                request_count=50,  # < 100 threshold
-            )
-            if result["status"] != "skipped":
-                audited_count += 1
-
-        # Should be approximately 3%
-        sample_rate = audited_count / total_runs
-        self.assertAlmostEqual(sample_rate, 0.03, delta=0.02)
+        with patch("tfp_core.security.mutualistic_defense.secrets.randbelow", side_effect=range(100)):
+            for draw in range(100):
+                result = self.auditor.audit_content(
+                    content_hash=f"obscure_{draw}",
+                    content_data=b"test_data",
+                    category="video",
+                    request_count=50,
+                )
+                if result["status"] != "skipped":
+                    audited_count += 1
+        self.assertEqual(audited_count, 3)
 
     def test_cooldown_instead_of_slashing(self):
         """False positives trigger cooldown, not credit destruction."""
@@ -451,7 +449,7 @@ class TestEdgeCases(unittest.TestCase):
         self.assertFalse(profile.is_on_cooldown())
 
     def test_low_volume_malware_detection(self):
-        """Randomized sampling catches malware even with <100 requests."""
+        """Sampled low-volume malware is detected; unsampled content is skipped."""
         auditor = MutualisticAuditor(device_id="test")
 
         # Add heuristic rule for malware pattern
@@ -471,28 +469,34 @@ class TestEdgeCases(unittest.TestCase):
         )
         data = f"{pack.version}:{str(pack.rules)}".encode()
         pack.signature = hmac.new(b"key", data, hashlib.sha3_256).hexdigest()
-        auditor.update_heuristic_pack(pack, b"key")
+        self.assertTrue(auditor.update_heuristic_pack(pack, b"key"))
 
         # Malicious content with low requests
         malware_data = (
             b"normal_video_header" + b"\xde\xad\xbe\xef\xca\xfe" + b"rest_of_video"
         )
 
-        detected = False
-        # Run multiple times to catch via random sampling
-        for _ in range(100):
-            result = auditor.audit_content(
-                content_hash="stealth_malware",
-                content_data=malware_data,
-                category="video",
-                request_count=50,  # Below threshold
-            )
-            if result.get("heuristic_match"):
-                detected = True
-                break
+        # A 3% sampling policy has a 0.97**100 chance of skipping all
+        # 100 attempts. Test the actual boundary and detection contract.
+        for draw in (0, 2, 3, 99):
+            with self.subTest(draw=draw), patch(
+                "tfp_core.security.mutualistic_defense.secrets.randbelow", return_value=draw
+            ):
+                content_hash = f"stealth_malware_{draw}"
+                result = auditor.audit_content(
+                    content_hash=content_hash,
+                    content_data=malware_data,
+                    category="video",
+                    request_count=50,
+                )
+                if draw < 3:
+                    self.assertEqual(result["status"], "audited")
+                    self.assertIn("1.0.0:malware_sig", result["heuristic_match"])
+                    self.assertEqual(auditor.active_tags[content_hash].tag_type, "malware")
+                else:
+                    self.assertEqual(result["status"], "skipped")
+                    self.assertNotIn(content_hash, auditor.active_tags)
 
-        # Should eventually detect via random sampling
-        self.assertTrue(detected)
 
 
 if __name__ == "__main__":

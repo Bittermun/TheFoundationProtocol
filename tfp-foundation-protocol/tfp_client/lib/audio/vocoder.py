@@ -13,7 +13,6 @@ transmissible in under 12 seconds over analog walkie-talkies and Bell 202 audio 
 """
 
 import math
-import struct
 from typing import List, Tuple
 import numpy as np
 
@@ -87,7 +86,7 @@ class VocoderCodec:
         payload = vocoder_bytes[len(VOCODER_MAGIC) :]
         n_frames = len(payload) // BYTES_PER_FRAME
 
-        out_samples = []
+        out_samples: List[np.float32] = []
         phase = 0.0
         prev_tail = np.zeros(16, dtype=np.float32)
 

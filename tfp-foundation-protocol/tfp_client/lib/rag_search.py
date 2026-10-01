@@ -7,7 +7,7 @@ Powered by BM25 lexical ranking and MinHash LSH semantic retrieval.
 
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
-from .search.hybrid_search import HybridSearchEngine, HybridSearchResult
+from .search.hybrid_search import HybridSearchEngine, HybridSearchResult as HybridSearchResult
 
 
 @dataclass

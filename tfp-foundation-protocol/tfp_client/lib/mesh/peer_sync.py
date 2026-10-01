@@ -10,18 +10,16 @@ minimizing wireless channel utilization by transmitting only missing droplets.
 
 from __future__ import annotations
 
-import asyncio
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 import logging
 from pathlib import Path
 import sys
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Set, Tuple
 
 _repo_root = Path(__file__).resolve().parent.parent.parent.parent.parent
 if str(_repo_root) not in sys.path:
     sys.path.insert(0, str(_repo_root))
 
-from tfp_core_v4.fountain import FountainDroplet
 from tfp_core_v4.mesh import MeshPeer
 
 log = logging.getLogger("tfp.mesh.sync")

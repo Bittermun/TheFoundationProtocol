@@ -1,4 +1,9 @@
+# Keep CI and the agent gate on the documented correctness checks.
+# These legacy mockup trees are not yet migrated to the repository lint rules.
+extend-exclude = ["build", "dist", ".dist_verify", "tfp_ui", "tfp_testbed", "tfp_simulator"]
+
 [lint]
+select = ["E4", "E7", "E9", "F"]
 # E731: lambda assignment is used as a helper pattern in some modules
 ignore = ["E731"]
 
@@ -9,3 +14,21 @@ ignore = ["E731"]
 "tests/**/*.py"    = ["F841", "E741", "F401", "E402"]
 "**/test_*.py"     = ["F841", "E741", "F401", "E402"]
 "test_*.py"        = ["F841", "E741", "F401", "E402"]
+
+# These modules must add the source checkout to sys.path before protocol imports.
+# Scope import-order exceptions to the intentional bootstrap entry points only.
+"scripts/build_wirehair.py" = ["E402"]
+"scripts/capture_audit_screenshots.py" = ["E402"]
+"scripts/run_experiment.py" = ["E402"]
+"scripts/run_mesh_simulation.py" = ["E402"]
+"scripts/verify_bulletin_e2e_journey.py" = ["E402"]
+"scripts/verify_offline_lifecycle.py" = ["E402"]
+"tfp-foundation-protocol/tfp_client/lib/media/fountain_streamer.py" = ["E402"]
+"tfp-foundation-protocol/tfp_client/lib/media/live_streamer.py" = ["E402"]
+"tfp-foundation-protocol/tfp_client/lib/media/receiver.py" = ["E402"]
+"tfp-foundation-protocol/tfp_client/lib/media/stream_packager.py" = ["E402"]
+"tfp-foundation-protocol/tfp_client/lib/media/template_engine.py" = ["E402"]
+"tfp-foundation-protocol/tfp_client/lib/mesh/gateway.py" = ["E402"]
+"tfp-foundation-protocol/tfp_client/lib/mesh/peer_sync.py" = ["E402"]
+"tfp_core_v4/audio_scholar.py" = ["E402"]
+"tfp_core_v4/visualizer_server.py" = ["E402"]

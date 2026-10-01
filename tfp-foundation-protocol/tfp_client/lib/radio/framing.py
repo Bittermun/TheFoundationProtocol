@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import struct
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Tuple
 
 
 RADIO_MAGIC = 0xF0

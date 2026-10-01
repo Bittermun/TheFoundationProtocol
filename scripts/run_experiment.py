@@ -22,19 +22,16 @@ import argparse
 import asyncio
 from datetime import datetime, timezone
 import hashlib
-import io
 import json
 import math
 from pathlib import Path
 import random
 import shutil
-import socket
 import struct
 import sys
 import tempfile
 import time
-from typing import Any, Dict, List, Optional
-import wave
+from typing import Any, Dict, List
 
 # Ensure repository roots are in sys.path
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -503,7 +500,7 @@ async def main_async(args: argparse.Namespace) -> int:
         else [args.scenario]
     )
 
-    print(f"=== The Foundation Protocol: Disposable Verification Lab ===")
+    print("=== The Foundation Protocol: Disposable Verification Lab ===")
     print(f"Started at: {datetime.now(timezone.utc).isoformat()}")
     print(f"Executing scenarios: {', '.join(scenarios_to_run)}\n")
 

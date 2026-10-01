@@ -3,11 +3,13 @@
 When modifying files in `tfp-foundation-protocol/tfp_demo/static/` (`acoustic_receiver.html`, `acoustic_stream.js`, `acoustic_worklet.js`, `acoustic_sw.js`), enforce these architectural and UI invariants:
 
 1. **Zero-Install Offline-First Field Receiver**:
-   - Must operate on low-end smartphones with zero external npm build step (pure self-contained HTML/CSS/JS + Web Audio API + Web Crypto API + Service Worker).
+   - The prepared receiver must run without an npm build step on the phone (self-contained HTML/CSS/JS, Web Audio, locally bundled cryptography, and Service Worker).
+   - Low-end phone reception is an acceptance target, not established by synthetic Chromium tests. Preserve the physical-device trial limitations in the deployment guide.
    - If you add or rename static assets, update the pre-cache asset list in `acoustic_sw.js` so offline cold-reopen continues to pass.
 
 2. **AudioWorklet & DSP Pipeline (`Phase E` Invariants)**:
-   - Keep demodulation and frame extraction inside `acoustic_worklet.js` off the main UI thread.
+   - The current worklet captures PCM off the main thread; bounded transferred buffers feed the main-thread incremental decoder. Do not describe demodulation or frame extraction as running in the worklet.
+   - Preserve returned-buffer ownership and reset partial decoder frames after real sample discontinuities.
    - Preserve pre-allocated TypedArray buffer reuse (no per-quantum GC churn in `process()`), bounded ring/message queues, and stall/drop telemetry counters.
 
 3. **Cryptographic Bulletin Trust Isolation (`Phase D` Invariants)**:

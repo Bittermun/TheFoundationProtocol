@@ -11,7 +11,7 @@ with hardware LoRa modems, Direwolf software soundcard modems, and amateur radio
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from typing import List
 
 
 # KISS Protocol Special Characters

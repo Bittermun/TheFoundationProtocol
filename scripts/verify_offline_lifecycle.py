@@ -18,13 +18,9 @@ Executes the complete developing-world knowledge transmission mission:
 from __future__ import annotations
 
 import argparse
-import hashlib
-import json
 from pathlib import Path
-import sqlite3
 import sys
 import tempfile
-import time
 
 _repo_root = Path(__file__).resolve().parent.parent
 if str(_repo_root) not in sys.path:
@@ -34,13 +30,11 @@ _tfp_root = _repo_root / "tfp-foundation-protocol"
 if str(_tfp_root) not in sys.path:
     sys.path.insert(0, str(_tfp_root))
 
-from tfp_client.lib.audio.voice_memo import VoiceMemo
-from tfp_client.lib.ingest.article_packager import ArticlePackager, PackagedArticleBundle
+from tfp_client.lib.ingest.article_packager import PackagedArticleBundle
 from tfp_client.lib.ingest.zim_exporter import ZimDirectoryExporter
 from tfp_client.lib.media.fountain_streamer import FountainStreamer
 from tfp_client.lib.media.receiver import FountainStreamReceiver
 from tfp_client.lib.media.stream_packager import MediaStreamPackager
-from tfp_core_v4.cdc import ContentDefinedChunker
 from tfp_core_v4.node import TFPNode
 
 
@@ -174,7 +168,7 @@ def run_lifecycle(db_path: Path, zim_out: Path, loss_rate: float = 0.30) -> dict
     )
     assert "[TFP SEARCH] Found" in search_proc.stdout
     assert recipe.root_hash in search_proc.stdout or "artesunate" in search_proc.stdout.lower()
-    print(f"  Production Search  : Found published article via CLI search")
+    print("  Production Search  : Found published article via CLI search")
     results["stage_6_search"] = True
 
     # ------------------------------------------------------------------

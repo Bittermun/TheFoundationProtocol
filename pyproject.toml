@@ -59,6 +59,7 @@ test = [
     "httpx>=0.28.0",
     "fakeredis>=2.2.0",
     "locust>=2.20.0",
+    "scipy>=1.11.0",
 ]
 fuzz = [
     "hypothesis>=6.100.0",

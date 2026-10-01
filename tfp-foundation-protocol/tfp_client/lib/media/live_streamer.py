@@ -228,9 +228,11 @@ class LiveTransmissionEngine:
                 )
             else:
                 receiver.ingest_packet(pkt)
-                buf = receiver._droplet_buffers.get(pkt.chunk_index, {})
-                k, _ = receiver._chunk_meta.get(pkt.chunk_index, (pkt.k, len(data)))
-                current_rank = k if pkt.chunk_index in receiver.reconstructed_chunks else min(k, len(buf))
+                chunk_key = (pkt.session_id, pkt.chunk_index)
+                buf = receiver._droplet_buffers.get(chunk_key, {})
+                k, _ = receiver._chunk_meta.get(chunk_key, (pkt.k, len(data)))
+                completed = receiver.reconstructed_chunks_by_session.get(pkt.session_id, {})
+                current_rank = k if pkt.chunk_index in completed else min(k, len(buf))
 
                 self.emit_event(
                     "droplet_recv",

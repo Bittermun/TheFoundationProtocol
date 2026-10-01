@@ -91,7 +91,7 @@ jobs:
           python-version: '3.11'
       - name: Install dependencies
         run: |
-          pip install ".[test,fuzz]"
+          pip install ".[test,fuzz,browser]"
           pip install prometheus_client pytest-xdist
       - name: Run concurrency tests
         run: |

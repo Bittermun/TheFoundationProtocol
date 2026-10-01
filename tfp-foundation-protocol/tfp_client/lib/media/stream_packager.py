@@ -16,15 +16,15 @@ import hmac
 import json
 from pathlib import Path
 import sys
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 # Ensure tfp_core_v4 is importable
 _repo_root = Path(__file__).resolve().parent.parent.parent.parent.parent
 if str(_repo_root) not in sys.path:
     sys.path.insert(0, str(_repo_root))
 
-from tfp_core_v4.cdc import ChunkRecipe, ContentDefinedChunker
-from tfp_core_v4.merkle import MerkleTree, sha3_256, verify_merkle_proof
+from tfp_core_v4.cdc import ContentDefinedChunker
+from tfp_core_v4.merkle import MerkleTree, verify_merkle_proof
 
 
 @dataclass

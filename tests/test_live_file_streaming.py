@@ -83,6 +83,15 @@ class TestLiveTransmissionEngine:
         assert "matrix_pivot" in event_types
         assert "media_reconstructed" in event_types
 
+    def test_received_droplets_report_rank_before_reconstruction(self):
+        events = []
+        engine = LiveTransmissionEngine(event_callback=lambda kind, data: events.append((kind, data)))
+        engine.transmit_file_bytes(bytes(range(256)) * 8, loss_rate=0.0, pace_delay=0.0)
+        received = [data for kind, data in events if kind == "droplet_recv"]
+        assert received
+        assert received[0]["k"] > 1
+        assert received[0]["rank"] == 1
+
     def test_empty_payload_raises_error(self):
         """Verifies ValueError when passing empty bytes."""
         engine = LiveTransmissionEngine()

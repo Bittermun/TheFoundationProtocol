@@ -12,7 +12,7 @@ import hashlib
 import hmac
 import json
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Dict, Optional
 
 try:
     from cryptography.hazmat.primitives.asymmetric import ed25519

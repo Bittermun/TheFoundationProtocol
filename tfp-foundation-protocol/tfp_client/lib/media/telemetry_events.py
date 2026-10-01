@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import asyncio
 from collections import deque
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 import json
 import logging
 import queue

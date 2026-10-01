@@ -11,11 +11,9 @@ for modest edge devices without heavy neural dependencies (zero PyTorch / Chroma
 from __future__ import annotations
 
 from collections import Counter, defaultdict
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass
 import hashlib
-import json
 import math
-from pathlib import Path
 import re
 from typing import Any, Dict, List, Optional, Set, Tuple
 
@@ -120,7 +118,8 @@ class MinHashLSH:
         shingles = set()
         for i in range(len(clean) - self.shingle_size + 1):
             sh = clean[i : i + self.shingle_size]
-            sh_hash = int.from_bytes(hashlib.md5(sh.encode("utf-8")).digest()[:4], "big")
+            # MinHash similarity buckets are not cryptographic authentication.
+            sh_hash = int.from_bytes(hashlib.md5(sh.encode("utf-8"), usedforsecurity=False).digest()[:4], "big")
             shingles.add(sh_hash)
         return shingles
 

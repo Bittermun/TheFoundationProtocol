@@ -13,7 +13,7 @@ import hashlib
 import hmac
 import logging
 import time
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Callable, Dict, List, Optional, Set
 
 try:
     import httpx

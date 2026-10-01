@@ -46,6 +46,7 @@ if (-not (Test-Path "$targetAbs\Scripts\python.exe")) {
         New-Item -ItemType Directory -Force -Path $parentDir | Out-Null
     }
     & $basePython -m venv $targetAbs
+    if ($LASTEXITCODE -ne 0) { throw "Virtual environment creation failed." }
 } else {
     Write-Host "Virtual environment already exists at $targetAbs." -ForegroundColor Green
 }
@@ -54,16 +55,21 @@ $venvPython = "$targetAbs\Scripts\python.exe"
 
 Write-Host "Upgrading pip, setuptools, wheel..." -ForegroundColor Yellow
 & $venvPython -m pip install --upgrade pip setuptools wheel
+if ($LASTEXITCODE -ne 0) { throw "Packaging tool installation failed." }
 
-Write-Host "Installing production dependencies from requirements.txt..." -ForegroundColor Yellow
-& $venvPython -m pip install -r requirements.txt
-
-Write-Host "Installing testing & dev tooling..." -ForegroundColor Yellow
-& $venvPython -m pip install pytest pytest-asyncio pytest-timeout httpx fakeredis hypothesis ruff mypy bandit black build
+# Install from package metadata so CI and local agents share the same dependency contract.
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "../..")).Path
+Write-Host "Installing runtime, test, fuzz, browser and dev dependencies..." -ForegroundColor Yellow
+& $venvPython -m pip install "$repoRoot[test,fuzz,browser,dev]"
+if ($LASTEXITCODE -ne 0) { throw "Dependency installation failed." }
+& $venvPython -m playwright install chromium
+if ($LASTEXITCODE -ne 0) { throw "Chromium installation failed." }
 
 # Verify critical imports
 Write-Host "Verifying environment imports..." -ForegroundColor Yellow
-& $venvPython -c "import fastapi, pytest, ruff, mypy, bandit, httpx; print('Environment verified successfully!')"
+& $venvPython -c "import fastapi, pytest, ruff, mypy, bandit, httpx, numpy, scipy, playwright; print('Environment verified successfully!')"
+
+if ($LASTEXITCODE -ne 0) { throw "Environment import verification failed." }
 
 Write-Host "=== Agent Coding Environment is Ready ===" -ForegroundColor Green
 Write-Host "Venv Python: $venvPython"
