@@ -3021,7 +3021,7 @@ async def lifespan(_app: FastAPI):
         log.info("TFP Server ready and yielding.")
 
         # Start retry queue processor for failed background uploads
-        asyncio.create_task(_process_retry_queue())
+        _retry_task = asyncio.create_task(_process_retry_queue())
 
         yield
 

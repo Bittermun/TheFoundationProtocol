@@ -387,7 +387,10 @@ def validate_mnemonic(mnemonic: str, language: str = "english") -> bool:
     hash_digest = hashlib.sha256(entropy_bytes).digest()
     expected_cs = hash_digest[0] >> (8 - cs_bits) if cs_bits <= 8 else int.from_bytes(hash_digest[:2], "big") >> (16 - cs_bits)
 
-    return extracted_cs == expected_cs
+    return hmac.compare_digest(
+        extracted_cs.to_bytes(2, "big"),
+        expected_cs.to_bytes(2, "big"),
+    )
 
 
 def mnemonic_to_seed(mnemonic: str, passphrase: str = "") -> bytes:

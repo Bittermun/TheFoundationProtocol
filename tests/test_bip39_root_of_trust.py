@@ -277,3 +277,30 @@ class TestBIP39Tier2EdgeCases:
 
         with pytest.raises(ValueError, match="Invalid BIP-39 mnemonic phrase"):
             recover_device_identity(" ".join(["abandon"] * 24))
+
+    def test_validate_mnemonic_uses_constant_time_compare_digest_and_no_unhandled_server_tasks(self):
+        """Verify validate_mnemonic uses hmac.compare_digest and server.py tracks all asyncio.create_task calls."""
+        import ast
+        from pathlib import Path
+
+        repo_root = Path(__file__).resolve().parent.parent
+        bip39_src = (repo_root / "tfp_core" / "crypto" / "bip39.py").read_text(encoding="utf-8")
+        bip39_tree = ast.parse(bip39_src)
+
+        validate_fn = next(
+            node for node in ast.walk(bip39_tree)
+            if isinstance(node, ast.FunctionDef) and node.name == "validate_mnemonic"
+        )
+        calls = [ast.unparse(n.func) for n in ast.walk(validate_fn) if isinstance(n, ast.Call)]
+        assert "hmac.compare_digest" in calls, "validate_mnemonic must use hmac.compare_digest for checksum verification"
+
+        server_src = (repo_root / "tfp-foundation-protocol" / "tfp_demo" / "server.py").read_text(encoding="utf-8")
+        server_tree = ast.parse(server_src)
+        unhandled_tasks = [
+            node.lineno
+            for node in ast.walk(server_tree)
+            if isinstance(node, ast.Expr)
+            and isinstance(node.value, ast.Call)
+            and ast.unparse(node.value.func) == "asyncio.create_task"
+        ]
+        assert not unhandled_tasks, f"Unhandled asyncio.create_task found at server.py lines: {unhandled_tasks}"
