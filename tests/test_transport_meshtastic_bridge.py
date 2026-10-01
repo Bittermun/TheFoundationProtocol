@@ -8,7 +8,10 @@ Unit and integration tests for Meshtastic LoRa Bridge and SLIP Framing.
 import pytest
 
 from tfp_transport.meshtastic_bridge import (
+    AirtimePacer,
+    MeshtasticBroadcaster,
     MeshtasticFrameCodec,
+    MeshtasticListener,
     MeshtasticPacket,
 )
 
@@ -87,4 +90,43 @@ def test_airtime_calculation_and_pacing():
     # 100% duty cycle (1.0) means no delay
     unlimited_pacer = AirtimePacer(duty_cycle_fraction=1.0)
     assert unlimited_pacer.calculate_required_delay(airtime_ms=400.0) == 0.0
+
+
+@pytest.mark.asyncio
+async def test_lora_simulated_serial_stream_reconstruction():
+    """Verify end-to-end fountain stream broadcast and reconstruction over serial frames."""
+    import asyncio
+    from tfp_transport.meshtastic_bridge import (
+        MeshtasticBroadcaster,
+        MeshtasticListener,
+    )
+
+    source_data = b"CIVIL DEFENSE WATER PURIFICATION TRIAGE BULLETIN." * 8  # ~400 bytes
+    queue: asyncio.Queue[bytes] = asyncio.Queue()
+
+    async def mock_write(frame: bytes):
+        await queue.put(frame)
+
+    pacer = AirtimePacer(duty_cycle_fraction=1.0)  # unlimited for test speed
+    broadcaster = MeshtasticBroadcaster(
+        write_fn=mock_write,
+        symbol_size=64,
+        pacer=pacer,
+    )
+    listener = MeshtasticListener()
+
+    async def receiver_loop():
+        while not listener.is_complete(session_id=101):
+            frame = await queue.get()
+            listener.ingest_frame(frame)
+            queue.task_done()
+
+    rx_task = asyncio.create_task(receiver_loop())
+    await broadcaster.broadcast_bytes(source_data, session_id=101, redundancy=0.50)
+    await asyncio.wait_for(rx_task, timeout=5.0)
+
+    assert listener.is_complete(session_id=101)
+    recovered = listener.assemble(session_id=101)
+    assert recovered == source_data
+
 

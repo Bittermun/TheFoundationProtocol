@@ -178,6 +178,24 @@ def main(argv: list[str] | None = None):
     vm_p.add_argument("--out", default=None, help="Output file path")
     vm_p.add_argument("--callsign", default="TFP_NODE", help="Station callsign (max 8 characters)")
 
+    # Meshtastic LoRa Broadcast
+    lora_bc_p = subparsers.add_parser("lora-broadcast", help="Broadcast file over Meshtastic LoRa frames with duty-cycle pacing")
+    lora_bc_p.add_argument("file_path", help="Path to file to broadcast")
+    lora_bc_p.add_argument("--port", default="COM3", help="Serial port or TCP endpoint (default: COM3)")
+    lora_bc_p.add_argument("--baud", type=int, default=115200, help="Serial baud rate (default: 115200)")
+    lora_bc_p.add_argument("--redundancy", type=float, default=0.30, help="Fountain redundancy fraction (default: 0.30)")
+    lora_bc_p.add_argument("--duty-cycle", type=float, default=0.01, help="Duty-cycle fraction ceiling (default: 0.01)")
+    lora_bc_p.add_argument("--symbol-size", type=int, default=192, help="Symbol payload size in bytes (default: 192)")
+    lora_bc_p.add_argument("--session-id", type=int, default=101, help="Session identifier (default: 101)")
+
+    # Meshtastic LoRa Listen
+    lora_rx_p = subparsers.add_parser("lora-listen", help="Listen for Meshtastic LoRa frames and reconstruct payload")
+    lora_rx_p.add_argument("--port", default="COM3", help="Serial port or TCP endpoint (default: COM3)")
+    lora_rx_p.add_argument("--baud", type=int, default=115200, help="Serial baud rate (default: 115200)")
+    lora_rx_p.add_argument("--out", required=True, help="Output file path to save reconstructed payload")
+    lora_rx_p.add_argument("--session-id", type=int, default=101, help="Session identifier (default: 101)")
+    lora_rx_p.add_argument("--timeout", type=float, default=60.0, help="Timeout in seconds (default: 60.0)")
+
     # Verify
     subparsers.add_parser("verify", help="Run automated self-verification test battery")
 
@@ -891,6 +909,54 @@ def main(argv: list[str] | None = None):
         if recovered != sample_data:
             raise RuntimeError("Core verification failed: recovered data mismatch under simulated loss.")
         print("[TFP] Core verification: PASSED (bit-exact under loss).")
+
+    elif args.command == "lora-broadcast":
+        path = Path(args.file_path)
+        if not path.exists():
+            print(f"Error: File not found: {path}", file=sys.stderr)
+            sys.exit(1)
+        data = path.read_bytes()
+        from tfp_transport.meshtastic_bridge import run_lora_broadcast
+
+        try:
+            sent = asyncio.run(
+                run_lora_broadcast(
+                    data=data,
+                    port=args.port,
+                    baud=args.baud,
+                    redundancy=args.redundancy,
+                    duty_cycle=args.duty_cycle,
+                    symbol_size=args.symbol_size,
+                    session_id=args.session_id,
+                )
+            )
+            print(
+                f"[TFP LORA] Successfully broadcast {len(data):,} bytes ({sent} frames) to Meshtastic on '{args.port}'."
+            )
+        except Exception as exc:
+            print(f"Error broadcasting to Meshtastic on '{args.port}': {exc}", file=sys.stderr)
+            sys.exit(1)
+
+    elif args.command == "lora-listen":
+        from tfp_transport.meshtastic_bridge import run_lora_listen
+
+        try:
+            print(
+                f"[TFP LORA] Listening for session {args.session_id} on '{args.port}' (timeout={args.timeout}s)..."
+            )
+            recovered = asyncio.run(
+                run_lora_listen(
+                    out_path=args.out,
+                    port=args.port,
+                    baud=args.baud,
+                    session_id=args.session_id,
+                    timeout=args.timeout,
+                )
+            )
+            print(f"[TFP LORA] Reconstructed {len(recovered):,} bytes -> '{args.out}'.")
+        except Exception as exc:
+            print(f"Error listening on Meshtastic port '{args.port}': {exc}", file=sys.stderr)
+            sys.exit(1)
 
 
 if __name__ == "__main__":

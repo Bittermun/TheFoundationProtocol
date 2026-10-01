@@ -15,6 +15,7 @@ import asyncio
 import math
 import struct
 import time
+import typing
 from dataclasses import dataclass
 
 # SLIP (Serial Line Internet Protocol) Protocol Constants (RFC 1055)
@@ -240,4 +241,275 @@ class AirtimePacer:
             await asyncio.sleep(delay_s)
         self._last_tx_end_time = time.monotonic()
         return airtime_ms
+
+
+FLAG_DATA = 0x00
+FLAG_MANIFEST = 0x01
+
+
+@dataclass
+class _SessionState:
+    orig_len: int
+    k: int
+    symbol_size: int
+    droplets: dict[int, FountainDroplet]
+    reconstructed: bytes | None
+    decoder: FountainDecoder
+
+
+class MeshtasticBroadcaster:
+    """
+    Broadcasts files as rateless fountain packets over Meshtastic LoRa channels.
+    Interleaves periodic manifests for late-joining receivers and respects airtime pacing.
+    """
+
+    def __init__(
+        self,
+        write_fn: typing.Callable[[bytes], typing.Awaitable[None]],
+        symbol_size: int = 192,
+        pacer: AirtimePacer | None = None,
+    ):
+        self.write_fn = write_fn
+        self.symbol_size = symbol_size
+        self.pacer = pacer
+
+    async def broadcast_bytes(
+        self,
+        data: bytes,
+        session_id: int = 0,
+        redundancy: float = 0.30,
+        channel_index: int = 1,
+        hop_limit: int = 0,
+        interleave_interval: int = 10,
+    ) -> int:
+        from tfp_core_v4.fountain import FountainEncoder
+
+        encoder = FountainEncoder(symbol_size=self.symbol_size)
+        droplets, k, orig_len = encoder.encode(data, redundancy=redundancy)
+
+        manifest_payload = struct.pack("!IIH", orig_len, k, self.symbol_size)
+        manifest_frame = MeshtasticFrameCodec.encode(
+            session_id=session_id,
+            seed=0,
+            degree=0,
+            data=manifest_payload,
+            flags=FLAG_MANIFEST,
+            channel_index=channel_index,
+            hop_limit=hop_limit,
+        )
+
+        # Transmit initial manifest
+        await self.write_fn(manifest_frame)
+        if self.pacer:
+            await self.pacer.pace_packet(len(manifest_frame))
+
+        sent_count = 1
+        for i, d in enumerate(droplets):
+            # Interleave manifest periodically for late-joining receivers
+            if i > 0 and (i % interleave_interval == 0):
+                await self.write_fn(manifest_frame)
+                if self.pacer:
+                    await self.pacer.pace_packet(len(manifest_frame))
+                sent_count += 1
+
+            frame = MeshtasticFrameCodec.encode(
+                session_id=session_id,
+                seed=d.seed,
+                degree=d.degree,
+                data=d.payload,
+                flags=FLAG_DATA,
+                channel_index=channel_index,
+                hop_limit=hop_limit,
+            )
+            await self.write_fn(frame)
+            if self.pacer:
+                await self.pacer.pace_packet(len(frame))
+            sent_count += 1
+
+        return sent_count
+
+
+class MeshtasticListener:
+    """
+    Receives and reconstructs rateless fountain packets over Meshtastic frames.
+    Buffers packets until rank K is satisfied, then solves with Gaussian elimination.
+    """
+
+    def __init__(self):
+        self._sessions: dict[int, _SessionState] = {}
+
+    def ingest_frame(self, frame: bytes) -> bool:
+        import random
+        from tfp_core_v4.fountain import (
+            FountainDecoder,
+            FountainDroplet,
+            _sample_soliton_degree,
+        )
+
+        packet = MeshtasticFrameCodec.decode(frame)
+        session_id = packet.session_id
+
+        if packet.flags & FLAG_MANIFEST:
+            if len(packet.data) < 10:
+                return False
+            orig_len, k, symbol_size = struct.unpack("!IIH", packet.data[:10])
+            if session_id not in self._sessions:
+                self._sessions[session_id] = _SessionState(
+                    orig_len=orig_len,
+                    k=k,
+                    symbol_size=symbol_size,
+                    droplets={},
+                    reconstructed=None,
+                    decoder=FountainDecoder(symbol_size=symbol_size, pre_validate=False),
+                )
+            return True
+
+        # Data droplet
+        if session_id not in self._sessions:
+            return False
+
+        state = self._sessions[session_id]
+        if state.reconstructed is not None:
+            return True
+
+        seed = packet.seed
+        k = state.k
+        if seed < k:
+            indices = [seed]
+            degree = 1
+        else:
+            rng = random.Random(seed)
+            degree = _sample_soliton_degree(k, rng)
+            indices = sorted(rng.sample(range(k), degree))
+
+        droplet = FountainDroplet(
+            seed=seed,
+            degree=degree,
+            indices=indices,
+            payload=packet.data,
+        )
+        state.droplets[seed] = droplet
+
+        if len(state.droplets) >= k:
+            try:
+                recovered = state.decoder.decode(
+                    list(state.droplets.values()),
+                    k=k,
+                    orig_len=state.orig_len,
+                )
+                state.reconstructed = recovered
+                return True
+            except (ValueError, RuntimeError):
+                pass
+        return False
+
+    def is_complete(self, session_id: int) -> bool:
+        state = self._sessions.get(session_id)
+        return bool(state and state.reconstructed is not None)
+
+    def assemble(self, session_id: int) -> bytes:
+        state = self._sessions.get(session_id)
+        if not state or state.reconstructed is None:
+            raise RuntimeError(f"Session {session_id} is incomplete")
+        return state.reconstructed
+
+
+async def open_meshtastic_stream(endpoint: str, baud: int = 115200):
+    """
+    Open asynchronous stream to Meshtastic device over serial (COM3 / /dev/ttyUSB0)
+    or TCP (e.g. 192.168.1.50:4403).
+    """
+    if ":" in endpoint and not endpoint.upper().startswith("COM"):
+        host, port_str = endpoint.split(":", 1)
+        return await asyncio.open_connection(host, int(port_str))
+
+    try:
+        import serial_asyncio
+
+        return await serial_asyncio.open_serial_connection(url=endpoint, baudrate=baud)
+    except ImportError:
+        raise RuntimeError(
+            "pyserial-asyncio is required for physical serial ports: pip install pyserial-asyncio"
+        )
+
+
+async def run_lora_broadcast(
+    data: bytes,
+    port: str = "COM3",
+    baud: int = 115200,
+    redundancy: float = 0.30,
+    duty_cycle: float = 0.01,
+    symbol_size: int = 192,
+    session_id: int = 101,
+    channel_index: int = 1,
+    hop_limit: int = 0,
+) -> int:
+    """Broadcast raw bytes over Meshtastic LoRa frames with airtime duty-cycle pacing."""
+    reader, writer = await open_meshtastic_stream(port, baud=baud)
+
+    async def write_fn(frame: bytes):
+        writer.write(frame)
+        await writer.drain()
+
+    pacer = AirtimePacer(duty_cycle_fraction=duty_cycle)
+    broadcaster = MeshtasticBroadcaster(
+        write_fn=write_fn,
+        symbol_size=symbol_size,
+        pacer=pacer,
+    )
+    try:
+        return await broadcaster.broadcast_bytes(
+            data=data,
+            session_id=session_id,
+            redundancy=redundancy,
+            channel_index=channel_index,
+            hop_limit=hop_limit,
+        )
+    finally:
+        writer.close()
+        await writer.wait_closed()
+
+
+async def run_lora_listen(
+    out_path: str,
+    port: str = "COM3",
+    baud: int = 115200,
+    session_id: int = 101,
+    timeout: float = 60.0,
+) -> bytes:
+    """Listen on Meshtastic frames and reconstruct payload into out_path."""
+    from pathlib import Path
+
+    reader, writer = await open_meshtastic_stream(port, baud=baud)
+    listener = MeshtasticListener()
+    try:
+        start_time = time.monotonic()
+        buffer = bytearray()
+        while time.monotonic() - start_time < timeout:
+            chunk = await asyncio.wait_for(
+                reader.read(512),
+                timeout=max(0.1, timeout - (time.monotonic() - start_time)),
+            )
+            if not chunk:
+                await asyncio.sleep(0.05)
+                continue
+            buffer.extend(chunk)
+            while SLIP_END in buffer:
+                idx = buffer.index(SLIP_END)
+                next_idx = buffer.find(SLIP_END, idx + 1)
+                if next_idx == -1:
+                    break
+                frame = bytes(buffer[idx : next_idx + 1])
+                del buffer[: next_idx + 1]
+                listener.ingest_frame(frame)
+                if listener.is_complete(session_id):
+                    recovered = listener.assemble(session_id)
+                    Path(out_path).write_bytes(recovered)
+                    return recovered
+        raise TimeoutError(f"Timed out waiting for session {session_id} reconstruction.")
+    finally:
+        writer.close()
+        await writer.wait_closed()
+
+
 
