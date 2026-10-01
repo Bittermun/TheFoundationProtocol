@@ -65,3 +65,26 @@ def test_meshtastic_frame_corrupt_or_truncated():
     corrupt_frame = MeshtasticFrameCodec.slip_pack(b"\x01\x02\x03")
     with pytest.raises(ValueError, match="Frame too short"):
         MeshtasticFrameCodec.decode(corrupt_frame)
+
+
+def test_airtime_calculation_and_pacing():
+    """Verify LoRa airtime calculation and duty-cycle delay enforcement."""
+    from tfp_transport.meshtastic_bridge import AirtimePacer
+
+    # For SF7, BW 125 kHz, CR 4/5 (cr_index=1), 200B payload
+    # Theoretical airtime is typically ~300ms to 450ms
+    airtime_ms = AirtimePacer.compute_lora_airtime_ms(
+        payload_len=200, sf=7, bw_khz=125.0, cr=1, preamble_len=8, has_crc=True
+    )
+    assert 300.0 < airtime_ms < 450.0
+
+    # Test duty cycle delay:
+    # 1% duty cycle (0.01) means for 400ms of airtime, must rest >= 39.6 seconds
+    pacer = AirtimePacer(duty_cycle_fraction=0.01, sf=7, bw_khz=125.0, cr=1)
+    delay_s = pacer.calculate_required_delay(airtime_ms=400.0)
+    assert 39.0 <= delay_s <= 40.0
+
+    # 100% duty cycle (1.0) means no delay
+    unlimited_pacer = AirtimePacer(duty_cycle_fraction=1.0)
+    assert unlimited_pacer.calculate_required_delay(airtime_ms=400.0) == 0.0
+
