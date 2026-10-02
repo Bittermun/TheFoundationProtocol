@@ -72,6 +72,9 @@ crash.log
 # Build outputs
 *.so
 *.o
+*.exe
+phone_download/shared_image.bin
+phone_download/latest_meta.json
 
 # Secrets (belt-and-suspenders guard — never commit private keys)
 *.pem

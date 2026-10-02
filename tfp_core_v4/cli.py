@@ -128,8 +128,8 @@ def main(argv: list[str] | None = None):
     # Mesh Sim
     subparsers.add_parser("mesh-sim", help="Run offline community Wi-Fi mesh simulation")
 
-    # Visualize
     vis_p = subparsers.add_parser("visualize", help="Launch interactive protocol visualizer in browser")
+    vis_p.add_argument("--host", default="0.0.0.0", help="Host address to bind to (default: 0.0.0.0 for LAN/phone access)")
     vis_p.add_argument("--port", type=int, default=8080, help="Port to serve visualizer (default: 8080)")
     vis_p.add_argument("--no-browser", action="store_true", help="Do not auto-open browser")
     vis_p.add_argument("--data-dir", default=None, help="Article storage directory (default: ~/.tfp/visualizer or $TFP_VISUALIZER_DATA_DIR)")
@@ -515,8 +515,9 @@ def main(argv: list[str] | None = None):
         import webbrowser
 
         port = args.port
+        host = getattr(args, "host", "0.0.0.0")
         try:
-            httpd, actual_port = create_visualizer_server(port, data_dir=args.data_dir)
+            httpd, actual_port = create_visualizer_server(port, host=host, data_dir=args.data_dir)
         except FileNotFoundError as e:
             print(f"Error: {e}", file=sys.stderr)
             sys.exit(1)
@@ -525,6 +526,7 @@ def main(argv: list[str] | None = None):
         print("  THE FOUNDATION PROTOCOL: MATHEMATICAL STREAM VISUALIZER")
         print("=" * 65)
         print(f"  Local Dashboard: http://localhost:{actual_port}/visualizer.html")
+        print(f"  Phone / LAN URL: http://<Your-IP>:{actual_port}/visualizer.html")
         print(f"  Live Telemetry : http://localhost:{actual_port}/api/protocol-state")
         print("  Canvas Render  : 60 FPS GPU-Accelerated 2D Canvas")
         print("  Protocol Engine: Real FastCDC | Real Merkle | Real RaptorQ")

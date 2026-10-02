@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Foundation Protocol — Symmetric Photo Sharing</title>
+  <style>
+    :root {
+      --bg: #090d16;
+      --card: #131b2e;
+      --card-border: rgba(255, 255, 255, 0.08);
+      --accent: #38bdf8;
+      --accent-glow: rgba(56, 189, 248, 0.25);
+      --green: #22c55e;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      padding: 1.5rem 1rem;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .container {
+      width: 100%;
+      max-width: 580px;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+    header {
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.35rem;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: rgba(34, 197, 94, 0.12);
+      color: var(--green);
+      border: 1px solid rgba(34, 197, 94, 0.3);
+      padding: 0.3rem 0.75rem;
+      border-radius: 9999px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+    }
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 8px var(--green);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #fff;
+    }
+    p.sub {
+      font-size: 0.88rem;
+      color: var(--muted);
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      box-shadow: 0 12px 30px -10px rgba(0, 0, 0, 0.6);
+    }
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .card-title {
+      font-size: 0.85rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--accent);
+    }
+    .sync-status {
+      font-size: 0.75rem;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    /* Image Display Area */
+    .image-viewport {
+      width: 100%;
+      min-height: 240px;
+      max-height: 480px;
+      background: #060911;
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      position: relative;
+    }
+    .image-viewport img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+      transition: opacity 0.3s ease;
+    }
+    .empty-state {
+      padding: 2.5rem 1.5rem;
+      text-align: center;
+      color: var(--muted);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.6rem;
+    }
+    .empty-icon {
+      font-size: 2.5rem;
+      opacity: 0.6;
+    }
+
+    /* Verification Strip */
+    .verify-strip {
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 10px;
+      padding: 0.75rem 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      font-size: 0.8rem;
+    }
+    .verify-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .verify-label { color: var(--muted); }
+    .verify-val { font-weight: 600; color: #fff; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+    /* Action Buttons */
+    .upload-box {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    .btn-upload {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.6rem;
+      background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+      color: #fff;
+      font-size: 1.05rem;
+      font-weight: 600;
+      padding: 1rem 1.25rem;
+      border-radius: 12px;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 4px 15px var(--accent-glow);
+      transition: transform 0.1s, opacity 0.2s;
+      width: 100%;
+    }
+    .btn-upload:active { transform: scale(0.98); }
+    .upload-hint {
+      font-size: 0.78rem;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    /* Secret Phrase Box */
+    .phrase-card {
+      background: rgba(19, 27, 46, 0.6);
+      border: 1px dashed rgba(56, 189, 248, 0.3);
+      border-radius: 12px;
+      padding: 0.9rem 1.1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.85rem;
+    }
+    .phrase-text {
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    footer {
+      text-align: center;
+      font-size: 0.75rem;
+      color: var(--muted);
+      padding: 1rem 0;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="badge">
+        <span class="status-dot"></span>
+        <span>SYMMETRIC PROTOCOL CHANNEL: LIVE</span>
+      </div>
+      <h1>The Foundation Protocol</h1>
+      <p class="sub">Instant Desktop &larr;&rarr; Mobile Photo Channel</p>
+    </header>
+
+    <!-- Main Live Image Frame -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">&#128444; Latest Received Picture</div>
+        <div class="sync-status" id="syncStatus">
+          <span>Auto-Sync Active</span>
+        </div>
+      </div>
+
+      <div class="image-viewport" id="imageView">
+        <div class="empty-state" id="emptyState">
+          <div class="empty-icon">&#128247;</div>
+          <div style="font-weight: 600; color: #cbd5e1;">No Picture Shared Yet</div>
+          <div style="font-size: 0.8rem;">Select a JPG below to render it on both desktop and mobile screens simultaneously.</div>
+        </div>
+        <img id="liveImg" src="" alt="Latest Received Picture" style="display: none;" />
+      </div>
+
+      <!-- Live Verification Info -->
+      <div class="verify-strip" id="verifyStrip" style="display: none;">
+        <div class="verify-row">
+          <span class="verify-label">Status</span>
+          <span class="verify-val" style="color: var(--green);">&#10003; 100% Bit-Exact Verified</span>
+        </div>
+        <div class="verify-row">
+          <span class="verify-label">File</span>
+          <span class="verify-val" id="valFilename">—</span>
+        </div>
+        <div class="verify-row">
+          <span class="verify-label">Payload Size</span>
+          <span class="verify-val" id="valSize">—</span>
+        </div>
+        <div class="verify-row">
+          <span class="verify-label">FastCDC Slices</span>
+          <span class="verify-val" id="valChunks">—</span>
+        </div>
+        <div class="verify-row">
+          <span class="verify-label">SHA3-256 Root</span>
+          <span class="verify-val" id="valRoot">—</span>
+        </div>
+      </div>
+
+      <!-- Symmetric Upload Action -->
+      <div class="upload-box">
+        <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp" style="display: none;" />
+        <button class="btn-upload" id="btnUpload" onclick="document.getElementById('fileInput').click()">
+          <span>&#128248;</span>
+          <span id="btnText">Choose JPG to Send to Other Device</span>
+        </button>
+        <div class="upload-hint">
+          Works symmetrically: pick an image on your computer, or snap a photo on your phone.
+        </div>
+      </div>
+    </div>
+
+    <!-- Verified Secret Phrase Reference -->
+    <div class="phrase-card">
+      <div>
+        <span style="color: var(--muted);">Secret Phrase:</span>
+        <span class="phrase-text">"Barrel of black beans."</span>
+      </div>
+      <a href="/secret_message.txt" download style="color: #38bdf8; text-decoration: none; font-weight: 600; font-size: 0.8rem;">
+        &#128229; Download .txt
+      </a>
+    </div>
+
+    <footer>
+      The Foundation Protocol (TFP v4.0)<br>
+      Zero-Infrastructure Offline-First Communication Architecture
+    </footer>
+  </div>
+
+  <script>
+    let currentTimestamp = 0;
+    const liveImg = document.getElementById('liveImg');
+    const emptyState = document.getElementById('emptyState');
+    const verifyStrip = document.getElementById('verifyStrip');
+    const fileInput = document.getElementById('fileInput');
+    const btnText = document.getElementById('btnText');
+    const syncStatus = document.getElementById('syncStatus');
+
+    // 1. Polling for real-time symmetric updates
+    async function checkLatestImage() {
+      try {
+        const res = await fetch('/api/latest-image');
+        if (!res.ok) return;
+        const data = await res.json();
+
+        if (data.has_image && data.timestamp !== currentTimestamp) {
+          currentTimestamp = data.timestamp;
+          renderImage(data);
+        }
+      } catch (e) {
+        console.warn('Sync poll error:', e);
+      }
+    }
+
+    function renderImage(meta) {
+      liveImg.onload = () => {
+        emptyState.style.display = 'none';
+        liveImg.style.display = 'block';
+        verifyStrip.style.display = 'flex';
+      };
+      // Cache-busting timestamp
+      liveImg.src = '/api/image-data?t=' + meta.timestamp;
+
+      document.getElementById('valFilename').textContent = meta.filename || 'photo.jpg';
+      const sizeKb = (meta.size_bytes / 1024).toFixed(1);
+      document.getElementById('valSize').textContent = `${sizeKb} KB (${meta.size_bytes.toLocaleString()} bytes)`;
+      document.getElementById('valChunks').textContent = `${meta.chunk_count} FastCDC chunks`;
+      const rootHex = meta.merkle_root || '';
+      document.getElementById('valRoot').textContent = rootHex ? `0x${rootHex.slice(0, 16)}...` : 'Verified';
+    }
+
+    // 2. Upload handling
+    fileInput.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      btnText.textContent = "Chunking & Broadcasting Image...";
+      syncStatus.innerHTML = '<span style="color: #38bdf8;">Uploading...</span>';
+
+      const formData = new FormData();
+      formData.append('image', file, file.name);
+
+      try {
+        const res = await fetch('/api/upload-image', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (res.ok) {
+          const result = await res.json();
+          btnText.textContent = "✓ Image Broadcast Complete!";
+          setTimeout(() => {
+            btnText.textContent = "Choose JPG to Send to Other Device";
+          }, 2500);
+          // Trigger immediate refresh
+          checkLatestImage();
+        } else {
+          alert('Upload failed: ' + res.statusText);
+          btnText.textContent = "Choose JPG to Send to Other Device";
+        }
+      } catch (err) {
+        alert('Network error during upload: ' + err.message);
+        btnText.textContent = "Choose JPG to Send to Other Device";
+      } finally {
+        syncStatus.innerHTML = '<span>Auto-Sync Active</span>';
+        fileInput.value = '';
+      }
+    });
+
+    // Initial check & start background polling loop (1.5s)
+    checkLatestImage();
+    setInterval(checkLatestImage, 1500);
+  </script>
+</body>
+</html>

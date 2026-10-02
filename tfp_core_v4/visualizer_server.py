@@ -83,7 +83,9 @@ def get_static_assets_dir() -> Path:
     raise FileNotFoundError("Could not locate tfp_demo static assets directory.")
 
 
-def create_visualizer_server(port: int = 8080, *, data_dir: Path | str | None = None) -> tuple[Any, int]:
+def create_visualizer_server(
+    port: int = 8080, *, host: str = "0.0.0.0", data_dir: Path | str | None = None
+) -> tuple[Any, int]:
     """Create the dashboard, storing articles outside the installed code.
 
     Storage defaults to ~/.tfp/visualizer; an explicit data_dir takes precedence
@@ -632,6 +634,6 @@ Initiate active core rewarming with warmed IV saline at 39 degrees C.
         daemon_threads = True
         allow_reuse_address = True
 
-    server = ThreadedTCPServer(("127.0.0.1", port), VisualizerHandler)
+    server = ThreadedTCPServer((host, port), VisualizerHandler)
     actual_port = server.server_address[1]
     return server, actual_port
