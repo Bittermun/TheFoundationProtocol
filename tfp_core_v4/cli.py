@@ -210,7 +210,12 @@ def main(argv: list[str] | None = None):
     # Verify
     subparsers.add_parser("verify", help="Run automated self-verification test battery")
 
+    from tfp_core_v4.library_updates.cli import register as register_library_adapters
+    register_library_adapters(subparsers)
     args = parser.parse_args(argv)
+    if getattr(args, 'library_adapter', False):
+        from tfp_core_v4.library_updates.cli import run as run_library_adapter
+        return run_library_adapter(args)
 
     if args.command == "publish":
         path = Path(args.file_path)
@@ -1008,4 +1013,4 @@ def main(argv: list[str] | None = None):
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

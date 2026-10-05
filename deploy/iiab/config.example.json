@@ -1,0 +1,13 @@
+{
+  "library_id": "school",
+  "archive_dir": "/var/lib/tfp-library/archives",
+  "library_xml": "/var/lib/tfp-library/library.xml",
+  "state_dir": "/var/lib/tfp-library/private-state",
+  "base_archive": "/library/zims/content/operator-selected-base.zim",
+  "trusted_public_key": "/etc/tfp-library/publisher.pub",
+  "kiwix_manage": "/usr/local/bin/kiwix-manage",
+  "zimcheck": "/usr/local/bin/zimcheck",
+  "serve_base_url": "http://127.0.0.1:19879",
+  "probe_article_path": "index.html",
+  "command_timeout_seconds": 30
+}

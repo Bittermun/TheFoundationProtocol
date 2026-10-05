@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "generator": "libzim 3.13.0",
+  "content_license": "CC0-1.0",
+  "files": {
+    "base.zim": {
+      "sha3_256": "a4c795aa020650b5d2a1eaa2fd41b06e0dff89719521f3631fc3bf390c533919",
+      "bytes": 363989
+    },
+    "target.zim": {
+      "sha3_256": "568a2003925c2929af56c437a44437c32d82118b42abd70ee12ecf862221eebe",
+      "bytes": 363989
+    }
+  }
+}

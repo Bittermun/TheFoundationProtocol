@@ -244,7 +244,9 @@ class TestTFPPhase1Tier4Scenarios:
         """
         symbol_size = 256
         payload_size = 4096  # 16 source blocks
-        payload = os.urandom(payload_size)
+        # RootHash binds the repair matrix, so random payloads made this supposedly
+        # deterministic loss scenario occasionally rank-deficient between runs.
+        payload = hashlib.shake_256(b"tfp-phase1-high-loss-mesh-fixture-v1").digest(payload_size)
         root_hash = hashlib.sha3_256(payload).digest()
         session_nonce = b"mesh_field_deployment_alpha"
 

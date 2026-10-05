@@ -1,0 +1,19 @@
+[Unit]
+Description=Optional TFP offline-library update activation
+After=network.target
+
+[Service]
+Type=oneshot
+User=tfp-library
+Group=tfp-library
+UMask=0022
+ExecStart=/opt/tfp-library/bin/tfp library-activate /var/lib/tfp-library/incoming --config /etc/tfp-library/config.json --json
+NoNewPrivileges=true
+PrivateTmp=true
+MemoryMax=256M
+TimeoutStartSec=180
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/tfp-library
+
+# Run manually after a complete authorized package arrives; no automatic timer.
