@@ -2,7 +2,7 @@
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12%20%7C%203.13-blue)](https://python.org)
-[![Tests](https://img.shields.io/badge/Tests-Passing%20(49%2F49)-brightgreen)](https://github.com/Bittermun/TheFoundationProtocol)
+[![Tests](https://github.com/Bittermun/TheFoundationProtocol/actions/workflows/ci.yml/badge.svg)](https://github.com/Bittermun/TheFoundationProtocol/actions/workflows/ci.yml)
 [![Architecture](https://img.shields.io/badge/Architecture-Offline--First%20Narrow--Waist-purple)](#architecture--the-narrow-waist)
 
 > **A sovereign, zero-infrastructure content and compute distribution protocol engineered for disaster zones, austere environments, civil defense, and censorship-resistant global knowledge preservation.**
@@ -10,6 +10,11 @@
 ---
 
 ## Overview
+
+Optional operator-side **offline-library update adapters** prepare signed ZIM updates,
+deliver artifacts over the existing authenticated FM/FD UDP transport with checkpoint
+recovery, and stage Kiwix catalog activation. They add no phone assets or phone-side
+archive processing. See [pilot setup, limits and verification](docs/offline_library_pilot.md).
 
 The Foundation Protocol (TFP) enables reliable knowledge distribution over **any physical medium** without relying on centralized servers, domain name registries, or active internet infrastructure. From high-frequency radio and community Wi-Fi meshes to classroom PA speakers and smartphone microphones, TFP treats all networks as lossy, intermittent broadcast channels.
 

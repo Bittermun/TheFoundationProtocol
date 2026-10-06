@@ -12,6 +12,16 @@ from scripts.code_graph import CodeGraph, ASTVisitor, SymbolNode
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
+def test_operator_scratch_tools_are_not_production_symbols(tmp_path):
+    (tmp_path / 'real.py').write_text('def actual_protocol(): pass\n')
+    scratch = tmp_path / '.superpowers' / 'tools'
+    scratch.mkdir(parents=True)
+    (scratch / 'third_party.py').write_text('def unrelated_runtime(): pass\n')
+    graph = CodeGraph(tmp_path).build()
+    assert graph.query('actual_protocol')['found']
+    assert not graph.query('unrelated_runtime')['found']
+
+
 @pytest.fixture(scope="module")
 def shared_graph():
     """Builds the code graph once for read-only tests."""

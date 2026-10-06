@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "git_commit": "5486bb9a56ea262694b0c83d58ff6eba1abc4aff",
+  "git_dirty": true,
+  "python_version": "3.11.1 (tags/v3.11.1:a7a450f, Dec  6 2022, 19:58:39) [MSC v.1934 64 bit (AMD64)]",
+  "library_versions": {
+    "zstandard": "0.25.0",
+    "psutil": "7.2.2"
+  },
+  "inputs": {
+    "base": {
+      "path": "C:\\Users\\msunw\\Downloads\\TheFoundationProtocol\\tests\\fixtures\\library_update\\base.zim",
+      "size_bytes": 363989,
+      "sha3_256": "a4c795aa020650b5d2a1eaa2fd41b06e0dff89719521f3631fc3bf390c533919"
+    },
+    "target": {
+      "path": "C:\\Users\\msunw\\Downloads\\TheFoundationProtocol\\tests\\fixtures\\library_update\\target.zim",
+      "size_bytes": 363989,
+      "sha3_256": "568a2003925c2929af56c437a44437c32d82118b42abd70ee12ecf862221eebe"
+    },
+    "license_provenance": "CC0-1.0"
+  },
+  "results": {
+    "cdc": {
+      "backend": "cdc",
+      "status": "passed",
+      "failure_reason": null,
+      "raw_payload": {
+        "artifact_bytes": 83337,
+        "artifact_sha3": "7d6a1047592adc42a26b17ee466780c789253e1838215e631367b46f9d12d013",
+        "encode_elapsed_seconds": 0.266,
+        "decode_elapsed_seconds": 0.219,
+        "encode_peak_rss_bytes": 33415168,
+        "decode_peak_rss_bytes": 33509376,
+        "reconstructed_sha3": "568a2003925c2929af56c437a44437c32d82118b42abd70ee12ecf862221eebe",
+        "reconstructed_matches": true
+      },
+      "package": null
+    },
+    "zstd": {
+      "backend": "zstd",
+      "status": "passed",
+      "failure_reason": null,
+      "raw_payload": {
+        "artifact_bytes": 243,
+        "artifact_sha3": "fbf206375d6d57758b75e57884fd2846d1d0bdabcb5e71d0859ca57d8c2c52cd",
+        "encode_elapsed_seconds": 0.188,
+        "decode_elapsed_seconds": 0.187,
+        "encode_peak_rss_bytes": 31281152,
+        "decode_peak_rss_bytes": 31428608,
+        "reconstructed_sha3": "568a2003925c2929af56c437a44437c32d82118b42abd70ee12ecf862221eebe",
+        "reconstructed_matches": true
+      },
+      "package": null
+    },
+    "full": {
+      "backend": "full",
+      "status": "passed",
+      "failure_reason": null,
+      "raw_payload": {
+        "artifact_bytes": 363989,
+        "artifact_sha3": "568a2003925c2929af56c437a44437c32d82118b42abd70ee12ecf862221eebe",
+        "encode_elapsed_seconds": 0.109,
+        "decode_elapsed_seconds": 0.109,
+        "encode_peak_rss_bytes": 25325568,
+        "decode_peak_rss_bytes": 26873856,
+        "reconstructed_sha3": "568a2003925c2929af56c437a44437c32d82118b42abd70ee12ecf862221eebe",
+        "reconstructed_matches": true
+      },
+      "package": null
+    }
+  }
+}

@@ -7,6 +7,7 @@ Tests for FastCDC ZIM Cluster-Aware Delta Extractor & Patcher.
 
 import os
 import secrets
+import hashlib
 from pathlib import Path
 
 import pytest
@@ -24,12 +25,12 @@ def test_zim_delta_extraction_and_reconstruction(tmp_path: Path):
     target_zim = tmp_path / "v2.zim"
 
     # 20 clusters of 64 KB = 1,280 KB total archive
-    shared_clusters = [secrets.token_bytes(64 * 1024) for _ in range(20)]
+    shared_clusters = [hashlib.shake_256(f'cluster-{i}'.encode()).digest(64 * 1024) for i in range(20)]
     base_zim.write_bytes(b"".join(shared_clusters))
 
     # Mutate 1 cluster out of 20 (exactly 5% delta)
     mutated_clusters = list(shared_clusters)
-    mutated_clusters[5] = secrets.token_bytes(64 * 1024)
+    mutated_clusters[5] = hashlib.shake_256(b'mutated-cluster').digest(64 * 1024)
     target_zim.write_bytes(b"".join(mutated_clusters))
 
     patch_file = tmp_path / "patch.tfp"

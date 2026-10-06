@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "scenario": "real_udp_process_restart_then_kiwix",
+  "loss_rate": 0.3,
+  "loss_seed": 20261005,
+  "stages": {
+    "restart_delivery": "passed",
+    "reader_activation": "passed"
+  },
+  "fixture_target_sha3": "568a2003925c2929af56c437a44437c32d82118b42abd70ee12ecf862221eebe",
+  "checkpoint_chunks_before_restart": 1,
+  "status": "passed",
+  "artifact_kind": "delta",
+  "artifact_bytes": 83337,
+  "full_archive_bytes": 363989,
+  "proxy_received_wire_bytes": 772492,
+  "proxy_forwarded_wire_bytes": 516527,
+  "operator_process_tree_peak_rss_bytes": 43614208,
+  "elapsed_seconds": 27.718,
+  "restart_count": 1,
+  "wire_to_full_ratio": 2.1223,
+  "wheel_sha3": "4a85261ee97bfa24e303237551e4bbb82c2f156ee5ff75f5e87492aa94a0787a",
+  "loaded_adapter_path": "isolated wheel environment / Lib/site-packages/tfp_core_v4/library_updates/manifest.py",
+  "tools": {
+    "kiwix-tools": "3.8.1",
+    "zim-tools": "3.8.0",
+    "libzim_fixture_generator": "3.13.0"
+  },
+  "transport": {
+    "initial_rounds": 3,
+    "restart_rounds": 3,
+    "packet_interval_seconds": 0.01,
+    "receiver_deadline_seconds": 90,
+    "overall_deadline_seconds": 120,
+    "Windows_proxy_rebound_after_restart": true
+  },
+  "tested_source_base_commit": "d8fc066",
+  "source_state": "local implementation before commit"
+}

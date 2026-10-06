@@ -1,12 +1,12 @@
 # Reproducible Offline-Library Updates Implementation Plan
 
-> **For agentic workers:** Use superpowers:executing-plans to implement task-by-task. This is a planning deliverable, not authorization to implement or publish. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** Use superpowers:executing-plans to implement task-by-task. The user authorized design decisions and implementation on 2026-10-05; public publishing and partner contact remain outside this authorization. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Independently demonstrate an interrupted TFP archive update that recovers after restart, verifies the publisher and bytes, and becomes readable through Kiwix; then package that workflow for an IIAB pilot.
 
 **Architecture:** Reuse the existing media fountain wire protocol and checkpoint receiver. Treat archives and patches as opaque transfer artifacts; keep signed update authorization, patch reconstruction, and Kiwix activation separate. Deliver a bounded laptop demonstration first, a pinned Linux/Kiwix integration second, and IIAB deployment third.
 
-**Tech Stack:** Existing Python runtime, FastCDC/SHA3-256, existing Ed25519 dependency, SQLite, existing FM/FD fountain packets, Kiwix tools, optional Linux systemd deployment.
+**Tech Stack:** Existing Python runtime, FastCDC/SHA3-256, existing Ed25519 dependency, file journals, existing FM/FD fountain packets, Kiwix tools, optional hardened XML parser and Linux systemd deployment.
 
 **Spec:** The design brief and boundaries below are the proposed specification. User requested an explicit code/integration/avoidance plan following the adoption review. Existing anchors are verified against commit `d8fc066`; re-query the AST and refresh line references before execution.
 
@@ -162,3 +162,9 @@ powershell -ExecutionPolicy Bypass -File scripts/agent/run_agent_gate.ps1
 ```
 
 Linux integration lane: run `tests/integration/test_library_update_kiwix.py` with pinned real Kiwix/openZIM tools, then the complete installed-wheel demonstration and a disposable pinned IIAB installation. Release is blocked by unavailable/failing required integration checks, failed recovery checks, or unmeasured memory.
+
+## Execution record — 2026-10-05
+
+Tasks 1–4 implemented as bounded optional operator adapters. Actual CLI uses a package directory containing fixed `update.json`, `update.sig` and artifact filenames; receiver accepts no output paths from signed metadata. The installed-wheel restart/reader proof passed; see `docs/library_update_results.md`. Recovery uses fsynced file journals instead of introducing a database dependency. Dedicated adapter catalog/port ownership protects IIAB's existing content manager. Linux integration tests live in `tests/test_library_update_activation.py` and run through `.github/workflows/library-adapter.yml`.
+
+The generated compressed-ZIM pair, local evidence, operator/deployment guide and CI lane in Task 5 are implemented. Historical independent editions, same-link ordinary full/resume baseline, physical Raspberry Pi, physical poor-phone and disposable IIAB trials remain explicitly unverified adoption/deployment work. No efficiency or platform-certification claim is authorized by the present measurements. Proposed interfaces above are design anchors; shipped interfaces and commands are documented in the operator guide.

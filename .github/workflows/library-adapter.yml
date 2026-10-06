@@ -1,0 +1,36 @@
+name: Optional library adapter integration
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  real-kiwix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install ".[test,library]" libzim==3.13.0
+      - name: Install pinned optional operator tools
+        shell: bash
+        run: |
+          mkdir -p .superpowers/tools/kiwix .superpowers/tools/zim
+          curl --fail --location --max-time 120 https://download.kiwix.org/release/kiwix-tools/kiwix-tools_linux-x86_64-3.8.1.tar.gz -o .superpowers/tools/kiwix.tar.gz
+          curl --fail --location --max-time 120 https://download.openzim.org/release/zim-tools/zim-tools_linux-x86_64-3.8.0.tar.gz -o .superpowers/tools/zim.tar.gz
+          tar -xzf .superpowers/tools/kiwix.tar.gz -C .superpowers/tools/kiwix
+          tar -xzf .superpowers/tools/zim.tar.gz -C .superpowers/tools/zim
+          echo "KIWIX_MANAGE=$(find "$PWD/.superpowers/tools/kiwix" -type f -name kiwix-manage -print -quit)" >> "$GITHUB_ENV"
+          echo "KIWIX_SERVE=$(find "$PWD/.superpowers/tools/kiwix" -type f -name kiwix-serve -print -quit)" >> "$GITHUB_ENV"
+          echo "ZIMCHECK=$(find "$PWD/.superpowers/tools/zim" -type f -name zimcheck -print -quit)" >> "$GITHUB_ENV"
+      - name: Require actual reader tools
+        run: |
+          test -x "$KIWIX_MANAGE"
+          test -x "$KIWIX_SERVE"
+          test -x "$ZIMCHECK"
+          "$KIWIX_SERVE" --version
+          "$ZIMCHECK" --version
+      - name: Run real activation, recovery and reader permission checks
+        run: python -m pytest tests/test_library_update_activation.py tests/test_library_update_manifest.py tests/test_library_update_delivery.py tests/test_zim_patch_admission.py -q --tb=short
