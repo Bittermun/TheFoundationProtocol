@@ -45,7 +45,7 @@ def live_library(tmp_path):
         public.write_bytes(key.public_key().public_bytes_raw())
         from tfp_core_v4.library_updates.prepare import prepare_update
         package = prepare_update(base, target, tmp_path / 'package', 'school', 1, private)
-        yield dict(root=tmp_path, programs=programs, base=base, target=target, catalog=catalog, url=url, public=public, package=package, old_page=old_page, new_page=new_page)
+        yield dict(root=tmp_path, programs=programs, base=base, target=target, catalog=catalog, url=url, public=public, package=package, old_page=old_page, new_page=new_page, private=private)
     finally:
         process.terminate()
         process.wait(timeout=10)
@@ -55,6 +55,27 @@ def config(library, **overrides):
     adapter = importlib.import_module('tfp_core_v4.library_updates.activation')
     values = dict(library_id='school', archive_dir=library['root'] / 'archives', library_xml=library['catalog'], state_dir=library['root'] / 'state', base_archive=library['base'], trusted_public_key=library['public'], kiwix_manage=library['programs']['kiwix-manage'], zimcheck=library['programs']['zimcheck'], serve_base_url=library['url'], probe_article_path='index.html', command_timeout_seconds=5)
     return adapter, adapter.KiwixConfig(**dict(values, **overrides))
+
+
+@pytest.mark.parametrize('delta_backend', ['cdc', 'zstd'])
+def test_real_kiwix_activation_across_backends(live_library, delta_backend):
+    from tfp_core_v4.library_updates.prepare import prepare_update
+    adapter, cfg = config(live_library)
+    pkg = prepare_update(
+        live_library['base'],
+        live_library['target'],
+        live_library['root'] / f'package_{delta_backend}',
+        'school',
+        1,
+        live_library['private'],
+        delta_backend=delta_backend,
+    )
+    result = adapter.activate_package(pkg, cfg)
+    assert result.status == 'committed'
+    with urllib.request.urlopen(live_library['url'] + f'/raw/{result.target_path.stem}/content/index.html', timeout=3) as response:
+        assert response.read() == live_library['new_page']
+    assert adapter.activate_package(pkg, cfg).status == 'duplicate'
+    assert live_library['base'].exists()
 
 
 def test_real_kiwix_activation_and_duplicate_idempotence(live_library):
@@ -84,6 +105,26 @@ def test_corrupt_artifact_never_changes_catalog(live_library):
     original = live_library['catalog'].read_bytes()
     with pytest.raises(ValueError):
         adapter.activate_package(live_library['package'], cfg)
+    assert live_library['catalog'].read_bytes() == original
+
+
+def test_corrupt_zstd_artifact_never_changes_catalog(live_library):
+    from tfp_core_v4.library_updates.prepare import prepare_update
+    adapter, cfg = config(live_library)
+    pkg = prepare_update(
+        live_library['base'],
+        live_library['target'],
+        live_library['root'] / 'package_zstd_corrupt',
+        'school',
+        1,
+        live_library['private'],
+        delta_backend='zstd',
+    )
+    artifact = pkg / 'artifact.zst'
+    artifact.write_bytes(b'corrupt_zstd_bytes')
+    original = live_library['catalog'].read_bytes()
+    with pytest.raises(ValueError):
+        adapter.activate_package(pkg, cfg)
     assert live_library['catalog'].read_bytes() == original
 
 

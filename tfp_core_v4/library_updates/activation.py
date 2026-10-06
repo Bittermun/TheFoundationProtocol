@@ -182,11 +182,23 @@ def activate_package(package: Path, config: KiwixConfig) -> ActivationResult:
         if target.exists():
             if target.is_symlink() or not hmac.compare_digest(file_digest(target), update.target_sha3):
                 raise ValueError('Conflicting staged archive')
-        elif update.artifact_kind == 'delta':
+        elif update.format_name == 'tfpzimp1':
             ZimDeltaEngine(*update.chunker_params).apply_patch(base, artifact, target)
-        else:
+        elif update.format_name == 'zstd-rawdict-v1':
+            from .zstd_delta import apply_zstd_delta
+            apply_zstd_delta(
+                base,
+                artifact,
+                target,
+                base_sha3=update.base_sha3,
+                target_sha3=update.target_sha3,
+                target_size=update.target_size,
+            )
+        elif update.format_name == 'none':
             with new_output(target) as out, artifact.open('rb') as source:
                 shutil.copyfileobj(source, out, 1048576)
+        else:
+            raise ValueError(f'Unknown format: {update.format_name}')
         if target.stat().st_size != update.target_size or not hmac.compare_digest(file_digest(target), update.target_sha3):
             raise ValueError('Reconstructed target mismatch')
         # Offline library content is intentionally reader-accessible; state/keys remain private.

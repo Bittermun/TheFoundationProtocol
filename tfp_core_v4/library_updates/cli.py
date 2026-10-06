@@ -16,6 +16,7 @@ def register(subparsers):
     prepare.add_argument('--revision', type=int, required=True)
     prepare.add_argument('--signing-key', type=Path, required=True)
     prepare.add_argument('--out', type=Path, required=True)
+    prepare.add_argument('--delta-backend', choices=['cdc', 'zstd', 'auto'], default='cdc')
     prepare.set_defaults(library_adapter=True)
     for command in ('library-send', 'library-receive'):
         parser = subparsers.add_parser(command, help='Transfer an authorized artifact using existing FM/FD UDP packets')
@@ -46,7 +47,7 @@ def run(args) -> int:
     try:
         if args.command == 'library-prepare':
             from .prepare import prepare_update
-            result = {'package': str(prepare_update(args.base, args.target, args.out, args.library_id, args.revision, args.signing_key))}
+            result = {'package': str(prepare_update(args.base, args.target, args.out, args.library_id, args.revision, args.signing_key, delta_backend=args.delta_backend))}
         elif args.command in ('library-send', 'library-receive'):
             from .manifest import read_bounded, key_id, verify_descriptor, verify_update
             from .receive import send_artifact, receive_artifact

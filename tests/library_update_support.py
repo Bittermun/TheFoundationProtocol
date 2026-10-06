@@ -25,7 +25,7 @@ def tools():
     return result
 
 
-def create_zim(path, revision):
+def create_zim(path, revision, *, changed_asset_bytes=0):
     from libzim.writer import Creator, Item, StringProvider, Hint
 
     class FixtureItem(Item):
@@ -51,6 +51,9 @@ def create_zim(path, revision):
         # Incompressible deterministic assets expose real compressed-cluster delta behavior.
         for i in range(20):
             creator.add_item(FixtureItem(f'asset-{i}.bin', hashlib.shake_256(str(i).encode()).digest(16384), 'application/octet-stream'))
+        if changed_asset_bytes > 0:
+            extra_data = hashlib.shake_256(f'extra-{revision}'.encode()).digest(changed_asset_bytes)
+            creator.add_item(FixtureItem('changed-asset.bin', extra_data, 'application/octet-stream'))
     return page
 
 
