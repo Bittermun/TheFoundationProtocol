@@ -43,11 +43,12 @@ async def send_artifact(source: Path, host: str, port: int, transport_key: bytes
         raise ValueError('Invalid sender pacing or deadline')
     loop = asyncio.get_running_loop()
     sent = 0
+    packets = await asyncio.to_thread(list, artifact_packets(source, transport_key))
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
         sock.setblocking(False)
         async with asyncio.timeout(timeout_seconds):
             for _ in range(rounds):
-                for raw in artifact_packets(source, transport_key):
+                for raw in packets:
                     if len(raw) > 65507:
                         raise ValueError('Manifest exceeds UDP payload ceiling')
                     await asyncio.wait_for(loop.sock_sendto(sock, raw, (host, port)), timeout=timeout_seconds)
@@ -79,6 +80,7 @@ async def receive_artifact(expected_size: int, expected_sha3: str, destination: 
         receiver.reset()
     loop = asyncio.get_running_loop()
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1024 * 1024)
         sock.setblocking(False)
         sock.bind((host, port))
         async with asyncio.timeout(timeout_seconds):
@@ -97,6 +99,9 @@ async def receive_artifact(expected_size: int, expected_sha3: str, destination: 
             data = receiver.assemble()
             if len(data) != expected_size or not hmac.compare_digest(hashlib.sha3_256(data).hexdigest(), expected_sha3):
                 raise ValueError('Received artifact integrity failure')
-            with new_output(destination) as out:
-                out.write(data)
+            def write_output() -> None:
+                with new_output(destination) as out:
+                    out.write(data)
+
+            await asyncio.to_thread(write_output)
     return destination

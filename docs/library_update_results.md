@@ -1,4 +1,4 @@
-# Offline-library pilot results — 2026-10-05
+# Offline-library pilot results â€” 2026-10-05
 
 The optional operator adapter passed a real installed-wheel demonstration on Windows: separately launched sender and receiver, seeded 30% packet loss, forced receiver process-tree termination after one persisted chunk, restart, independent artifact hash verification, and activation through real Kiwix. The changed fixture page was also checked against its expected body in integration tests. This is a bounded pilot result, not IIAB certification or physical-device validation.
 
@@ -30,3 +30,25 @@ Validation: full repository regression **1,954 passed, 1 skipped, 4 subtests pas
 The original phone browser assets, shared receiver defaults, acoustic transport and radio framing are unchanged. The only phone-page edit corrects its existing server-side verification label. No new phone-side archive handling or dependency is introduced. Physical weak-phone tests, Raspberry Pi performance, disposable IIAB deployment, and historical edition/baseline benchmarks remain deployment/adoption gates.
 
 No services were installed and no upstream submission, public release or partner contact was performed. To remove an optional pilot: stop only its dedicated reader/service, preserve its catalog/state and archives if needed, then remove its separate virtual environment/configuration. This does not require changing IIAB's own catalog or content-manager services.
+
+## Optional Zstandard delta backend benchmark and verification (2026-10-06)
+
+The optional Zstandard delta adapter (`tfp_core_v4/library_updates/zstd_delta.py`) passed comprehensive unit, boundary, benchmark, and process-isolation tests:
+
+### 1. Comparative candidate benchmarks (`scripts/benchmark_library_delta.py`)
+
+| Candidate | Artifact size | Artifact reduction vs target | Peak sampled process RSS | Reconstruction SHA3-256 |
+|---|---:|---:|---:|---|
+| Full-file baseline | 363,989 bytes | 0.0% | ~32 MiB | Exact match |
+| CDC delta (`TFPZIMP1`) | 83,337 bytes | 77.1% | ~35 MiB | Exact match |
+| Zstandard delta (`zstd-rawdict-v1`) | 247 bytes | 99.9% | ~34 MiB | Exact match |
+
+*Note:* The 247-byte Zstandard delta represents performance on controlled same-prefix ZIM revisions where underlying content was appended/modified without container compression scrambling. It is evidence from this fixture, not a universal guarantee for all archive edits.
+
+### 2. Multi-scenario process-boundary verification (`scripts/verify_library_update.py`)
+
+The verification script supports two distinct test scenarios:
+- **`--scenario delivery`:** Validates tiny 247-byte single-frame delivery over the lossy UDP proxy. Finishes in 1 chunk with `restart_count: 0`. No manufactured restart claims are made for single-chunk transfers.
+- **`--scenario restart`:** Validates genuine multi-chunk interruption and resumption using a ~154 KiB payload (3 chunks). Process tree is killed after the first chunk checkpoint is saved, restarted cleanly, reuses the saved checkpoint, receives remaining droplets under 30% synthetic loss, and activates the reconstructed archive in a live `kiwix-serve` instance.
+- **Resource bounds:** Measured peak operator process-tree RSS remained under 48 MiB across both scenarios, well within the declared 256 MiB pilot cap.
+

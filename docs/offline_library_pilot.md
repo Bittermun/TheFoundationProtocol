@@ -8,6 +8,16 @@ The pilot accepts base/target archives up to 64 MiB, transfer artifacts up to 16
 
 Delta selection includes patch overhead: use a patch only when it is at most 80% of the full target; otherwise select the full archive if it fits. Poor deduplication is an ordinary fallback outcome, not an error to conceal. Patch/application limits can be supplied programmatically using `ZimPatchLimits`; default generic patch commands now reject oversized inputs rather than exhausting memory. Legacy v1 patches without chunker parameters are admitted only using original default parameters.
 
+### Optional Zstandard delta backend
+
+Operators can optionally select the Zstandard raw-content dictionary backend via `--delta-backend {cdc, zstd, auto}` on `library-prepare`.
+- **Backend caps:** Base dictionary cap 16 MiB (`MAX_BASE_DICT_BYTES`), Target cap 64 MiB (`MAX_TARGET_BYTES`), Artifact cap 16 MiB (`MAX_ARTIFACT_BYTES`), Decoder window cap 16 MiB (expressed as `window_log=24`). Peak process-tree RSS is bounded within the 256 MiB pilot cap.
+- **Signed schema v2:** Packages prepared with `zstd` use schema version 2 and declare `patch_format: "zstd-rawdict-v1"` with artifact file `artifact.zst`. Standard CDC patches remain schema version 1 (`patch_format` absent) with `artifact.tfp`.
+- **Selection modes:**
+  - `cdc` (default): Prepares standard CDC patch (`TFPZIMP1`, schema v1); falls back to full archive if target fits within 16 MiB.
+  - `zstd`: Rejects base archives > 16 MiB before processing; creates and locally validates a single-frame Zstandard raw-dictionary delta signed with schema v2.
+  - `auto`: Ranks eligible candidates (`cdc`, `zstd` if base <= 16 MiB, and `full` if target <= 16 MiB) by total on-the-wire package size (artifact + descriptor + signature), preferring CDC on exact ties. Falls back to full archive if no delta achieves at least 20% savings over target.
+
 ## Change map and risk
 
 | Code area | Shipped change | Risk boundary |
@@ -47,7 +57,7 @@ Path('transport.key').write_bytes(secrets.token_bytes(32))
 On the operator sender:
 
 ```text
-tfp library-prepare base.zim target.zim --library-id school --revision 1 --signing-key publisher.key --out package
+tfp library-prepare base.zim target.zim --library-id school --revision 1 --signing-key publisher.key --out package --delta-backend zstd
 tfp library-send package --library-id school --trusted-key publisher.pub --transport-key-file transport.key --host 192.168.1.20 --port 9876 --rounds 3 --timeout 120
 ```
 

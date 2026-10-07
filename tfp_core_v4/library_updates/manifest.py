@@ -1,5 +1,5 @@
 """Strict, locally authorized library update descriptors."""
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 import hashlib
 import hmac
 import json

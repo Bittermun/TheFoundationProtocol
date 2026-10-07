@@ -37,6 +37,9 @@ class LossProxy(asyncio.DatagramProtocol):
                 self.transport.sendto(raw, self.target)
             self.forwarded += len(raw)
 
+    def error_received(self, exc: Exception) -> None:
+        pass
+
 
 def kill_tree(process: subprocess.Popen) -> None:
     # Windows venv python.exe can be a launcher with an actual interpreter child.
@@ -55,6 +58,25 @@ def free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
         sock.bind(('127.0.0.1', 0))
         return sock.getsockname()[1]
+
+
+def is_port_bound(port: int) -> bool:
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            sock.bind(('127.0.0.1', port))
+            return False
+    except OSError:
+        return True
+
+
+async def wait_port(port: int, bound: bool, timeout: float = 10.0) -> None:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if is_port_bound(port) == bound:
+            return
+        await asyncio.sleep(0.05)
+    state = 'bound' if bound else 'unbound'
+    raise TimeoutError(f'Port {port} was not {state} within {timeout}s')
 
 
 async def demonstrate(args: argparse.Namespace) -> int:
@@ -104,21 +126,26 @@ async def demonstrate(args: argparse.Namespace) -> int:
         processes.append(process)
         return process
 
+    last_sample = 0.0
+
     async def wait_for(predicate) -> None:
-        nonlocal peak
+        nonlocal peak, last_sample
         while not predicate():
             if time.monotonic() - started > 120:
                 raise TimeoutError('Process-boundary demonstration exceeded deadline')
-            for process in processes:
-                if process.poll() is None:
-                    try:
-                        monitored = psutil.Process(process.pid)
-                        tree_rss = monitored.memory_info().rss + sum(
-                            child.memory_info().rss for child in monitored.children(recursive=True)
-                        )
-                        peak = max(peak, tree_rss)
-                    except (psutil.NoSuchProcess, psutil.AccessDenied):
-                        pass
+            now = time.monotonic()
+            if now - last_sample >= 0.1:
+                last_sample = now
+                for process in processes:
+                    if process.poll() is None:
+                        try:
+                            monitored = psutil.Process(process.pid)
+                            tree_rss = monitored.memory_info().rss + sum(
+                                child.memory_info().rss for child in monitored.children(recursive=True)
+                            )
+                            peak = max(peak, tree_rss)
+                        except (psutil.NoSuchProcess, psutil.AccessDenied):
+                            pass
             await asyncio.sleep(0.01)
 
     common = [
@@ -145,7 +172,7 @@ async def demonstrate(args: argparse.Namespace) -> int:
     try:
         if args.scenario == 'restart':
             first = launch(receive_command, 'receiver-before')
-            await asyncio.sleep(0.3)
+            await wait_port(receiver_port, bound=True)
             sender = launch(
                 ['library-send', str(args.package.resolve()), *common, '--port', str(proxy_port), '--rounds', '3', '--packet-interval', '.01'],
                 'sender-before',
@@ -159,13 +186,18 @@ async def demonstrate(args: argparse.Namespace) -> int:
             await asyncio.to_thread(kill_tree, first)
             if sender.poll() is None:
                 await asyncio.to_thread(kill_tree, sender)
+            await wait_port(receiver_port, bound=False)
             checkpoint_count = len(list((output / 'checkpoints').rglob('chunk_*.dat')))
             second = launch(receive_command, 'receiver-after')
-            await asyncio.sleep(0.3)
+            await wait_port(receiver_port, bound=True)
             proxy_port = free_port()
-            transport, _ = await loop.create_datagram_endpoint(lambda: proxy, local_addr=('127.0.0.1', proxy_port))
+            sock_after = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock_after.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1024 * 1024)
+            sock_after.bind(('127.0.0.1', proxy_port))
+            sock_after.setblocking(False)
+            transport, _ = await loop.create_datagram_endpoint(lambda: proxy, sock=sock_after)
             sender = launch(
-                ['library-send', str(args.package.resolve()), *common, '--port', str(proxy_port), '--rounds', '3', '--packet-interval', '.01'],
+                ['library-send', str(args.package.resolve()), *common, '--port', str(proxy_port), '--rounds', '5', '--packet-interval', '.005'],
                 'sender-after',
             )
             await wait_for(lambda: second.poll() is not None and sender.poll() is not None)
@@ -175,9 +207,9 @@ async def demonstrate(args: argparse.Namespace) -> int:
             report['stages']['restart_delivery'] = 'passed'
         else:  # delivery scenario (tiny artifact or standard uninterrupted transfer)
             receiver = launch(receive_command, 'receiver')
-            await asyncio.sleep(0.3)
+            await wait_port(receiver_port, bound=True)
             sender = launch(
-                ['library-send', str(args.package.resolve()), *common, '--port', str(proxy_port), '--rounds', '3', '--packet-interval', '.01'],
+                ['library-send', str(args.package.resolve()), *common, '--port', str(proxy_port), '--rounds', '5', '--packet-interval', '.005'],
                 'sender',
             )
             await wait_for(lambda: receiver.poll() is not None and sender.poll() is not None)
@@ -203,8 +235,8 @@ async def demonstrate(args: argparse.Namespace) -> int:
         transport.close()
         for process in processes:
             if process.poll() is None:
-                kill_tree(process)
-            process.wait(timeout=5)
+                await asyncio.to_thread(kill_tree, process)
+            await asyncio.to_thread(process.wait, timeout=5)
         for log in logs:
             log.close()
 

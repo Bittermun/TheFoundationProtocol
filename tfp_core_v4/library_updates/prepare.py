@@ -1,7 +1,6 @@
 """Prepare signed, bounded update packages without installing reader software."""
 from __future__ import annotations
 
-import os
 from pathlib import Path
 import shutil
 import tempfile
