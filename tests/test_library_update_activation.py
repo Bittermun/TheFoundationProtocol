@@ -53,7 +53,7 @@ def live_library(tmp_path):
 
 def config(library, **overrides):
     adapter = importlib.import_module('tfp_core_v4.library_updates.activation')
-    values = dict(library_id='school', archive_dir=library['root'] / 'archives', library_xml=library['catalog'], state_dir=library['root'] / 'state', base_archive=library['base'], trusted_public_key=library['public'], kiwix_manage=library['programs']['kiwix-manage'], zimcheck=library['programs']['zimcheck'], serve_base_url=library['url'], probe_article_path='index.html', command_timeout_seconds=5)
+    values = dict(library_id='school', archive_dir=library['root'] / 'archives', library_xml=library['catalog'], state_dir=library['root'] / 'state', base_archive=library['base'], trusted_public_key=library['public'], kiwix_manage=library['programs']['kiwix-manage'], zimcheck=library['programs']['zimcheck'], serve_base_url=library['url'], probe_article_path='index.html', command_timeout_seconds=15)
     return adapter, adapter.KiwixConfig(**dict(values, **overrides))
 
 
@@ -211,3 +211,177 @@ def test_utf16_xml_entity_expansion_rejected():
     raw = '<?xml version="1.0" encoding="UTF-16"?><!DOCTYPE library [<!ENTITY attack "expanded">]><library>&attack;</library>'.encode('utf-16')
     with pytest.raises((ValueError, DefusedXmlException)):
         parse_xml(raw)
+
+
+def test_verification_script_tiny_delivery(live_library):
+    import asyncio
+    import secrets
+    from tfp_core_v4.library_updates.prepare import prepare_update
+    from scripts.verify_library_update import demonstrate
+    import argparse
+
+    wheel_python = Path('.superpowers/wheel-env/Scripts/python.exe').resolve()
+    wheels = list(Path('.superpowers/wheels').glob('*.whl'))
+    if not wheel_python.exists() or not wheels:
+        pytest.skip('Installed wheel environment required for process boundary proof')
+
+    adapter, cfg = config(live_library)
+    transport_key = live_library['root'] / 'transport_tiny.key'
+    transport_key.write_bytes(secrets.token_bytes(32))
+
+    cfg_dict = {name: str(value) if isinstance(value, Path) else value for name, value in vars(cfg).items()}
+    config_file = live_library['root'] / 'config_tiny.json'
+    config_file.write_text(json.dumps(cfg_dict), encoding='utf-8')
+
+    pkg = prepare_update(
+        live_library['base'],
+        live_library['target'],
+        live_library['root'] / 'pkg_tiny_zstd',
+        'school',
+        1,
+        live_library['private'],
+        delta_backend='zstd',
+    )
+
+    out_dir = live_library['root'] / 'verify_tiny_out'
+    args = argparse.Namespace(
+        package=pkg,
+        public_key=live_library['public'],
+        transport_key=transport_key,
+        config=config_file,
+        python=wheel_python,
+        output=out_dir,
+        scenario='delivery',
+        wheel=wheels[0],
+        loss=0.3,
+        seed=20261005,
+    )
+
+    ret = asyncio.run(demonstrate(args))
+    assert ret == 0
+
+    report = json.loads((out_dir / 'report.json').read_text(encoding='utf-8'))
+    assert report['status'] == 'passed'
+    assert report['scenario'] == 'delivery'
+    assert report['restart_count'] == 0
+    assert report['stages']['delivery'] == 'passed'
+    assert report['stages']['reader_activation'] == 'passed'
+    assert report['operator_process_tree_peak_rss_bytes'] <= 256 * 1024 * 1024
+
+
+@pytest.mark.timeout(120)
+def test_verification_script_multi_chunk_restart(tmp_path):
+    import asyncio
+    import secrets
+    from tfp_core_v4.library_updates.prepare import prepare_update
+    from scripts.verify_library_update import demonstrate
+    import argparse
+
+    wheel_python = Path('.superpowers/wheel-env/Scripts/python.exe').resolve()
+    wheels = list(Path('.superpowers/wheels').glob('*.whl'))
+    if not wheel_python.exists() or not wheels:
+        pytest.skip('Installed wheel environment required for process boundary proof')
+
+    programs = tools()
+    base_mc = tmp_path / 'base_mc.zim'
+    target_mc = tmp_path / 'target_mc.zim'
+    old_page = create_zim(base_mc, revision=10, changed_asset_bytes=150 * 1024)
+    new_page = create_zim(target_mc, revision=11, changed_asset_bytes=150 * 1024)
+
+    catalog = tmp_path / 'catalog_mc.xml'
+    run([programs['kiwix-manage'], catalog, 'add', base_mc])
+
+    with socket.socket() as sock:
+        sock.bind(('127.0.0.1', 0))
+        port = sock.getsockname()[1]
+    proc = subprocess.Popen(
+        [str(programs['kiwix-serve']), '--library', '--monitorLibrary', '--address=127.0.0.1', f'--port={port}', str(catalog)],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    url = f'http://127.0.0.1:{port}'
+
+    try:
+        deadline = time.monotonic() + 8
+        while True:
+            try:
+                with urllib.request.urlopen(url + '/raw/base_mc/content/index.html', timeout=0.5) as response:
+                    assert response.read() == old_page
+                break
+            except OSError:
+                if time.monotonic() >= deadline:
+                    raise
+                time.sleep(0.1)
+
+        key = Ed25519PrivateKey.generate()
+        private = tmp_path / 'publisher_mc.key'
+        public = tmp_path / 'publisher_mc.pub'
+        private.write_bytes(key.private_bytes_raw())
+        public.write_bytes(key.public_key().public_bytes_raw())
+
+        pkg_mc = prepare_update(
+            base_mc,
+            target_mc,
+            tmp_path / 'package_mc',
+            'school_mc',
+            11,
+            private,
+            delta_backend='zstd',
+        )
+        assert (pkg_mc / 'artifact.zst').stat().st_size > 64 * 1024
+
+        from tfp_core_v4.library_updates.activation import KiwixConfig
+        cfg = KiwixConfig(
+            library_id='school_mc',
+            archive_dir=tmp_path / 'archives_mc',
+            library_xml=catalog,
+            state_dir=tmp_path / 'state_mc',
+            base_archive=base_mc,
+            trusted_public_key=public,
+            kiwix_manage=programs['kiwix-manage'],
+            zimcheck=programs['zimcheck'],
+            serve_base_url=url,
+            probe_article_path='index.html',
+            command_timeout_seconds=5,
+        )
+
+        transport_key = tmp_path / 'transport_mc.key'
+        transport_key.write_bytes(secrets.token_bytes(32))
+
+        cfg_dict = {name: str(value) if isinstance(value, Path) else value for name, value in vars(cfg).items()}
+        config_file = tmp_path / 'config_mc.json'
+        config_file.write_text(json.dumps(cfg_dict), encoding='utf-8')
+
+        out_dir = tmp_path / 'verify_mc_out'
+        args = argparse.Namespace(
+            package=pkg_mc,
+            public_key=public,
+            transport_key=transport_key,
+            config=config_file,
+            python=wheel_python,
+            output=out_dir,
+            scenario='restart',
+            wheel=wheels[0],
+            loss=0.3,
+            seed=20261005,
+        )
+
+        ret = asyncio.run(demonstrate(args))
+        assert ret == 0
+
+        report = json.loads((out_dir / 'report.json').read_text(encoding='utf-8'))
+        assert report['status'] == 'passed'
+        assert report['scenario'] == 'restart'
+        assert report['restart_count'] == 1
+        assert report['checkpoint_chunks_before_restart'] >= 1
+        assert report['stages']['restart_delivery'] == 'passed'
+        assert report['stages']['reader_activation'] == 'passed'
+        assert report['operator_process_tree_peak_rss_bytes'] <= 256 * 1024 * 1024
+
+        with urllib.request.urlopen(url + f'/raw/{report["fixture_target_sha3"]}/content/index.html', timeout=3) as resp:
+            assert resp.read() == new_page
+
+    finally:
+        proc.terminate()
+        proc.wait(timeout=10)
+
