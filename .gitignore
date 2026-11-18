@@ -25,9 +25,6 @@ ENV/
 .playwright-mcp/
 output/playwright/
 .agents/*
-!.agents/hooks.json
-!.agents/hooks/
-!.agents/hooks/**
 !.agents/skills/
 !.agents/skills/**
 .coverage
