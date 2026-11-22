@@ -30,12 +30,12 @@ def test_deployment_specification_document_covers_required_scenarios():
     assert doc_path.is_file(), "Phase B deployment specification must exist"
     text = doc_path.read_text(encoding="utf-8")
 
-    # Verify both scenarios and all 6 required dimensions + named targets are documented
+    # Check both setup scenarios, the deployment sections, and the evidence scope.
     for required_phrase in (
         "Prepared-Phone Scenario",
         "Fresh-Phone Scenario",
-        "Android 11+",
-        "iOS / iPadOS 16.4+",
+        "## Validation scope",
+        "with synthetic input",
         "How the Application Is Obtained",
         "How Microphone Access Becomes Available",
         "What the User Must Do",
