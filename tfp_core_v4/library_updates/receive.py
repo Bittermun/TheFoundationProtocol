@@ -14,6 +14,7 @@ from tfp_core_v4.zim_sync import check_output, new_output, valid_hash
 from .manifest import MAX_ARTIFACT, read_bounded
 
 TRANSPORT_CHUNK = 65536
+MAX_REPORTED_MISSING_CHUNKS = 16
 
 
 def validate_transport(size: int, digest: str, key: bytes) -> None:
@@ -65,6 +66,23 @@ def matches(manifest: MediaManifest | None, size: int, digest: str) -> bool:
                 and hmac.compare_digest(manifest.metadata['artifact_sha3'], digest))
 
 
+def _missing_chunks_detail(receiver: FountainStreamReceiver, size: int, digest: str) -> str:
+    manifest = receiver.latest_manifest
+    if not matches(manifest, size, digest):
+        return 'missing authenticated transport manifest'
+    session = receiver.derive_session_id(manifest)
+    chunks = receiver.reconstructed_chunks_by_session.get(session, {})
+    missing = [
+        f'{index}:{expected}'
+        for index, expected in enumerate(manifest.chunk_hashes)
+        if index not in chunks
+        or not hmac.compare_digest(hashlib.sha3_256(chunks[index]).hexdigest(), expected)
+    ]
+    entries = ', '.join(missing[:MAX_REPORTED_MISSING_CHUNKS])
+    suffix = f' (showing first {MAX_REPORTED_MISSING_CHUNKS})' if len(missing) > MAX_REPORTED_MISSING_CHUNKS else ''
+    return f'{len(missing)} missing verified chunks{suffix} (zero-based index:SHA3-256): {entries}'
+
+
 async def receive_artifact(expected_size: int, expected_sha3: str, destination: Path,
                            checkpoint_dir: Path, host: str, port: int,
                            timeout_seconds: float, transport_key: bytes) -> Path:
@@ -83,25 +101,34 @@ async def receive_artifact(expected_size: int, expected_sha3: str, destination: 
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 1024 * 1024)
         sock.setblocking(False)
         sock.bind((host, port))
-        async with asyncio.timeout(timeout_seconds):
-            while not receiver.is_complete():
-                raw = await asyncio.wait_for(loop.sock_recv(sock, 65535), timeout=timeout_seconds)
-                if raw.startswith(b'FM'):
-                    try:
-                        manifest = deserialize_manifest_packet(raw, secret_key=transport_key, verify_tag=True)
-                    except (AntiPollutionError, ValueError, KeyError, TypeError):
+        try:
+            async with asyncio.timeout(timeout_seconds):
+                while not receiver.is_complete():
+                    raw = await loop.sock_recv(sock, 65535)
+                    if raw.startswith(b'FM'):
+                        try:
+                            manifest = deserialize_manifest_packet(raw, secret_key=transport_key, verify_tag=True)
+                        except (AntiPollutionError, ValueError, KeyError, TypeError):
+                            continue
+                        if not matches(manifest, expected_size, expected_sha3):
+                            continue
+                    elif not matches(receiver.latest_manifest, expected_size, expected_sha3):
                         continue
-                    if not matches(manifest, expected_size, expected_sha3):
-                        continue
-                elif not matches(receiver.latest_manifest, expected_size, expected_sha3):
-                    continue
-                receiver.ingest_bytes(raw)
-            data = receiver.assemble()
-            if len(data) != expected_size or not hmac.compare_digest(hashlib.sha3_256(data).hexdigest(), expected_sha3):
-                raise ValueError('Received artifact integrity failure')
-            def write_output() -> None:
-                with new_output(destination) as out:
-                    out.write(data)
+                    receiver.ingest_bytes(raw)
+        except TimeoutError as exc:
+            details = _missing_chunks_detail(receiver, expected_size, expected_sha3)
+            raise TimeoutError(
+                f'Timed out receiving {destination.name} '
+                f'(SHA3-256 {expected_sha3}, {expected_size} bytes): {details}. '
+                'Rerun with the same checkpoint directory to resume.'
+            ) from exc
+    data = receiver.assemble()
+    if len(data) != expected_size or not hmac.compare_digest(hashlib.sha3_256(data).hexdigest(), expected_sha3):
+        raise ValueError('Received artifact integrity failure')
 
-            await asyncio.to_thread(write_output)
+    def write_output() -> None:
+        with new_output(destination) as out:
+            out.write(data)
+
+    await asyncio.to_thread(write_output)
     return destination

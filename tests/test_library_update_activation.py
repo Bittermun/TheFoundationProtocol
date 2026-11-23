@@ -86,6 +86,62 @@ def test_real_kiwix_activation_and_duplicate_idempotence(live_library):
         assert response.read() == live_library['new_page']
     assert adapter.activate_package(live_library['package'], cfg).status == 'duplicate'
     assert live_library['base'].exists()
+    with urllib.request.urlopen(live_library['url'] + '/raw/base/content/index.html', timeout=3) as response:
+        assert response.read() == live_library['old_page']
+
+
+def test_current_edition_catalog_reloads_on_activation_and_rollback(live_library, monkeypatch):
+    from tfp_core_v4.library_updates.kiwix import parse_xml
+    from tfp_core_v4.library_updates.prepare import prepare_update
+
+    adapter, cfg = config(live_library, current_edition_only=True)
+    legacy = live_library['root'] / 'legacy.zim'
+    create_zim(legacy, -1)
+    run([cfg.kiwix_manage, cfg.library_xml, 'add', legacy])
+    # Force Kiwix to observe a timestamp newer than subsequent normal writes.
+    future = time.time_ns() + 60_000_000_000
+    os.utime(cfg.library_xml, ns=(future, future))
+
+    def visible_editions(expected_count):
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            with urllib.request.urlopen(cfg.serve_base_url + '/catalog/v2/entries?count=-1', timeout=2) as response:
+                entries = parse_xml(response.read()).findall('{http://www.w3.org/2005/Atom}entry')
+            if len(entries) == expected_count:
+                return entries
+            time.sleep(.1)
+        pytest.fail(f'Kiwix did not show {expected_count} editions')
+
+    visible_editions(2)
+    revision_1 = adapter.activate_package(live_library['package'], cfg)
+    catalog_1 = cfg.library_xml.read_bytes()
+    mtime_1 = cfg.library_xml.stat().st_mtime_ns
+    assert mtime_1 > future
+    assert live_library['base'].exists() and legacy.exists()
+    assert len(parse_xml(catalog_1).findall('book')) == 1
+    edition_1 = visible_editions(1)[0].findtext('{http://www.w3.org/2005/Atom}id')
+
+    revision_2 = live_library['root'] / 'next.zim'
+    create_zim(revision_2, 2)
+    package_2 = prepare_update(revision_1.target_path, revision_2, live_library['root'] / 'release-2',
+                               cfg.library_id, 2, live_library['private'])
+    _, failed_cfg = config(live_library, current_edition_only=True, probe_article_path='missing.html',
+                           command_timeout_seconds=3)
+    real_probe = adapter.probe_reader
+
+    def fail_after_visible(base_url, archive, book_id, article, timeout, current_edition_only):
+        real_probe(base_url, archive, book_id, 'index.html', timeout, current_edition_only)
+        assert visible_editions(1)[0].findtext('{http://www.w3.org/2005/Atom}id') != edition_1
+        real_probe(base_url, archive, book_id, article, timeout, current_edition_only)
+
+    monkeypatch.setattr(adapter, 'probe_reader', fail_after_visible)
+    with pytest.raises(TimeoutError):
+        adapter.activate_package(package_2, failed_cfg)
+    assert cfg.library_xml.read_bytes() == catalog_1
+    assert cfg.library_xml.stat().st_mtime_ns > mtime_1
+    assert adapter.accepted_state(cfg)['revision'] == 1
+    real_probe(cfg.serve_base_url, revision_1.target_path, edition_1.removeprefix('urn:uuid:'),
+               cfg.probe_article_path, 5, True)
 
 
 def test_reader_failure_restores_old_catalog(live_library):

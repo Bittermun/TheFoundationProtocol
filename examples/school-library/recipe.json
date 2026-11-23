@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "title": "School library builder",
+  "summary": "Train an offline reading dictionary and publish a collection of UTF-8 lessons.",
+  "input": {
+    "suffix": ".txt",
+    "max_documents": 32,
+    "max_total_bytes": 2097152
+  },
+  "steps": [
+    {
+      "id": "dictionary",
+      "op": "lexicon.train",
+      "from": [
+        "docs"
+      ],
+      "params": {
+        "max_dict_kib": 4
+      }
+    },
+    {
+      "id": "articles",
+      "op": "article.package",
+      "from": [
+        "docs",
+        "dictionary"
+      ],
+      "params": {
+        "level": 5
+      }
+    },
+    {
+      "id": "kit",
+      "op": "pack.emit",
+      "from": [
+        "dictionary",
+        "articles"
+      ],
+      "params": {}
+    }
+  ]
+}

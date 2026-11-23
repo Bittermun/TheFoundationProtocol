@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<manifest xmlns="http://www.imsglobal.org/xsd/imsccv1p3/imscp_v1p1" identifier="garden-demo">
+  <organizations>
+    <organization identifier="course" structure="rooted-hierarchy">
+      <item identifier="unit">
+        <title>Field science</title>
+        <item identifier="read-observation" identifierref="observation"><title>Field observations</title></item>
+        <item identifier="read-journal" identifierref="journal"><title>Garden journal</title></item>
+      </item>
+    </organization>
+  </organizations>
+  <resources>
+    <resource identifier="journal" type="webcontent" href="wiki_content/journal.html">
+      <file href="wiki_content/journal.html"/>
+    </resource>
+    <resource identifier="observation" type="webcontent" href="wiki_content/observations.html">
+      <file href="wiki_content/observations.html"/>
+    </resource>
+  </resources>
+</manifest>

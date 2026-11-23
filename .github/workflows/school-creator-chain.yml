@@ -1,0 +1,23 @@
+name: Offline school creator chain
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  creator-chain:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Provision the local wheelhouse
+        run: python -m pip wheel --wheel-dir wheelhouse .
+      - name: Run author, publisher and reader from separate offline wheel installs
+        run: python scripts/verify_creator_chain.py --wheelhouse wheelhouse

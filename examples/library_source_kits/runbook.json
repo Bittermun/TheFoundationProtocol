@@ -1,0 +1,22 @@
+{
+  "playbooks": [
+    {
+      "title": "Reopen the offline library",
+      "trigger": "The site loses its upstream internet connection.",
+      "steps": [
+        "Connect to the school Wi-Fi and open the local library.",
+        "Search for the welcome article from a device with cellular data disabled.",
+        "Record the accepted edition in the operator log."
+      ]
+    },
+    {
+      "title": "Receive a new edition",
+      "trigger": "An approved publisher delivers a new library package.",
+      "steps": [
+        "Confirm the publisher identity using the local trust record.",
+        "Apply the signed update and check that the reader opens the new edition.",
+        "Keep the last working archive until the handoff is complete."
+      ]
+    }
+  ]
+}

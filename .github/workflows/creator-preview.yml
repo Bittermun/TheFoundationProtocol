@@ -1,0 +1,39 @@
+name: Creator preview
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/creator-preview.yml
+      - scripts/build_creator_preview.py
+      - examples/library_source_kits/**
+      - tfp_core_v4/cli.py
+      - tfp_core_v4/library_updates/**
+      - pyproject.toml
+      - setup.py
+
+permissions:
+  contents: read
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Build and install the author wheel
+        run: |
+          python -m pip wheel --no-deps --wheel-dir wheelhouse .
+          python scripts/check_distribution.py wheelhouse/tfp-*.whl
+          wheel=$(find wheelhouse -name 'tfp-*.whl' -print -quit)
+          python -m pip install "$wheel[library]" libzim==3.13.0
+      - name: Build and check four searchable libraries
+        run: python scripts/build_creator_preview.py --out tfp-creator-preview.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tfp-creator-preview
+          path: tfp-creator-preview.zip
+          if-no-files-found: error

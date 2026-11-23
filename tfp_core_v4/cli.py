@@ -212,7 +212,12 @@ def main(argv: list[str] | None = None):
 
     from tfp_core_v4.library_updates.cli import register as register_library_adapters
     register_library_adapters(subparsers)
+    from tfp_core_v4.creator_kits.cli import register as register_creator_kits
+    register_creator_kits(subparsers)
     args = parser.parse_args(argv)
+    if args.command == 'kit':
+        from tfp_core_v4.creator_kits.cli import run as run_creator_kit
+        return run_creator_kit(args)
     if getattr(args, 'library_adapter', False):
         from tfp_core_v4.library_updates.cli import run as run_library_adapter
         return run_library_adapter(args)

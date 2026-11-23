@@ -54,17 +54,19 @@ def test_zstd_roundtrip_is_byte_exact(tmp_path: Path) -> None:
     assert output.read_bytes() == target.read_bytes()
 
 
-def test_wrong_base_retains_existing_files(tmp_path: Path) -> None:
+@pytest.mark.parametrize('base_present', [True, False])
+def test_wrong_or_missing_base_names_the_exact_required_dictionary(tmp_path: Path, base_present: bool) -> None:
     base = Path("tests/fixtures/library_update/base.zim")
     target = Path("tests/fixtures/library_update/target.zim")
     wrong_base = tmp_path / "wrong_base.zim"
-    wrong_base.write_bytes(b"WRONG BASE CONTENT" * 100)
+    if base_present:
+        wrong_base.write_bytes(b"WRONG BASE CONTENT" * 100)
     artifact = tmp_path / "artifact.zst"
     output = tmp_path / "reconstructed.zim"
 
     info = create_zstd_delta(base, target, artifact)
 
-    with pytest.raises(ValueError, match="Base hash mismatch"):
+    with pytest.raises(ValueError, match=f"required Zstandard dictionary SHA3-256 {info.base_sha3}"):
         apply_zstd_delta(
             wrong_base,
             artifact,

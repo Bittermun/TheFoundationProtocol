@@ -125,8 +125,9 @@ def apply_zstd_delta(
     if type(target_size) is not int or not 0 < target_size <= MAX_TARGET_BYTES:
         raise ValueError(f"Target size must be positive and at most {MAX_TARGET_BYTES}")
 
+    dictionary = f"required Zstandard dictionary SHA3-256 {base_sha3}"
     if base.is_symlink() or not base.is_file() or base.stat().st_size == 0:
-        raise ValueError("Input file is empty or nonregular: base")
+        raise ValueError(f"Input file is empty or nonregular: base ({dictionary})")
     if artifact.is_symlink() or not artifact.is_file() or artifact.stat().st_size == 0:
         raise ValueError("Input file is empty or nonregular: artifact")
 
@@ -138,7 +139,7 @@ def apply_zstd_delta(
     base_bytes = base.read_bytes()
     actual_base_sha3 = hashlib.sha3_256(base_bytes).hexdigest()
     if not hmac.compare_digest(actual_base_sha3, base_sha3):
-        raise ValueError("Base hash mismatch")
+        raise ValueError(f"Base hash mismatch ({dictionary}, found SHA3-256 {actual_base_sha3})")
 
     artifact_bytes = artifact.read_bytes()
 

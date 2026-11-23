@@ -32,5 +32,5 @@ jobs:
           test -x "$ZIMCHECK"
           "$KIWIX_SERVE" --version
           "$ZIMCHECK" --version
-      - name: Run real activation, recovery and reader permission checks
-        run: python -m pytest tests/test_library_update_activation.py tests/test_library_update_manifest.py tests/test_library_update_delivery.py tests/test_zim_patch_admission.py -q --tb=short
+      - name: Run real converter, activation, recovery and reader permission checks
+        run: python -m pytest tests/test_library_update_activation.py tests/test_library_update_manifest.py tests/test_library_update_delivery.py tests/test_library_converter.py tests/test_zim_patch_admission.py -q --tb=short

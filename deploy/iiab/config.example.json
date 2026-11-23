@@ -9,5 +9,6 @@
   "zimcheck": "/usr/local/bin/zimcheck",
   "serve_base_url": "http://127.0.0.1:19879",
   "probe_article_path": "index.html",
-  "command_timeout_seconds": 30
+  "command_timeout_seconds": 30,
+  "current_edition_only": true
 }

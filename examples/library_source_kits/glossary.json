@@ -1,0 +1,4 @@
+{
+  "Replication": "Run a named procedure independently and compare the observed results.",
+  "Watermark": "Remember the latest accepted revision to prevent older files from replacing it."
+}

@@ -9,6 +9,27 @@ import sys
 
 
 def register(subparsers):
+    build = subparsers.add_parser('library-build', help='Build a ZIM using a trusted local document converter')
+    build.add_argument('recipe', type=Path)
+    build.add_argument('--input-dir', type=Path, required=True)
+    build.add_argument('--out', type=Path, required=True)
+    converter = build.add_mutually_exclusive_group(required=True)
+    converter.add_argument('--converter-module', help='Trusted installed Python module')
+    converter.add_argument('--converter-file', type=Path, help='Trusted local Python file')
+    build.set_defaults(library_adapter=True)
+    ingest = subparsers.add_parser('library-import', help='Build a searchable ZIM with a source kit')
+    ingest.add_argument('source', type=Path)
+    ingest.add_argument('--out', type=Path, required=True)
+    ingest.add_argument('--title', required=True)
+    ingest.add_argument('--publisher', required=True)
+    ingest.add_argument('--creator', help='Defaults to the publisher')
+    ingest.add_argument('--description', help='Defaults to the title')
+    ingest.add_argument('--language', default='eng')
+    ingest.add_argument('--date', required=True, help='Edition date in YYYY-MM-DD form')
+    adapter = ingest.add_mutually_exclusive_group(required=True)
+    adapter.add_argument('--kit', choices=('canvas', 'field-guide', 'directory', 'runbook'))
+    adapter.add_argument('--source-module', help='Trusted installed Python adapter module')
+    ingest.set_defaults(library_adapter=True)
     prepare = subparsers.add_parser('library-prepare', help='Prepare a signed offline-library update')
     prepare.add_argument('base', type=Path)
     prepare.add_argument('target', type=Path)
@@ -45,7 +66,25 @@ def register(subparsers):
 
 def run(args) -> int:
     try:
-        if args.command == 'library-prepare':
+        if args.command == 'library-build':
+            from .converter import build_library
+            count = build_library(
+                args.recipe, args.input_dir, args.out,
+                converter_module=args.converter_module, converter_file=args.converter_file,
+            )
+            result = {'archive': str(args.out), 'documents': count}
+        elif args.command == 'library-import':
+            from .source_kits import build_source_library
+            metadata = {
+                'title': args.title, 'description': args.description or args.title,
+                'publisher': args.publisher, 'creator': args.creator or args.publisher,
+                'language': args.language, 'date': args.date,
+            }
+            count = build_source_library(
+                args.source, args.out, metadata, kit=args.kit, source_module=args.source_module,
+            )
+            result = {'archive': str(args.out), 'documents': count}
+        elif args.command == 'library-prepare':
             from .prepare import prepare_update
             result = {'package': str(prepare_update(args.base, args.target, args.out, args.library_id, args.revision, args.signing_key, delta_backend=args.delta_backend))}
         elif args.command in ('library-send', 'library-receive'):

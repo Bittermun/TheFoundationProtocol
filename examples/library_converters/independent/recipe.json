@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "title": "Volunteer Checklists",
+  "description": "Reading room and workshop checklists for offline reference",
+  "language": "eng",
+  "creator": "Example Volunteer Group",
+  "publisher": "Example Volunteer Group",
+  "date": "2026-11-18",
+  "documents": ["reading-room.csv", "community-workshop.csv"]
+}

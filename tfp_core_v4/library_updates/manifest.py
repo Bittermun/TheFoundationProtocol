@@ -29,7 +29,11 @@ def file_digest(path: Path) -> str:
 
 
 def read_bounded(path: Path, maximum: int) -> bytes:
-    if path.is_symlink() or not path.is_file():
+    if path.is_symlink():
+        raise ValueError('Expected a regular file')
+    if not path.is_file():
+        if not path.exists():
+            raise ValueError(f'Missing required file: {path.name}')
         raise ValueError('Expected a regular file')
     with path.open('rb') as stream:
         raw = stream.read(maximum + 1)
@@ -164,6 +168,11 @@ def verify_descriptor(package: Path, trusted_keys: dict[str, bytes], library_id:
 
 def verify_artifact(update: VerifiedUpdate, path: Path) -> None:
     if path.is_symlink() or not path.is_file() or path.stat().st_size != update.artifact_size:
+        if not path.exists() and not path.is_symlink():
+            raise ValueError(
+                f'Missing required artifact {path.name} '
+                f'(SHA3-256 {update.artifact_sha3}, {update.artifact_size} bytes)'
+            )
         raise ValueError('Invalid artifact size or path')
     if not hmac.compare_digest(file_digest(path), update.artifact_sha3):
         raise ValueError('Invalid artifact digest')
