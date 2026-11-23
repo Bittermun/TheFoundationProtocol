@@ -10,6 +10,7 @@ import shutil
 import tempfile
 import stat
 import sys
+import time
 
 from tfp_core_v4.zim_sync import ZimDeltaEngine, new_output, unique_object, valid_hash
 from .kiwix import prepare_catalog, probe_reader, validate_zim
@@ -29,6 +30,7 @@ class KiwixConfig:
     serve_base_url: str
     probe_article_path: str
     command_timeout_seconds: float = 10
+    current_edition_only: bool = False
 
     def __post_init__(self):
         for name in ('archive_dir', 'library_xml', 'state_dir', 'base_archive', 'trusted_public_key', 'kiwix_manage', 'zimcheck'):
@@ -38,6 +40,8 @@ class KiwixConfig:
             object.__setattr__(self, name, path.resolve())
         if not math.isfinite(self.command_timeout_seconds) or self.command_timeout_seconds <= 0:
             raise ValueError('Invalid command deadline')
+        if type(self.current_edition_only) is not bool:
+            raise ValueError('current_edition_only must be a boolean')
         if self.base_archive == self.library_xml or self.archive_dir == self.state_dir:
             raise ValueError('Archive, catalog and state paths must be distinct')
 
@@ -59,7 +63,7 @@ def sync_directory(path: Path) -> None:
             os.close(fd)
 
 
-def atomic_bytes(path: Path, raw: bytes) -> None:
+def atomic_bytes(path: Path, raw: bytes, *, advance_mtime: bool = False) -> None:
     if path.is_symlink():
         raise ValueError('Refusing symlink destination')
     previous = path.stat() if path.exists() else None
@@ -74,6 +78,12 @@ def atomic_bytes(path: Path, raw: bytes) -> None:
             stream.write(raw)
             stream.flush()
             os.fsync(stream.fileno())
+        if advance_mtime and previous:
+            # Kiwix 3.8.1 reloads only when the whole-second mtime increases.
+            second = 1_000_000_000
+            next_second = (previous.st_mtime_ns // second + 1) * second
+            now = time.time_ns()
+            os.utime(temporary, ns=(now, max(now, next_second)))
         os.replace(temporary, path)
         sync_directory(path.parent)
     finally:
@@ -148,7 +158,7 @@ def _recover(config: KiwixConfig) -> bool:
     previous = journal['previous_state']
     if not hmac.compare_digest(canonical(accepted), canonical(previous)):
         raise ValueError('Accepted state changed externally; recovery refused')
-    atomic_bytes(config.library_xml, original)
+    atomic_bytes(config.library_xml, original, advance_mtime=True)
     journal_path.unlink()
     sync_directory(config.state_dir)
     return True
@@ -173,7 +183,11 @@ def activate_package(package: Path, config: KiwixConfig) -> ActivationResult:
         if update.revision == previous['revision']:
             return ActivationResult('duplicate', update.revision, base, recovered)
         if not hmac.compare_digest(update.base_sha3, previous['target_sha3']):
-            raise ValueError('Update does not match accepted base archive')
+            dependency = 'base archive (Zstandard dictionary)' if update.format_name == 'zstd-rawdict-v1' else 'base archive'
+            raise ValueError(
+                f'Update does not match accepted base archive. Required {dependency} SHA3-256 '
+                f'{update.base_sha3}, accepted SHA3-256 {previous["target_sha3"]}'
+            )
         config.archive_dir.mkdir(mode=0o755, parents=True, exist_ok=True)
         target = config.archive_dir / (update.target_sha3 + '.zim')
         if shutil.disk_usage(config.archive_dir).free < update.target_size + 2 * 1048576:
@@ -209,7 +223,10 @@ def activate_package(package: Path, config: KiwixConfig) -> ActivationResult:
         os.close(fd)
         candidate = Path(name)
         try:
-            book_id = prepare_catalog(config.library_xml, candidate, target, config.kiwix_manage, config.command_timeout_seconds)
+            book_id = prepare_catalog(
+                old_catalog, candidate, target, config.kiwix_manage, config.command_timeout_seconds,
+                current_edition_only=config.current_edition_only,
+            )
             new_catalog = read_bounded(candidate, 1048576)
             # Never overwrite catalog edits made during reconstruction/tool execution.
             if not hmac.compare_digest(file_digest(config.library_xml), hashlib_digest(old_catalog)):
@@ -221,8 +238,11 @@ def activate_package(package: Path, config: KiwixConfig) -> ActivationResult:
             try:
                 if not hmac.compare_digest(file_digest(config.library_xml), journal['old_catalog_sha3']):
                     raise ValueError('Catalog changed externally before switch')
-                atomic_bytes(config.library_xml, new_catalog)
-                probe_reader(config.serve_base_url, target, book_id, config.probe_article_path, config.command_timeout_seconds)
+                atomic_bytes(config.library_xml, new_catalog, advance_mtime=True)
+                probe_reader(
+                    config.serve_base_url, target, book_id, config.probe_article_path,
+                    config.command_timeout_seconds, config.current_edition_only,
+                )
                 if not hmac.compare_digest(file_digest(config.library_xml), journal['new_catalog_sha3']):
                     raise ValueError('Catalog changed externally during reader probe')
                 atomic_bytes(config.state_dir / 'accepted.json', canonical(next_state))
