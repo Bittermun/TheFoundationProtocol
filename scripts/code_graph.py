@@ -604,7 +604,7 @@ class CodeGraph:
         }
 
     def detailed_export(self) -> Dict[str, Any]:
-        """Exports enriched code graph with metadata, package breakdown, test coverage, and architectural commentary."""
+        """Exports the Python symbol index with metadata and static reference analysis."""
         git_info = _get_git_info(self.root_dir)
         now_utc = datetime.now(timezone.utc).isoformat()
 
@@ -619,33 +619,17 @@ class CodeGraph:
             "metadata": {
                 "protocol": "The Foundation Protocol (TFP)",
                 "protocol_version": "v4.0.0",
-                "schema_version": "2.1.0",
+                "schema_version": "3.0.0",
                 "generated_at": now_utc,
                 "git_commit": git_info["commit"],
                 "git_branch": git_info["branch"],
                 "repository": "https://github.com/Bittermun/TheFoundationProtocol",
                 "ast_engine": "Python standard library ast (deterministic zero-dependency)",
+                "analysis_scope": "Static Python AST. Test links are matched call names.",
             },
             "stats": self.stats(),
             "package_breakdown": self.package_breakdown(),
             "structural_findings": self.audit(),
-            "architectural_commentary": {
-                "mission": "Zero-infrastructure, physical-layer resilient knowledge dissemination for disaster recovery, grid failure, and off-grid triage.",
-                "fountain_erasure_coding": "Dual-engine architecture: BinaryLinearErasureCodec (pure-Python systematic GF(2) XOR Cauchy linear erasure code with Gaussian elimination) and FountainStreamer (Luby Transform rateless Soliton code for broadcast loss recovery).",
-                "content_defined_chunking": "FastCDC boundary-shift resistant chunking using a 256-entry 64-bit gear matrix and normalized sub-chunk masks (min: 512B, avg: 1-4KB, max: 8KB).",
-                "cryptographic_integrity": "SHA3-256 Merkle audit path proofs, Ed25519 manifest digital signatures, and per-shard HMAC-SHA3-256 integrity checks.",
-                "physical_modulation": "Bell 202 Audio Frequency Shift Keying (1200/2200 Hz Mark/Space) at 1200/300 baud with CRC-16 checksums for analog radios and audio cables.",
-                "durable_persistence": "SQLite persistent database store (TFPNode) decoupling reader chunking configuration from on-disk Content Defined Chunk recipes.",
-                "bulletin_lifecycle_and_watermarks": "Monotone revision watermarks (bulletin_watermarks) persisted independently of prunable display bulletins, enforcing publisher key pinning, full-identity (title + content hash) revision conflict rejection, and atomic upgrade backfilling.",
-                "browser_scope_note": "The graph indexes Python AST only. The following browser descriptions are manually maintained; browser behavior is established by browser integration tests and physical-device trials, not this graph.",
-                "decoupled_receiver_trust_boundary": "Browser receiver hashes content and verifies canonical v2 Ed25519 signatures with locally bundled, pinned noble cryptography; unsigned, invalid-signature, unknown-key, and trusted-publisher states keep separate authoritative revision watermarks.",
-                "prepared_phone_offline_readiness": "Release-specific immutable Service Worker cache contains receiver HTML, stream engine, AudioWorklet, crypto bundle, and publisher configuration for prepared-phone offline reopening. Waiting activation avoids mixing a new worker into existing tabs.",
-                "browser_audio_worklet_pipeline": "AudioWorklet sends transferred PCM buffers to a bounded main-thread decoder queue, with buffer return, observed drop/gap telemetry, and separate main-thread and worklet scheduling-delay measurements. Hardware acoustic performance remains unmeasured.",
-                "operator_rehearsal_harness": "End-to-end station-to-listener simulation harness (scripts/rehearse_operator_workflow.py) validating notice authoring, Ed25519 signing, AFSK modulation, missed-broadcast gap detection, correction distribution, and stale replay rejection.",
-                "modular_visualizer": "Isolated multi-threaded visualizer server (visualizer_server.py) providing real-time Server-Sent Events (SSE) telemetry and 60 FPS GPU-accelerated canvas visualization.",
-                "zero_touch_appliances": "Audio Scholar headless triage daemon (UDP/sound) and zero-install browser acoustic microphone receiver for broken-screen and weak mobile devices.",
-                "adversarial_certification": "Autonomous adversarial fault injection runner (scripts/run_adversarial_audit.py) verifying invariants across mutants M1-M5 with certified negative proof.",
-            },
             "test_coverage_index": {
                 "tested_symbol_count": len(test_coverage),
                 "coverage_map": test_coverage,

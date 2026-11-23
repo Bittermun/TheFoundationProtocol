@@ -35,5 +35,3 @@ The publisher approves the source and its reuse permission, records the source r
 | --- | --- | --- |
 | Edition 3 | Build and verify the new search index, then sign against edition 2. | Apply edition 3 and confirm its search result. |
 | Edition 4 | Repeat against edition 3. | Apply edition 4. A station still on edition 2 applies 3 and 4 in order. |
-
-[Draft request for a publisher](publisher-request.md)
