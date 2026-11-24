@@ -38,7 +38,7 @@ Installation only uses supplied local files. It verifies all three signatures an
 
 ## Scope of the school-library profile
 
-The school profiles use a bounded stored ZIP with the shared envelope field layout. The writer uses SHA3-256 and Ed25519. The school reader also recognizes SHA-256 envelopes for these profiles. This is a profile-specific path with a small license allowlist and an explicit key-and-ID pin. The general pack store, namespace administration, ZIP deflate, arbitrary recipe graphs, nested builders, ZIM export, and UI integration are separate work. Existing library-update and article formats have their own verification and remain compatible with their existing readers.
+The school profiles use a bounded stored ZIP with the shared envelope field layout. The writer uses SHA3-256 and Ed25519. The school reader also recognizes SHA-256 envelopes for these profiles. This is a profile-specific path with a small license allowlist and an explicit key-and-ID pin. Existing library-update and article formats have their own verification and readers.
 
 Run the separate-environment proof with Python 3.11. Provision the wheelhouse once, then the verification installs from it with package indexes disabled. All three role processes reject Python socket operations.
 
